@@ -196,6 +196,6 @@ curl http://localhost:8080/api/version
 
 ---
 
-**🌐 在线演示**: https://relaypulse.top
-**📦 镜像仓库**: `ghcr.io/prehisle/relay-pulse:latest`
-**💬 问题反馈**: https://github.com/prehisle/relay-pulse/issues
+- **🌐 在线演示**: https://relaypulse.top
+- **📦 镜像仓库**: `ghcr.io/prehisle/relay-pulse:latest`
+- **💬 问题反馈**: https://github.com/prehisle/relay-pulse/issues
