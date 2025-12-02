@@ -182,6 +182,6 @@ Issues and Pull Requests welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ---
 
-**🌐 Live Demo**: https://relaypulse.top
-**📦 Docker Image**: `ghcr.io/prehisle/relay-pulse:latest`
-**💬 Issues**: https://github.com/prehisle/relay-pulse/issues
+- **🌐 Live Demo**: https://relaypulse.top
+- **📦 Docker Image**: `ghcr.io/prehisle/relay-pulse:latest`
+- **💬 Issues**: https://github.com/prehisle/relay-pulse/issues
