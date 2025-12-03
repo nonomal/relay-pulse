@@ -127,7 +127,7 @@ function MobileListItem({
       </div>
 
       {/* 热力图 */}
-      <div className="flex gap-[2px] h-6 w-full">
+      <div className="flex items-center gap-[2px] h-6 w-full overflow-hidden rounded-sm">
         {aggregatedHistory.map((point, idx) => (
           <HeatmapBlock
             key={idx}
@@ -458,8 +458,8 @@ export function StatusTable({
                   <span className="text-slate-600 text-xs">-</span>
                 )}
               </td>
-              <td className="p-4">
-                <div className="flex gap-[2px] h-6 w-full max-w-xs">
+              <td className="p-4 align-middle">
+                <div className="flex items-center gap-[2px] h-6 w-full max-w-xs overflow-hidden rounded-sm">
                   {item.history.map((point, idx) => (
                     <HeatmapBlock
                       key={idx}
