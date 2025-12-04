@@ -149,8 +149,8 @@ type CurrentStatus struct {
 // MonitorResult API返回结构
 type MonitorResult struct {
 	Provider     string              `json:"provider"`
-	ProviderSlug string              `json:"provider_slug"`           // URL slug（用于生成专属页面链接）
-	ProviderURL  string              `json:"provider_url"`            // 服务商官网链接
+	ProviderSlug string              `json:"provider_slug"` // URL slug（用于生成专属页面链接）
+	ProviderURL  string              `json:"provider_url"`  // 服务商官网链接
 	Service      string              `json:"service"`
 	Category     string              `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
 	Sponsor      string              `json:"sponsor"`                 // 赞助者
