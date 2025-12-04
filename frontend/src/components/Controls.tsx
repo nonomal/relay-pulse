@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Filter, RefreshCw, LayoutGrid, List, X } from 'lucide-react';
+import { Filter, RefreshCw, LayoutGrid, List, X, Clock, AlignStartVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
 import type { ViewMode, ProviderOption } from '../types';
@@ -209,28 +209,36 @@ export function Controls({
           {getTimeRanges(t).map((range) => (
             <button
               key={range.id}
-              onClick={() => {
-                if (range.id === '24h' && timeRange === '24h') {
-                  // 已选中 24h，点击切换对齐模式
-                  onTimeAlignChange(timeAlign === 'hour' ? '' : 'hour');
-                } else {
-                  onTimeRangeChange(range.id);
-                }
-              }}
-              title={range.id === '24h' && timeRange === '24h'
-                ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
-                : undefined}
+              onClick={() => onTimeRangeChange(range.id)}
               className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
                 timeRange === range.id
                   ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
               }`}
             >
-              {range.id === '24h' && timeRange === '24h'
-                ? (timeAlign === 'hour' ? t('controls.timeRanges.24hHour') : t('controls.timeRanges.24hLive'))
-                : range.label}
+              {range.label}
             </button>
           ))}
+
+          {/* 时间对齐切换图标（附属于 24h，始终显示） */}
+          <button
+            onClick={() => {
+              if (timeRange === '24h') {
+                onTimeAlignChange(timeAlign === 'hour' ? '' : 'hour');
+              }
+            }}
+            disabled={timeRange !== '24h'}
+            title={timeRange === '24h'
+              ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
+              : undefined}
+            className={`p-2 rounded-xl transition-all duration-200 flex-shrink-0 ${
+              timeRange === '24h'
+                ? 'text-cyan-400 hover:bg-slate-800 cursor-pointer'
+                : 'text-slate-600 cursor-not-allowed'
+            }`}
+          >
+            {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
+          </button>
         </div>
       </div>
 
