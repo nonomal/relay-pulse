@@ -8,6 +8,7 @@
     "error": "Failed to load: {{message}}",
     "noData": "No service nodes match the current filters",
     "refresh": "Refresh data",
+    "refreshCooldown": "Too frequent, please wait",
     "close": "Close",
     "apply": "Apply filters",
     "clear": "Clear all filters",

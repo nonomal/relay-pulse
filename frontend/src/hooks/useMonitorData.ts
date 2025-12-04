@@ -88,11 +88,16 @@ export function useMonitorData({
   const [error, setError] = useState<string | null>(null);
   const [rawData, setRawData] = useState<ProcessedMonitorData[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
+  const [forceRefresh, setForceRefresh] = useState(false); // 手动刷新时绕过缓存
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
 
   // 统一的刷新触发器，供手动刷新与自动轮询复用
-  const triggerRefetch = useCallback(() => {
+  // skipCache: 是否绕过浏览器缓存（手动刷新时应为 true）
+  const triggerRefetch = useCallback((skipCache = false) => {
     setLoading(true);
+    if (skipCache) {
+      setForceRefresh(true);
+    }
     setReloadToken((token) => token + 1);
   }, []);
 
@@ -119,7 +124,14 @@ export function useMonitorData({
           const alignParam = (timeAlign && timeRange === '24h') ? `&align=${encodeURIComponent(timeAlign)}` : '';
           const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}`;
 
-          const response = await fetch(url);
+          // 手动刷新时绕过浏览器缓存
+          const fetchOptions: RequestInit = forceRefresh ? { cache: 'no-store' } : {};
+          const response = await fetch(url, fetchOptions);
+
+          // 重置强制刷新标记
+          if (forceRefresh) {
+            setForceRefresh(false);
+          }
           const duration = Math.round(performance.now() - startTime);
 
           if (!response.ok) {
@@ -219,7 +231,7 @@ export function useMonitorData({
     return () => {
       isMounted = false;
     };
-  }, [timeRange, timeAlign, reloadToken]);
+  }, [timeRange, timeAlign, reloadToken, forceRefresh]);
 
   // 页面可见性驱动的自动轮询
   useEffect(() => {

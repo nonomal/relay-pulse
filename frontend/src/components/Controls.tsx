@@ -16,6 +16,7 @@ interface ControlsProps {
   channels: string[];
   providers: ProviderOption[];  // 改为 ProviderOption[]
   showCategoryFilter?: boolean; // 是否显示分类筛选器，默认 true（用于服务商专属页面）
+  refreshCooldown?: boolean; // 刷新冷却中，显示提示
   onProviderChange: (provider: string) => void;
   onServiceChange: (service: string) => void;
   onChannelChange: (channel: string) => void;
@@ -38,6 +39,7 @@ export function Controls({
   channels,
   providers,
   showCategoryFilter = true,
+  refreshCooldown = false,
   onProviderChange,
   onServiceChange,
   onChannelChange,
@@ -181,17 +183,25 @@ export function Controls({
           </div>
 
           {/* 刷新按钮（扩大触摸区域） */}
-          <button
-            onClick={onRefresh}
-            className="ml-auto p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20 group min-w-[44px] min-h-[44px] flex items-center justify-center"
-            title={t('common.refresh')}
-            aria-label={t('common.refresh')}
-          >
-            <RefreshCw
-              size={18}
-              className={`transition-transform ${loading ? 'animate-spin' : 'group-hover:rotate-180'}`}
-            />
-          </button>
+          <div className="relative ml-auto">
+            <button
+              onClick={onRefresh}
+              className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20 group min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+              title={t('common.refresh')}
+              aria-label={t('common.refresh')}
+            >
+              <RefreshCw
+                size={18}
+                className={`transition-transform ${loading ? 'animate-spin' : 'group-hover:rotate-180'}`}
+              />
+            </button>
+            {/* 冷却提示 */}
+            {refreshCooldown && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg whitespace-nowrap shadow-lg border border-slate-700 z-50">
+                {t('common.refreshCooldown')}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* 时间范围选择（添加横向滚动） */}

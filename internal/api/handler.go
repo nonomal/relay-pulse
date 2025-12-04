@@ -135,7 +135,7 @@ func NewHandler(store storage.Storage, cfg *config.AppConfig) *Handler {
 	return &Handler{
 		storage: store,
 		config:  cfg,
-		cache:   newStatusCache(30*time.Second, 100), // 30 秒缓存，最多 100 条
+		cache:   newStatusCache(10*time.Second, 100), // 10 秒缓存，最多 100 条
 	}
 }
 
@@ -206,7 +206,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	}
 
 	// CDN 缓存头：Cloudflare 遵守 s-maxage，浏览器遵守 max-age
-	c.Header("Cache-Control", "public, max-age=60, s-maxage=60")
+	c.Header("Cache-Control", "public, max-age=10, s-maxage=10")
 	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.Writer.Write(data)
 }

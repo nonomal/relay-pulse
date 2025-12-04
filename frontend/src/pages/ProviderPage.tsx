@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
@@ -141,9 +141,25 @@ export default function ProviderPage() {
     }));
   };
 
+  // 刷新冷却状态（5秒内重复刷新显示提示）
+  const REFRESH_COOLDOWN_MS = 5000;
+  const lastRefreshRef = useRef<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState(false);
+
   // 刷新处理
   const handleRefresh = () => {
-    refetch();
+    const now = Date.now();
+    const elapsed = now - lastRefreshRef.current;
+
+    if (elapsed < REFRESH_COOLDOWN_MS) {
+      // 冷却中，显示提示
+      setRefreshCooldown(true);
+      setTimeout(() => setRefreshCooldown(false), 2000); // 提示显示 2 秒
+      return;
+    }
+
+    lastRefreshRef.current = now;
+    refetch(true); // 绕过浏览器缓存
   };
 
   return (
@@ -191,6 +207,7 @@ export default function ProviderPage() {
           onCategoryChange={() => {}} // 无操作
           onViewModeChange={setViewMode}
           onRefresh={handleRefresh}
+          refreshCooldown={refreshCooldown}
         />
 
         {/* 主内容区域 - 移除 py-6 以减小与控制面板的间距 */}

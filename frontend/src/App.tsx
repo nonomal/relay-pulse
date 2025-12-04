@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
@@ -134,9 +134,25 @@ function App() {
     setTooltip((prev) => ({ ...prev, show: false }));
   };
 
+  // 刷新冷却状态（5秒内重复刷新显示提示）
+  const REFRESH_COOLDOWN_MS = 5000;
+  const lastRefreshRef = useRef<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState(false);
+
   const handleRefresh = () => {
+    const now = Date.now();
+    const elapsed = now - lastRefreshRef.current;
+
+    if (elapsed < REFRESH_COOLDOWN_MS) {
+      // 冷却中，显示提示
+      setRefreshCooldown(true);
+      setTimeout(() => setRefreshCooldown(false), 2000); // 提示显示 2 秒
+      return;
+    }
+
+    lastRefreshRef.current = now;
     trackEvent('manual_refresh');
-    refetch();
+    refetch(true); // 绕过浏览器缓存
   };
 
   return (
@@ -182,6 +198,7 @@ function App() {
             onTimeAlignChange={setTimeAlign}
             onViewModeChange={setViewMode}
             onRefresh={handleRefresh}
+            refreshCooldown={refreshCooldown}
           />
 
           {/* 内容区域 */}
