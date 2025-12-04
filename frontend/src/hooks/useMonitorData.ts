@@ -67,6 +67,7 @@ const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({
 
 interface UseMonitorDataOptions {
   timeRange: string;
+  timeAlign?: string; // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
   filterService: string;
   filterProvider: string;
   filterChannel: string;
@@ -76,6 +77,7 @@ interface UseMonitorDataOptions {
 
 export function useMonitorData({
   timeRange,
+  timeAlign = '',
   filterService,
   filterProvider,
   filterChannel,
@@ -113,7 +115,9 @@ export function useMonitorData({
           processed = await fetchMockMonitorData(timeRange);
         } else {
           // 使用真实 API
-          const url = `${API_BASE_URL}/api/status?period=${timeRange}`;
+          // align 参数仅在 24h 模式下有效
+          const alignParam = (timeAlign && timeRange === '24h') ? `&align=${encodeURIComponent(timeAlign)}` : '';
+          const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}`;
 
           const response = await fetch(url);
           const duration = Math.round(performance.now() - startTime);
@@ -215,7 +219,7 @@ export function useMonitorData({
     return () => {
       isMounted = false;
     };
-  }, [timeRange, reloadToken]);
+  }, [timeRange, timeAlign, reloadToken]);
 
   // 页面可见性驱动的自动轮询
   useEffect(() => {

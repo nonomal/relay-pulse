@@ -8,11 +8,41 @@ import { createMediaQueryEffect } from '../utils/mediaQuery';
 interface TooltipProps {
   tooltip: TooltipState;
   slowLatencyMs: number;
+  timeRange: string;
   onClose?: () => void;
 }
 
-export function Tooltip({ tooltip, slowLatencyMs, onClose }: TooltipProps) {
-  const { t, i18n } = useTranslation();
+// 时间块粒度（毫秒）
+const BUCKET_DURATION: Record<string, number> = {
+  '24h': 60 * 60 * 1000,       // 1 小时
+  '1d': 60 * 60 * 1000,        // 1 小时
+  '7d': 24 * 60 * 60 * 1000,   // 1 天
+  '30d': 24 * 60 * 60 * 1000,  // 1 天
+};
+
+// 两位数补零
+const pad2 = (n: number) => n.toString().padStart(2, '0');
+
+// 格式化时间段显示
+function formatTimeRange(timestampSec: number, timeRange: string): string {
+  const startMs = timestampSec * 1000;
+  const duration = BUCKET_DURATION[timeRange] || BUCKET_DURATION['24h'];
+  const endMs = startMs + duration;
+
+  const start = new Date(startMs);
+  const end = new Date(endMs);
+
+  // 24h/1d: 显示 HH:MM - HH:MM
+  if (timeRange === '24h' || timeRange === '1d') {
+    return `${pad2(start.getHours())}:${pad2(start.getMinutes())} - ${pad2(end.getHours())}:${pad2(end.getMinutes())}`;
+  }
+
+  // 7d/30d: 显示 MM-DD - MM-DD
+  return `${pad2(start.getMonth() + 1)}-${pad2(start.getDate())} - ${pad2(end.getMonth() + 1)}-${pad2(end.getDate())}`;
+}
+
+export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipProps) {
+  const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(false);
 
   // 检测是否为移动端（兼容 Safari ≤13）
@@ -66,7 +96,7 @@ export function Tooltip({ tooltip, slowLatencyMs, onClose }: TooltipProps) {
   const TooltipContent = () => (
     <>
       <div className="text-slate-400 text-center">
-        {new Date(tooltip.data!.timestampNum * 1000).toLocaleString(i18n.language)}
+        {formatTimeRange(tooltip.data!.timestampNum, timeRange)}
       </div>
       {tooltip.data!.availability >= 0 && (
         <div

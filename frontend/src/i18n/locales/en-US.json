@@ -48,6 +48,12 @@
       "7d": "Last 7 days",
       "30d": "Last 30 days"
     },
+    "timeAlign": {
+      "dynamic": "Live",
+      "hour": "Hourly",
+      "dynamicTitle": "Live sliding window: Shows real-time data from the last 24 hours",
+      "hourTitle": "Hourly aligned: Time blocks aligned to UTC hours for stable comparison"
+    },
     "views": {
       "table": "Table view",
       "card": "Card view",

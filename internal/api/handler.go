@@ -164,6 +164,7 @@ type MonitorResult struct {
 func (h *Handler) GetStatus(c *gin.Context) {
 	// 参数解析
 	period := c.DefaultQuery("period", "24h")
+	align := c.DefaultQuery("align", "") // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
 	qProvider := strings.ToLower(strings.TrimSpace(c.DefaultQuery("provider", "all")))
 	qService := c.DefaultQuery("service", "all")
 	// include_hidden 参数：用于内部调试，默认不包含隐藏的监控项
@@ -177,15 +178,23 @@ func (h *Handler) GetStatus(c *gin.Context) {
 		return
 	}
 
+	// 验证 align 参数
+	if align != "" && align != "hour" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("无效的对齐模式: %s (支持: hour)", align),
+		})
+		return
+	}
+
 	// 构建缓存 key（使用明确的分隔符避免碰撞）
-	cacheKey := fmt.Sprintf("p=%s|prov=%s|svc=%s|hidden=%t", period, qProvider, qService, includeHidden)
+	cacheKey := fmt.Sprintf("p=%s|align=%s|prov=%s|svc=%s|hidden=%t", period, align, qProvider, qService, includeHidden)
 
 	// 使用缓存（singleflight 防止缓存击穿）
 	// 注意：使用独立 context，避免单个请求取消影响其他等待的请求
 	data, err := h.cache.load(cacheKey, func() ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		return h.queryAndSerialize(ctx, period, qProvider, qService, includeHidden)
+		return h.queryAndSerialize(ctx, period, align, qProvider, qService, includeHidden)
 	})
 
 	if err != nil {
@@ -203,8 +212,9 @@ func (h *Handler) GetStatus(c *gin.Context) {
 }
 
 // queryAndSerialize 查询数据库并序列化为 JSON（缓存 miss 时调用）
-func (h *Handler) queryAndSerialize(ctx context.Context, period, qProvider, qService string, includeHidden bool) ([]byte, error) {
-	since, _ := h.parsePeriod(period) // 已在调用前验证
+func (h *Handler) queryAndSerialize(ctx context.Context, period, align, qProvider, qService string, includeHidden bool) ([]byte, error) {
+	// 解析时间范围（支持对齐模式）
+	startTime, endTime := h.parseTimeRange(period, align)
 
 	// 获取配置副本（线程安全）
 	h.cfgMu.RLock()
@@ -238,25 +248,33 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, qProvider, qSer
 
 	if enableConcurrent {
 		mode = "concurrent"
-		response, err = h.getStatusConcurrent(ctx, filtered, since, period, degradedWeight, concurrentLimit)
+		response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, concurrentLimit)
 	} else {
 		mode = "serial"
-		response, err = h.getStatusSerial(ctx, filtered, since, period, degradedWeight)
+		response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight)
 	}
 
 	if err != nil {
 		return nil, err
 	}
 
-	logger.Info("api", "GetStatus 查询完成", "mode", mode, "monitors", len(filtered), "period", period, "count", len(response))
+	logger.Info("api", "GetStatus 查询完成", "mode", mode, "monitors", len(filtered), "period", period, "align", align, "count", len(response))
 
 	// 序列化为 JSON
+	meta := gin.H{
+		"period":          period,
+		"count":           len(response),
+		"slow_latency_ms": slowLatencyMs,
+	}
+	// 仅在使用对齐模式时返回额外的时间范围信息
+	if align != "" {
+		meta["align"] = align
+		meta["start_time"] = startTime.UTC().Format(time.RFC3339)
+		meta["end_time"] = endTime.UTC().Format(time.RFC3339)
+	}
+
 	result := gin.H{
-		"meta": gin.H{
-			"period":          period,
-			"count":           len(response),
-			"slow_latency_ms": slowLatencyMs,
-		},
+		"meta": meta,
 		"data": response,
 	}
 
@@ -298,7 +316,7 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 }
 
 // getStatusSerial 串行查询（原有逻辑）
-func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since time.Time, period string, degradedWeight float64) ([]MonitorResult, error) {
+func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64) ([]MonitorResult, error) {
 	var response []MonitorResult
 	store := h.storage.WithContext(ctx)
 
@@ -316,7 +334,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 		}
 
 		// 构建响应
-		result := h.buildMonitorResult(task, latest, history, period, degradedWeight)
+		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight)
 		response = append(response, result)
 	}
 
@@ -324,7 +342,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 }
 
 // getStatusConcurrent 并发查询（使用 errgroup + 并发限制）
-func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since time.Time, period string, degradedWeight float64, limit int) ([]MonitorResult, error) {
+func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, limit int) ([]MonitorResult, error) {
 	// 使用请求的 context（支持取消）
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(limit) // 限制最大并发度
@@ -349,7 +367,7 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 			}
 
 			// 构建响应（固定位置写入，保持顺序）
-			results[i] = h.buildMonitorResult(task, latest, history, period, degradedWeight)
+			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight)
 			return nil
 		})
 	}
@@ -363,9 +381,9 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 }
 
 // buildMonitorResult 构建单个监控项的响应结构
-func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, period string, degradedWeight float64) MonitorResult {
+func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64) MonitorResult {
 	// 转换为时间轴数据
-	timeline := h.buildTimeline(history, period, degradedWeight)
+	timeline := h.buildTimeline(history, endTime, period, degradedWeight)
 
 	// 转换为API响应格式（不暴露数据库主键）
 	var current *CurrentStatus
@@ -397,19 +415,57 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 	}
 }
 
-// parsePeriod 解析时间范围
-func (h *Handler) parsePeriod(period string) (time.Time, error) {
-	now := time.Now()
-
+// parsePeriod 解析时间范围（仅用于验证）
+func (h *Handler) parsePeriod(period string) (time.Duration, error) {
 	switch period {
 	case "24h", "1d":
-		return now.Add(-24 * time.Hour), nil
+		return 24 * time.Hour, nil
 	case "7d":
-		return now.AddDate(0, 0, -7), nil
+		return 7 * 24 * time.Hour, nil
 	case "30d":
-		return now.AddDate(0, 0, -30), nil
+		return 30 * 24 * time.Hour, nil
 	default:
-		return time.Time{}, fmt.Errorf("不支持的时间范围")
+		return 0, fmt.Errorf("不支持的时间范围")
+	}
+}
+
+// parseTimeRange 解析时间范围，返回 (startTime, endTime)
+// align 参数控制时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
+func (h *Handler) parseTimeRange(period, align string) (startTime, endTime time.Time) {
+	now := time.Now()
+
+	// 根据 align 模式确定 endTime
+	endTime = h.alignTimestamp(now, align)
+
+	// 根据 period 计算 startTime
+	switch period {
+	case "24h", "1d":
+		startTime = endTime.Add(-24 * time.Hour)
+	case "7d":
+		startTime = endTime.AddDate(0, 0, -7)
+	case "30d":
+		startTime = endTime.AddDate(0, 0, -30)
+	default:
+		startTime = endTime.Add(-24 * time.Hour)
+	}
+
+	return startTime, endTime
+}
+
+// alignTimestamp 根据对齐模式调整时间戳
+// align="hour" 时向上取整到下一个 UTC 整点，否则保持原值
+func (h *Handler) alignTimestamp(t time.Time, align string) time.Time {
+	switch align {
+	case "hour":
+		// 向上取整到下一个整点（包含当前正在进行的小时）
+		// 例如 17:48 → 18:00，这样最后一个 bucket 是 17:00-18:00
+		truncated := t.UTC().Truncate(time.Hour)
+		if truncated.Before(t.UTC()) {
+			return truncated.Add(time.Hour)
+		}
+		return truncated
+	default:
+		return t
 	}
 }
 
@@ -424,18 +480,20 @@ type bucketStats struct {
 }
 
 // buildTimeline 构建固定长度的时间轴，计算每个 bucket 的可用率和平均延迟
-func (h *Handler) buildTimeline(records []*storage.ProbeRecord, period string, degradedWeight float64) []storage.TimePoint {
+// endTime 为时间窗口的结束时间（对齐模式下为整点，动态模式下为当前时间）
+func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64) []storage.TimePoint {
 	// 根据 period 确定 bucket 策略
 	bucketCount, bucketWindow, format := h.determineBucketStrategy(period)
 
-	now := time.Now()
+	// 使用传入的 endTime 作为基准时间（支持对齐模式）
+	baseTime := endTime
 
 	// 初始化 buckets 和统计数据
 	buckets := make([]storage.TimePoint, bucketCount)
 	stats := make([]bucketStats, bucketCount)
 
 	for i := 0; i < bucketCount; i++ {
-		bucketTime := now.Add(-time.Duration(bucketCount-i) * bucketWindow)
+		bucketTime := baseTime.Add(-time.Duration(bucketCount-i) * bucketWindow)
 		buckets[i] = storage.TimePoint{
 			Time:         bucketTime.Format(format),
 			Timestamp:    bucketTime.Unix(),
@@ -448,13 +506,17 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, period string, d
 	// 聚合每个 bucket 的探测结果
 	for _, record := range records {
 		t := time.Unix(record.Timestamp, 0)
-		timeDiff := now.Sub(t)
+		timeDiff := baseTime.Sub(t)
+
+		// 跳过超出时间窗口的记录：
+		// - timeDiff < 0: 记录在 endTime 之后（对齐模式下当前小时的数据）
+		// - timeDiff >= bucketCount * bucketWindow: 记录太旧
+		if timeDiff < 0 {
+			continue // 记录在窗口之后，跳过
+		}
 
 		// 计算该记录属于哪个 bucket（从后往前）
 		bucketIndex := int(timeDiff / bucketWindow)
-		if bucketIndex < 0 {
-			bucketIndex = 0
-		}
 		if bucketIndex >= bucketCount {
 			continue // 超出范围，忽略
 		}
@@ -499,11 +561,11 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, period string, d
 			buckets[i].Latency = int(avgLatency + 0.5)
 		}
 
-		// 使用最新记录的状态和时间
+		// 使用最新记录的状态
 		if stat.last != nil {
 			buckets[i].Status = stat.last.Status
-			buckets[i].Timestamp = stat.last.Timestamp
-			buckets[i].Time = time.Unix(stat.last.Timestamp, 0).Format(format)
+			// 注意：Timestamp 保持为 bucket 起始时间，不覆盖
+			// 这样前端可以准确显示时间段（如 03:00-04:00）
 		}
 	}
 

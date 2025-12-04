@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,9 @@ import { StatusCard } from '../components/StatusCard';
 import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
 import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData } from '../types';
+
+// localStorage key for time align preference (shared with App.tsx)
+const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
 
 // Provider 名称规范化（小写、去空格）
 function canonicalize(value?: string): string {
@@ -43,6 +46,24 @@ export default function ProviderPage() {
     key: 'uptime',
     direction: 'desc',
   });
+
+  // 时间对齐模式（使用 localStorage 持久化）
+  const [timeAlign, setTimeAlignState] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(STORAGE_KEY_TIME_ALIGN) || '';
+  });
+
+  const setTimeAlign = useCallback((align: string) => {
+    setTimeAlignState(align);
+    if (typeof window !== 'undefined') {
+      if (align) {
+        localStorage.setItem(STORAGE_KEY_TIME_ALIGN, align);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_TIME_ALIGN);
+      }
+    }
+  }, []);
+
   const [tooltip, setTooltip] = useState<TooltipState>({
     show: false,
     x: 0,
@@ -53,6 +74,7 @@ export default function ProviderPage() {
   // 数据获取 - 先获取全部数据用于构建映射
   const { data: allData, loading, error, stats, channels, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
+    timeAlign,
     filterService,
     filterProvider: 'all', // 先获取全部数据
     filterChannel,
@@ -134,7 +156,7 @@ export default function ProviderPage() {
 
       <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white overflow-x-hidden">
         {/* 全局 Tooltip */}
-        <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} />
+        <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
 
         {/* 背景装饰 */}
         {!isEmbedMode && (
@@ -151,6 +173,7 @@ export default function ProviderPage() {
         {/* 控制面板 - 隐藏 provider 和 category 筛选器，只显示当前 provider 的通道 */}
         <Controls
           timeRange={timeRange}
+          timeAlign={timeAlign}
           filterService={filterService}
           filterProvider="all"
           filterChannel={filterChannel}
@@ -161,6 +184,7 @@ export default function ProviderPage() {
           channels={providerChannels} // 只显示当前 provider 的通道
           showCategoryFilter={false} // 隐藏分类筛选器
           onTimeRangeChange={setTimeRange}
+          onTimeAlignChange={setTimeAlign}
           onServiceChange={setFilterService}
           onProviderChange={() => {}} // 无操作
           onChannelChange={setFilterChannel}

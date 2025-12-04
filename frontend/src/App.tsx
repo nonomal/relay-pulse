@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
@@ -12,6 +12,9 @@ import { useMonitorData } from './hooks/useMonitorData';
 import { useUrlState } from './hooks/useUrlState';
 import { trackPeriodChange, trackServiceFilter, trackEvent } from './utils/analytics';
 import type { TooltipState, ProcessedMonitorData } from './types';
+
+// localStorage key for time align preference
+const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
 
 function App() {
   const { t, i18n } = useTranslation();
@@ -37,6 +40,26 @@ function App() {
     setSortConfig,
   } = urlActions;
 
+  // 时间对齐模式（使用 localStorage 持久化，不影响分享链接）
+  const [timeAlign, setTimeAlignState] = useState<string>(() => {
+    if (typeof window === 'undefined') return '';
+    return localStorage.getItem(STORAGE_KEY_TIME_ALIGN) || '';
+  });
+
+  // 包装 setter 以同步到 localStorage
+  const setTimeAlign = useCallback((align: string) => {
+    setTimeAlignState(align);
+    if (typeof window !== 'undefined') {
+      if (align) {
+        localStorage.setItem(STORAGE_KEY_TIME_ALIGN, align);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_TIME_ALIGN);
+      }
+    }
+    // 追踪时间对齐模式变化
+    trackEvent('change_time_align', { align: align || 'dynamic' });
+  }, []);
+
   const [tooltip, setTooltip] = useState<TooltipState>({
     show: false,
     x: 0,
@@ -46,6 +69,7 @@ function App() {
 
   const { loading, error, data, stats, channels, providers, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
+    timeAlign,
     filterService,
     filterProvider,
     filterChannel,
@@ -126,7 +150,7 @@ function App() {
 
       <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white overflow-x-hidden">
         {/* 全局 Tooltip */}
-        <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} />
+        <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
 
         {/* 背景装饰 */}
         <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
@@ -145,6 +169,7 @@ function App() {
             filterChannel={filterChannel}
             filterCategory={filterCategory}
             timeRange={timeRange}
+            timeAlign={timeAlign}
             viewMode={viewMode}
             loading={loading}
             channels={channels}
@@ -154,6 +179,7 @@ function App() {
             onChannelChange={setFilterChannel}
             onCategoryChange={setFilterCategory}
             onTimeRangeChange={setTimeRange}
+            onTimeAlignChange={setTimeAlign}
             onViewModeChange={setViewMode}
             onRefresh={handleRefresh}
           />
