@@ -95,7 +95,7 @@ monitors:
     category: "commercial"  # 必填：商业站(commercial) 或 公益站(public)
     sponsor: "团队自有"      # 必填：提供 API Key 的赞助者
     sponsor_url: "https://example.com/sponsor"  # 可选：赞助者链接
-    sponsor_level: "top"    # 可选：赞助商等级徽章 individual(♥️)/generous(💕)/silver(🤍)/top(💜)
+    sponsor_level: "enterprise"    # 可选：赞助商等级 basic(🔻节点支持)/advanced(⬢核心服务商)/enterprise(💠全球伙伴)
     channel: "vip-channel"  # 业务通道标识（可选），用于分类和过滤
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"

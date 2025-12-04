@@ -140,7 +140,7 @@
       },
       "neutralMaintenance": {
         "title": "Open and Transparent Operations",
-        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsorships only fund high-frequency monitoring resources and brand placement; no commercial partnership ever influences data objectivity"
+        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsors receive exclusive badges, high-frequency monitoring, and brand display rights, but never influence data objectivity"
       },
       "monitoringScope": {
         "title": "Full-Stack Protocol Verification",
@@ -171,10 +171,18 @@
   },
   "badges": {
     "sponsor": {
-      "individual": "Individual Sponsor",
-      "generous": "Generous Sponsor",
-      "silver": "Silver Sponsor",
-      "top": "Top Sponsor"
+      "basic": {
+        "name": "Node Supporter",
+        "tooltip": "Sponsors high-frequency monitoring resources with objective data"
+      },
+      "advanced": {
+        "name": "Core Provider",
+        "tooltip": "Multi-route deep monitoring, hexagonal all-round performance"
+      },
+      "enterprise": {
+        "name": "Global Partner",
+        "tooltip": "RelayPulse top sponsor, powering open source operations"
+      }
     }
   }
 }

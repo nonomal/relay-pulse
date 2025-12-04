@@ -15,16 +15,15 @@ type SponsorLevel string
 
 const (
 	SponsorLevelNone       SponsorLevel = ""           // 无赞助徽章
-	SponsorLevelIndividual SponsorLevel = "individual" // ♥️ 个人赞助
-	SponsorLevelGenerous   SponsorLevel = "generous"   // 💕 慷慨赞助
-	SponsorLevelSilver     SponsorLevel = "silver"     // 🤍 银牌赞助
-	SponsorLevelTop        SponsorLevel = "top"        // 💜 顶级赞助
+	SponsorLevelBasic      SponsorLevel = "basic"      // 基础赞助（三角形）
+	SponsorLevelAdvanced   SponsorLevel = "advanced"   // 进阶赞助（六边形）
+	SponsorLevelEnterprise SponsorLevel = "enterprise" // 企业赞助（八边形钻石）
 )
 
 // IsValid 检查赞助商等级是否有效
 func (s SponsorLevel) IsValid() bool {
 	switch s {
-	case SponsorLevelNone, SponsorLevelIndividual, SponsorLevelGenerous, SponsorLevelSilver, SponsorLevelTop:
+	case SponsorLevelNone, SponsorLevelBasic, SponsorLevelAdvanced, SponsorLevelEnterprise:
 		return true
 	default:
 		return false
@@ -40,7 +39,7 @@ type ServiceConfig struct {
 	Category     string            `yaml:"category" json:"category"`             // 分类：commercial（商业站）或 public（公益站）
 	Sponsor      string            `yaml:"sponsor" json:"sponsor"`               // 赞助者：提供 API Key 的个人或组织
 	SponsorURL   string            `yaml:"sponsor_url" json:"sponsor_url"`       // 赞助者链接（可选）
-	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`   // 赞助商等级：individual/generous/silver/top（可选）
+	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`   // 赞助商等级：basic/advanced/enterprise（可选）
 	Channel      string            `yaml:"channel" json:"channel"`               // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
 	URL          string            `yaml:"url" json:"url"`
 	Method       string            `yaml:"method" json:"method"`
@@ -192,7 +191,7 @@ func (c *AppConfig) Validate() error {
 
 		// SponsorLevel 枚举检查（可选字段，空值有效）
 		if !m.SponsorLevel.IsValid() {
-			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 individual/generous/silver/top 之一（或留空）", i, m.SponsorLevel)
+			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 basic/advanced/enterprise 之一（或留空）", i, m.SponsorLevel)
 		}
 
 		// ProviderURL 验证（可选字段）

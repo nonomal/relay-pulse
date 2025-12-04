@@ -69,11 +69,14 @@ function MobileListItem({
           {/* 公益站徽标 */}
           {showCategoryTag && item.category === 'public' && (
             <span
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
-              title={t('table.categoryLabels.charity')}
+              className="relative group/badge inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
               aria-label={t('table.categoryLabels.charity')}
             >
               {t('table.categoryShort.charity')}
+              {/* 延迟 tooltip - 悬停 700ms 后显示，左对齐避免裁剪 */}
+              <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/badge:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+                {t('table.categoryLabels.charity')}
+              </span>
             </span>
           )}
           {/* 赞助商徽章 */}
@@ -97,17 +100,17 @@ function MobileListItem({
             )}
           </div>
 
-          {/* 服务商名称（合并赞助者，两行布局） */}
+          {/* 服务商名称（合并赞助者，紧凑两行布局） */}
           <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-0.5">
+            <div className="flex flex-col">
               {showProvider && (
-                <span className="font-semibold text-slate-100 truncate">
-                  <ExternalLink href={item.providerUrl}>{item.providerName}</ExternalLink>
+                <span className="font-semibold text-slate-100 truncate text-sm leading-none">
+                  <ExternalLink href={item.providerUrl} compact>{item.providerName}</ExternalLink>
                 </span>
               )}
               {showSponsor && item.sponsor && (
-                <span className="text-[11px] text-slate-500 truncate">
-                  <ExternalLink href={item.sponsorUrl}>{item.sponsor}</ExternalLink>
+                <span className="text-[10px] text-slate-500 truncate leading-none">
+                  <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                 </span>
               )}
             </div>
@@ -402,17 +405,20 @@ export function StatusTable({
             >
               {/* 徽标列 - 水平排列多个徽标 */}
               {hasBadges && (
-                <td className="p-4">
+                <td className="px-4 py-[11px]">
                   {hasItemBadges ? (
                     <div className="flex items-center gap-1.5">
                       {/* 公益站徽标 */}
                       {showCategoryTag && item.category === 'public' && (
                         <span
-                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
-                          title={t('table.categoryLabels.charity')}
+                          className="relative group/badge inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
                           aria-label={t('table.categoryLabels.charity')}
                         >
                           {t('table.categoryShort.charity')}
+                          {/* 延迟 tooltip - 悬停 700ms 后显示 */}
+                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/badge:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-10">
+                            {t('table.categoryLabels.charity')}
+                          </span>
                         </span>
                       )}
                       {/* 赞助商徽章 */}
@@ -423,16 +429,16 @@ export function StatusTable({
                   ) : null}
                 </td>
               )}
-              {/* 服务商列（合并赞助者，两行布局） */}
+              {/* 服务商列（合并赞助者，紧凑两行布局） */}
               {showProvider && (
-                <td className="p-4">
-                  <div className="flex flex-col gap-0.5">
-                    <span className="font-medium text-slate-200">
-                      <ExternalLink href={item.providerUrl}>{item.providerName}</ExternalLink>
+                <td className="px-4 py-[11px]">
+                  <div className="flex flex-col">
+                    <span className="font-medium text-slate-200 text-sm leading-none">
+                      <ExternalLink href={item.providerUrl} compact>{item.providerName}</ExternalLink>
                     </span>
                     {showSponsor && item.sponsor && (
-                      <span className="text-[11px] text-slate-500">
-                        <ExternalLink href={item.sponsorUrl}>{item.sponsor}</ExternalLink>
+                      <span className="text-[10px] text-slate-500 leading-none">
+                        <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                       </span>
                     )}
                   </div>

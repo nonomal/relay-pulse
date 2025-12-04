@@ -140,7 +140,7 @@
       },
       "neutralMaintenance": {
         "title": "开源透明运营",
-        "text": "全站代码遵循 MIT 协议完全开源，支持私有化部署验证。赞助仅用于支持高频监测资源与品牌展示，任何商业合作均不干预数据客观性"
+        "text": "全站代码遵循 MIT 协议完全开源，支持私有化部署验证。赞助商享有专属徽标、高频监测和品牌展示权益，但不干预任何数据客观性"
       },
       "monitoringScope": {
         "title": "全栈协议校验",
@@ -171,10 +171,18 @@
   },
   "badges": {
     "sponsor": {
-      "individual": "个人赞助",
-      "generous": "慷慨赞助",
-      "silver": "银牌赞助",
-      "top": "顶级赞助"
+      "basic": {
+        "name": "节点支持",
+        "tooltip": "已赞助高频监测资源，数据真实客观"
+      },
+      "advanced": {
+        "name": "核心服务商",
+        "tooltip": "多线路深度监测，六边形全能表现"
+      },
+      "enterprise": {
+        "name": "全球伙伴",
+        "tooltip": "RelayPulse 顶级赞助商，助力开源运营"
+      }
     }
   }
 }

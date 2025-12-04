@@ -34,7 +34,7 @@ export interface CurrentStatus {
 }
 
 // 赞助商等级类型
-export type SponsorLevel = 'individual' | 'generous' | 'silver' | 'top';
+export type SponsorLevel = 'basic' | 'advanced' | 'enterprise';
 
 export interface MonitorResult {
   provider: string;
@@ -44,7 +44,7 @@ export interface MonitorResult {
   category: 'commercial' | 'public';  // 分类：commercial（商业站）或 public（公益站）
   sponsor: string;                     // 赞助者
   sponsor_url?: string;                // 赞助者链接
-  sponsor_level?: SponsorLevel;        // 赞助商等级：individual/generous/silver/top
+  sponsor_level?: SponsorLevel;        // 赞助商等级：basic/advanced/enterprise
   channel: string;                     // 业务通道标识
   current_status: CurrentStatus | null;
   timeline: TimePoint[];

@@ -54,7 +54,7 @@ const statusMap: Record<number, StatusKey> = {
 const POLL_INTERVAL_MS = 60_000;
 
 // 有效的赞助商等级列表（运行时校验）
-const SPONSOR_LEVELS: readonly SponsorLevel[] = ['individual', 'generous', 'silver', 'top'];
+const SPONSOR_LEVELS: readonly SponsorLevel[] = ['basic', 'advanced', 'enterprise'];
 const normalizeSponsorLevel = (level?: string): SponsorLevel | undefined =>
   SPONSOR_LEVELS.includes(level as SponsorLevel) ? (level as SponsorLevel) : undefined;
 

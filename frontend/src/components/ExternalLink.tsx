@@ -6,6 +6,7 @@ interface ExternalLinkProps {
   children: React.ReactNode;
   className?: string;
   trackLabel?: string;
+  compact?: boolean; // 是否使用紧凑模式（32px 高度，用于表格行）
 }
 
 /**
@@ -14,10 +15,14 @@ interface ExternalLinkProps {
  * - 显示外链图标
  * - HTTP 链接显示警告图标
  */
-export function ExternalLink({ href, children, className = '', trackLabel }: ExternalLinkProps) {
-  // 如果没有 URL，显示纯文本
+export function ExternalLink({ href, children, className = '', trackLabel, compact = false }: ExternalLinkProps) {
+  // compact 模式仍保留 32px 最小点击高度（WCAG 建议）
+  const sizeClass = compact ? 'min-h-[32px] py-0.5 -my-0.5' : 'min-h-[44px] py-1 -my-1';
+  const baseClass = `inline-flex items-center gap-1 ${sizeClass} ${className}`;
+
+  // 如果没有 URL，显示纯文本但保持相同行高，避免表格行高不一致
   if (!href) {
-    return <span className={className}>{children}</span>;
+    return <span className={baseClass}>{children}</span>;
   }
 
   const isHttp = href.startsWith('http://');
@@ -41,7 +46,7 @@ export function ExternalLink({ href, children, className = '', trackLabel }: Ext
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      className={`inline-flex items-center gap-1 hover:underline active:underline min-h-[44px] py-1 -my-1 ${className}`}
+      className={`hover:underline active:underline ${baseClass}`}
       onClick={handleClick}
       aria-label={ariaLabel}
     >

@@ -155,7 +155,7 @@ type MonitorResult struct {
 	Category     string              `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
 	Sponsor      string              `json:"sponsor"`                 // 赞助者
 	SponsorURL   string              `json:"sponsor_url"`             // 赞助者链接
-	SponsorLevel config.SponsorLevel `json:"sponsor_level,omitempty"` // 赞助商等级：individual/generous/silver/top
+	SponsorLevel config.SponsorLevel `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
 	Channel      string              `json:"channel"`                 // 业务通道标识
 	Current      *CurrentStatus      `json:"current_status"`
 	Timeline     []storage.TimePoint `json:"timeline"`
