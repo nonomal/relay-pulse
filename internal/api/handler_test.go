@@ -131,3 +131,93 @@ func TestBuildTimelineLatencyRounding(t *testing.T) {
 		t.Errorf("四舍五入测试失败: 期望 101ms，实际 %dms", latency)
 	}
 }
+
+// TestAlignTimestamp 测试时间对齐逻辑
+func TestAlignTimestamp(t *testing.T) {
+	h := &Handler{}
+
+	tests := []struct {
+		name     string
+		input    time.Time
+		align    string
+		expected time.Time
+	}{
+		{
+			name:     "hour 对齐 - 中间时间",
+			input:    time.Date(2024, 1, 15, 17, 48, 30, 0, time.UTC),
+			align:    "hour",
+			expected: time.Date(2024, 1, 15, 18, 0, 0, 0, time.UTC), // 向上取整到 18:00
+		},
+		{
+			name:     "hour 对齐 - 整点时间",
+			input:    time.Date(2024, 1, 15, 17, 0, 0, 0, time.UTC),
+			align:    "hour",
+			expected: time.Date(2024, 1, 15, 17, 0, 0, 0, time.UTC), // 已是整点，保持不变
+		},
+		{
+			name:     "day 对齐 - 中间时间",
+			input:    time.Date(2024, 1, 15, 12, 30, 0, 0, time.UTC),
+			align:    "day",
+			expected: time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC), // 向上取整到明天 00:00
+		},
+		{
+			name:     "day 对齐 - 午夜时间",
+			input:    time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC),
+			align:    "day",
+			expected: time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), // 已是午夜，保持不变
+		},
+		{
+			name:     "无对齐 - 保持原值",
+			input:    time.Date(2024, 1, 15, 12, 30, 45, 123, time.UTC),
+			align:    "",
+			expected: time.Date(2024, 1, 15, 12, 30, 45, 123, time.UTC), // 保持不变
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := h.alignTimestamp(tt.input, tt.align)
+			if !result.Equal(tt.expected) {
+				t.Errorf("alignTimestamp(%v, %q) = %v, want %v",
+					tt.input, tt.align, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestParseTimeRange7d30dDayAlign 测试 7d/30d 自动按天对齐
+func TestParseTimeRange7d30dDayAlign(t *testing.T) {
+	h := &Handler{}
+
+	// 测试 7d 和 30d 的 endTime 是否按天对齐（向上取整到明天 00:00 UTC）
+	// 注意：由于使用 time.Now()，我们只验证 endTime 是否为 00:00:00 UTC
+
+	t.Run("7d 自动按天对齐", func(t *testing.T) {
+		_, endTime := h.parseTimeRange("7d", "")
+		// endTime 应该是某天的 00:00:00 UTC
+		if endTime.Hour() != 0 || endTime.Minute() != 0 || endTime.Second() != 0 {
+			t.Errorf("7d endTime 应为整天 00:00:00 UTC，实际为 %v", endTime)
+		}
+	})
+
+	t.Run("30d 自动按天对齐", func(t *testing.T) {
+		_, endTime := h.parseTimeRange("30d", "")
+		// endTime 应该是某天的 00:00:00 UTC
+		if endTime.Hour() != 0 || endTime.Minute() != 0 || endTime.Second() != 0 {
+			t.Errorf("30d endTime 应为整天 00:00:00 UTC，实际为 %v", endTime)
+		}
+	})
+
+	t.Run("7d/30d 忽略 align 参数", func(t *testing.T) {
+		// 即使传入 align="hour"，7d 也应该使用 day 对齐
+		_, endTime7d := h.parseTimeRange("7d", "hour")
+		_, endTime30d := h.parseTimeRange("30d", "hour")
+
+		if endTime7d.Hour() != 0 || endTime7d.Minute() != 0 {
+			t.Errorf("7d 应忽略 align=hour 参数，使用 day 对齐，实际 endTime=%v", endTime7d)
+		}
+		if endTime30d.Hour() != 0 || endTime30d.Minute() != 0 {
+			t.Errorf("30d 应忽略 align=hour 参数，使用 day 对齐，实际 endTime=%v", endTime30d)
+		}
+	})
+}

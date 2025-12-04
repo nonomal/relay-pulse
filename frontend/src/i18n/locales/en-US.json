@@ -46,6 +46,8 @@
     },
     "timeRanges": {
       "24h": "Last 24 hours",
+      "24hLive": "24h·Live",
+      "24hHour": "24h·Hourly",
       "7d": "Last 7 days",
       "30d": "Last 30 days"
     },

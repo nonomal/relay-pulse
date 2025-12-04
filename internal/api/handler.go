@@ -431,21 +431,25 @@ func (h *Handler) parsePeriod(period string) (time.Duration, error) {
 
 // parseTimeRange 解析时间范围，返回 (startTime, endTime)
 // align 参数控制时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
+// 注意：7d/30d 模式自动使用 day 对齐，忽略 align 参数
 func (h *Handler) parseTimeRange(period, align string) (startTime, endTime time.Time) {
 	now := time.Now()
 
-	// 根据 align 模式确定 endTime
-	endTime = h.alignTimestamp(now, align)
-
-	// 根据 period 计算 startTime
+	// 根据 period 计算时间范围
+	// 24h: 用户可选 align 模式
+	// 7d/30d: 强制使用 day 对齐（包含今天不完整数据）
 	switch period {
 	case "24h", "1d":
+		endTime = h.alignTimestamp(now, align)
 		startTime = endTime.Add(-24 * time.Hour)
 	case "7d":
+		endTime = h.alignTimestamp(now, "day") // 自动按天对齐
 		startTime = endTime.AddDate(0, 0, -7)
 	case "30d":
+		endTime = h.alignTimestamp(now, "day") // 自动按天对齐
 		startTime = endTime.AddDate(0, 0, -30)
 	default:
+		endTime = h.alignTimestamp(now, align)
 		startTime = endTime.Add(-24 * time.Hour)
 	}
 
@@ -453,7 +457,9 @@ func (h *Handler) parseTimeRange(period, align string) (startTime, endTime time.
 }
 
 // alignTimestamp 根据对齐模式调整时间戳
-// align="hour" 时向上取整到下一个 UTC 整点，否则保持原值
+// - align="hour": 向上取整到下一个 UTC 整点
+// - align="day": 向上取整到下一天 00:00 UTC
+// - 其他值: 保持原值（动态滑动窗口）
 func (h *Handler) alignTimestamp(t time.Time, align string) time.Time {
 	switch align {
 	case "hour":
@@ -462,6 +468,14 @@ func (h *Handler) alignTimestamp(t time.Time, align string) time.Time {
 		truncated := t.UTC().Truncate(time.Hour)
 		if truncated.Before(t.UTC()) {
 			return truncated.Add(time.Hour)
+		}
+		return truncated
+	case "day":
+		// 向上取整到下一天 00:00 UTC（包含今天不完整的数据）
+		// 例如 2024-01-15 12:30 → 2024-01-16 00:00，这样最后一个 bucket 是今天
+		truncated := t.UTC().Truncate(24 * time.Hour)
+		if truncated.Before(t.UTC()) {
+			return truncated.Add(24 * time.Hour)
 		}
 		return truncated
 	default:
