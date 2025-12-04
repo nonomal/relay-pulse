@@ -15,9 +15,9 @@ type SponsorLevel string
 
 const (
 	SponsorLevelNone       SponsorLevel = ""           // 无赞助徽章
-	SponsorLevelBasic      SponsorLevel = "basic"      // 基础赞助（三角形）
-	SponsorLevelAdvanced   SponsorLevel = "advanced"   // 进阶赞助（六边形）
-	SponsorLevelEnterprise SponsorLevel = "enterprise" // 企业赞助（八边形钻石）
+	SponsorLevelBasic      SponsorLevel = "basic"      // 🔻 节点支持 (Node Supporter)
+	SponsorLevelAdvanced   SponsorLevel = "advanced"   // ⬢ 核心服务商 (Core Provider)
+	SponsorLevelEnterprise SponsorLevel = "enterprise" // 💠 全球伙伴 (Global Partner)
 )
 
 // IsValid 检查赞助商等级是否有效

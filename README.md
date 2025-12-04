@@ -116,6 +116,7 @@ monitors:
     service: "cc"
     category: "commercial"
     sponsor: "团队自有"
+    sponsor_level: "advanced"  # 可选：basic/advanced/enterprise
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
     api_key: "sk-xxx"  # 或通过环境变量 MONITOR_88CODE_CC_API_KEY

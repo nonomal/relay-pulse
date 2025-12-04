@@ -104,6 +104,7 @@ monitors:
     service: "cc"
     category: "commercial"
     sponsor: "Team owned"
+    sponsor_level: "advanced"  # Optional: basic/advanced/enterprise
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
     api_key: "sk-xxx"  # Or via env var MONITOR_88CODE_CC_API_KEY

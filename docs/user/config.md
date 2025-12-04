@@ -38,6 +38,7 @@ monitors:
     service: "cc"              # 服务类型（必填）
     category: "commercial"     # 分类（必填）: commercial 或 public
     sponsor: "团队自有"         # 赞助者（必填）
+    sponsor_level: "advanced"  # 赞助等级（可选）: basic/advanced/enterprise
     channel: "vip"             # 业务通道（可选）
     url: "https://api.88code.com/v1/chat/completions"  # 健康检查端点（必填）
     method: "POST"             # HTTP 方法（必填）
@@ -291,6 +292,17 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **说明**: 赞助者展示用链接（可选），例如个人主页或组织网站
 - **格式要求**: 必须是 `http://` 或 `https://` 协议
 - **示例**: `"https://example.com/sponsor"`
+
+##### `sponsor_level`
+- **类型**: string
+- **说明**: 赞助商等级徽章（可选），在前端显示对应图标
+- **有效值**:
+  | 值 | 名称 | 图标 | 说明 |
+  |---|---|---|---|
+  | `basic` | 节点支持 | 🔻 | 已赞助高频监测资源 |
+  | `advanced` | 核心服务商 | ⬢ | 多线路深度监测 |
+  | `enterprise` | 全球伙伴 | 💠 | RelayPulse 顶级赞助商 |
+- **示例**: `"advanced"`
 
 ##### `channel`
 - **类型**: string
