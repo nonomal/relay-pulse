@@ -206,21 +206,7 @@ export function Controls({
 
         {/* 时间范围选择（添加横向滚动） */}
         <div className="bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
-          {getTimeRanges(t).map((range) => (
-            <button
-              key={range.id}
-              onClick={() => onTimeRangeChange(range.id)}
-              className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
-                timeRange === range.id
-                  ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
-              }`}
-            >
-              {range.label}
-            </button>
-          ))}
-
-          {/* 时间对齐切换图标（附属于 24h，始终显示） */}
+          {/* 时间对齐切换图标（附属于 24h，放在前面） */}
           <button
             onClick={() => {
               if (timeRange === '24h') {
@@ -239,6 +225,20 @@ export function Controls({
           >
             {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
           </button>
+
+          {getTimeRanges(t).map((range) => (
+            <button
+              key={range.id}
+              onClick={() => onTimeRangeChange(range.id)}
+              className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+                timeRange === range.id
+                  ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+              }`}
+            >
+              {range.label}
+            </button>
+          ))}
         </div>
       </div>
 
