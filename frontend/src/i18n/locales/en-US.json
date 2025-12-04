@@ -38,7 +38,7 @@
     },
     "categories": {
       "charity": "Charity",
-      "promoted": "Promoted"
+      "promoted": "Commercial"
     },
     "services": {
       "cc": "Claude Code (cc)",
@@ -72,6 +72,7 @@
   },
   "table": {
     "headers": {
+      "badge": "Badge",
       "provider": "Provider",
       "sponsor": "Sponsor",
       "service": "Service",
@@ -88,11 +89,11 @@
       "service": "Service type"
     },
     "categoryLabels": {
-      "promoted": "Promoted",
+      "promoted": "Commercial",
       "charity": "Charity"
     },
     "categoryShort": {
-      "promoted": "P",
+      "promoted": "",
       "charity": "C"
     },
     "expandDetails": "View details",
@@ -167,5 +168,13 @@
     "bookmarkHint": "Press {{shortcut}} to bookmark this page",
     "linkCopied": "Link copied to clipboard",
     "copyFailed": "Failed to copy, please copy the link manually"
+  },
+  "badges": {
+    "sponsor": {
+      "individual": "Individual Sponsor",
+      "generous": "Generous Sponsor",
+      "silver": "Silver Sponsor",
+      "top": "Top Sponsor"
+    }
   }
 }

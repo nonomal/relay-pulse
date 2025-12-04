@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
+import { SponsorBadge } from './SponsorBadge';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
@@ -55,8 +56,33 @@ function MobileListItem({
     [item.history]
   );
 
+  // 检查是否有徽标需要显示
+  const hasItemBadges = Boolean(
+    (showCategoryTag && item.category === 'public') || (showSponsor && item.sponsorLevel)
+  );
+
   return (
     <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
+      {/* 徽标行 - 仅在有徽标时显示 */}
+      {hasItemBadges && (
+        <div className="flex items-center gap-1.5">
+          {/* 公益站徽标 */}
+          {showCategoryTag && item.category === 'public' && (
+            <span
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
+              title={t('table.categoryLabels.charity')}
+              aria-label={t('table.categoryLabels.charity')}
+            >
+              {t('table.categoryShort.charity')}
+            </span>
+          )}
+          {/* 赞助商徽章 */}
+          {showSponsor && item.sponsorLevel && (
+            <SponsorBadge level={item.sponsorLevel} />
+          )}
+        </div>
+      )}
+
       {/* 主要信息行 */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -71,24 +97,17 @@ function MobileListItem({
             )}
           </div>
 
-          {/* 服务商名称 */}
+          {/* 服务商名称（合并赞助者，两行布局） */}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-col gap-0.5">
               {showProvider && (
                 <span className="font-semibold text-slate-100 truncate">
                   <ExternalLink href={item.providerUrl}>{item.providerName}</ExternalLink>
                 </span>
               )}
-              {/* Category 标签 - 可通过 showCategoryTag 控制显示 */}
-              {showCategoryTag && (
-                <span
-                  className={`flex-shrink-0 px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                    item.category === 'commercial'
-                      ? 'text-emerald-300 bg-emerald-500/10 border border-emerald-500/30'
-                      : 'text-cyan-300 bg-cyan-500/10 border border-cyan-500/30'
-                  }`}
-                >
-                  {item.category === 'commercial' ? t('table.categoryShort.promoted') : t('table.categoryShort.charity')}
+              {showSponsor && item.sponsor && (
+                <span className="text-[11px] text-slate-500 truncate">
+                  <ExternalLink href={item.sponsorUrl}>{item.sponsor}</ExternalLink>
                 </span>
               )}
             </div>
@@ -161,14 +180,6 @@ function MobileListItem({
       {/* 展开的详细信息 */}
       {expanded && (
         <div className="pt-3 border-t border-slate-800 space-y-2 text-xs">
-          {showSponsor && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">{t('common.sponsor')}</span>
-              <span className="text-slate-300">
-                <ExternalLink href={item.sponsorUrl}>{item.sponsor}</ExternalLink>
-              </span>
-            </div>
-          )}
           <div className="flex justify-between">
             <span className="text-slate-500">{t('common.channel')}</span>
             <span className="text-slate-300">{item.channel || '-'}</span>
@@ -304,12 +315,26 @@ export function StatusTable({
     );
   }
 
+  // 检查是否有任何徽标需要显示
+  const hasBadges = data.some(
+    (item) =>
+      (showCategoryTag && item.category === 'public') ||
+      (showSponsor && item.sponsorLevel)
+  );
+
   // 桌面端：表格视图
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-800/50 shadow-xl">
       <table className="w-full text-left border-collapse bg-slate-900/40 backdrop-blur-sm">
         <thead>
           <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
+            {/* 徽标列 - 仅在有徽标时显示 */}
+            {hasBadges && (
+              <th className="p-4 font-medium w-16">
+                {t('table.headers.badge')}
+              </th>
+            )}
+            {/* 服务商列（合并赞助者） */}
             {showProvider && (
               <th
                 className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
@@ -317,16 +342,6 @@ export function StatusTable({
               >
                 <div className="flex items-center">
                   {t('table.headers.provider')} <SortIcon columnKey="providerName" />
-                </div>
-              </th>
-            )}
-            {showSponsor && (
-              <th
-                className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
-                onClick={() => onSort('sponsor')}
-              >
-                <div className="flex items-center">
-                  {t('table.headers.sponsor')} <SortIcon columnKey="sponsor" />
                 </div>
               </th>
             )}
@@ -376,34 +391,51 @@ export function StatusTable({
         <tbody className="divide-y divide-slate-800/50 text-sm">
           {data.map((item) => {
             const ServiceIcon = getServiceIconComponent(item.serviceType);
+            const hasItemBadges = Boolean(
+              (showCategoryTag && item.category === 'public') ||
+              (showSponsor && item.sponsorLevel)
+            );
             return (
             <tr
               key={item.id}
               className="group hover:bg-slate-800/40 transition-[background-color,color]"
             >
+              {/* 徽标列 - 水平排列多个徽标 */}
+              {hasBadges && (
+                <td className="p-4">
+                  {hasItemBadges ? (
+                    <div className="flex items-center gap-1.5">
+                      {/* 公益站徽标 */}
+                      {showCategoryTag && item.category === 'public' && (
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
+                          title={t('table.categoryLabels.charity')}
+                          aria-label={t('table.categoryLabels.charity')}
+                        >
+                          {t('table.categoryShort.charity')}
+                        </span>
+                      )}
+                      {/* 赞助商徽章 */}
+                      {showSponsor && item.sponsorLevel && (
+                        <SponsorBadge level={item.sponsorLevel} />
+                      )}
+                    </div>
+                  ) : null}
+                </td>
+              )}
+              {/* 服务商列（合并赞助者，两行布局） */}
               {showProvider && (
-                <td className="p-4 font-medium text-slate-200">
-                  <div className="flex items-center gap-2">
-                    <ExternalLink href={item.providerUrl}>{item.providerName}</ExternalLink>
-                    {/* Category 标签 - 可通过 showCategoryTag 控制显示 */}
-                    {showCategoryTag && (
-                      <span
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${
-                          item.category === 'commercial'
-                            ? 'text-emerald-300 bg-emerald-500/10 border border-emerald-500/30'
-                            : 'text-cyan-300 bg-cyan-500/10 border border-cyan-500/30'
-                        }`}
-                        title={item.category === 'commercial' ? t('table.categoryLabels.promoted') : t('table.categoryLabels.charity')}
-                      >
-                        {item.category === 'commercial' ? t('table.categoryShort.promoted') : t('table.categoryShort.charity')}
+                <td className="p-4">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium text-slate-200">
+                      <ExternalLink href={item.providerUrl}>{item.providerName}</ExternalLink>
+                    </span>
+                    {showSponsor && item.sponsor && (
+                      <span className="text-[11px] text-slate-500">
+                        <ExternalLink href={item.sponsorUrl}>{item.sponsor}</ExternalLink>
                       </span>
                     )}
                   </div>
-                </td>
-              )}
-              {showSponsor && (
-                <td className="p-4 text-slate-300 text-sm">
-                  <ExternalLink href={item.sponsorUrl}>{item.sponsor}</ExternalLink>
                 </td>
               )}
               <td className="p-4">

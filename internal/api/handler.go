@@ -149,13 +149,14 @@ type CurrentStatus struct {
 // MonitorResult API返回结构
 type MonitorResult struct {
 	Provider     string              `json:"provider"`
-	ProviderSlug string              `json:"provider_slug"` // URL slug（用于生成专属页面链接）
-	ProviderURL  string              `json:"provider_url"`  // 服务商官网链接
+	ProviderSlug string              `json:"provider_slug"`           // URL slug（用于生成专属页面链接）
+	ProviderURL  string              `json:"provider_url"`            // 服务商官网链接
 	Service      string              `json:"service"`
-	Category     string              `json:"category"`    // 分类：commercial（推广站）或 public（公益站）
-	Sponsor      string              `json:"sponsor"`     // 赞助者
-	SponsorURL   string              `json:"sponsor_url"` // 赞助者链接
-	Channel      string              `json:"channel"`     // 业务通道标识
+	Category     string              `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
+	Sponsor      string              `json:"sponsor"`                 // 赞助者
+	SponsorURL   string              `json:"sponsor_url"`             // 赞助者链接
+	SponsorLevel config.SponsorLevel `json:"sponsor_level,omitempty"` // 赞助商等级：individual/generous/silver/top
+	Channel      string              `json:"channel"`                 // 业务通道标识
 	Current      *CurrentStatus      `json:"current_status"`
 	Timeline     []storage.TimePoint `json:"timeline"`
 }
@@ -409,6 +410,7 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		Category:     task.Category,
 		Sponsor:      task.Sponsor,
 		SponsorURL:   task.SponsorURL,
+		SponsorLevel: task.SponsorLevel,
 		Channel:      task.Channel,
 		Current:      current,
 		Timeline:     timeline,

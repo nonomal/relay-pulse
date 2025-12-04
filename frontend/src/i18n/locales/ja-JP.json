@@ -38,7 +38,7 @@
     },
     "categories": {
       "charity": "チャリティサイト",
-      "promoted": "プロモーションサイト"
+      "promoted": "商用サイト"
     },
     "services": {
       "cc": "Claude Code (cc)",
@@ -72,6 +72,7 @@
   },
   "table": {
     "headers": {
+      "badge": "バッジ",
       "provider": "プロバイダ",
       "sponsor": "スポンサー",
       "service": "サービス",
@@ -88,11 +89,11 @@
       "service": "サービス種別"
     },
     "categoryLabels": {
-      "promoted": "プロモーションサイト",
+      "promoted": "商用サイト",
       "charity": "チャリティサイト"
     },
     "categoryShort": {
-      "promoted": "推",
+      "promoted": "",
       "charity": "慈"
     },
     "expandDetails": "詳細を表示",
@@ -167,5 +168,13 @@
     "bookmarkHint": "{{shortcut}} を押してブックマークに追加",
     "linkCopied": "リンクをクリップボードにコピーしました",
     "copyFailed": "コピーに失敗しました。リンクを手動でコピーしてください"
+  },
+  "badges": {
+    "sponsor": {
+      "individual": "個人スポンサー",
+      "generous": "寛大なスポンサー",
+      "silver": "シルバースポンサー",
+      "top": "トップスポンサー"
+    }
   }
 }

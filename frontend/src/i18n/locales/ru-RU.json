@@ -38,7 +38,7 @@
     },
     "categories": {
       "charity": "Благотворительный",
-      "promoted": "Рекламный"
+      "promoted": "Коммерческий"
     },
     "services": {
       "cc": "Claude Code (cc)",
@@ -72,6 +72,7 @@
   },
   "table": {
     "headers": {
+      "badge": "Значок",
       "provider": "Провайдер",
       "sponsor": "Спонсор",
       "service": "Сервис",
@@ -88,11 +89,11 @@
       "service": "Тип сервиса"
     },
     "categoryLabels": {
-      "promoted": "Рекламный",
+      "promoted": "Коммерческий",
       "charity": "Благотворительный"
     },
     "categoryShort": {
-      "promoted": "Р",
+      "promoted": "",
       "charity": "Б"
     },
     "expandDetails": "Показать детали",
@@ -167,5 +168,13 @@
     "bookmarkHint": "Нажмите {{shortcut}}, чтобы добавить в закладки",
     "linkCopied": "Ссылка скопирована в буфер обмена",
     "copyFailed": "Не удалось скопировать, скопируйте ссылку вручную"
+  },
+  "badges": {
+    "sponsor": {
+      "individual": "Индивидуальный спонсор",
+      "generous": "Щедрый спонсор",
+      "silver": "Серебряный спонсор",
+      "top": "Топ-спонсор"
+    }
   }
 }

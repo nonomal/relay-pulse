@@ -38,7 +38,7 @@
     },
     "categories": {
       "charity": "公益站",
-      "promoted": "推广站"
+      "promoted": "商业站"
     },
     "services": {
       "cc": "Claude Code (cc)",
@@ -72,6 +72,7 @@
   },
   "table": {
     "headers": {
+      "badge": "徽标",
       "provider": "服务商",
       "sponsor": "赞助者",
       "service": "服务",
@@ -88,11 +89,11 @@
       "service": "服务类型"
     },
     "categoryLabels": {
-      "promoted": "推广站",
+      "promoted": "商业站",
       "charity": "公益站"
     },
     "categoryShort": {
-      "promoted": "推",
+      "promoted": "",
       "charity": "益"
     },
     "expandDetails": "查看详情",
@@ -167,5 +168,13 @@
     "bookmarkHint": "按 {{shortcut}} 添加到书签",
     "linkCopied": "链接已复制到剪贴板",
     "copyFailed": "复制失败，请手动复制链接"
+  },
+  "badges": {
+    "sponsor": {
+      "individual": "个人赞助",
+      "generous": "慷慨赞助",
+      "silver": "银牌赞助",
+      "top": "顶级赞助"
+    }
   }
 }

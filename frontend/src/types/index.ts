@@ -33,14 +33,18 @@ export interface CurrentStatus {
   timestamp: number;
 }
 
+// 赞助商等级类型
+export type SponsorLevel = 'individual' | 'generous' | 'silver' | 'top';
+
 export interface MonitorResult {
   provider: string;
   provider_slug: string;               // URL slug（用于生成专属页面链接）
   provider_url?: string;               // 服务商官网链接
   service: string;
-  category: 'commercial' | 'public';  // 分类：commercial（推广站）或 public（公益站）
+  category: 'commercial' | 'public';  // 分类：commercial（商业站）或 public（公益站）
   sponsor: string;                     // 赞助者
   sponsor_url?: string;                // 赞助者链接
+  sponsor_level?: SponsorLevel;        // 赞助商等级：individual/generous/silver/top
   channel: string;                     // 业务通道标识
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
@@ -84,6 +88,7 @@ export interface ProcessedMonitorData {
   category: 'commercial' | 'public';  // 分类
   sponsor: string;                     // 赞助者
   sponsorUrl?: string | null;          // 赞助者链接
+  sponsorLevel?: SponsorLevel;         // 赞助商等级
   channel?: string;                    // 业务通道标识
   history: Array<{
     index: number;

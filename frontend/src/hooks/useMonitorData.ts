@@ -7,6 +7,7 @@ import type {
   StatusKey,
   StatusCounts,
   ProviderOption,
+  SponsorLevel,
 } from '../types';
 import { API_BASE_URL, USE_MOCK_DATA, NO_DATA_AVAILABILITY } from '../constants';
 import { fetchMockMonitorData } from '../utils/mockMonitor';
@@ -51,6 +52,11 @@ const statusMap: Record<number, StatusKey> = {
 
 // 自动轮询间隔（毫秒）- 与后端探测频率 interval: "1m" 保持一致
 const POLL_INTERVAL_MS = 60_000;
+
+// 有效的赞助商等级列表（运行时校验）
+const SPONSOR_LEVELS: readonly SponsorLevel[] = ['individual', 'generous', 'silver', 'top'];
+const normalizeSponsorLevel = (level?: string): SponsorLevel | undefined =>
+  SPONSOR_LEVELS.includes(level as SponsorLevel) ? (level as SponsorLevel) : undefined;
 
 // 映射状态计数，提供默认值以向后兼容
 const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({
@@ -198,6 +204,7 @@ export function useMonitorData({
               category: item.category,
               sponsor: item.sponsor,
               sponsorUrl: validateUrl(item.sponsor_url),
+              sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
               channel: item.channel || undefined,
               history,
               currentStatus,
