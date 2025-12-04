@@ -139,7 +139,7 @@
       },
       "neutralMaintenance": {
         "title": "Open and Transparent Operations",
-        "text": "Monitoring logic is fully open source and data is generated objectively. Operating costs are covered by provider sponsorships and ads, never compromising data integrity for vested interests"
+        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsorships only fund high-frequency monitoring resources and brand placement; no commercial partnership ever influences data objectivity"
       },
       "monitoringScope": {
         "title": "Full-Stack Protocol Verification",
