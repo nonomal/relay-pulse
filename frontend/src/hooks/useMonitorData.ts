@@ -13,6 +13,9 @@ import { fetchMockMonitorData } from '../utils/mockMonitor';
 import { trackAPIPerformance, trackAPIError } from '../utils/analytics';
 import { sortMonitors } from '../utils/sortMonitors';
 
+// 请求节流间隔（毫秒）- 防止快速切换参数导致过多请求
+const FETCH_THROTTLE_MS = 300;
+
 // URL 二次校验函数
 function validateUrl(url: string | undefined): string | null {
   if (!url || url.trim() === '') return null;
@@ -102,8 +105,10 @@ export function useMonitorData({
   }, []);
 
   // 数据获取 - 支持双模式（Mock / API）
+  // 使用 debounce 防止快速切换参数导致过多请求
   useEffect(() => {
     let isMounted = true;
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const fetchData = async () => {
       setLoading(true);
@@ -226,10 +231,19 @@ export function useMonitorData({
       }
     };
 
-    fetchData();
+    // 使用 debounce 延迟请求，防止快速切换参数
+    // forceRefresh（手动刷新）时立即执行，不走 debounce
+    if (forceRefresh) {
+      fetchData();
+    } else {
+      debounceTimer = setTimeout(fetchData, FETCH_THROTTLE_MS);
+    }
 
     return () => {
       isMounted = false;
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
     };
   }, [timeRange, timeAlign, reloadToken, forceRefresh]);
 
