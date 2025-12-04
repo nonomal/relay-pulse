@@ -49,3 +49,11 @@ repos:
         language: script
         pass_filenames: false
         always_run: true
+
+      # 前端 lint 检查
+      - id: frontend-lint
+        name: Frontend Lint
+        entry: bash -c 'cd frontend && npm run lint'
+        language: system
+        pass_filenames: false
+        files: '^frontend/.*\.(ts|tsx|js|jsx)$'

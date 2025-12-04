@@ -67,6 +67,11 @@ function App() {
     data: null,
   });
 
+  // 刷新冷却状态（5秒内重复刷新显示提示）
+  const REFRESH_COOLDOWN_MS = 5000;
+  const lastRefreshRef = useRef<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState(false);
+
   const { loading, error, data, stats, channels, providers, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
     timeAlign,
@@ -133,11 +138,6 @@ function App() {
   const handleBlockLeave = () => {
     setTooltip((prev) => ({ ...prev, show: false }));
   };
-
-  // 刷新冷却状态（5秒内重复刷新显示提示）
-  const REFRESH_COOLDOWN_MS = 5000;
-  const lastRefreshRef = useRef<number>(0);
-  const [refreshCooldown, setRefreshCooldown] = useState(false);
 
   const handleRefresh = () => {
     const now = Date.now();

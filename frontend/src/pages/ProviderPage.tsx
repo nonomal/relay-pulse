@@ -71,6 +71,11 @@ export default function ProviderPage() {
     data: null,
   });
 
+  // 刷新冷却状态（5秒内重复刷新显示提示）
+  const REFRESH_COOLDOWN_MS = 5000;
+  const lastRefreshRef = useRef<number>(0);
+  const [refreshCooldown, setRefreshCooldown] = useState(false);
+
   // 数据获取 - 先获取全部数据用于构建映射
   const { data: allData, loading, error, stats, channels, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
@@ -140,11 +145,6 @@ export default function ProviderPage() {
           : 'asc',
     }));
   };
-
-  // 刷新冷却状态（5秒内重复刷新显示提示）
-  const REFRESH_COOLDOWN_MS = 5000;
-  const lastRefreshRef = useRef<number>(0);
-  const [refreshCooldown, setRefreshCooldown] = useState(false);
 
   // 刷新处理
   const handleRefresh = () => {
