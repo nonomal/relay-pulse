@@ -150,6 +150,11 @@ curl http://localhost:8080/health
 curl http://localhost:8080/api/version
 ```
 
+**Time Window**: The API uses a **sliding window** design. `period=24h` returns data from "24 hours ago until now". This means:
+- Each request has a different time baseline, so bucket boundaries shift slightly
+- Provider rankings always reflect the **true availability over the last 24 hours**
+- For stable data integration, consider sampling at fixed intervals (e.g., every hour on the hour)
+
 ## 🛠️ Tech Stack
 
 **Backend**
