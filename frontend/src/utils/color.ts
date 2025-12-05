@@ -104,3 +104,17 @@ export function latencyToColor(latency: number, slowLatencyMs: number): string {
   // >= 200% 阈值 → 红色
   return `rgb(${RED.r}, ${RED.g}, ${RED.b})`;
 }
+
+/**
+ * 根据赞助商等级返回左边框 Tailwind 类名
+ * 颜色与 SponsorBadge 徽章一致
+ */
+export function sponsorLevelToBorderClass(level?: string): string {
+  if (!level) return '';
+  const BORDER_CLASSES: Record<string, string> = {
+    basic: 'border-l-2 border-l-emerald-500/40',
+    advanced: 'border-l-2 border-l-cyan-500/40',
+    enterprise: 'border-l-2 border-l-amber-400/40',
+  };
+  return BORDER_CLASSES[level] || '';
+}

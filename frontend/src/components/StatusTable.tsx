@@ -6,7 +6,7 @@ import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { SponsorBadge } from './SponsorBadge';
 import { getStatusConfig, getTimeRanges } from '../constants';
-import { availabilityToColor, latencyToColor } from '../utils/color';
+import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import { getServiceIconComponent } from './ServiceIcon';
@@ -62,7 +62,7 @@ function MobileListItem({
   );
 
   return (
-    <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3">
+    <div className={`bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3 ${sponsorLevelToBorderClass(item.sponsorLevel)}`}>
       {/* 徽标行 - 仅在有徽标时显示 */}
       {hasItemBadges && (
         <div className="flex items-center gap-1.5">
@@ -401,7 +401,7 @@ export function StatusTable({
             return (
             <tr
               key={item.id}
-              className="group hover:bg-slate-800/40 transition-[background-color,color]"
+              className={`group hover:bg-slate-800/40 transition-[background-color,color] ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
             >
               {/* 徽标列 - 水平排列多个徽标 */}
               {hasBadges && (
