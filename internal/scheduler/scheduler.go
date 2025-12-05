@@ -178,19 +178,40 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		return
 	}
 
-	// 并发控制：-1 表示与监控数持平；>0 为硬上限
+	// 统计禁用的监控项数量
+	disabledCount := 0
+	for _, m := range cfg.Monitors {
+		if m.Disabled {
+			disabledCount++
+		}
+	}
+	activeCount := monitorCount - disabledCount
+
+	// 如果所有监控项都被禁用，清空任务
+	if activeCount == 0 {
+		s.tasks = s.tasks[:0]
+		s.resetTimerLocked()
+		s.notifyWakeLocked()
+		logger.Info("scheduler", "所有监控项已禁用，调度器无任务",
+			"total", monitorCount, "disabled", disabledCount)
+		return
+	}
+
+	// 并发控制：-1 表示与活跃监控数持平；>0 为硬上限
 	maxConcurrency := cfg.MaxConcurrency
 	if maxConcurrency == -1 {
-		maxConcurrency = monitorCount
+		maxConcurrency = activeCount
 	}
 	if maxConcurrency < 1 {
 		maxConcurrency = 1
 	}
 	s.sem = make(chan struct{}, maxConcurrency)
-	logger.Info("scheduler", "并发控制已更新", "max_concurrency", maxConcurrency, "monitors", monitorCount)
+	logger.Info("scheduler", "并发控制已更新",
+		"max_concurrency", maxConcurrency, "total", monitorCount,
+		"disabled", disabledCount, "active", activeCount)
 
-	// 错峰策略计算
-	useStagger := cfg.ShouldStaggerProbes() && monitorCount > 1
+	// 错峰策略计算（基于活跃监控数）
+	useStagger := cfg.ShouldStaggerProbes() && activeCount > 1
 	var baseDelay, jitterRange time.Duration
 
 	if useStagger {
@@ -204,7 +225,7 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 			// 热更新模式：基于最小 interval 计算错峰
 			minInterval := s.findMinInterval(cfg)
 			if minInterval > 0 {
-				baseDelay = minInterval / time.Duration(monitorCount)
+				baseDelay = minInterval / time.Duration(activeCount)
 				jitterRange = baseDelay / 5 // ±20%
 				logger.Info("scheduler", "探测将错峰执行",
 					"base_delay", baseDelay, "jitter", jitterRange)
@@ -219,7 +240,13 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	heap.Init(&s.tasks)
 	now := time.Now()
 
-	for idx, m := range cfg.Monitors {
+	activeIdx := 0 // 独立的活跃索引，用于错峰计算
+	for _, m := range cfg.Monitors {
+		// 跳过已禁用的监控项（不探测、不存储）
+		if m.Disabled {
+			continue
+		}
+
 		// 使用监控项自己的 interval，为空则使用全局 fallback
 		interval := m.IntervalDuration
 		if interval == 0 {
@@ -229,7 +256,7 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		// 计算首次执行时间（考虑错峰）
 		nextRun := now
 		if useStagger {
-			delay := computeStaggerDelay(baseDelay, jitterRange, idx)
+			delay := computeStaggerDelay(baseDelay, jitterRange, activeIdx)
 			nextRun = now.Add(delay)
 		}
 
@@ -238,16 +265,21 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 			interval: interval,
 			nextRun:  nextRun,
 		})
+		activeIdx++
 	}
 
 	s.resetTimerLocked()
 	s.notifyWakeLocked()
 }
 
-// findMinInterval 找到所有监控项中最小的 interval
+// findMinInterval 找到所有活跃监控项中最小的 interval（跳过已禁用的）
 func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
 	minInterval := cfg.IntervalDuration
 	for _, m := range cfg.Monitors {
+		// 跳过已禁用的监控项
+		if m.Disabled {
+			continue
+		}
 		if m.IntervalDuration > 0 && (minInterval == 0 || m.IntervalDuration < minInterval) {
 			minInterval = m.IntervalDuration
 		}

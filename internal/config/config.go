@@ -61,6 +61,11 @@ type ServiceConfig struct {
 	// 付费高频监控可使用更短间隔
 	Interval string `yaml:"interval" json:"interval"`
 
+	// 彻底停用配置：不探测、不存储、不展示
+	// Disabled 为 true 时，调度器不会创建任务，API 不返回，探测结果不写库
+	Disabled       bool   `yaml:"disabled" json:"disabled"`
+	DisabledReason string `yaml:"disabled_reason" json:"disabled_reason"` // 停用原因（可选）
+
 	// 临时下架配置：隐藏但继续探测，用于商家整改期间
 	// Hidden 为 true 时，API 不返回该监控项，但调度器继续探测并存储结果
 	Hidden       bool   `yaml:"hidden" json:"hidden"`
@@ -73,6 +78,13 @@ type ServiceConfig struct {
 	IntervalDuration time.Duration `yaml:"-" json:"-"`
 
 	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
+}
+
+// DisabledProviderConfig 批量禁用指定 provider 的配置
+// 用于彻底停用某个服务商的所有监控项（不探测、不存储、不展示）
+type DisabledProviderConfig struct {
+	Provider string `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
+	Reason   string `yaml:"reason" json:"reason"`     // 停用原因（可选）
 }
 
 // HiddenProviderConfig 批量隐藏指定 provider 的配置
@@ -163,6 +175,10 @@ type AppConfig struct {
 	// 可通过环境变量 MONITOR_PUBLIC_BASE_URL 覆盖
 	PublicBaseURL string `yaml:"public_base_url" json:"public_base_url"`
 
+	// 批量禁用的服务商列表（彻底停用，不探测、不存储、不展示）
+	// 列表中的 provider 会自动继承 disabled=true 状态到对应的 monitors
+	DisabledProviders []DisabledProviderConfig `yaml:"disabled_providers" json:"disabled_providers"`
+
 	// 批量隐藏的服务商列表
 	// 列表中的 provider 会自动继承 hidden=true 状态到对应的 monitors
 	// 用于临时下架整个服务商（如商家不配合整改）
@@ -241,6 +257,19 @@ func (c *AppConfig) Validate() error {
 			return fmt.Errorf("重复的监控项: provider=%s, service=%s, channel=%s", m.Provider, m.Service, m.Channel)
 		}
 		seen[key] = true
+	}
+
+	// 验证 disabled_providers
+	disabledProviderSet := make(map[string]bool)
+	for i, dp := range c.DisabledProviders {
+		provider := strings.ToLower(strings.TrimSpace(dp.Provider))
+		if provider == "" {
+			return fmt.Errorf("disabled_providers[%d]: provider 不能为空", i)
+		}
+		if disabledProviderSet[provider] {
+			return fmt.Errorf("disabled_providers[%d]: provider '%s' 重复配置", i, dp.Provider)
+		}
+		disabledProviderSet[provider] = true
 	}
 
 	// 验证 risk_providers
@@ -393,6 +422,20 @@ func (c *AppConfig) Normalize() error {
 		log.Println("[Config] 警告: SQLite 使用单连接（max_open_conns=1），并发查询无性能收益，建议关闭 enable_concurrent_query")
 	}
 
+	// 构建禁用的服务商映射（provider -> reason）
+	// 注意：provider 统一转小写，与 API 查询逻辑保持一致
+	disabledProviderMap := make(map[string]string)
+	for i, dp := range c.DisabledProviders {
+		provider := strings.ToLower(strings.TrimSpace(dp.Provider))
+		if provider == "" {
+			return fmt.Errorf("disabled_providers[%d]: provider 不能为空", i)
+		}
+		if _, exists := disabledProviderMap[provider]; exists {
+			return fmt.Errorf("disabled_providers[%d]: provider '%s' 重复配置", i, dp.Provider)
+		}
+		disabledProviderMap[provider] = strings.TrimSpace(dp.Reason)
+	}
+
 	// 构建隐藏的服务商映射（provider -> reason）
 	// 注意：provider 统一转小写，与 API 查询逻辑保持一致
 	hiddenProviderMap := make(map[string]string)
@@ -473,12 +516,32 @@ func (c *AppConfig) Normalize() error {
 			slugSet[slug] = i
 		}
 
-		// 计算最终隐藏状态：providerHidden || monitorHidden
-		// 原因优先级：monitor.HiddenReason > provider.Reason
-		// 注意：查找时使用小写 provider，与 hiddenProviderMap 构建逻辑一致
+		// 计算最终禁用状态：providerDisabled || monitorDisabled
+		// 原因优先级：monitor.DisabledReason > provider.Reason
+		// 注意：查找时使用小写 provider，与 disabledProviderMap 构建逻辑一致
 		normalizedProvider := strings.ToLower(strings.TrimSpace(c.Monitors[i].Provider))
+		providerDisabledReason, providerDisabled := disabledProviderMap[normalizedProvider]
+		if providerDisabled || c.Monitors[i].Disabled {
+			c.Monitors[i].Disabled = true
+			// 如果 monitor 自身没有设置原因，使用 provider 级别的原因
+			monitorReason := strings.TrimSpace(c.Monitors[i].DisabledReason)
+			if monitorReason == "" && providerDisabled {
+				c.Monitors[i].DisabledReason = providerDisabledReason
+			} else {
+				c.Monitors[i].DisabledReason = monitorReason
+			}
+			// 停用即视为隐藏，防止展示，同时使用停用原因作为隐藏原因
+			c.Monitors[i].Hidden = true
+			if strings.TrimSpace(c.Monitors[i].HiddenReason) == "" {
+				c.Monitors[i].HiddenReason = c.Monitors[i].DisabledReason
+			}
+		}
+
+		// 计算最终隐藏状态：providerHidden || monitorHidden（仅对未禁用的项）
+		// 原因优先级：monitor.HiddenReason > provider.Reason
+		// 已禁用的监控项无需再覆盖隐藏原因
 		providerReason, providerHidden := hiddenProviderMap[normalizedProvider]
-		if providerHidden || c.Monitors[i].Hidden {
+		if !c.Monitors[i].Disabled && (providerHidden || c.Monitors[i].Hidden) {
 			c.Monitors[i].Hidden = true
 			// 如果 monitor 自身没有设置原因，使用 provider 级别的原因
 			monitorReason := strings.TrimSpace(c.Monitors[i].HiddenReason)
@@ -636,9 +699,11 @@ func (c *AppConfig) Clone() *AppConfig {
 		ConcurrentQueryLimit:  c.ConcurrentQueryLimit,
 		Storage:               c.Storage,
 		PublicBaseURL:         c.PublicBaseURL,
+		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:       make([]HiddenProviderConfig, len(c.HiddenProviders)),
 		Monitors:              make([]ServiceConfig, len(c.Monitors)),
 	}
+	copy(clone.DisabledProviders, c.DisabledProviders)
 	copy(clone.HiddenProviders, c.HiddenProviders)
 	copy(clone.Monitors, c.Monitors)
 	return clone

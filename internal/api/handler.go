@@ -93,6 +93,13 @@ func (c *statusCache) set(key string, data []byte) {
 	}
 }
 
+// clear 清空所有缓存（配置热更新时调用）
+func (c *statusCache) clear() {
+	c.mu.Lock()
+	c.entries = make(map[string]*cacheEntry)
+	c.mu.Unlock()
+}
+
 // load 获取缓存，未命中时用 singleflight 合并并发请求
 func (c *statusCache) load(key string, loader func() ([]byte, error)) ([]byte, error) {
 	// 先检查缓存
@@ -289,6 +296,11 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 	seen := make(map[string]bool)
 
 	for _, task := range monitors {
+		// 始终过滤已禁用的监控项（不探测、不存储、不展示）
+		if task.Disabled {
+			continue
+		}
+
 		// 过滤隐藏的监控项（除非显式要求包含）
 		if !includeHidden && task.Hidden {
 			continue
@@ -609,6 +621,9 @@ func (h *Handler) UpdateConfig(cfg *config.AppConfig) {
 	h.cfgMu.Lock()
 	h.config = cfg
 	h.cfgMu.Unlock()
+
+	// 配置更新后清空缓存，确保禁用/隐藏状态变更立即生效
+	h.cache.clear()
 }
 
 // availabilityWeight 根据状态码返回可用率权重
@@ -680,12 +695,16 @@ func (h *Handler) GetSitemap(c *gin.Context) {
 	c.String(http.StatusOK, sitemap)
 }
 
-// extractUniqueProviderSlugs 从监控配置中提取唯一的 provider slugs（排除隐藏的）
+// extractUniqueProviderSlugs 从监控配置中提取唯一的 provider slugs（排除禁用和隐藏的）
 func (h *Handler) extractUniqueProviderSlugs(monitors []config.ServiceConfig) []string {
 	slugSet := make(map[string]bool)
 	var slugs []string
 
 	for _, task := range monitors {
+		// 跳过已禁用的监控项
+		if task.Disabled {
+			continue
+		}
 		// 跳过隐藏的监控项
 		if task.Hidden {
 			continue

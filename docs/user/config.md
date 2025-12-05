@@ -396,6 +396,30 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **说明**: 下架原因（可选，用于运维审计）
 - **示例**: `"服务质量不达标，待整改"`, `"该通道临时维护"`
 
+##### `disabled`
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 彻底停用该监控项（不探测、不存储、不展示）
+- **行为**:
+  - 调度器不创建任务，不探测
+  - 不写入数据库
+  - API `/api/status` 不返回（即使加 `?include_hidden=true` 也不返回）
+  - 前端不展示
+  - sitemap 不包含
+- **适用场景**: 商家已彻底关闭、不再需要监控
+- **示例**:
+  ```yaml
+  - provider: "已关站商家"
+    service: "cc"
+    disabled: true
+    disabled_reason: "商家已跑路"
+  ```
+
+##### `disabled_reason`
+- **类型**: string
+- **说明**: 停用原因（可选，用于运维审计）
+- **示例**: `"商家已跑路"`, `"服务永久关闭"`
+
 ### 临时下架配置
 
 用于临时下架服务商（如商家不配合整改），支持两种级别：
@@ -445,6 +469,58 @@ monitors:
 # 查看包含隐藏项的完整列表（内部调试用）
 curl "http://localhost:8080/api/status?include_hidden=true"
 ```
+
+### 彻底停用配置
+
+用于彻底停用服务商（如商家已跑路、永久关闭），与"临时下架"的区别是**不会继续探测和存储数据**。
+
+#### Provider 级别停用
+
+批量停用整个服务商的所有监控项：
+
+```yaml
+disabled_providers:
+  - provider: "已跑路商家A"
+    reason: "商家已跑路，不再监控"
+  - provider: "已关站商家B"
+    reason: "服务永久关闭"
+
+monitors:
+  - provider: "已跑路商家A"  # 自动继承 disabled=true
+    service: "cc"
+    # ...
+```
+
+#### Monitor 级别停用
+
+停用单个监控项：
+
+```yaml
+monitors:
+  - provider: "正常商家"
+    service: "legacy-channel"
+    disabled: true                    # 彻底停用
+    disabled_reason: "该通道已废弃"   # 停用原因
+    # ...
+```
+
+#### 优先级规则
+
+| Provider Disabled | Monitor Disabled | 最终状态 | 原因来源 |
+|-------------------|------------------|----------|----------|
+| ✅ | ❌ | **停用** | provider.reason |
+| ❌ | ✅ | **停用** | monitor.disabled_reason |
+| ✅ | ✅ | **停用** | monitor.disabled_reason（优先） |
+| ❌ | ❌ | 继续检查 hidden | - |
+
+#### Disabled vs Hidden 对比
+
+| 特性 | `disabled=true` | `hidden=true` |
+|------|-----------------|---------------|
+| 调度器探测 | ❌ 不探测 | ✅ 继续探测 |
+| 数据存储 | ❌ 不存储 | ✅ 继续存储 |
+| API 返回 | ❌ 永不返回 | ❌ 默认不返回，可用 `include_hidden=true` 查看 |
+| 适用场景 | 商家跑路、服务永久关闭 | 临时整改、待观察 |
 
 ## 环境变量覆盖
 
