@@ -564,13 +564,14 @@ HTTP 响应
 ### 配置文件结构
 
 ```yaml
-interval: "1m"         # 探测频率（Go duration 格式）
+interval: "1m"         # 全局探测频率（Go duration 格式）
 slow_latency: "5s"     # 慢请求黄灯阈值
 degraded_weight: 0.7   # 黄色状态的可用率权重（0-1，默认 0.7，可选）
 
 monitors:
   - provider: "88code"
     service: "cc"
+    interval: "30s"    # 可选：覆盖全局 interval（高频付费监控）
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
     api_key: "sk-xxx"  # 可通过 MONITOR_88CODE_CC_API_KEY 覆盖
@@ -580,6 +581,7 @@ monitors:
       {"model": "claude-3-opus", "messages": [...]}
     success_contains: "optional_keyword"  # 语义验证（可选）
 ```
+
 
 **模板占位符**: `{{API_KEY}}` 在 headers 和 body 中会被替换。
 

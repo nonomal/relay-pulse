@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"container/heap"
 	"context"
 	"math/rand"
 	"sync"
@@ -12,31 +13,67 @@ import (
 	"monitor/internal/storage"
 )
 
-// Scheduler 调度器
+// task 表示一个待调度的探测任务
+type task struct {
+	monitor  config.ServiceConfig // 监控配置
+	interval time.Duration        // 该任务的巡检间隔
+	nextRun  time.Time            // 下次执行时间
+	index    int                  // 在堆中的索引（heap.Interface 需要）
+}
+
+// taskHeap 按下一次触发时间排序的最小堆
+type taskHeap []*task
+
+func (h taskHeap) Len() int           { return len(h) }
+func (h taskHeap) Less(i, j int) bool { return h[i].nextRun.Before(h[j].nextRun) }
+func (h taskHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].index = i
+	h[j].index = j
+}
+
+func (h *taskHeap) Push(x any) {
+	t := x.(*task)
+	t.index = len(*h)
+	*h = append(*h, t)
+}
+
+func (h *taskHeap) Pop() any {
+	old := *h
+	n := len(old)
+	item := old[n-1]
+	old[n-1] = nil // 避免内存泄漏
+	item.index = -1
+	*h = old[:n-1]
+	return item
+}
+
+// Scheduler 调度器（最小堆调度架构）
+// 支持每个监控项独立的巡检间隔
 type Scheduler struct {
-	prober   *monitor.Prober
-	interval time.Duration
-	ticker   *time.Ticker
-	running  bool
-	mu       sync.Mutex
+	prober *monitor.Prober
+
+	mu      sync.Mutex
+	running bool
+	timer   *time.Timer  // 单一定时器，等待最近任务
+	tasks   taskHeap     // 任务最小堆
+	sem     chan struct{} // 并发控制信号量
+	wakeCh  chan struct{} // 唤醒信号（配置变更时）
+	ctx     context.Context
+	cancel  context.CancelFunc
 
 	// 配置引用（支持热更新）
-	cfg   *config.AppConfig
-	cfgMu sync.RWMutex
-
-	// 防止重复触发
-	checkInProgress bool
-	checkMu         sync.Mutex
-
-	// 保存context用于TriggerNow
-	ctx context.Context
+	cfg      *config.AppConfig
+	cfgMu    sync.RWMutex
+	fallback time.Duration // 默认巡检间隔（创建时传入）
 }
 
 // NewScheduler 创建调度器
 func NewScheduler(store storage.Storage, interval time.Duration) *Scheduler {
 	return &Scheduler{
 		prober:   monitor.NewProber(store),
-		interval: interval,
+		fallback: interval,
+		wakeCh:   make(chan struct{}, 1),
 	}
 }
 
@@ -48,203 +85,332 @@ func (s *Scheduler) Start(ctx context.Context, cfg *config.AppConfig) {
 		return
 	}
 	s.running = true
-	s.ticker = time.NewTicker(s.interval)
-	s.ctx = ctx // 保存context用于TriggerNow
-
-	// 保存初始配置
-	s.cfgMu.Lock()
-	s.cfg = cfg
-	s.cfgMu.Unlock()
+	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.mu.Unlock()
 
-	// 立即执行一次（启动模式错峰，使用固定 2 秒间隔避免瞬时压力）
-	go s.runChecks(ctx, true, true)
+	// 保存初始配置并初始化任务堆（启动时错峰）
+	s.rebuildTasks(cfg, true)
 
-	// 定时执行
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Info("scheduler", "调度器已停止")
-				s.mu.Lock()
-				s.ticker.Stop()
-				s.running = false
-				s.mu.Unlock()
-				return
+	// 启动调度循环
+	go s.loop()
 
-			case <-s.ticker.C:
-				s.runChecks(ctx, true, false) // 周期性巡检启用错峰，非启动模式
-			}
-		}
-	}()
-
-	logger.Info("scheduler", "调度器已启动", "interval", s.interval)
-}
-
-// runChecks 执行所有检查（防重复）
-// allowStagger 为 true 时，会在当前巡检周期内为不同监控项注入错峰延迟
-// startupMode 为 true 时，使用固定 2 秒间隔而非按 interval 计算，避免启动过慢
-func (s *Scheduler) runChecks(ctx context.Context, allowStagger bool, startupMode bool) {
-	// 防止重复执行
-	s.checkMu.Lock()
-	if s.checkInProgress {
-		logger.Info("scheduler", "上一轮检查尚未完成，跳过本次")
-		s.checkMu.Unlock()
-		return
-	}
-	s.checkInProgress = true
-	s.checkMu.Unlock()
-
-	defer func() {
-		s.checkMu.Lock()
-		s.checkInProgress = false
-		s.checkMu.Unlock()
-	}()
-
-	// 获取当前配置（支持热更新）
-	s.cfgMu.RLock()
-	cfg := s.cfg
-	s.cfgMu.RUnlock()
-
-	if cfg == nil || len(cfg.Monitors) == 0 {
-		return
-	}
-
-	logger.Info("scheduler", "开始巡检", "count", len(cfg.Monitors))
-
-	var wg sync.WaitGroup
-
-	// 并发控制：根据配置决定并发策略
-	monitorCount := len(cfg.Monitors)
-	maxConcurrency := cfg.MaxConcurrency
-
-	// MaxConcurrency 语义：
-	// - -1: 无限制，自动扩容到监控项数量
-	// - >0: 硬上限，严格限制并发数
-	if maxConcurrency == -1 {
-		// 无限制模式：每个监控项一个 goroutine
-		maxConcurrency = monitorCount
-		logger.Info("scheduler", "并发模式: 无限制", "concurrency", maxConcurrency)
-	} else if monitorCount > maxConcurrency {
-		// 硬上限模式：监控数超过上限时会排队
-		logger.Info("scheduler", "并发模式: 硬上限", "limit", maxConcurrency, "monitors", monitorCount)
-	} else {
-		logger.Info("scheduler", "并发模式: 正常", "concurrency", maxConcurrency, "monitors", monitorCount)
-	}
-
-	// 限制并发数
-	sem := make(chan struct{}, maxConcurrency)
-
-	// 错峰策略：在周期内均匀分散探测
-	useStagger := allowStagger && cfg.ShouldStaggerProbes() && monitorCount > 1 && s.interval > 0
-	var baseDelay time.Duration
-	var jitterRange time.Duration
-	if useStagger {
-		if startupMode {
-			// 启动模式：固定 2 秒间隔，避免同时发起大量请求
-			baseDelay = 2 * time.Second
-			jitterRange = 400 * time.Millisecond // ±20%
-			logger.Info("scheduler", "启动模式：探测将以固定间隔错峰执行", "base_delay", baseDelay, "jitter", jitterRange)
-		} else {
-			// 常规模式：按 interval 均分
-			baseDelay = s.interval / time.Duration(monitorCount)
-			if baseDelay <= 0 {
-				useStagger = false
-			} else {
-				jitterRange = baseDelay / 5 // ±20% 抖动
-				logger.Info("scheduler", "探测将错峰执行", "base_delay", baseDelay, "jitter", jitterRange)
-			}
-		}
-	}
-
-	for idx, task := range cfg.Monitors {
-		wg.Add(1)
-		go func(t config.ServiceConfig, index int) {
-			defer wg.Done()
-
-			// 错峰延迟（在获取信号量之前）
-			if useStagger {
-				delay := s.computeStaggerDelay(baseDelay, jitterRange, index)
-				if delay > 0 && !sleepWithContext(ctx, delay) {
-					return // context 取消
-				}
-			}
-
-			// 获取信号量
-			select {
-			case sem <- struct{}{}:
-			case <-ctx.Done():
-				return
-			}
-			defer func() { <-sem }()
-
-			// 执行探测
-			result := s.prober.Probe(ctx, &t)
-
-			// 保存结果
-			if err := s.prober.SaveResult(result); err != nil {
-				logger.Error("scheduler", "保存结果失败",
-					"provider", t.Provider, "service", t.Service, "channel", t.Channel, "error", err)
-			}
-		}(task, idx)
-	}
-
-	wg.Wait()
-	logger.Info("scheduler", "巡检完成")
+	logger.Info("scheduler", "调度器已启动", "monitors", len(cfg.Monitors))
 }
 
 // UpdateConfig 更新配置（热更新时调用）
 func (s *Scheduler) UpdateConfig(cfg *config.AppConfig) {
-	s.cfgMu.Lock()
-	s.cfg = cfg
-	s.cfgMu.Unlock()
-
-	// 如果配置中带有新的巡检间隔，动态调整 ticker
-	if cfg.IntervalDuration > 0 {
-		s.mu.Lock()
-		if s.interval != cfg.IntervalDuration {
-			s.interval = cfg.IntervalDuration
-			if s.ticker != nil {
-				s.ticker.Reset(s.interval)
-				logger.Info("scheduler", "巡检间隔已更新", "interval", s.interval)
-			}
-		}
-		s.mu.Unlock()
-	}
-
-	logger.Info("scheduler", "配置已更新，下次巡检将使用新配置")
+	s.rebuildTasks(cfg, false)
+	logger.Info("scheduler", "配置已更新，调度任务已重建")
 }
 
-// TriggerNow 立即触发一次巡检（热更新后调用）
+// TriggerNow 立即触发所有任务的巡检
 func (s *Scheduler) TriggerNow() {
 	s.mu.Lock()
-	running := s.running
-	ctx := s.ctx
+	if !s.running || len(s.tasks) == 0 {
+		s.mu.Unlock()
+		return
+	}
+
+	// 将所有任务的 nextRun 设为当前时间
+	now := time.Now()
+	for _, t := range s.tasks {
+		t.nextRun = now
+	}
+	heap.Init(&s.tasks)
+	s.resetTimerLocked()
+	s.notifyWakeLocked()
 	s.mu.Unlock()
 
-	if running && ctx != nil {
-		go s.runChecks(ctx, false, false) // 手动触发不错峰
-		logger.Info("scheduler", "已触发即时巡检")
-	}
+	logger.Info("scheduler", "已触发即时巡检")
 }
 
 // Stop 停止调度器
 func (s *Scheduler) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.running && s.ticker != nil {
-		s.ticker.Stop()
-		s.running = false
+	if !s.running {
+		s.mu.Unlock()
+		return
 	}
 
+	// 停止定时器
+	if s.timer != nil {
+		if !s.timer.Stop() {
+			select {
+			case <-s.timer.C:
+			default:
+			}
+		}
+		s.timer = nil
+	}
+
+	s.running = false
+	if s.cancel != nil {
+		s.cancel()
+	}
+	// 唤醒 loop 以便退出
+	s.notifyWakeLocked()
+	s.mu.Unlock()
+
 	s.prober.Close()
+	logger.Info("scheduler", "调度器已停止")
+}
+
+// rebuildTasks 根据配置重建调度任务堆
+// startup=true 时使用启动模式错峰（固定 2 秒间隔）
+func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
+	if cfg == nil {
+		return
+	}
+
+	// 更新配置引用
+	s.cfgMu.Lock()
+	s.cfg = cfg
+	s.cfgMu.Unlock()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	monitorCount := len(cfg.Monitors)
+	if monitorCount == 0 {
+		s.tasks = s.tasks[:0]
+		s.resetTimerLocked()
+		s.notifyWakeLocked() // 唤醒 loop 以便重新检查状态
+		return
+	}
+
+	// 并发控制：-1 表示与监控数持平；>0 为硬上限
+	maxConcurrency := cfg.MaxConcurrency
+	if maxConcurrency == -1 {
+		maxConcurrency = monitorCount
+	}
+	if maxConcurrency < 1 {
+		maxConcurrency = 1
+	}
+	s.sem = make(chan struct{}, maxConcurrency)
+	logger.Info("scheduler", "并发控制已更新", "max_concurrency", maxConcurrency, "monitors", monitorCount)
+
+	// 错峰策略计算
+	useStagger := cfg.ShouldStaggerProbes() && monitorCount > 1
+	var baseDelay, jitterRange time.Duration
+
+	if useStagger {
+		if startup {
+			// 启动模式：固定 2 秒间隔，避免瞬时压力
+			baseDelay = 2 * time.Second
+			jitterRange = 400 * time.Millisecond // ±20%
+			logger.Info("scheduler", "启动模式：探测将以固定间隔错峰执行",
+				"base_delay", baseDelay, "jitter", jitterRange)
+		} else {
+			// 热更新模式：基于最小 interval 计算错峰
+			minInterval := s.findMinInterval(cfg)
+			if minInterval > 0 {
+				baseDelay = minInterval / time.Duration(monitorCount)
+				jitterRange = baseDelay / 5 // ±20%
+				logger.Info("scheduler", "探测将错峰执行",
+					"base_delay", baseDelay, "jitter", jitterRange)
+			} else {
+				useStagger = false
+			}
+		}
+	}
+
+	// 构建任务堆
+	s.tasks = s.tasks[:0]
+	heap.Init(&s.tasks)
+	now := time.Now()
+
+	for idx, m := range cfg.Monitors {
+		// 使用监控项自己的 interval，为空则使用全局 fallback
+		interval := m.IntervalDuration
+		if interval == 0 {
+			interval = s.fallback
+		}
+
+		// 计算首次执行时间（考虑错峰）
+		nextRun := now
+		if useStagger {
+			delay := computeStaggerDelay(baseDelay, jitterRange, idx)
+			nextRun = now.Add(delay)
+		}
+
+		heap.Push(&s.tasks, &task{
+			monitor:  m,
+			interval: interval,
+			nextRun:  nextRun,
+		})
+	}
+
+	s.resetTimerLocked()
+	s.notifyWakeLocked()
+}
+
+// findMinInterval 找到所有监控项中最小的 interval
+func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
+	minInterval := cfg.IntervalDuration
+	for _, m := range cfg.Monitors {
+		if m.IntervalDuration > 0 && (minInterval == 0 || m.IntervalDuration < minInterval) {
+			minInterval = m.IntervalDuration
+		}
+	}
+	return minInterval
+}
+
+// loop 调度主循环
+func (s *Scheduler) loop() {
+	for {
+		s.mu.Lock()
+		running := s.running
+		timer := s.timer
+		ctx := s.ctx
+		s.mu.Unlock()
+
+		if !running {
+			return
+		}
+
+		var timerC <-chan time.Time
+		if timer != nil {
+			timerC = timer.C
+		}
+
+		select {
+		case <-ctx.Done():
+			s.Stop()
+			return
+
+		case <-timerC:
+			// 定时器触发，执行到期任务
+			s.dispatchDue()
+
+		case <-s.wakeCh:
+			// 配置变更唤醒，重新计算等待时间
+			// 循环继续，会重新获取 timer
+		}
+	}
+}
+
+// dispatchDue 执行所有已到期的任务
+func (s *Scheduler) dispatchDue() {
+	for {
+		s.mu.Lock()
+		if len(s.tasks) == 0 {
+			s.resetTimerLocked()
+			s.mu.Unlock()
+			return
+		}
+
+		// 检查堆顶任务是否到期
+		next := s.tasks[0]
+		now := time.Now()
+		if next.nextRun.After(now) {
+			// 最近任务未到期，重置定时器等待
+			s.resetTimerLocked()
+			s.mu.Unlock()
+			return
+		}
+
+		// 弹出到期任务
+		heap.Pop(&s.tasks)
+		s.mu.Unlock()
+
+		// 异步执行探测任务
+		s.runTask(next)
+
+		// 使用"至少间隔"语义：下次执行时间 = max(计划时间+interval, 当前时间+interval)
+		// 避免探测耗时超过 interval 时快速补跑多个周期
+		plannedNext := next.nextRun.Add(next.interval)
+		minNext := time.Now().Add(next.interval)
+		if plannedNext.Before(minNext) {
+			next.nextRun = minNext
+		} else {
+			next.nextRun = plannedNext
+		}
+
+		// 重新入队
+		s.mu.Lock()
+		heap.Push(&s.tasks, next)
+		s.resetTimerLocked()
+		s.mu.Unlock()
+	}
+}
+
+// runTask 在并发控制下执行单个探测任务
+func (s *Scheduler) runTask(t *task) {
+	s.mu.Lock()
+	ctx := s.ctx
+	sem := s.sem
+	s.mu.Unlock()
+
+	if ctx == nil || sem == nil {
+		return
+	}
+
+	// 获取信号量
+	select {
+	case sem <- struct{}{}:
+	case <-ctx.Done():
+		return
+	}
+
+	// 异步执行，释放信号量
+	go func(m config.ServiceConfig) {
+		defer func() { <-sem }()
+
+		result := s.prober.Probe(ctx, &m)
+		if err := s.prober.SaveResult(result); err != nil {
+			logger.Error("scheduler", "保存结果失败",
+				"provider", m.Provider, "service", m.Service, "channel", m.Channel, "error", err)
+		}
+	}(t.monitor)
+}
+
+// resetTimerLocked 重置定时器到下一个任务（需持有 s.mu）
+func (s *Scheduler) resetTimerLocked() {
+	if len(s.tasks) == 0 {
+		// 无任务，停止定时器
+		if s.timer != nil {
+			if !s.timer.Stop() {
+				select {
+				case <-s.timer.C:
+				default:
+				}
+			}
+			s.timer = nil
+		}
+		return
+	}
+
+	// 计算等待时间
+	wait := max(time.Until(s.tasks[0].nextRun), 0)
+
+	if s.timer == nil {
+		s.timer = time.NewTimer(wait)
+		return
+	}
+
+	// 重置现有定时器
+	if !s.timer.Stop() {
+		select {
+		case <-s.timer.C:
+		default:
+		}
+	}
+	s.timer.Reset(wait)
+}
+
+// notifyWakeLocked 唤醒调度循环（需持有 s.mu）
+func (s *Scheduler) notifyWakeLocked() {
+	select {
+	case s.wakeCh <- struct{}{}:
+	default:
+		// 已有唤醒信号，无需重复发送
+	}
 }
 
 // computeStaggerDelay 计算错峰延迟时间
 // 基准延迟 + 随机抖动（±20%）
 // 注意：使用全局 rand（Go 1.20+ 并发安全）
-func (s *Scheduler) computeStaggerDelay(baseDelay, jitterRange time.Duration, index int) time.Duration {
+func computeStaggerDelay(baseDelay, jitterRange time.Duration, index int) time.Duration {
 	delay := baseDelay * time.Duration(index)
 	if jitterRange <= 0 {
 		if delay < 0 {
@@ -268,21 +434,4 @@ func (s *Scheduler) computeStaggerDelay(baseDelay, jitterRange time.Duration, in
 		return 0
 	}
 	return delay
-}
-
-// sleepWithContext 在指定时间内休眠，支持 context 取消
-func sleepWithContext(ctx context.Context, d time.Duration) bool {
-	if d <= 0 {
-		return true
-	}
-
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-
-	select {
-	case <-ctx.Done():
-		return false // 被取消
-	case <-timer.C:
-		return true // 正常完成
-	}
 }

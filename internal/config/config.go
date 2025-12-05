@@ -49,6 +49,11 @@ type ServiceConfig struct {
 	// SuccessContains 可选：响应体需包含的关键字，用于判定请求语义是否成功
 	SuccessContains string `yaml:"success_contains" json:"success_contains"`
 
+	// 自定义巡检间隔（可选，留空则使用全局 interval）
+	// 支持 Go duration 格式，例如 "30s"、"1m"、"5m"
+	// 付费高频监控可使用更短间隔
+	Interval string `yaml:"interval" json:"interval"`
+
 	// 临时下架配置：隐藏但继续探测，用于商家整改期间
 	// Hidden 为 true 时，API 不返回该监控项，但调度器继续探测并存储结果
 	Hidden       bool   `yaml:"hidden" json:"hidden"`
@@ -56,6 +61,9 @@ type ServiceConfig struct {
 
 	// 解析后的"慢请求"阈值（来自全局配置），用于黄灯判定
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
+
+	// 解析后的巡检间隔（可选，为空时使用全局 interval）
+	IntervalDuration time.Duration `yaml:"-" json:"-"`
 
 	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
 }
@@ -366,6 +374,21 @@ func (c *AppConfig) Normalize() error {
 		if c.Monitors[i].SlowLatencyDuration == 0 {
 			c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
 		}
+
+		// 解析单监控项的 interval，空值回退到全局
+		if trimmed := strings.TrimSpace(c.Monitors[i].Interval); trimmed != "" {
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d]: 解析 interval 失败: %w", i, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d]: interval 必须大于 0", i)
+			}
+			c.Monitors[i].IntervalDuration = d
+		} else {
+			c.Monitors[i].IntervalDuration = c.IntervalDuration
+		}
+
 		// 标准化 category 为小写
 		c.Monitors[i].Category = strings.ToLower(c.Monitors[i].Category)
 

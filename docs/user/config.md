@@ -355,6 +355,25 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
   - 支持常见的流式响应格式（如 Anthropic 的 `content_block_delta`、
     OpenAI 的 `choices[].delta.content`），会自动拼接增量文本再进行关键字匹配。
 
+##### `interval`
+- **类型**: string (Go duration 格式)
+- **说明**: 该监控项的自定义巡检间隔（可选），覆盖全局 `interval`
+- **示例**: `"30s"`, `"1m"`, `"5m"`
+- **使用场景**:
+  - **高频监控**：付费服务商需要更短的检测间隔（如 `"1m"`）
+  - **低频监控**：成本敏感或稳定服务使用更长间隔（如 `"15m"`）
+- **配置示例**:
+  ```yaml
+  interval: "5m"  # 全局默认 5 分钟
+  monitors:
+    - provider: "高优先级服务商"
+      interval: "1m"   # 覆盖：每 1 分钟检测一次
+      # ...
+    - provider: "普通服务商"
+      # 不配置 interval，使用全局 5 分钟
+      # ...
+  ```
+
 ##### `hidden`
 - **类型**: boolean
 - **默认值**: `false`
