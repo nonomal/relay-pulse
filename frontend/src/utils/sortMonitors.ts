@@ -1,5 +1,6 @@
 import { STATUS } from '../constants';
 import type { ProcessedMonitorData, SortConfig, StatusKey } from '../types';
+import { calculateBadgeScore } from './badgeUtils';
 
 /**
  * 对监控数据进行排序
@@ -7,6 +8,7 @@ import type { ProcessedMonitorData, SortConfig, StatusKey } from '../types';
  * 排序规则：
  * 1. 按主排序字段排序（支持 asc/desc）
  * 2. 特殊字段处理：
+ *    - badgeScore: 按徽标综合分数排序（赞助商正向，风险负向）
  *    - currentStatus: 按状态权重排序
  *    - uptime: uptime < 0 视为无数据，始终排最后
  * 3. 二级排序：主字段相等时，按 lastCheckLatency 升序（延迟低的优先）
@@ -47,7 +49,11 @@ function comparePrimary(
   let bValue: number | string;
 
   // 特殊字段处理
-  if (key === 'currentStatus') {
+  if (key === 'badgeScore') {
+    // 徽标分数排序
+    aValue = calculateBadgeScore(a);
+    bValue = calculateBadgeScore(b);
+  } else if (key === 'currentStatus') {
     aValue = STATUS[a.currentStatus as StatusKey]?.weight ?? 0;
     bValue = STATUS[b.currentStatus as StatusKey]?.weight ?? 0;
   } else if (key === 'uptime') {

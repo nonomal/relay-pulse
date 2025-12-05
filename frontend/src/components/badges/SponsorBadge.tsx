@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import type { SponsorLevel } from '../types';
+import type { SponsorLevel } from '../../types';
 
 interface SponsorBadgeProps {
   level: SponsorLevel;

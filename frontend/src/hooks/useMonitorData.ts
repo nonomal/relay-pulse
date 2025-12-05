@@ -205,6 +205,7 @@ export function useMonitorData({
               sponsor: item.sponsor,
               sponsorUrl: validateUrl(item.sponsor_url),
               sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
+              risks: item.risks,  // 直接传递风险徽标数组
               channel: item.channel || undefined,
               history,
               currentStatus,

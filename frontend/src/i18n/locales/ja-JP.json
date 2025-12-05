@@ -88,6 +88,7 @@
       "trend": "品質トレンド"
     },
     "sorting": {
+      "badge": "バッジ",
       "provider": "プロバイダ",
       "uptime": "稼働率",
       "status": "現在の状態",
@@ -188,6 +189,13 @@
         "name": "グローバルパートナー",
         "tooltip": "RelayPulseトップスポンサー、オープンソース運営を支援"
       }
+    },
+    "risk": {
+      "tooltip": "リスクが検出されました。ご注意ください",
+      "clickToView": "クリックして詳細を表示"
+    },
+    "public": {
+      "tooltip": "無料の公益サービスサイト"
     }
   }
 }

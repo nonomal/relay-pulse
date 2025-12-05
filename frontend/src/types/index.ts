@@ -36,6 +36,12 @@ export interface CurrentStatus {
 // 赞助商等级类型
 export type SponsorLevel = 'basic' | 'advanced' | 'enterprise';
 
+// 风险徽标（单级）
+export interface RiskBadge {
+  label: string;           // 简短标签，如"跑路风险"
+  discussionUrl?: string;  // 讨论页面链接（可选）
+}
+
 export interface MonitorResult {
   provider: string;
   provider_slug: string;               // URL slug（用于生成专属页面链接）
@@ -45,6 +51,7 @@ export interface MonitorResult {
   sponsor: string;                     // 赞助者
   sponsor_url?: string;                // 赞助者链接
   sponsor_level?: SponsorLevel;        // 赞助商等级：basic/advanced/enterprise
+  risks?: RiskBadge[];                 // 风险徽标数组
   channel: string;                     // 业务通道标识
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
@@ -89,6 +96,7 @@ export interface ProcessedMonitorData {
   sponsor: string;                     // 赞助者
   sponsorUrl?: string | null;          // 赞助者链接
   sponsorLevel?: SponsorLevel;         // 赞助商等级
+  risks?: RiskBadge[];                 // 风险徽标数组
   channel?: string;                    // 业务通道标识
   history: Array<{
     index: number;

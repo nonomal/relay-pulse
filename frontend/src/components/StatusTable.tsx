@@ -4,11 +4,12 @@ import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
-import { SponsorBadge } from './SponsorBadge';
+import { BadgeCell } from './badges';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
+import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
 import { getServiceIconComponent } from './ServiceIcon';
 import type { ProcessedMonitorData, SortConfig } from '../types';
 
@@ -57,33 +58,18 @@ function MobileListItem({
   );
 
   // 检查是否有徽标需要显示
-  const hasItemBadges = Boolean(
-    (showCategoryTag && item.category === 'public') || (showSponsor && item.sponsorLevel)
-  );
+  const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
 
   return (
     <div className={`bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3 ${sponsorLevelToBorderClass(item.sponsorLevel)}`}>
       {/* 徽标行 - 仅在有徽标时显示 */}
       {hasItemBadges && (
-        <div className="flex items-center gap-1.5">
-          {/* 公益站徽标 */}
-          {showCategoryTag && item.category === 'public' && (
-            <span
-              className="relative group/badge inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
-              aria-label={t('table.categoryLabels.charity')}
-            >
-              {t('table.categoryShort.charity')}
-              {/* 延迟 tooltip - 悬停 700ms 后显示，左对齐避免裁剪 */}
-              <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/badge:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
-                {t('table.categoryLabels.charity')}
-              </span>
-            </span>
-          )}
-          {/* 赞助商徽章 */}
-          {showSponsor && item.sponsorLevel && (
-            <SponsorBadge level={item.sponsorLevel} />
-          )}
-        </div>
+        <BadgeCell
+          item={item}
+          showCategoryTag={showCategoryTag}
+          showSponsor={showSponsor}
+          showRisk={true}
+        />
       )}
 
       {/* 主要信息行 */}
@@ -228,6 +214,7 @@ function MobileSortMenu({
   const { t } = useTranslation();
 
   const sortOptions = [
+    { key: 'badgeScore', label: t('table.sorting.badge') },
     { key: 'providerName', label: t('table.sorting.provider') },
     { key: 'uptime', label: t('table.sorting.uptime') },
     { key: 'currentStatus', label: t('table.sorting.status') },
@@ -319,11 +306,7 @@ export function StatusTable({
   }
 
   // 检查是否有任何徽标需要显示
-  const hasBadges = data.some(
-    (item) =>
-      (showCategoryTag && item.category === 'public') ||
-      (showSponsor && item.sponsorLevel)
-  );
+  const hasBadges = hasAnyBadgeInList(data, { showCategoryTag, showSponsor, showRisk: true });
 
   // 桌面端：表格视图
   return (
@@ -331,10 +314,15 @@ export function StatusTable({
       <table className="w-full text-left border-collapse bg-slate-900/40 backdrop-blur-sm">
         <thead>
           <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
-            {/* 徽标列 - 仅在有徽标时显示 */}
+            {/* 徽标列 - 仅在有徽标时显示，可排序 */}
             {hasBadges && (
-              <th className="p-4 font-medium w-16">
-                {t('table.headers.badge')}
+              <th
+                className="p-4 font-medium w-16 cursor-pointer hover:text-cyan-400 transition-colors"
+                onClick={() => onSort('badgeScore')}
+              >
+                <div className="flex items-center">
+                  {t('table.headers.badge')} <SortIcon columnKey="badgeScore" />
+                </div>
               </th>
             )}
             {/* 服务商列（合并赞助者） */}
@@ -394,38 +382,22 @@ export function StatusTable({
         <tbody className="divide-y divide-slate-800/50 text-sm">
           {data.map((item) => {
             const ServiceIcon = getServiceIconComponent(item.serviceType);
-            const hasItemBadges = Boolean(
-              (showCategoryTag && item.category === 'public') ||
-              (showSponsor && item.sponsorLevel)
-            );
+            const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
             return (
             <tr
               key={item.id}
               className={`group hover:bg-slate-800/40 transition-[background-color,color] ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
             >
-              {/* 徽标列 - 水平排列多个徽标 */}
+              {/* 徽标列 - 使用 BadgeCell 统一渲染 */}
               {hasBadges && (
                 <td className="px-4 py-[11px]">
                   {hasItemBadges ? (
-                    <div className="flex items-center gap-1.5">
-                      {/* 公益站徽标 */}
-                      {showCategoryTag && item.category === 'public' && (
-                        <span
-                          className="relative group/badge inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide text-cyan-300 bg-cyan-500/10 border border-cyan-500/30"
-                          aria-label={t('table.categoryLabels.charity')}
-                        >
-                          {t('table.categoryShort.charity')}
-                          {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-                          <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/badge:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-10">
-                            {t('table.categoryLabels.charity')}
-                          </span>
-                        </span>
-                      )}
-                      {/* 赞助商徽章 */}
-                      {showSponsor && item.sponsorLevel && (
-                        <SponsorBadge level={item.sponsorLevel} />
-                      )}
-                    </div>
+                    <BadgeCell
+                      item={item}
+                      showCategoryTag={showCategoryTag}
+                      showSponsor={showSponsor}
+                      showRisk={true}
+                    />
                   ) : null}
                 </td>
               )}

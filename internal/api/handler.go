@@ -156,6 +156,7 @@ type MonitorResult struct {
 	Sponsor      string              `json:"sponsor"`                 // 赞助者
 	SponsorURL   string              `json:"sponsor_url"`             // 赞助者链接
 	SponsorLevel config.SponsorLevel `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
+	Risks        []config.RiskBadge  `json:"risks,omitempty"`         // 风险徽标数组
 	Channel      string              `json:"channel"`                 // 业务通道标识
 	Current      *CurrentStatus      `json:"current_status"`
 	Timeline     []storage.TimePoint `json:"timeline"`
@@ -411,6 +412,7 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		Sponsor:      task.Sponsor,
 		SponsorURL:   task.SponsorURL,
 		SponsorLevel: task.SponsorLevel,
+		Risks:        task.Risks,
 		Channel:      task.Channel,
 		Current:      current,
 		Timeline:     timeline,

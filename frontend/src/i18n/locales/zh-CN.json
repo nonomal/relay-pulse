@@ -88,6 +88,7 @@
       "trend": "质量趋势"
     },
     "sorting": {
+      "badge": "徽标",
       "provider": "服务商",
       "uptime": "可用率",
       "status": "当前状态",
@@ -188,6 +189,13 @@
         "name": "全球伙伴",
         "tooltip": "RelayPulse 顶级赞助商，助力开源运营"
       }
+    },
+    "risk": {
+      "tooltip": "存在风险，请谨慎使用",
+      "clickToView": "点击查看讨论"
+    },
+    "public": {
+      "tooltip": "免费公益服务站点"
     }
   }
 }

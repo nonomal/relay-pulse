@@ -88,6 +88,7 @@
       "trend": "Quality trend"
     },
     "sorting": {
+      "badge": "Badge",
       "provider": "Provider",
       "uptime": "Uptime",
       "status": "Current status",
@@ -188,6 +189,13 @@
         "name": "Global Partner",
         "tooltip": "RelayPulse top sponsor, powering open source operations"
       }
+    },
+    "risk": {
+      "tooltip": "Risk detected, use with caution",
+      "clickToView": "Click to view discussion"
+    },
+    "public": {
+      "tooltip": "Free public service site"
     }
   }
 }

@@ -30,6 +30,12 @@ func (s SponsorLevel) IsValid() bool {
 	}
 }
 
+// RiskBadge 风险徽标配置
+type RiskBadge struct {
+	Label         string `yaml:"label" json:"label"`                  // 简短标签，如"跑路风险"
+	DiscussionURL string `yaml:"discussion_url" json:"discussionUrl"` // 讨论页面链接（可选）
+}
+
 // ServiceConfig 单个服务监控配置
 type ServiceConfig struct {
 	Provider     string            `yaml:"provider" json:"provider"`
@@ -40,6 +46,7 @@ type ServiceConfig struct {
 	Sponsor      string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
 	SponsorURL   string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
 	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
+	Risks        []RiskBadge       `yaml:"risks" json:"risks,omitempty"`       // 风险徽标数组（可选）
 	Channel      string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
 	URL          string            `yaml:"url" json:"url"`
 	Method       string            `yaml:"method" json:"method"`
@@ -213,6 +220,18 @@ func (c *AppConfig) Validate() error {
 		if m.SponsorURL != "" {
 			if err := validateURL(m.SponsorURL, "sponsor_url"); err != nil {
 				return fmt.Errorf("monitor[%d]: %w", i, err)
+			}
+		}
+
+		// Risks 验证（可选字段）
+		for j, risk := range m.Risks {
+			if strings.TrimSpace(risk.Label) == "" {
+				return fmt.Errorf("monitor[%d].risks[%d]: label 不能为空", i, j)
+			}
+			if risk.DiscussionURL != "" {
+				if err := validateURL(risk.DiscussionURL, "discussion_url"); err != nil {
+					return fmt.Errorf("monitor[%d].risks[%d]: %w", i, j, err)
+				}
 			}
 		}
 

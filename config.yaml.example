@@ -96,6 +96,9 @@ monitors:
     sponsor: "团队自有"      # 必填：提供 API Key 的赞助者
     sponsor_url: "https://example.com/sponsor"  # 可选：赞助者链接
     sponsor_level: "enterprise"    # 可选：赞助商等级 basic(🔻节点支持)/advanced(⬢核心服务商)/enterprise(💠全球伙伴)
+    # risks:                        # 可选：风险徽标数组，用于标记存在风险的服务商
+    #   - label: "跑路风险"          # 必填：简短标签
+    #     discussion_url: "https://example.com/discussion"  # 可选：讨论页面链接
     channel: "vip-channel"  # 业务通道标识（可选），用于分类和过滤
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
