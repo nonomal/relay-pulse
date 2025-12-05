@@ -55,8 +55,8 @@ type Scheduler struct {
 
 	mu      sync.Mutex
 	running bool
-	timer   *time.Timer  // 单一定时器，等待最近任务
-	tasks   taskHeap     // 任务最小堆
+	timer   *time.Timer   // 单一定时器，等待最近任务
+	tasks   taskHeap      // 任务最小堆
 	sem     chan struct{} // 并发控制信号量
 	wakeCh  chan struct{} // 唤醒信号（配置变更时）
 	ctx     context.Context
