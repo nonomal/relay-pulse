@@ -90,22 +90,22 @@ function App() {
   // 追踪服务筛选变化
   useEffect(() => {
     trackServiceFilter(
-      filterProvider !== 'all' ? filterProvider : undefined,
-      filterService !== 'all' ? filterService : undefined
+      filterProvider.length > 0 ? filterProvider.join(',') : undefined,
+      filterService.length > 0 ? filterService.join(',') : undefined
     );
   }, [filterProvider, filterService]);
 
   // 追踪通道筛选变化
   useEffect(() => {
-    if (filterChannel !== 'all') {
-      trackEvent('filter_channel', { channel: filterChannel });
+    if (filterChannel.length > 0) {
+      trackEvent('filter_channel', { channel: filterChannel.join(',') });
     }
   }, [filterChannel]);
 
   // 追踪分类筛选变化
   useEffect(() => {
-    if (filterCategory !== 'all') {
-      trackEvent('filter_category', { category: filterCategory });
+    if (filterCategory.length > 0) {
+      trackEvent('filter_category', { category: filterCategory.join(',') });
     }
   }, [filterCategory]);
 
@@ -164,7 +164,7 @@ function App() {
         <meta name="description" content={t('meta.description')} />
       </Helmet>
 
-      <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white overflow-x-hidden">
+      <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white">
         {/* 全局 Tooltip */}
         <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
 

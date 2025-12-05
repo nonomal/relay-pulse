@@ -68,6 +68,11 @@
       "filterTitle": "Условия фильтрации",
       "closeFilter": "Закрыть фильтр"
     },
+    "multiSelect": {
+      "selectedCount": "Выбрано: {{count}}",
+      "searchPlaceholder": "Поиск провайдеров...",
+      "noResults": "Ничего не найдено"
+    },
     "sortBy": "Сортировка:"
   },
   "table": {

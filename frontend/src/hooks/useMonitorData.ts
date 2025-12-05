@@ -77,10 +77,10 @@ const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({
 interface UseMonitorDataOptions {
   timeRange: string;
   timeAlign?: string; // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
-  filterService: string;
-  filterProvider: string;
-  filterChannel: string;
-  filterCategory: string;
+  filterService: string[];   // 多选服务，空数组表示"全部"
+  filterProvider: string[];  // 多选服务商，空数组表示"全部"
+  filterChannel: string[];   // 多选通道，空数组表示"全部"
+  filterCategory: string[];  // 多选分类，空数组表示"全部"
   sortConfig: SortConfig;
 }
 
@@ -321,11 +321,17 @@ export function useMonitorData({
 
   // 数据过滤和排序
   const processedData = useMemo(() => {
+    // 多选过滤：空数组表示"全部"
+    const providerSet = filterProvider.length > 0 ? new Set(filterProvider) : null;
+    const serviceSet = filterService.length > 0 ? new Set(filterService) : null;
+    const channelSet = filterChannel.length > 0 ? new Set(filterChannel) : null;
+    const categorySet = filterCategory.length > 0 ? new Set(filterCategory) : null;
+
     const filtered = rawData.filter((item) => {
-      const matchService = filterService === 'all' || item.serviceType === filterService;
-      const matchProvider = filterProvider === 'all' || item.providerId === filterProvider;
-      const matchChannel = filterChannel === 'all' || item.channel === filterChannel;
-      const matchCategory = filterCategory === 'all' || item.category === filterCategory;
+      const matchService = serviceSet === null || serviceSet.has(item.serviceType);
+      const matchProvider = providerSet === null || providerSet.has(item.providerId);
+      const matchChannel = channelSet === null || (item.channel && channelSet.has(item.channel));
+      const matchCategory = categorySet === null || (item.category && categorySet.has(item.category));
       return matchService && matchProvider && matchChannel && matchCategory;
     });
 

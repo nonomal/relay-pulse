@@ -68,6 +68,11 @@
       "filterTitle": "Filters",
       "closeFilter": "Close filters"
     },
+    "multiSelect": {
+      "selectedCount": "{{count}} selected",
+      "searchPlaceholder": "Search providers...",
+      "noResults": "No results found"
+    },
     "sortBy": "Sort by:"
   },
   "table": {

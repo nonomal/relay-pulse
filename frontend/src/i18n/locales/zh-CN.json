@@ -68,6 +68,11 @@
       "filterTitle": "筛选条件",
       "closeFilter": "关闭筛选"
     },
+    "multiSelect": {
+      "selectedCount": "已选 {{count}} 项",
+      "searchPlaceholder": "搜索服务商...",
+      "noResults": "无匹配结果"
+    },
     "sortBy": "排序:"
   },
   "table": {

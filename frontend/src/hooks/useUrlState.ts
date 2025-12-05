@@ -17,20 +17,20 @@ import type { ViewMode, SortConfig } from '../types';
 
 interface UrlState {
   timeRange: string;
-  filterProvider: string;
-  filterService: string;
-  filterChannel: string;
-  filterCategory: string;
+  filterProvider: string[];  // 多选服务商，空数组表示"全部"
+  filterService: string[];   // 多选服务，空数组表示"全部"
+  filterChannel: string[];   // 多选通道，空数组表示"全部"
+  filterCategory: string[];  // 多选分类，空数组表示"全部"
   viewMode: ViewMode;
   sortConfig: SortConfig;
 }
 
 interface UrlStateActions {
   setTimeRange: (value: string) => void;
-  setFilterProvider: (value: string) => void;
-  setFilterService: (value: string) => void;
-  setFilterChannel: (value: string) => void;
-  setFilterCategory: (value: string) => void;
+  setFilterProvider: (value: string[]) => void;  // 多选服务商
+  setFilterService: (value: string[]) => void;   // 多选服务
+  setFilterChannel: (value: string[]) => void;   // 多选通道
+  setFilterCategory: (value: string[]) => void;  // 多选分类
   setViewMode: (value: ViewMode) => void;
   setSortConfig: (value: SortConfig) => void;
 }
@@ -38,10 +38,10 @@ interface UrlStateActions {
 // 默认值
 const DEFAULTS = {
   timeRange: '24h',
-  filterProvider: 'all',
-  filterService: 'all',
-  filterChannel: 'all',
-  filterCategory: 'all',
+  filterProvider: [] as string[],  // 空数组表示"全部"
+  filterService: [] as string[],   // 空数组表示"全部"
+  filterChannel: [] as string[],   // 空数组表示"全部"
+  filterCategory: [] as string[],  // 空数组表示"全部"
   viewMode: 'table' as ViewMode,
   sortKey: 'uptime',
   sortDirection: 'desc' as const,
@@ -101,6 +101,11 @@ function serializeSortConfig(config: SortConfig): string {
 export function useUrlState(): [UrlState, UrlStateActions] {
   const [searchParams, setSearchParams] = useSearchParams();
 
+  // 规范化函数：小写（用于 provider, service, category）
+  const normalizeLower = useCallback((value: string) => value.trim().toLowerCase(), []);
+  // 规范化函数：保留原始大小写（用于 channel，因为 channel 值来自后端数据）
+  const normalizePreserveCase = useCallback((value: string) => value.trim(), []);
+
   // 从 URL 读取当前状态
   const state = useMemo<UrlState>(() => {
     // 验证 viewMode 参数，防止 URL 被篡改导致内容区空白
@@ -109,16 +114,32 @@ export function useUrlState(): [UrlState, UrlStateActions] {
       ? rawViewMode
       : DEFAULTS.viewMode;
 
+    // 解析多选参数的通用函数（支持逗号分隔）
+    // 向后兼容：过滤掉 'all'（旧版"全部"语义），去重并排序
+    const parseArrayParam = (
+      key: string,
+      normalizer: (value: string) => string
+    ): string[] => {
+      const param = searchParams.get(key);
+      if (!param) return [];
+      return Array.from(new Set(
+        param
+          .split(',')
+          .map(normalizer)
+          .filter(s => s && s.toLowerCase() !== 'all')  // 过滤空值和旧的 'all'
+      )).sort();
+    };
+
     return {
       timeRange: searchParams.get(PARAM_KEYS.timeRange) || DEFAULTS.timeRange,
-      filterProvider: searchParams.get(PARAM_KEYS.filterProvider) || DEFAULTS.filterProvider,
-      filterService: searchParams.get(PARAM_KEYS.filterService) || DEFAULTS.filterService,
-      filterChannel: searchParams.get(PARAM_KEYS.filterChannel) || DEFAULTS.filterChannel,
-      filterCategory: searchParams.get(PARAM_KEYS.filterCategory) || DEFAULTS.filterCategory,
+      filterProvider: parseArrayParam(PARAM_KEYS.filterProvider, normalizeLower),
+      filterService: parseArrayParam(PARAM_KEYS.filterService, normalizeLower),
+      filterChannel: parseArrayParam(PARAM_KEYS.filterChannel, normalizePreserveCase),
+      filterCategory: parseArrayParam(PARAM_KEYS.filterCategory, normalizeLower),
       viewMode,
       sortConfig: parseSortParam(searchParams.get(PARAM_KEYS.sort)),
     };
-  }, [searchParams]);
+  }, [searchParams, normalizeLower, normalizePreserveCase]);
 
   // 更新单个参数的通用函数
   const updateParam = useCallback((key: string, value: string, defaultValue: string) => {
@@ -138,21 +159,46 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     updateParam(PARAM_KEYS.timeRange, value, DEFAULTS.timeRange);
   }, [updateParam]);
 
-  const setFilterProvider = useCallback((value: string) => {
-    updateParam(PARAM_KEYS.filterProvider, value, DEFAULTS.filterProvider);
-  }, [updateParam]);
+  // 多选数组参数的通用 setter
+  const setArrayParam = useCallback((
+    key: string,
+    values: string[],
+    normalizer: (value: string) => string
+  ) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      // 规范化：去空、去重、排序，使用自定义大小写策略
+      const normalized = Array.from(new Set(
+        values
+          .map(normalizer)
+          .filter(v => v && v.toLowerCase() !== 'all')
+      )).sort();
 
-  const setFilterService = useCallback((value: string) => {
-    updateParam(PARAM_KEYS.filterService, value, DEFAULTS.filterService);
-  }, [updateParam]);
+      if (normalized.length === 0) {
+        // 空数组表示"全部"，移除参数
+        next.delete(key);
+      } else {
+        next.set(key, normalized.join(','));
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
-  const setFilterChannel = useCallback((value: string) => {
-    updateParam(PARAM_KEYS.filterChannel, value, DEFAULTS.filterChannel);
-  }, [updateParam]);
+  const setFilterProvider = useCallback((values: string[]) => {
+    setArrayParam(PARAM_KEYS.filterProvider, values, normalizeLower);
+  }, [setArrayParam, normalizeLower]);
 
-  const setFilterCategory = useCallback((value: string) => {
-    updateParam(PARAM_KEYS.filterCategory, value, DEFAULTS.filterCategory);
-  }, [updateParam]);
+  const setFilterService = useCallback((values: string[]) => {
+    setArrayParam(PARAM_KEYS.filterService, values, normalizeLower);
+  }, [setArrayParam, normalizeLower]);
+
+  const setFilterChannel = useCallback((values: string[]) => {
+    setArrayParam(PARAM_KEYS.filterChannel, values, normalizePreserveCase);
+  }, [setArrayParam, normalizePreserveCase]);
+
+  const setFilterCategory = useCallback((values: string[]) => {
+    setArrayParam(PARAM_KEYS.filterCategory, values, normalizeLower);
+  }, [setArrayParam, normalizeLower]);
 
   const setViewMode = useCallback((value: ViewMode) => {
     updateParam(PARAM_KEYS.viewMode, value, DEFAULTS.viewMode);

@@ -38,9 +38,9 @@ export default function ProviderPage() {
 
   // 状态管理
   const [timeRange, setTimeRange] = useState('24h');
-  const [filterService, setFilterService] = useState('all');
-  const [filterChannel, setFilterChannel] = useState('all');
-  // filterCategory 在 Provider 页面固定为 'all'，不需要状态
+  const [filterService, setFilterService] = useState<string[]>([]);
+  const [filterChannel, setFilterChannel] = useState<string[]>([]);
+  // filterCategory 在 Provider 页面固定为空数组（全部），不需要状态
   const [viewMode, setViewMode] = useState<ViewMode>('table');
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     key: 'uptime',
@@ -81,9 +81,9 @@ export default function ProviderPage() {
     timeRange,
     timeAlign,
     filterService,
-    filterProvider: 'all', // 先获取全部数据
+    filterProvider: [], // 空数组表示全部
     filterChannel,
-    filterCategory: 'all', // Provider页面不筛选分类，固定为all
+    filterCategory: [], // Provider页面不筛选分类，空数组表示全部
     sortConfig,
   });
 
@@ -191,9 +191,9 @@ export default function ProviderPage() {
           timeRange={timeRange}
           timeAlign={timeAlign}
           filterService={filterService}
-          filterProvider="all"
+          filterProvider={[]}
           filterChannel={filterChannel}
-          filterCategory="all"
+          filterCategory={[]}
           viewMode={viewMode}
           loading={loading}
           providers={[]} // 空数组 → 隐藏 provider 筛选器

@@ -68,6 +68,11 @@
       "filterTitle": "フィルター条件",
       "closeFilter": "フィルターを閉じる"
     },
+    "multiSelect": {
+      "selectedCount": "{{count}}件選択中",
+      "searchPlaceholder": "プロバイダを検索...",
+      "noResults": "該当なし"
+    },
     "sortBy": "並び替え:"
   },
   "table": {
