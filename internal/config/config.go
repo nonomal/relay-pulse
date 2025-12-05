@@ -46,7 +46,7 @@ type ServiceConfig struct {
 	Sponsor      string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
 	SponsorURL   string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
 	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
-	Risks        []RiskBadge       `yaml:"risks" json:"risks,omitempty"`       // 风险徽标数组（可选）
+	Risks        []RiskBadge       `yaml:"-" json:"risks,omitempty"`           // 风险徽标（由 risk_providers 自动注入，不在此配置）
 	Channel      string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
 	URL          string            `yaml:"url" json:"url"`
 	Method       string            `yaml:"method" json:"method"`
@@ -80,6 +80,13 @@ type ServiceConfig struct {
 type HiddenProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Reason   string `yaml:"reason" json:"reason"`     // 下架原因（可选）
+}
+
+// RiskProviderConfig 服务商风险配置
+// 用于标记存在风险的服务商，风险会自动继承到该服务商的所有监控项
+type RiskProviderConfig struct {
+	Provider string      `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
+	Risks    []RiskBadge `yaml:"risks" json:"risks"`       // 风险徽标数组
 }
 
 // StorageConfig 存储配置
@@ -161,6 +168,11 @@ type AppConfig struct {
 	// 用于临时下架整个服务商（如商家不配合整改）
 	HiddenProviders []HiddenProviderConfig `yaml:"hidden_providers" json:"hidden_providers"`
 
+	// 风险服务商列表
+	// 列表中的 provider 会自动继承 risks 到对应的所有 monitors
+	// 用于标记存在风险的服务商（如跑路风险）
+	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
+
 	Monitors []ServiceConfig `yaml:"monitors"`
 }
 
@@ -223,24 +235,32 @@ func (c *AppConfig) Validate() error {
 			}
 		}
 
-		// Risks 验证（可选字段）
-		for j, risk := range m.Risks {
-			if strings.TrimSpace(risk.Label) == "" {
-				return fmt.Errorf("monitor[%d].risks[%d]: label 不能为空", i, j)
-			}
-			if risk.DiscussionURL != "" {
-				if err := validateURL(risk.DiscussionURL, "discussion_url"); err != nil {
-					return fmt.Errorf("monitor[%d].risks[%d]: %w", i, j, err)
-				}
-			}
-		}
-
 		// 唯一性检查（provider + service + channel 组合唯一）
 		key := m.Provider + "/" + m.Service + "/" + m.Channel
 		if seen[key] {
 			return fmt.Errorf("重复的监控项: provider=%s, service=%s, channel=%s", m.Provider, m.Service, m.Channel)
 		}
 		seen[key] = true
+	}
+
+	// 验证 risk_providers
+	for i, rp := range c.RiskProviders {
+		if strings.TrimSpace(rp.Provider) == "" {
+			return fmt.Errorf("risk_providers[%d]: provider 不能为空", i)
+		}
+		if len(rp.Risks) == 0 {
+			return fmt.Errorf("risk_providers[%d]: risks 不能为空", i)
+		}
+		for j, risk := range rp.Risks {
+			if strings.TrimSpace(risk.Label) == "" {
+				return fmt.Errorf("risk_providers[%d].risks[%d]: label 不能为空", i, j)
+			}
+			if risk.DiscussionURL != "" {
+				if err := validateURL(risk.DiscussionURL, "discussion_url"); err != nil {
+					return fmt.Errorf("risk_providers[%d].risks[%d]: %w", i, j, err)
+				}
+			}
+		}
 	}
 
 	return nil
@@ -387,6 +407,19 @@ func (c *AppConfig) Normalize() error {
 		hiddenProviderMap[provider] = strings.TrimSpace(hp.Reason)
 	}
 
+	// 构建 risk_providers 快速查找 map
+	riskProviderMap := make(map[string][]RiskBadge)
+	for i, rp := range c.RiskProviders {
+		provider := strings.ToLower(strings.TrimSpace(rp.Provider))
+		if provider == "" {
+			return fmt.Errorf("risk_providers[%d]: provider 不能为空", i)
+		}
+		if _, exists := riskProviderMap[provider]; exists {
+			return fmt.Errorf("risk_providers[%d]: provider '%s' 重复配置", i, rp.Provider)
+		}
+		riskProviderMap[provider] = rp.Risks
+	}
+
 	// 将全局慢请求阈值下发到每个监控项，并标准化 category、URLs、provider_slug
 	slugSet := make(map[string]int) // slug -> monitor index (用于检测重复)
 	for i := range c.Monitors {
@@ -454,6 +487,11 @@ func (c *AppConfig) Normalize() error {
 			} else {
 				c.Monitors[i].HiddenReason = monitorReason
 			}
+		}
+
+		// 从 risk_providers 注入风险徽标到对应的 monitors
+		if risks, exists := riskProviderMap[normalizedProvider]; exists {
+			c.Monitors[i].Risks = risks
 		}
 	}
 
