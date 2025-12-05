@@ -748,3 +748,4 @@ export MONITOR_DUCKCODING_CC_API_KEY="sk-duck-key"
 - API 设计细节：`archive/prds.md`（历史参考）
 - 实现笔记：`archive/IMPLEMENTATION.md`（历史参考）
 - 每次提交代码前记得检测, 是否有变动需要同步到文档
+- 在commit前应先进行代码格式检查

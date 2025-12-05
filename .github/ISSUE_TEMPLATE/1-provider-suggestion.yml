@@ -39,7 +39,7 @@ body:
         请按下面的模板提供一份完整的监控配置（不要在此处填写真实 API Key）。
         填写完成并提交 Issue 后，请务必通过以下任一方式单独发送真实 API Key：
         - 邮箱（推荐）：prehisle@gmail.com
-        - Linux.do 私信：https://linux.do/u/stoap/summary
+        - QQ：18058344
       render: yaml
       placeholder: |
         # ----------------------------------------------------------------
@@ -47,7 +47,7 @@ body:
         # 注意：请不要在 GitHub Issue 中填写真实 API Key。
         # 真实 Key 请通过以下方式私下发送：
         # - 邮箱（推荐）：prehisle@gmail.com
-        # - Linux.do 私信：https://linux.do/u/stoap/summary
+        # - QQ：18058344
         # ----------------------------------------------------------------
         - provider: "[服务商名称]"                  # [必填] 例如：DeepSeek, FoxCode
           provider_url: "[服务商官网]"              # [选填] 用于展示来源
@@ -61,7 +61,7 @@ body:
           channel: "cc-[标识]"                     # [必填] 通道唯一标识，例如: cc-FoxCode-VIP
           
           # [必填] 实际调用的 API Key
-          # 此处可使用 sk-xxxx... 掩码示例，真实 Key 请通过邮箱/私信提供
+          # 此处可使用 sk-xxxx... 掩码示例，真实 Key 请通过邮箱/QQ提供
           api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           
           # [必填] 接口地址 (注意区分 cc 和 cx 的后缀)
@@ -79,7 +79,7 @@ body:
       options:
         - label: 我不会在 Issue 中填写真实 API Key
           required: true
-        - label: 我会在提交 Issue 后，通过邮箱 prehisle@gmail.com 或 Linux.do 私信 https://linux.do/u/stoap/summary 单独发送真实 API Key，并在邮件/私信中附上本 Issue 链接
+        - label: 我会在提交 Issue 后，通过邮箱 prehisle@gmail.com 或 QQ 18058344 单独发送真实 API Key，并在邮件/消息中附上本 Issue 链接
           required: true
 
   - type: textarea

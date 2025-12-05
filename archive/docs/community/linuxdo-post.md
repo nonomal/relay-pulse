@@ -223,7 +223,7 @@ frontend/src/
 欢迎联系我：
 
 - 📧 **邮箱**：`prehisle@gmail.com`（推荐）
-- 💬 **本站私信**：私信我即可
+- 💬 **QQ**：18058344
 - 🐙 **GitHub Issues**：https://github.com/prehisle/relay-pulse/issues/new?template=provider.md
 
 ⚠️ **安全提示：**
