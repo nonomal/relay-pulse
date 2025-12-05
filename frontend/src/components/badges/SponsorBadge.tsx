@@ -6,12 +6,12 @@ interface SponsorBadgeProps {
   className?: string;
 }
 
-// 🔻 节点支持：倒三角形（实心，指向下）
+// 🔺 节点支持：正三角形（实心，指向上）
 function BasicBadge() {
   return (
     <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
-        points="12,20 4,6 20,6"
+        points="12,4 4,18 20,18"
         className="fill-emerald-500/80"
       />
     </svg>
