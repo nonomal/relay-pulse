@@ -5,7 +5,7 @@ import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { getStatusConfig, getTimeRanges } from '../constants';
-import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor } from '../utils/color';
+import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { getServiceIconComponent } from './ServiceIcon';
 import { BadgeCell } from './badges';
@@ -50,12 +50,19 @@ export function StatusCard({
   // 检查是否有徽标需要显示
   const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
 
-  // 卡片左边框颜色（内联样式）
+  // 卡片左边框颜色（仅基于赞助级别，置顶改用背景色）
   const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
+
+  // 是否显示左边框（仅基于赞助级别）
+  const hasLeftBorder = !!item.sponsorLevel;
+
+  // 置顶项使用对应徽标颜色的极淡背景色
+  const pinnedBgClass = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
+  const baseBgClass = pinnedBgClass || 'bg-slate-900/60';
 
   return (
     <div
-      className={`group relative bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 ${item.sponsorLevel ? 'rounded-l-sm border-l-2' : 'rounded-l-2xl'} rounded-r-2xl p-4 sm:p-6 transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] backdrop-blur-sm overflow-hidden`}
+      className={`group relative ${baseBgClass} border border-slate-800 hover:border-cyan-500/30 ${hasLeftBorder ? 'rounded-l-sm border-l-2' : 'rounded-l-2xl'} rounded-r-2xl p-4 sm:p-6 transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] backdrop-blur-sm overflow-hidden`}
       style={borderColor ? { borderLeftColor: borderColor } : undefined}
     >
       {/* 徽标行 - 仅在有徽标时显示 */}

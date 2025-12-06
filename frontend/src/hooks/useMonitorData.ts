@@ -8,11 +8,12 @@ import type {
   StatusCounts,
   ProviderOption,
   SponsorLevel,
+  SponsorPinConfig,
 } from '../types';
 import { API_BASE_URL, USE_MOCK_DATA, NO_DATA_AVAILABILITY } from '../constants';
 import { fetchMockMonitorData } from '../utils/mockMonitor';
 import { trackAPIPerformance, trackAPIError } from '../utils/analytics';
-import { sortMonitors } from '../utils/sortMonitors';
+import { sortMonitorsWithPinning } from '../utils/sortMonitors';
 
 // 请求节流间隔（毫秒）- 防止快速切换参数导致过多请求
 const FETCH_THROTTLE_MS = 300;
@@ -82,6 +83,7 @@ interface UseMonitorDataOptions {
   filterChannel: string[];   // 多选通道，空数组表示"全部"
   filterCategory: string[];  // 多选分类，空数组表示"全部"
   sortConfig: SortConfig;
+  isInitialSort: boolean;    // 是否为初始排序状态（用于赞助商置顶）
 }
 
 export function useMonitorData({
@@ -92,6 +94,7 @@ export function useMonitorData({
   filterChannel,
   filterCategory,
   sortConfig,
+  isInitialSort,
 }: UseMonitorDataOptions) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -99,6 +102,7 @@ export function useMonitorData({
   const [reloadToken, setReloadToken] = useState(0);
   const [forceRefresh, setForceRefresh] = useState(false); // 手动刷新时绕过缓存
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
+  const [sponsorPinConfig, setSponsorPinConfig] = useState<SponsorPinConfig | null>(null); // 赞助商置顶配置
 
   // 统一的刷新触发器，供手动刷新与自动轮询复用
   // skipCache: 是否绕过浏览器缓存（手动刷新时应为 true）
@@ -160,6 +164,11 @@ export function useMonitorData({
           // 提取慢延迟阈值（用于延迟颜色渐变）
           if (json.meta.slow_latency_ms && json.meta.slow_latency_ms > 0) {
             setSlowLatencyMs(json.meta.slow_latency_ms);
+          }
+
+          // 提取赞助商置顶配置
+          if (json.meta.sponsor_pin) {
+            setSponsorPinConfig(json.meta.sponsor_pin);
           }
 
           // 转换为前端数据格式
@@ -336,8 +345,9 @@ export function useMonitorData({
       return matchService && matchProvider && matchChannel && matchCategory;
     });
 
-    return sortMonitors(filtered, sortConfig);
-  }, [rawData, filterService, filterProvider, filterChannel, filterCategory, sortConfig]);
+    // 使用带置顶逻辑的排序函数
+    return sortMonitorsWithPinning(filtered, sortConfig, sponsorPinConfig, isInitialSort);
+  }, [rawData, filterService, filterProvider, filterChannel, filterCategory, sortConfig, sponsorPinConfig, isInitialSort]);
 
   // 统计数据
   const stats = useMemo(() => {

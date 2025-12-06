@@ -36,6 +36,14 @@ export interface CurrentStatus {
 // 赞助商等级类型
 export type SponsorLevel = 'basic' | 'advanced' | 'enterprise';
 
+// 赞助商置顶配置（来自 API meta）
+export interface SponsorPinConfig {
+  enabled: boolean;
+  max_pinned: number;
+  min_uptime: number;
+  min_level: SponsorLevel;
+}
+
 // 风险徽标（单级）
 export interface RiskBadge {
   label: string;           // 简短标签，如"跑路风险"
@@ -62,6 +70,7 @@ export interface ApiResponse {
     period: string;
     count: number;
     slow_latency_ms?: number;  // 慢延迟阈值（毫秒），用于延迟颜色渐变
+    sponsor_pin?: SponsorPinConfig;  // 赞助商置顶配置
   };
   data: MonitorResult[];
 }
@@ -98,6 +107,7 @@ export interface ProcessedMonitorData {
   sponsorLevel?: SponsorLevel;         // 赞助商等级
   risks?: RiskBadge[];                 // 风险徽标数组
   channel?: string;                    // 业务通道标识
+  pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   history: Array<{
     index: number;
     status: StatusKey;

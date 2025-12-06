@@ -232,6 +232,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align, qProvide
 	enableConcurrent := h.config.EnableConcurrentQuery
 	concurrentLimit := h.config.ConcurrentQueryLimit
 	slowLatencyMs := int(h.config.SlowLatencyDuration / time.Millisecond)
+	sponsorPin := h.config.SponsorPin
 	h.cfgMu.RUnlock()
 
 	// 构建 slug -> provider 映射（slug作为provider的路由别名）
@@ -274,6 +275,12 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align, qProvide
 		"period":          period,
 		"count":           len(response),
 		"slow_latency_ms": slowLatencyMs,
+		"sponsor_pin": gin.H{
+			"enabled":    sponsorPin.IsEnabled(),
+			"max_pinned": sponsorPin.MaxPinned,
+			"min_uptime": sponsorPin.MinUptime,
+			"min_level":  sponsorPin.MinLevel,
+		},
 	}
 	// 仅在使用对齐模式时返回额外的时间范围信息
 	if align != "" {

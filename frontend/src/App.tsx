@@ -30,6 +30,7 @@ function App() {
     filterCategory,
     viewMode,
     sortConfig,
+    isInitialSort,  // 是否为初始排序状态（用于赞助商置顶）
   } = urlState;
 
   // 移动端筛选抽屉状态（移到 App 层级，Header 和 Controls 共用）
@@ -94,6 +95,7 @@ function App() {
     filterChannel,
     filterCategory,
     sortConfig,
+    isInitialSort,
   });
 
   // 统计激活的筛选器数量（用于移动端 Header 显示）
@@ -138,7 +140,9 @@ function App() {
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc';
-    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+    // 初始状态（置顶模式）下，首次点击任何排序都使用降序
+    // 非初始状态下，点击同一字段切换升降序
+    if (!isInitialSort && sortConfig.key === key && sortConfig.direction === 'desc') {
       direction = 'asc';
     }
     setSortConfig({ key, direction });
@@ -255,6 +259,7 @@ function App() {
                 <StatusTable
                   data={data}
                   sortConfig={sortConfig}
+                  isInitialSort={isInitialSort}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
                   onSort={handleSort}

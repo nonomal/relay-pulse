@@ -135,3 +135,17 @@ export function sponsorLevelToCardBorderColor(level?: string): string | undefine
   if (!level) return undefined;
   return CARD_BORDER_COLORS[level];
 }
+
+/**
+ * 根据赞助商等级返回置顶背景色（Tailwind class）
+ * 使用 5% 透明度，颜色与徽章一致
+ */
+export function sponsorLevelToPinnedBgClass(level?: string): string {
+  if (!level) return '';
+  const BG_CLASSES: Record<string, string> = {
+    basic: 'bg-emerald-500/[0.05]',
+    advanced: 'bg-cyan-500/[0.05]',
+    enterprise: 'bg-amber-400/[0.05]',
+  };
+  return BG_CLASSES[level] || '';
+}

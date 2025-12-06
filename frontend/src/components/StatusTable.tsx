@@ -6,7 +6,7 @@ import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { BadgeCell } from './badges';
 import { getStatusConfig, getTimeRanges } from '../constants';
-import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor } from '../utils/color';
+import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
@@ -18,6 +18,7 @@ type HistoryPoint = ProcessedMonitorData['history'][number];
 interface StatusTableProps {
   data: ProcessedMonitorData[];
   sortConfig: SortConfig;
+  isInitialSort?: boolean;   // 是否为初始排序状态（控制高亮显示）
   timeRange: string;
   slowLatencyMs: number;
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
@@ -59,12 +60,19 @@ function MobileListItem({
   // 检查是否有徽标需要显示
   const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
 
-  // 卡片左边框颜色（内联样式）
+  // 卡片左边框颜色（仅基于赞助级别，置顶改用背景色）
   const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
+
+  // 是否显示左边框（仅基于赞助级别）
+  const hasLeftBorder = !!item.sponsorLevel;
+
+  // 置顶项使用对应徽标颜色的极淡背景色
+  const pinnedBgClass = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
+  const baseBgClass = pinnedBgClass || 'bg-slate-900/60';
 
   return (
     <div
-      className={`bg-slate-900/60 border border-slate-800 rounded-r-xl ${item.sponsorLevel ? 'rounded-l-sm border-l-2' : 'rounded-l-xl'} p-3 space-y-2`}
+      className={`${baseBgClass} border border-slate-800 rounded-r-xl ${hasLeftBorder ? 'rounded-l-sm border-l-2' : 'rounded-l-xl'} p-3 space-y-2`}
       style={borderColor ? { borderLeftColor: borderColor } : undefined}
     >
       {/* 徽标行 - 仅在有徽标时显示 */}
@@ -176,9 +184,11 @@ function MobileListItem({
 // 移动端排序菜单
 function MobileSortMenu({
   sortConfig,
+  isInitialSort,
   onSort,
 }: {
   sortConfig: SortConfig;
+  isInitialSort?: boolean;
   onSort: (key: string) => void;
 }) {
   const { t } = useTranslation();
@@ -194,26 +204,30 @@ function MobileSortMenu({
   return (
     <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-2">
       <span className="text-xs text-slate-500 flex-shrink-0">{t('controls.sortBy')}</span>
-      {sortOptions.map((option) => (
-        <button
-          key={option.key}
-          onClick={() => onSort(option.key)}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
-            sortConfig.key === option.key
-              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-              : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
-          }`}
-        >
-          {option.label}
-          {sortConfig.key === option.key && (
-            sortConfig.direction === 'asc' ? (
-              <ArrowUp size={12} />
-            ) : (
-              <ArrowDown size={12} />
-            )
-          )}
-        </button>
-      ))}
+      {sortOptions.map((option) => {
+        // 初始状态下不高亮任何排序按钮
+        const isActive = !isInitialSort && sortConfig.key === option.key;
+        return (
+          <button
+            key={option.key}
+            onClick={() => onSort(option.key)}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+              isActive
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
+            }`}
+          >
+            {option.label}
+            {isActive && (
+              sortConfig.direction === 'asc' ? (
+                <ArrowUp size={12} />
+              ) : (
+                <ArrowDown size={12} />
+              )
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -221,6 +235,7 @@ function MobileSortMenu({
 export function StatusTable({
   data,
   sortConfig,
+  isInitialSort = false,
   timeRange,
   slowLatencyMs,
   showCategoryTag = true,
@@ -240,9 +255,12 @@ export function StatusTable({
     return cleanup;
   }, []);
 
+  // 排序图标：初始状态下不显示高亮
   const SortIcon = ({ columnKey }: { columnKey: string }) => {
-    if (sortConfig.key !== columnKey)
+    // 初始状态下所有排序图标都不高亮
+    if (isInitialSort || sortConfig.key !== columnKey) {
       return <ArrowUpDown size={14} className="opacity-30 ml-1" />;
+    }
     return sortConfig.direction === 'asc' ? (
       <ArrowUp size={14} className="text-cyan-400 ml-1" />
     ) : (
@@ -256,7 +274,7 @@ export function StatusTable({
   if (isMobile) {
     return (
       <div>
-        <MobileSortMenu sortConfig={sortConfig} onSort={onSort} />
+        <MobileSortMenu sortConfig={sortConfig} isInitialSort={isInitialSort} onSort={onSort} />
         <div className="space-y-2">
           {data.map((item) => (
             <MobileListItem
@@ -353,10 +371,11 @@ export function StatusTable({
           {data.map((item) => {
             const ServiceIcon = getServiceIconComponent(item.serviceType);
             const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
+            const pinnedBg = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
             return (
             <tr
               key={item.id}
-              className={`group hover:bg-slate-800/40 transition-[background-color,color] ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
+              className={`group hover:bg-slate-800/40 transition-[background-color,color] ${pinnedBg} ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
             >
               {/* 徽标列 - 使用 BadgeCell 统一渲染 */}
               {hasBadges && (

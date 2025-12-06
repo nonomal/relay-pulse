@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { ViewMode, SortConfig } from '../types';
 
@@ -23,6 +23,7 @@ interface UrlState {
   filterCategory: string[];  // 多选分类，空数组表示"全部"
   viewMode: ViewMode;
   sortConfig: SortConfig;
+  isInitialSort: boolean;    // 是否为初始排序状态（URL 无 sort 参数）
 }
 
 interface UrlStateActions {
@@ -46,6 +47,9 @@ const DEFAULTS = {
   sortKey: 'uptime',
   sortDirection: 'desc' as const,
 };
+
+// 默认排序参数值（用于判断是否需要保留 URL 参数）
+const DEFAULT_SORT_PARAM = `${DEFAULTS.sortKey}_${DEFAULTS.sortDirection}`;
 
 // URL 参数名映射
 const PARAM_KEYS = {
@@ -100,6 +104,9 @@ function serializeSortConfig(config: SortConfig): string {
  */
 export function useUrlState(): [UrlState, UrlStateActions] {
   const [searchParams, setSearchParams] = useSearchParams();
+  // 会话态标记：用户是否在本次会话中手动点击过排序
+  // 刷新页面后会重置为 false，允许置顶恢复
+  const [hasManualSort, setHasManualSort] = useState(false);
 
   // 规范化函数：小写（用于 provider, service, category）
   const normalizeLower = useCallback((value: string) => value.trim().toLowerCase(), []);
@@ -130,6 +137,16 @@ export function useUrlState(): [UrlState, UrlStateActions] {
       )).sort();
     };
 
+    // 获取 sort 参数
+    const rawSortParam = searchParams.get(PARAM_KEYS.sort);
+    const hasSortParam = Boolean(rawSortParam && rawSortParam.trim());
+
+    // 判断是否为初始排序状态
+    // 用于赞助商置顶功能：初始状态启用置顶，用户点击排序后失效
+    // - 本次会话未手动排序 且 URL 无 sort 参数 → 初始状态
+    // - 刷新页面后 hasManualSort 重置为 false，若 URL 无 sort 参数则恢复置顶
+    const isInitialSort = !hasManualSort && !hasSortParam;
+
     return {
       timeRange: searchParams.get(PARAM_KEYS.timeRange) || DEFAULTS.timeRange,
       filterProvider: parseArrayParam(PARAM_KEYS.filterProvider, normalizeLower),
@@ -137,9 +154,10 @@ export function useUrlState(): [UrlState, UrlStateActions] {
       filterChannel: parseArrayParam(PARAM_KEYS.filterChannel, normalizePreserveCase),
       filterCategory: parseArrayParam(PARAM_KEYS.filterCategory, normalizeLower),
       viewMode,
-      sortConfig: parseSortParam(searchParams.get(PARAM_KEYS.sort)),
+      sortConfig: parseSortParam(rawSortParam),
+      isInitialSort,
     };
-  }, [searchParams, normalizeLower, normalizePreserveCase]);
+  }, [searchParams, normalizeLower, normalizePreserveCase, hasManualSort]);
 
   // 更新单个参数的通用函数
   const updateParam = useCallback((key: string, value: string, defaultValue: string) => {
@@ -205,10 +223,21 @@ export function useUrlState(): [UrlState, UrlStateActions] {
   }, [updateParam]);
 
   const setSortConfig = useCallback((config: SortConfig) => {
+    // 标记用户已手动排序（本次会话内置顶失效）
+    setHasManualSort(true);
     const serialized = serializeSortConfig(config);
-    const defaultSerialized = serializeSortConfig({ key: DEFAULTS.sortKey, direction: DEFAULTS.sortDirection });
-    updateParam(PARAM_KEYS.sort, serialized, defaultSerialized);
-  }, [updateParam]);
+    // 默认排序时移除 URL 参数，刷新后可恢复置顶
+    // 非默认排序时保留参数
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (serialized === DEFAULT_SORT_PARAM) {
+        next.delete(PARAM_KEYS.sort);
+      } else {
+        next.set(PARAM_KEYS.sort, serialized);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   const actions: UrlStateActions = {
     setTimeRange,

@@ -1,6 +1,6 @@
 import { STATUS } from '../constants';
-import type { ProcessedMonitorData, SortConfig, StatusKey } from '../types';
-import { calculateBadgeScore } from './badgeUtils';
+import type { ProcessedMonitorData, SortConfig, StatusKey, SponsorPinConfig, SponsorLevel } from '../types';
+import { calculateBadgeScore, SPONSOR_WEIGHTS } from './badgeUtils';
 
 /**
  * 对监控数据进行排序
@@ -104,4 +104,82 @@ function compareLatency(
   if (bLatency === undefined) return -1;
   // 按延迟升序（低延迟优先）
   return aLatency - bLatency;
+}
+
+/**
+ * 判断监控项是否满足置顶条件
+ */
+function meetsPinCriteria(
+  item: ProcessedMonitorData,
+  config: SponsorPinConfig
+): boolean {
+  // 必须有赞助级别
+  if (!item.sponsorLevel) return false;
+
+  // 可用率必须达标（-1 表示无数据，不符合条件）
+  if (item.uptime < 0 || item.uptime < config.min_uptime) return false;
+
+  // 赞助级别必须达到最低要求
+  const itemWeight = SPONSOR_WEIGHTS[item.sponsorLevel] || 0;
+  const minWeight = SPONSOR_WEIGHTS[config.min_level as SponsorLevel] || 0;
+  return itemWeight >= minWeight;
+}
+
+/**
+ * 带置顶逻辑的排序函数
+ *
+ * 在页面初始加载时，将符合条件的赞助商置顶显示。
+ * 用户点击任意排序按钮后，置顶失效，恢复正常排序。
+ *
+ * @param data 监控数据数组
+ * @param sortConfig 用户排序配置
+ * @param pinConfig 置顶配置（来自 API）
+ * @param enablePinning 是否启用置顶（初始状态才启用）
+ * @returns 排序后的数据，置顶项带 pinned: true 标记
+ */
+export function sortMonitorsWithPinning(
+  data: ProcessedMonitorData[],
+  sortConfig: SortConfig,
+  pinConfig: SponsorPinConfig | null,
+  enablePinning: boolean
+): ProcessedMonitorData[] {
+  // 复制数据避免修改原数组
+  const items = [...data];
+
+  // 置顶逻辑：配置存在、功能启用、且处于初始排序状态
+  const shouldPin = pinConfig?.enabled && enablePinning && pinConfig.max_pinned > 0;
+
+  if (!shouldPin) {
+    // 不启用置顶：使用常规排序，清除所有 pinned 标记
+    return sortMonitors(items, sortConfig).map(item => ({
+      ...item,
+      pinned: false,
+    }));
+  }
+
+  // 1. 筛选符合置顶条件的项
+  const pinnedCandidates = items.filter(item => meetsPinCriteria(item, pinConfig));
+
+  // 2. 按赞助级别降序排序（同级别按可用率降序）
+  pinnedCandidates.sort((a, b) => {
+    const aWeight = SPONSOR_WEIGHTS[a.sponsorLevel!] || 0;
+    const bWeight = SPONSOR_WEIGHTS[b.sponsorLevel!] || 0;
+    if (aWeight !== bWeight) return bWeight - aWeight;
+    // 同级别按可用率降序
+    return b.uptime - a.uptime;
+  });
+
+  // 3. 取前 N 个
+  const pinnedItems = pinnedCandidates.slice(0, pinConfig.max_pinned);
+  const pinnedIds = new Set(pinnedItems.map(item => item.id));
+
+  // 4. 其余项按可用率降序排序
+  const remainingItems = items.filter(item => !pinnedIds.has(item.id));
+  const sortedRemaining = sortMonitors(remainingItems, { key: 'uptime', direction: 'desc' });
+
+  // 5. 合并结果，标记置顶项
+  return [
+    ...pinnedItems.map(item => ({ ...item, pinned: true })),
+    ...sortedRemaining.map(item => ({ ...item, pinned: false })),
+  ];
 }

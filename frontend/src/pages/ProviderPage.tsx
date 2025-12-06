@@ -88,6 +88,7 @@ export default function ProviderPage() {
   }, []);
 
   // 数据获取 - 先获取全部数据用于构建映射
+  // Provider 页面不启用置顶功能（isInitialSort=false）
   const { data: allData, loading, error, stats, channels, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
     timeAlign,
@@ -96,6 +97,7 @@ export default function ProviderPage() {
     filterChannel,
     filterCategory: [], // Provider页面不筛选分类，空数组表示全部
     sortConfig,
+    isInitialSort: false, // Provider页面禁用置顶
   });
 
   // 构建 slug -> providerId 映射

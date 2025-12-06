@@ -101,6 +101,30 @@ type RiskProviderConfig struct {
 	Risks    []RiskBadge `yaml:"risks" json:"risks"`       // 风险徽标数组
 }
 
+// SponsorPinConfig 赞助商置顶配置
+// 用于在页面初始加载时置顶符合条件的赞助商监控项
+type SponsorPinConfig struct {
+	// 是否启用置顶功能（默认 true）
+	Enabled *bool `yaml:"enabled" json:"enabled"`
+
+	// 最多置顶数量（默认 3，0 表示禁用）
+	MaxPinned int `yaml:"max_pinned" json:"max_pinned"`
+
+	// 最低可用率要求（默认 95.0，百分比 0-100）
+	MinUptime float64 `yaml:"min_uptime" json:"min_uptime"`
+
+	// 最低赞助级别（默认 "basic"，可选 basic/advanced/enterprise）
+	MinLevel SponsorLevel `yaml:"min_level" json:"min_level"`
+}
+
+// IsEnabled 返回是否启用置顶功能
+func (c *SponsorPinConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true // 默认启用
+	}
+	return *c.Enabled
+}
+
 // StorageConfig 存储配置
 type StorageConfig struct {
 	Type string `yaml:"type" json:"type"` // "sqlite" 或 "postgres"
@@ -188,6 +212,10 @@ type AppConfig struct {
 	// 列表中的 provider 会自动继承 risks 到对应的所有 monitors
 	// 用于标记存在风险的服务商（如跑路风险）
 	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
+
+	// 赞助商置顶配置
+	// 用于在页面初始加载时置顶符合条件的赞助商监控项
+	SponsorPin SponsorPinConfig `yaml:"sponsor_pin" json:"sponsor_pin"`
 
 	Monitors []ServiceConfig `yaml:"monitors"`
 }
@@ -369,6 +397,30 @@ func (c *AppConfig) Normalize() error {
 	}
 	if c.ConcurrentQueryLimit < 1 {
 		return fmt.Errorf("concurrent_query_limit 必须 >= 1，当前值: %d", c.ConcurrentQueryLimit)
+	}
+
+	// 赞助商置顶配置默认值
+	if c.SponsorPin.MaxPinned == 0 {
+		c.SponsorPin.MaxPinned = 3
+	}
+	if c.SponsorPin.MinUptime == 0 {
+		c.SponsorPin.MinUptime = 95.0
+	}
+	if c.SponsorPin.MinLevel == "" {
+		c.SponsorPin.MinLevel = SponsorLevelBasic
+	}
+	// 验证赞助商置顶配置
+	if c.SponsorPin.MaxPinned < 0 {
+		log.Printf("[Config] 警告: sponsor_pin.max_pinned(%d) 无效，回退默认值 3", c.SponsorPin.MaxPinned)
+		c.SponsorPin.MaxPinned = 3
+	}
+	if c.SponsorPin.MinUptime < 0 || c.SponsorPin.MinUptime > 100 {
+		log.Printf("[Config] 警告: sponsor_pin.min_uptime(%.2f) 超出范围，回退默认值 95.0", c.SponsorPin.MinUptime)
+		c.SponsorPin.MinUptime = 95.0
+	}
+	if !c.SponsorPin.MinLevel.IsValid() || c.SponsorPin.MinLevel == SponsorLevelNone {
+		log.Printf("[Config] 警告: sponsor_pin.min_level(%s) 无效，回退默认值 basic", c.SponsorPin.MinLevel)
+		c.SponsorPin.MinLevel = SponsorLevelBasic
 	}
 
 	// 存储配置默认值
@@ -687,6 +739,13 @@ func (c *AppConfig) Clone() *AppConfig {
 		staggerPtr = &value
 	}
 
+	// 深拷贝 SponsorPin.Enabled 指针
+	var sponsorPinEnabledPtr *bool
+	if c.SponsorPin.Enabled != nil {
+		value := *c.SponsorPin.Enabled
+		sponsorPinEnabledPtr = &value
+	}
+
 	clone := &AppConfig{
 		Interval:              c.Interval,
 		IntervalDuration:      c.IntervalDuration,
@@ -701,7 +760,13 @@ func (c *AppConfig) Clone() *AppConfig {
 		PublicBaseURL:         c.PublicBaseURL,
 		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:       make([]HiddenProviderConfig, len(c.HiddenProviders)),
-		Monitors:              make([]ServiceConfig, len(c.Monitors)),
+		SponsorPin: SponsorPinConfig{
+			Enabled:   sponsorPinEnabledPtr,
+			MaxPinned: c.SponsorPin.MaxPinned,
+			MinUptime: c.SponsorPin.MinUptime,
+			MinLevel:  c.SponsorPin.MinLevel,
+		},
+		Monitors: make([]ServiceConfig, len(c.Monitors)),
 	}
 	copy(clone.DisabledProviders, c.DisabledProviders)
 	copy(clone.HiddenProviders, c.HiddenProviders)
