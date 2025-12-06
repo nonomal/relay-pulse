@@ -1,8 +1,7 @@
 /**
  * 根据可用率计算渐变颜色
- * - 60%以下 → 红色
- * - 60%-80% → 红到黄渐变
- * - 80%-100% → 黄到绿渐变
+ * - 0%-60% → 红到黄渐变
+ * - 60%-100% → 黄到绿渐变
  * - -1（无数据）→ 灰色
  */
 
@@ -39,19 +38,14 @@ export function availabilityToColor(availability: number): string {
     return `rgb(${GRAY.r}, ${GRAY.g}, ${GRAY.b})`;
   }
 
-  // 60%以下 → 红色
-  if (availability < 60) {
-    return `rgb(${RED.r}, ${RED.g}, ${RED.b})`;
-  }
-
-  // 60%-80% → 红到黄渐变
-  if (availability < 80) {
-    const t = (availability - 60) / 20;
+  // 0%-60% → 红到黄渐变
+  if (availability <= 60) {
+    const t = availability / 60;
     return lerpColor(RED, YELLOW, t);
   }
 
-  // 80%-100% → 黄到绿渐变
-  const t = (availability - 80) / 20;
+  // 60%-100% → 黄到绿渐变
+  const t = (availability - 60) / 40;
   return lerpColor(YELLOW, GREEN, t);
 }
 
