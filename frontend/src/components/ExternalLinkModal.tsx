@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { AlertTriangle, X } from 'lucide-react';
 
@@ -69,16 +70,17 @@ export function ExternalLinkModal({
 
   if (!isOpen) return null;
 
-  return (
+  // 使用 Portal 渲染到 body，避免被父元素的 overflow 或定位影响
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="external-link-modal-title"
     >
       <div
         ref={modalRef}
-        className="relative w-full max-w-lg rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl my-auto"
+        className="relative w-full max-w-lg rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl"
       >
         {/* 关闭按钮 */}
         <button
@@ -148,6 +150,7 @@ export function ExternalLinkModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
