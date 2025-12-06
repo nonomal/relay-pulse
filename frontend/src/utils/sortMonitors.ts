@@ -8,7 +8,7 @@ import { calculateBadgeScore } from './badgeUtils';
  * 排序规则：
  * 1. 按主排序字段排序（支持 asc/desc）
  * 2. 特殊字段处理：
- *    - badgeScore: 按徽标综合分数排序（赞助商正向，风险负向）
+ *    - badgeScore: 按徽标综合分数排序（公益站+10，赞助商正向，风险负向）
  *    - currentStatus: 按状态权重排序
  *    - uptime: uptime < 0 视为无数据，始终排最后
  * 3. 二级排序：主字段相等时，按 lastCheckLatency 升序（延迟低的优先）

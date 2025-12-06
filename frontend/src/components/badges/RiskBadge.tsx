@@ -39,7 +39,10 @@ export function RiskBadge({ risk, className = '' }: RiskBadgeProps) {
       role="img"
       aria-label={`${risk.label}: ${defaultTooltip}`}
     >
-      <RiskIcon />
+      {/* 背景容器 - 淡红色圆角矩形 */}
+      <span className="inline-flex items-center justify-center px-1 py-0.5 bg-red-500/15 rounded">
+        <RiskIcon />
+      </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
       <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
         <span className="font-medium text-amber-400">{risk.label}</span>

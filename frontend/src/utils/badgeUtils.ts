@@ -7,6 +7,12 @@ import type { SponsorLevel, ProcessedMonitorData } from '../types';
  * 风险徽标：负向分数，降低优先级
  */
 
+// 站点类型权重（正向）
+export const CATEGORY_WEIGHTS: Record<string, number> = {
+  public: 10,      // 公益站
+  commercial: 0,   // 商业站
+};
+
 // 赞助商等级权重（正向）
 export const SPONSOR_WEIGHTS: Record<SponsorLevel, number> = {
   enterprise: 100,  // 全球伙伴
@@ -20,14 +26,18 @@ export const RISK_WEIGHT = -50;
 /**
  * 计算单个监控项的徽标综合分数
  *
- * 分数 = 赞助商等级权重 + 风险徽标权重总和
- * 公益站不参与排序计算
+ * 分数 = 站点类型权重 + 赞助商等级权重 + 风险徽标权重总和
  *
  * @param item 监控数据项
  * @returns 综合分数（用于排序）
  */
 export function calculateBadgeScore(item: ProcessedMonitorData): number {
   let score = 0;
+
+  // 正向徽标：站点类型（公益站加分）
+  if (item.category) {
+    score += CATEGORY_WEIGHTS[item.category] || 0;
+  }
 
   // 正向徽标：赞助商等级
   if (item.sponsorLevel) {
@@ -52,7 +62,7 @@ export function calculateBadgeScore(item: ProcessedMonitorData): number {
 export function hasAnyBadge(
   item: ProcessedMonitorData,
   options: {
-    showCategoryTag?: boolean;  // 是否显示站点类型标签（商业/公益）
+    showCategoryTag?: boolean;  // 是否显示站点类型标签（仅公益站显示）
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
   } = {}
@@ -63,9 +73,11 @@ export function hasAnyBadge(
     showRisk = true,
   } = options;
 
-  // showCategoryTag 时始终有徽标（所有项都有商业/公益类型）
+  const isPublic = item.category === 'public';
+
+  // 商业站不显示站点类型标签，只有公益站才算有站点类型徽标
   return Boolean(
-    showCategoryTag ||
+    (showCategoryTag && isPublic) ||
     (showSponsor && item.sponsorLevel) ||
     (showRisk && item.risks?.length)
   );
@@ -81,7 +93,7 @@ export function hasAnyBadge(
 export function hasAnyBadgeInList(
   data: ProcessedMonitorData[],
   options: {
-    showCategoryTag?: boolean;  // 是否显示站点类型标签（商业/公益）
+    showCategoryTag?: boolean;  // 是否显示站点类型标签（仅公益站显示）
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
   } = {}

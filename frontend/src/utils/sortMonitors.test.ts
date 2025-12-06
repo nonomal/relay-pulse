@@ -245,4 +245,44 @@ describe('sortMonitors', () => {
       expect(result).not.toBe(data);
     });
   });
+
+  describe('徽标分数排序', () => {
+    it('公益站比同等条件的商业站优先', () => {
+      const data = [
+        createMockData({ id: '1', category: 'commercial', lastCheckLatency: 100 }),
+        createMockData({ id: '2', category: 'public', lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'badgeScore', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.id)).toEqual(['2', '1']); // 公益站优先
+    });
+
+    it('basic 赞助商的商业站优先于无赞助的公益站', () => {
+      const data = [
+        createMockData({ id: '1', category: 'public', sponsorLevel: undefined }),
+        createMockData({ id: '2', category: 'commercial', sponsorLevel: 'basic' }),
+      ];
+      const config: SortConfig = { key: 'badgeScore', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      // basic(20) > public(10)
+      expect(result.map((d) => d.id)).toEqual(['2', '1']);
+    });
+
+    it('公益站 + basic 赞助商优先于商业站 + basic 赞助商', () => {
+      const data = [
+        createMockData({ id: '1', category: 'commercial', sponsorLevel: 'basic', lastCheckLatency: 100 }),
+        createMockData({ id: '2', category: 'public', sponsorLevel: 'basic', lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'badgeScore', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      // public(10) + basic(20) = 30 > commercial(0) + basic(20) = 20
+      expect(result.map((d) => d.id)).toEqual(['2', '1']);
+    });
+  });
 });
