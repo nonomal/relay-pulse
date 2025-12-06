@@ -23,6 +23,7 @@
   "header": {
     "tagline": "Real-time availability matrix for API relay services",
     "recommendBtn": "Recommend a provider",
+    "recommendBtnShort": "Suggest",
     "stats": {
       "healthy": "Operational",
       "issues": "Issues detected"
@@ -65,6 +66,7 @@
     },
     "mobile": {
       "filterBtn": "Filter",
+      "filterBtnShort": "Filter",
       "filterTitle": "Filters",
       "closeFilter": "Close filters"
     },
@@ -99,7 +101,7 @@
       "charity": "Charity"
     },
     "categoryShort": {
-      "promoted": "",
+      "promoted": "B",
       "charity": "C"
     },
     "expandDetails": "View details",
@@ -196,6 +198,9 @@
     },
     "public": {
       "tooltip": "Free public service site"
+    },
+    "commercial": {
+      "tooltip": "Commercial paid service site"
     }
   }
 }

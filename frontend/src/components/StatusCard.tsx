@@ -5,9 +5,11 @@ import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { getStatusConfig, getTimeRanges } from '../constants';
-import { availabilityToColor, latencyToColor } from '../utils/color';
+import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { getServiceIconComponent } from './ServiceIcon';
+import { BadgeCell } from './badges';
+import { hasAnyBadge } from '../utils/badgeUtils';
 import type { ProcessedMonitorData } from '../types';
 
 type HistoryPoint = ProcessedMonitorData['history'][number];
@@ -16,8 +18,9 @@ interface StatusCardProps {
   item: ProcessedMonitorData;
   timeRange: string;
   slowLatencyMs: number;
-  showCategoryTag?: boolean; // 预留 prop，保持接口一致性（StatusCard 设计上不显示分类标签）
+  showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
+  showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
 }
@@ -26,8 +29,9 @@ export function StatusCard({
   item,
   timeRange,
   slowLatencyMs,
-  // showCategoryTag - 预留 prop，保持接口一致性（StatusCard 设计上不显示分类标签）
+  showCategoryTag = true,
   showProvider = true,
+  showSponsor = true,
   onBlockHover,
   onBlockLeave
 }: StatusCardProps) {
@@ -43,10 +47,28 @@ export function StatusCard({
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
   const ServiceIcon = getServiceIconComponent(item.serviceType);
 
+  // 检查是否有徽标需要显示
+  const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
+
+  // 卡片左边框颜色（内联样式）
+  const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
+
   return (
-    <div className="group relative bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 rounded-2xl p-4 sm:p-6 transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] backdrop-blur-sm overflow-hidden">
-      {/* 顶部状态条 */}
-      <div className={`absolute top-0 left-0 w-full h-1 ${STATUS[item.currentStatus].color}`} />
+    <div
+      className={`group relative bg-slate-900/60 border border-slate-800 hover:border-cyan-500/30 ${item.sponsorLevel ? 'rounded-l-sm border-l-2' : 'rounded-l-2xl'} rounded-r-2xl p-4 sm:p-6 transition-all duration-300 hover:shadow-[0_0_30px_rgba(6,182,212,0.1)] backdrop-blur-sm overflow-hidden`}
+      style={borderColor ? { borderLeftColor: borderColor } : undefined}
+    >
+      {/* 徽标行 - 仅在有徽标时显示 */}
+      {hasItemBadges && (
+        <div className="mb-4">
+          <BadgeCell
+            item={item}
+            showCategoryTag={showCategoryTag}
+            showSponsor={showSponsor}
+            showRisk={true}
+          />
+        </div>
+      )}
 
       {/* 头部信息 - 使用 Grid 布局响应式 */}
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 mb-6">

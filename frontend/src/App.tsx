@@ -10,6 +10,7 @@ import { Tooltip } from './components/Tooltip';
 import { Footer } from './components/Footer';
 import { useMonitorData } from './hooks/useMonitorData';
 import { useUrlState } from './hooks/useUrlState';
+import { createMediaQueryEffect } from './utils/mediaQuery';
 import { trackPeriodChange, trackServiceFilter, trackEvent } from './utils/analytics';
 import type { TooltipState, ProcessedMonitorData } from './types';
 
@@ -30,6 +31,9 @@ function App() {
     viewMode,
     sortConfig,
   } = urlState;
+
+  // 移动端筛选抽屉状态（移到 App 层级，Header 和 Controls 共用）
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const {
     setTimeRange,
     setFilterProvider,
@@ -60,6 +64,16 @@ function App() {
     trackEvent('change_time_align', { align: align || 'dynamic' });
   }, []);
 
+  // 移动端检测（< 960px）
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const cleanup = createMediaQueryEffect('tablet', setIsMobile);
+    return cleanup;
+  }, []);
+
+  // 移动端强制使用 table 视图
+  const effectiveViewMode = isMobile ? 'table' : viewMode;
+
   const [tooltip, setTooltip] = useState<TooltipState>({
     show: false,
     x: 0,
@@ -81,6 +95,14 @@ function App() {
     filterCategory,
     sortConfig,
   });
+
+  // 统计激活的筛选器数量（用于移动端 Header 显示）
+  const activeFiltersCount = [
+    filterCategory.length > 0,
+    providers.length > 0 && filterProvider.length > 0,
+    filterService.length > 0,
+    filterChannel.length > 0,
+  ].filter(Boolean).length;
 
   // 追踪时间范围变化
   useEffect(() => {
@@ -109,10 +131,10 @@ function App() {
     }
   }, [filterCategory]);
 
-  // 追踪视图模式切换
+  // 追踪视图模式切换（使用实际显示的视图模式）
   useEffect(() => {
-    trackEvent('change_view_mode', { mode: viewMode });
-  }, [viewMode]);
+    trackEvent('change_view_mode', { mode: effectiveViewMode });
+  }, [effectiveViewMode]);
 
   const handleSort = (key: string) => {
     let direction: 'asc' | 'desc' = 'desc';
@@ -176,7 +198,14 @@ function App() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
           {/* 头部 */}
-          <Header stats={stats} />
+          <Header
+            stats={stats}
+            onFilterClick={() => setShowFilterDrawer(true)}
+            onRefresh={handleRefresh}
+            loading={loading}
+            refreshCooldown={refreshCooldown}
+            activeFiltersCount={activeFiltersCount}
+          />
 
           {/* 控制栏 */}
           <Controls
@@ -190,6 +219,9 @@ function App() {
             loading={loading}
             channels={channels}
             providers={providers}
+            isMobile={isMobile}
+            showFilterDrawer={showFilterDrawer}
+            onFilterDrawerClose={() => setShowFilterDrawer(false)}
             onProviderChange={setFilterProvider}
             onServiceChange={setFilterService}
             onChannelChange={setFilterChannel}
@@ -219,7 +251,7 @@ function App() {
             </div>
           ) : (
             <>
-              {viewMode === 'table' && (
+              {effectiveViewMode === 'table' && (
                 <StatusTable
                   data={data}
                   sortConfig={sortConfig}
@@ -231,7 +263,7 @@ function App() {
                 />
               )}
 
-              {viewMode === 'grid' && (
+              {effectiveViewMode === 'grid' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {data.map((item) => (
                     <StatusCard

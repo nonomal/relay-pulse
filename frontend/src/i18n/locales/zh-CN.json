@@ -23,6 +23,7 @@
   "header": {
     "tagline": "实时监控API中转服务可用性矩阵",
     "recommendBtn": "推荐服务商",
+    "recommendBtnShort": "推荐",
     "stats": {
       "healthy": "正常运行",
       "issues": "异常告警"
@@ -65,6 +66,7 @@
     },
     "mobile": {
       "filterBtn": "筛选",
+      "filterBtnShort": "筛选",
       "filterTitle": "筛选条件",
       "closeFilter": "关闭筛选"
     },
@@ -99,7 +101,7 @@
       "charity": "公益站"
     },
     "categoryShort": {
-      "promoted": "",
+      "promoted": "商",
       "charity": "益"
     },
     "expandDetails": "查看详情",
@@ -196,6 +198,9 @@
     },
     "public": {
       "tooltip": "免费公益服务站点"
+    },
+    "commercial": {
+      "tooltip": "商业付费服务站点"
     }
   }
 }

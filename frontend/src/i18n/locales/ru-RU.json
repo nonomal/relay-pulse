@@ -23,6 +23,7 @@
   "header": {
     "tagline": "Матрица мониторинга доступности API-ретрансляционных сервисов в реальном времени",
     "recommendBtn": "Порекомендовать провайдера",
+    "recommendBtnShort": "Предложить",
     "stats": {
       "healthy": "Работает нормально",
       "issues": "Обнаружены проблемы"
@@ -65,6 +66,7 @@
     },
     "mobile": {
       "filterBtn": "Фильтр",
+      "filterBtnShort": "Фильтр",
       "filterTitle": "Условия фильтрации",
       "closeFilter": "Закрыть фильтр"
     },
@@ -99,7 +101,7 @@
       "charity": "Благотворительный"
     },
     "categoryShort": {
-      "promoted": "",
+      "promoted": "К",
       "charity": "Б"
     },
     "expandDetails": "Показать детали",
@@ -196,6 +198,9 @@
     },
     "public": {
       "tooltip": "Бесплатный публичный сервис"
+    },
+    "commercial": {
+      "tooltip": "Коммерческий платный сервис"
     }
   }
 }

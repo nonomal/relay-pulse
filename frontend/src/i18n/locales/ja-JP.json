@@ -23,6 +23,7 @@
   "header": {
     "tagline": "API中継サービスの可用性マトリクスをリアルタイム監視",
     "recommendBtn": "プロバイダを推薦する",
+    "recommendBtnShort": "推薦",
     "stats": {
       "healthy": "正常稼働",
       "issues": "異常アラート"
@@ -65,6 +66,7 @@
     },
     "mobile": {
       "filterBtn": "フィルター",
+      "filterBtnShort": "絞込",
       "filterTitle": "フィルター条件",
       "closeFilter": "フィルターを閉じる"
     },
@@ -99,7 +101,7 @@
       "charity": "チャリティサイト"
     },
     "categoryShort": {
-      "promoted": "",
+      "promoted": "商",
       "charity": "慈"
     },
     "expandDetails": "詳細を表示",
@@ -196,6 +198,9 @@
     },
     "public": {
       "tooltip": "無料の公益サービスサイト"
+    },
+    "commercial": {
+      "tooltip": "商用の有料サービスサイト"
     }
   }
 }

@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { BadgeCell } from './badges';
 import { getStatusConfig, getTimeRanges } from '../constants';
-import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass } from '../utils/color';
+import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
@@ -47,7 +47,6 @@ function MobileListItem({
   onBlockLeave: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
   const STATUS = getStatusConfig(t);
   const ServiceIcon = getServiceIconComponent(item.serviceType);
 
@@ -60,8 +59,14 @@ function MobileListItem({
   // 检查是否有徽标需要显示
   const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
 
+  // 卡片左边框颜色（内联样式）
+  const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
+
   return (
-    <div className={`bg-slate-900/60 border border-slate-800 rounded-xl p-4 space-y-3 ${sponsorLevelToBorderClass(item.sponsorLevel)}`}>
+    <div
+      className={`bg-slate-900/60 border border-slate-800 rounded-r-xl ${item.sponsorLevel ? 'rounded-l-sm border-l-2' : 'rounded-l-xl'} p-3 space-y-2`}
+      style={borderColor ? { borderLeftColor: borderColor } : undefined}
+    >
       {/* 徽标行 - 仅在有徽标时显示 */}
       {hasItemBadges && (
         <BadgeCell
@@ -73,36 +78,35 @@ function MobileListItem({
       )}
 
       {/* 主要信息行 */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0 flex-1">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* 服务图标 */}
-          <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-200">
+          <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-200">
             {ServiceIcon ? (
-              <ServiceIcon className="w-5 h-5" />
+              <ServiceIcon className="w-4 h-4" />
             ) : item.serviceType === 'cc' ? (
-              <Zap className="text-purple-400" size={18} />
+              <Zap className="text-purple-400" size={14} />
             ) : (
-              <Shield className="text-blue-400" size={18} />
+              <Shield className="text-blue-400" size={14} />
             )}
           </div>
 
-          {/* 服务商名称（合并赞助者，紧凑两行布局） */}
+          {/* 服务商名称 */}
           <div className="min-w-0 flex-1">
-            <div className="flex flex-col">
-              {showProvider && (
-                <span className="font-semibold text-slate-100 truncate text-sm leading-none">
-                  <ExternalLink href={item.providerUrl} compact>{item.providerName}</ExternalLink>
-                </span>
-              )}
+            {showProvider && (
+              <span className="font-semibold text-slate-100 truncate text-sm leading-none block">
+                <ExternalLink href={item.providerUrl} compact>{item.providerName}</ExternalLink>
+              </span>
+            )}
+            <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+              {/* 赞助者（放在服务类型前） */}
               {showSponsor && item.sponsor && (
-                <span className="text-[10px] text-slate-500 truncate leading-none">
+                <span className="text-[10px] text-slate-500 truncate max-w-[80px]">
                   <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                 </span>
               )}
-            </div>
-            <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
               <span
-                className={`px-1.5 py-0.5 rounded text-[10px] font-mono border ${
+                className={`px-1.5 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 ${
                   item.serviceType === 'cc'
                     ? 'border-purple-500/30 text-purple-300 bg-purple-500/10'
                     : 'border-blue-500/30 text-blue-300 bg-blue-500/10'
@@ -117,7 +121,7 @@ function MobileListItem({
           </div>
         </div>
 
-        {/* 状态和可用率 */}
+        {/* 状态、可用率、时间和延迟 */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800 border border-slate-700">
             <StatusDot status={item.currentStatus} size="sm" />
@@ -131,11 +135,29 @@ function MobileListItem({
           >
             {item.uptime >= 0 ? `${item.uptime}%` : '--'}
           </span>
+          {/* 时间和延迟（总是显示） */}
+          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+            {item.lastCheckTimestamp && (
+              <span>
+                {new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, {
+                  month: '2-digit',
+                  day: '2-digit',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </span>
+            )}
+            {item.lastCheckLatency !== undefined && (
+              <span style={{ color: latencyToColor(item.lastCheckLatency, slowLatencyMs) }}>
+                {item.lastCheckLatency}ms
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
       {/* 热力图 */}
-      <div className="flex items-center gap-[2px] h-6 w-full overflow-hidden rounded-sm">
+      <div className="flex items-center gap-[2px] h-5 w-full overflow-hidden rounded-sm">
         {aggregatedHistory.map((point, idx) => (
           <HeatmapBlock
             key={idx}
@@ -147,58 +169,6 @@ function MobileListItem({
           />
         ))}
       </div>
-
-      {/* 展开/收起按钮 */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-center gap-1 py-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-      >
-        {expanded ? (
-          <>
-            <ChevronUp size={14} />
-            {t('table.collapseDetails')}
-          </>
-        ) : (
-          <>
-            <ChevronDown size={14} />
-            {t('table.expandDetails')}
-          </>
-        )}
-      </button>
-
-      {/* 展开的详细信息 */}
-      {expanded && (
-        <div className="pt-3 border-t border-slate-800 space-y-2 text-xs">
-          <div className="flex justify-between">
-            <span className="text-slate-500">{t('common.channel')}</span>
-            <span className="text-slate-300">{item.channel || '-'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-500">{t('common.lastCheck')}</span>
-            <span className="text-slate-300 font-mono">
-              {item.lastCheckTimestamp
-                ? new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, {
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })
-                : '-'}
-            </span>
-          </div>
-          {item.lastCheckLatency !== undefined && (
-            <div className="flex justify-between">
-              <span className="text-slate-500">{t('common.latency')}</span>
-              <span
-                className="font-mono"
-                style={{ color: latencyToColor(item.lastCheckLatency, slowLatencyMs) }}
-              >
-                {item.lastCheckLatency}ms
-              </span>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -222,7 +192,7 @@ function MobileSortMenu({
   ];
 
   return (
-    <div className="flex items-center gap-2 mb-4 overflow-x-auto pb-2">
+    <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-2">
       <span className="text-xs text-slate-500 flex-shrink-0">{t('controls.sortBy')}</span>
       {sortOptions.map((option) => (
         <button
@@ -287,7 +257,7 @@ export function StatusTable({
     return (
       <div>
         <MobileSortMenu sortConfig={sortConfig} onSort={onSort} />
-        <div className="space-y-3">
+        <div className="space-y-2">
           {data.map((item) => (
             <MobileListItem
               key={item.id}

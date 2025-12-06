@@ -106,7 +106,7 @@ export function latencyToColor(latency: number, slowLatencyMs: number): string {
 }
 
 /**
- * 根据赞助商等级返回左边框 Tailwind 类名
+ * 根据赞助商等级返回左边框 Tailwind 类名（用于表格行）
  * 颜色与 SponsorBadge 徽章一致
  */
 export function sponsorLevelToBorderClass(level?: string): string {
@@ -117,4 +117,21 @@ export function sponsorLevelToBorderClass(level?: string): string {
     enterprise: 'border-l-2 border-l-amber-400/40',
   };
   return BORDER_CLASSES[level] || '';
+}
+
+// 卡片视图左边框颜色映射（返回内联样式对象）
+// 与表格视图保持一致：40% 透明度
+const CARD_BORDER_COLORS: Record<string, string> = {
+  basic: 'rgba(16, 185, 129, 0.4)',    // emerald-500/40
+  advanced: 'rgba(6, 182, 212, 0.4)',   // cyan-500/40
+  enterprise: 'rgba(251, 191, 36, 0.4)', // amber-400/40
+};
+
+/**
+ * 根据赞助商等级返回卡片左边框颜色（CSS color string）
+ * 颜色与 SponsorBadge 徽章一致，用于卡片视图内联样式
+ */
+export function sponsorLevelToCardBorderColor(level?: string): string | undefined {
+  if (!level) return undefined;
+  return CARD_BORDER_COLORS[level];
 }

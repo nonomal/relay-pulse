@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Filter, RefreshCw, LayoutGrid, List, X, Clock, AlignStartVertical } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
@@ -19,6 +19,9 @@ interface ControlsProps {
   providers: ProviderOption[];  // 改为 ProviderOption[]
   showCategoryFilter?: boolean; // 是否显示分类筛选器，默认 true（用于服务商专属页面）
   refreshCooldown?: boolean; // 刷新冷却中，显示提示
+  isMobile?: boolean; // 是否为移动端，用于隐藏视图切换按钮
+  showFilterDrawer?: boolean; // 移动端筛选抽屉是否显示（由 App 层级控制）
+  onFilterDrawerClose?: () => void; // 关闭筛选抽屉回调
   onProviderChange: (providers: string[]) => void;  // 多选回调
   onServiceChange: (services: string[]) => void;    // 多选回调
   onChannelChange: (channels: string[]) => void;    // 多选回调
@@ -42,6 +45,9 @@ export function Controls({
   providers,
   showCategoryFilter = true,
   refreshCooldown = false,
+  isMobile = false,
+  showFilterDrawer = false,
+  onFilterDrawerClose,
   onProviderChange,
   onServiceChange,
   onChannelChange,
@@ -52,7 +58,6 @@ export function Controls({
   onRefresh,
 }: ControlsProps) {
   const { t } = useTranslation();
-  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
   // 服务选项（固定值）
   const serviceOptions = useMemo<MultiSelectOption[]>(() => [
@@ -126,63 +131,51 @@ export function Controls({
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row gap-3 mb-4 overflow-visible">
-        {/* 筛选和视图控制 */}
-        <div className="flex-1 flex flex-wrap gap-3 items-center bg-slate-900/40 p-3 rounded-2xl border border-slate-800/50 overflow-visible">
-          {/* 移动端：筛选按钮 */}
-          <button
-            onClick={() => setShowFilterDrawer(true)}
-            className="sm:hidden flex items-center gap-2 px-3 py-2 bg-slate-800 text-slate-200 rounded-lg border border-slate-700 hover:bg-slate-750 transition-colors"
-          >
-            <Filter size={16} />
-            <span className="text-sm font-medium">{t('controls.mobile.filterBtn')}</span>
-            {activeFiltersCount > 0 && (
-              <span className="px-1.5 py-0.5 bg-cyan-500 text-white text-xs rounded-full">
-                {activeFiltersCount}
-              </span>
-            )}
-          </button>
-
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-2 sm:mb-4 overflow-visible">
+        {/* 筛选和视图控制（移动端隐藏，筛选/刷新已移到 Header） */}
+        <div className="hidden sm:flex flex-1 flex-wrap gap-3 items-center bg-slate-900/40 p-3 rounded-2xl border border-slate-800/50 overflow-visible">
           {/* 桌面端：直接显示筛选器 */}
-          <div className="hidden sm:flex items-center gap-2 text-slate-400 text-sm font-medium px-2">
+          <div className="flex items-center gap-2 text-slate-400 text-sm font-medium px-2">
             <Filter size={16} />
           </div>
-          <div className="hidden sm:flex sm:flex-wrap gap-3 flex-1 overflow-visible">
+          <div className="flex flex-wrap gap-3 flex-1 overflow-visible">
             {FilterSelects()}
           </div>
 
-          <div className="w-px h-8 bg-slate-700 mx-2 hidden sm:block"></div>
+          <div className="w-px h-8 bg-slate-700 mx-2"></div>
 
-          {/* 视图切换（扩大触摸区域） */}
-          <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
-            <button
-              onClick={() => onViewModeChange('table')}
-              className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center ${
-                viewMode === 'table'
-                  ? 'bg-slate-700 text-cyan-400 shadow'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title={t('controls.views.table')}
-              aria-label={t('controls.views.switchToTable')}
-            >
-              <List size={18} />
-            </button>
-            <button
-              onClick={() => onViewModeChange('grid')}
-              className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center ${
-                viewMode === 'grid'
-                  ? 'bg-slate-700 text-cyan-400 shadow'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              title={t('controls.views.card')}
-              aria-label={t('controls.views.switchToCard')}
-            >
-              <LayoutGrid size={18} />
-            </button>
-          </div>
+          {/* 视图切换（仅桌面端显示） */}
+          {!isMobile && (
+            <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+              <button
+                onClick={() => onViewModeChange('table')}
+                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                  viewMode === 'table'
+                    ? 'bg-slate-700 text-cyan-400 shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title={t('controls.views.table')}
+                aria-label={t('controls.views.switchToTable')}
+              >
+                <List size={18} />
+              </button>
+              <button
+                onClick={() => onViewModeChange('grid')}
+                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                  viewMode === 'grid'
+                    ? 'bg-slate-700 text-cyan-400 shadow'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+                title={t('controls.views.card')}
+                aria-label={t('controls.views.switchToCard')}
+              >
+                <LayoutGrid size={18} />
+              </button>
+            </div>
+          )}
 
-          {/* 刷新按钮（扩大触摸区域） */}
-          <div className="relative ml-auto">
+          {/* 刷新按钮（桌面端显示，移动端已移到 Header） */}
+          <div className="relative ml-auto hidden sm:block">
             <button
               onClick={onRefresh}
               className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20 group min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
@@ -245,7 +238,7 @@ export function Controls({
       {showFilterDrawer && (
         <div
           className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm sm:hidden"
-          onClick={() => setShowFilterDrawer(false)}
+          onClick={() => onFilterDrawerClose?.()}
         >
           <div
             className="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto"
@@ -263,7 +256,7 @@ export function Controls({
                 )}
               </div>
               <button
-                onClick={() => setShowFilterDrawer(false)}
+                onClick={() => onFilterDrawerClose?.()}
                 className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
                 aria-label={t('controls.mobile.closeFilter')}
               >
@@ -273,12 +266,7 @@ export function Controls({
 
             {/* 筛选器列表 */}
             <div className="flex flex-col gap-4">
-              <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2">
-                  {t('controls.filters.categoryLabel')}
-                </label>
-                {FilterSelects()}
-              </div>
+              {FilterSelects()}
 
               {/* 清空按钮 - 只清空可见的筛选器 */}
               {activeFiltersCount > 0 && (
@@ -297,7 +285,7 @@ export function Controls({
 
               {/* 应用按钮 */}
               <button
-                onClick={() => setShowFilterDrawer(false)}
+                onClick={() => onFilterDrawerClose?.()}
                 className="w-full py-3 bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-lg font-medium shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all"
               >
                 {t('common.apply')}

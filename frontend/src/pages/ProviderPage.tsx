@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { StatusTable } from '../components/StatusTable';
 import { StatusCard } from '../components/StatusCard';
 import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
+import { createMediaQueryEffect } from '../utils/mediaQuery';
 import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData } from '../types';
 
 // localStorage key for time align preference (shared with App.tsx)
@@ -76,6 +77,16 @@ export default function ProviderPage() {
   const lastRefreshRef = useRef<number>(0);
   const [refreshCooldown, setRefreshCooldown] = useState(false);
 
+  // 移动端筛选抽屉状态
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+
+  // 移动端检测（< 960px）
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const cleanup = createMediaQueryEffect('tablet', setIsMobile);
+    return cleanup;
+  }, []);
+
   // 数据获取 - 先获取全部数据用于构建映射
   const { data: allData, loading, error, stats, channels, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
@@ -105,6 +116,16 @@ export default function ProviderPage() {
       (item) => item.providerId === realProviderId && item.channel === channel
     );
   });
+
+  // 统计激活的筛选器数量（用于移动端 Header 显示）
+  // Provider 页面不显示 category 和 provider 筛选器
+  const activeFiltersCount = [
+    filterService.length > 0,
+    filterChannel.length > 0,
+  ].filter(Boolean).length;
+
+  // 移动端强制使用 table 视图
+  const effectiveViewMode = isMobile ? 'table' : viewMode;
 
   // 软 404 处理：只在 provider slug 真正不存在时返回 404
   // 避免网络错误或筛选条件导致的空数据被误判为 404
@@ -184,7 +205,16 @@ export default function ProviderPage() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
         {/* 完整模式：显示 Header */}
-        {!isEmbedMode && <Header stats={stats} />}
+        {!isEmbedMode && (
+          <Header
+            stats={stats}
+            onFilterClick={() => setShowFilterDrawer(true)}
+            onRefresh={handleRefresh}
+            loading={loading}
+            refreshCooldown={refreshCooldown}
+            activeFiltersCount={activeFiltersCount}
+          />
+        )}
 
         {/* 控制面板 - 隐藏 provider 和 category 筛选器，只显示当前 provider 的通道 */}
         <Controls
@@ -199,6 +229,9 @@ export default function ProviderPage() {
           providers={[]} // 空数组 → 隐藏 provider 筛选器
           channels={providerChannels} // 只显示当前 provider 的通道
           showCategoryFilter={false} // 隐藏分类筛选器
+          isMobile={isMobile}
+          showFilterDrawer={showFilterDrawer}
+          onFilterDrawerClose={() => setShowFilterDrawer(false)}
           onTimeRangeChange={setTimeRange}
           onTimeAlignChange={setTimeAlign}
           onServiceChange={setFilterService}
@@ -229,7 +262,7 @@ export default function ProviderPage() {
             </div>
           ) : (
             <>
-              {viewMode === 'table' && (
+              {effectiveViewMode === 'table' && (
                 <StatusTable
                   data={data}
                   sortConfig={sortConfig}
@@ -244,7 +277,7 @@ export default function ProviderPage() {
                 />
               )}
 
-              {viewMode === 'grid' && (
+              {effectiveViewMode === 'grid' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {data.map((item) => (
                     <StatusCard

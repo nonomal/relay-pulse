@@ -52,7 +52,7 @@ export function calculateBadgeScore(item: ProcessedMonitorData): number {
 export function hasAnyBadge(
   item: ProcessedMonitorData,
   options: {
-    showCategoryTag?: boolean;  // 是否显示公益站标签
+    showCategoryTag?: boolean;  // 是否显示站点类型标签（商业/公益）
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
   } = {}
@@ -63,8 +63,9 @@ export function hasAnyBadge(
     showRisk = true,
   } = options;
 
+  // showCategoryTag 时始终有徽标（所有项都有商业/公益类型）
   return Boolean(
-    (showCategoryTag && item.category === 'public') ||
+    showCategoryTag ||
     (showSponsor && item.sponsorLevel) ||
     (showRisk && item.risks?.length)
   );
@@ -80,9 +81,9 @@ export function hasAnyBadge(
 export function hasAnyBadgeInList(
   data: ProcessedMonitorData[],
   options: {
-    showCategoryTag?: boolean;
-    showSponsor?: boolean;
-    showRisk?: boolean;
+    showCategoryTag?: boolean;  // 是否显示站点类型标签（商业/公益）
+    showSponsor?: boolean;      // 是否显示赞助商徽标
+    showRisk?: boolean;         // 是否显示风险徽标
   } = {}
 ): boolean {
   return data.some(item => hasAnyBadge(item, options));
