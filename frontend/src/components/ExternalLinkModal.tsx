@@ -50,22 +50,16 @@ export function ExternalLinkModal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onCancel]);
 
-  // 打开时聚焦确认按钮
+  // 打开时聚焦确认按钮，并禁止背景滚动
   useEffect(() => {
-    if (isOpen && confirmButtonRef.current) {
-      confirmButtonRef.current.focus();
+    if (isOpen) {
+      confirmButtonRef.current?.focus();
+      document.body.style.overflow = 'hidden';
     }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
-
-  // 点击遮罩关闭
-  const handleBackdropClick = useCallback(
-    (e: React.MouseEvent) => {
-      if (e.target === e.currentTarget) {
-        onCancel();
-      }
-    },
-    [onCancel]
-  );
 
   // 确认并勾选"不再提示"
   const handleConfirmWithDontShow = useCallback(() => {
@@ -77,15 +71,14 @@ export function ExternalLinkModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4"
       role="dialog"
       aria-modal="true"
       aria-labelledby="external-link-modal-title"
     >
       <div
         ref={modalRef}
-        className="relative mx-4 w-full max-w-md rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-2xl"
+        className="relative w-full max-w-lg rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl my-auto"
       >
         {/* 关闭按钮 */}
         <button
@@ -97,8 +90,8 @@ export function ExternalLinkModal({
         </button>
 
         {/* 标题 */}
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-500/20">
+        <div className="mb-4 flex items-center gap-3 pr-8">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-yellow-500/20">
             <AlertTriangle className="h-5 w-5 text-yellow-500" />
           </div>
           <h2
@@ -110,7 +103,7 @@ export function ExternalLinkModal({
         </div>
 
         {/* 目标信息 */}
-        <div className="mb-4 rounded-lg bg-slate-700/50 px-3 py-2 border border-slate-600">
+        <div className="mb-4 rounded-lg bg-slate-700/50 px-4 py-3 border border-slate-600">
           <p className="text-sm text-slate-200">
             {t('externalLink.target')}: <strong className="text-white">{targetName}</strong>
           </p>
@@ -118,9 +111,9 @@ export function ExternalLinkModal({
         </div>
 
         {/* 风险提示 */}
-        <div className="mb-6 space-y-2 text-sm text-slate-300">
+        <div className="mb-6 space-y-3 text-sm text-slate-300">
           <p>{t('externalLink.thirdPartyNotice')}</p>
-          <ul className="ml-4 list-disc space-y-1 text-slate-400">
+          <ul className="ml-4 list-disc space-y-2 text-slate-400">
             <li>{t('externalLink.riskTip1')}</li>
             <li>{t('externalLink.riskTip2')}</li>
           </ul>
@@ -130,14 +123,14 @@ export function ExternalLinkModal({
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             onClick={onCancel}
-            className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
+            className="rounded-lg border border-slate-600 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
           >
             {t('externalLink.cancel')}
           </button>
           <button
             ref={confirmButtonRef}
             onClick={onConfirm}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-colors"
+            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-colors"
           >
             {t('externalLink.confirm')}
           </button>
