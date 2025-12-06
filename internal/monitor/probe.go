@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -89,9 +90,16 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 	// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
 	var bodyBytes []byte
 	if cfg.SuccessContains != "" {
-		if data, readErr := io.ReadAll(resp.Body); readErr == nil {
+		data, readErr := io.ReadAll(resp.Body)
+		switch {
+		case readErr == nil:
 			bodyBytes = data
-		} else {
+		case errors.Is(readErr, io.ErrUnexpectedEOF) || errors.Is(readErr, io.EOF):
+			// EOF/ErrUnexpectedEOF 通常表示传输提前结束（如 Content-Length 不匹配），但已读内容仍可用于匹配
+			bodyBytes = data
+			logger.Debug("probe", "读取响应体遇到 EOF，使用已读数据",
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", readErr, "bytes", len(data))
+		default:
 			logger.Warn("probe", "读取响应体失败",
 				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", readErr)
 		}
