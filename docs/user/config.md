@@ -15,6 +15,13 @@ Relay Pulse 使用 YAML 格式的配置文件，默认路径为 `config.yaml`。
 interval: "1m"           # 巡检间隔（支持 Go duration 格式）
 slow_latency: "5s"       # 慢请求阈值
 
+# 赞助商置顶配置
+sponsor_pin:
+  enabled: true          # 是否启用置顶功能
+  max_pinned: 3          # 最多置顶数量
+  min_uptime: 95.0       # 最低可用率要求
+  min_level: "basic"     # 最低赞助级别
+
 # 存储配置
 storage:
   type: "sqlite"         # 存储类型: sqlite 或 postgres
@@ -76,6 +83,59 @@ monitors:
 - **默认值**: `0.7`
 - **说明**: 黄色状态在可用率统计中的权重，合法范围 0-1；填 0 视为未配置，使用默认值 0.7
 - **计算公式**: `可用率 = (绿色次数 × 1.0 + 黄色次数 × degraded_weight) / 总次数 × 100`
+
+### 赞助商置顶配置
+
+用于在页面初始加载时置顶符合条件的赞助商监控项，用户点击任意排序按钮后置顶失效，刷新页面恢复。
+
+```yaml
+sponsor_pin:
+  enabled: true           # 是否启用置顶功能（默认 true）
+  max_pinned: 3           # 最多置顶数量（默认 3）
+  min_uptime: 95.0        # 最低可用率要求（默认 95%）
+  min_level: "basic"      # 最低赞助级别（默认 basic）
+```
+
+#### `sponsor_pin.enabled`
+- **类型**: boolean
+- **默认值**: `true`
+- **说明**: 是否启用赞助商置顶功能
+
+#### `sponsor_pin.max_pinned`
+- **类型**: integer
+- **默认值**: `3`
+- **说明**: 最多置顶的赞助商数量
+
+#### `sponsor_pin.min_uptime`
+- **类型**: float
+- **默认值**: `95.0`
+- **说明**: 置顶的最低可用率要求（百分比），低于此值的赞助商不会被置顶
+
+#### `sponsor_pin.min_level`
+- **类型**: string
+- **默认值**: `"basic"`
+- **可选值**: `"basic"`, `"advanced"`, `"enterprise"`
+- **说明**: 置顶的最低赞助级别，级别低于此值的赞助商不会被置顶
+- **级别权重**: `enterprise` > `advanced` > `basic`
+
+#### 置顶规则
+
+1. **置顶条件**: 监控项必须同时满足以下条件才会被置顶：
+   - 有 `sponsor_level` 配置
+   - 无风险标记（`risks` 数组为空或未配置）
+   - 可用率 ≥ `min_uptime`
+   - 赞助级别 ≥ `min_level`
+
+2. **排序规则**:
+   - 置顶项按赞助级别排序（`enterprise` > `advanced` > `basic`）
+   - 同级别按可用率降序排序
+   - 其余项按可用率降序排序
+
+3. **视觉效果**: 置顶项显示对应徽标颜色的淡色背景（5% 透明度）
+
+4. **交互行为**:
+   - 用户点击任意排序按钮后，置顶效果失效
+   - 刷新页面后，置顶效果恢复
 
 #### `max_concurrency`
 - **类型**: integer

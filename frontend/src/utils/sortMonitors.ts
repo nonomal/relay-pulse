@@ -116,6 +116,9 @@ function meetsPinCriteria(
   // 必须有赞助级别
   if (!item.sponsorLevel) return false;
 
+  // 有风险标记的不参与置顶
+  if (item.risks?.length) return false;
+
   // 可用率必须达标（-1 表示无数据，不符合条件）
   if (item.uptime < 0 || item.uptime < config.min_uptime) return false;
 
