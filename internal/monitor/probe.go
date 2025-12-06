@@ -94,10 +94,10 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		switch {
 		case readErr == nil:
 			bodyBytes = data
-		case errors.Is(readErr, io.ErrUnexpectedEOF) || errors.Is(readErr, io.EOF):
-			// EOF/ErrUnexpectedEOF 通常表示传输提前结束（如 Content-Length 不匹配），但已读内容仍可用于匹配
+		case isTolerableReadError(readErr):
+			// 可容忍的传输错误（EOF、HTTP/2 流错误等），已读内容仍可用于匹配
 			bodyBytes = data
-			logger.Debug("probe", "读取响应体遇到 EOF，使用已读数据",
+			logger.Debug("probe", "读取响应体遇到可容忍错误，使用已读数据",
 				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", readErr, "bytes", len(data))
 		default:
 			logger.Warn("probe", "读取响应体失败",
@@ -345,4 +345,50 @@ func MaskSensitiveInfo(s string) string {
 	}
 	// 只显示前4位和后4位
 	return s[:4] + "***" + s[len(s)-4:]
+}
+
+// isTolerableReadError 判断是否为可容忍的响应体读取错误
+// 部分中转服务器实现不严谨，可能在响应内容已完整返回后仍触发以下错误：
+// - io.EOF / io.ErrUnexpectedEOF: Content-Length 不匹配或 chunked encoding 未正确终止
+// - HTTP/2 stream error: 服务端发送 RST_STREAM 帧提前关闭流
+// - HTTP/2 连接关闭: GOAWAY 帧或连接被关闭
+// 这些情况下已读取的数据通常仍可用于内容匹配
+func isTolerableReadError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// 标准 EOF 错误
+	if errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF) {
+		return true
+	}
+
+	// HTTP/2 相关错误（通过错误消息匹配，因为 net/http2 未导出具体错误类型）
+	errStr := err.Error()
+
+	// HTTP/2 流错误：必须包含 "stream error:" 前缀，且带有常见错误码
+	if strings.Contains(errStr, "stream error:") {
+		// 常见的 HTTP/2 流错误码，这些通常表示服务端提前关闭而非真正的传输失败
+		tolerableCodes := []string{
+			"INTERNAL_ERROR",
+			"CANCEL",
+			"NO_ERROR",
+			"PROTOCOL_ERROR",
+			"REFUSED_STREAM",
+		}
+		for _, code := range tolerableCodes {
+			if strings.Contains(errStr, code) {
+				return true
+			}
+		}
+	}
+
+	// HTTP/2 连接级错误
+	if strings.Contains(errStr, "GOAWAY") ||
+		strings.Contains(errStr, "http2: response body closed") ||
+		strings.Contains(errStr, "http2: server sent GOAWAY") {
+		return true
+	}
+
+	return false
 }
