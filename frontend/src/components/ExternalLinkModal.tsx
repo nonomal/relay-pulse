@@ -77,7 +77,7 @@ export function ExternalLinkModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
@@ -85,12 +85,12 @@ export function ExternalLinkModal({
     >
       <div
         ref={modalRef}
-        className="relative mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800"
+        className="relative mx-4 w-full max-w-md rounded-xl border border-slate-700 bg-slate-800 p-6 shadow-2xl"
       >
         {/* 关闭按钮 */}
         <button
           onClick={onCancel}
-          className="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          className="absolute right-4 top-4 text-slate-400 hover:text-slate-200 transition-colors"
           aria-label={t('common.close')}
         >
           <X size={20} />
@@ -98,29 +98,29 @@ export function ExternalLinkModal({
 
         {/* 标题 */}
         <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-100 dark:bg-yellow-900/30">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-500" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-yellow-500/20">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
           </div>
           <h2
             id="external-link-modal-title"
-            className="text-lg font-semibold text-gray-900 dark:text-gray-100"
+            className="text-lg font-semibold text-slate-100"
           >
             {t('externalLink.title')}
           </h2>
         </div>
 
         {/* 目标信息 */}
-        <div className="mb-4 rounded-md bg-gray-100 px-3 py-2 dark:bg-gray-700">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            {t('externalLink.target')}: <strong>{targetName}</strong>
+        <div className="mb-4 rounded-lg bg-slate-700/50 px-3 py-2 border border-slate-600">
+          <p className="text-sm text-slate-200">
+            {t('externalLink.target')}: <strong className="text-white">{targetName}</strong>
           </p>
-          <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">{targetDomain}</p>
+          <p className="mt-1 truncate text-xs text-slate-400">{targetDomain}</p>
         </div>
 
         {/* 风险提示 */}
-        <div className="mb-6 space-y-2 text-sm text-gray-600 dark:text-gray-300">
+        <div className="mb-6 space-y-2 text-sm text-slate-300">
           <p>{t('externalLink.thirdPartyNotice')}</p>
-          <ul className="ml-4 list-disc space-y-1 text-gray-500 dark:text-gray-400">
+          <ul className="ml-4 list-disc space-y-1 text-slate-400">
             <li>{t('externalLink.riskTip1')}</li>
             <li>{t('externalLink.riskTip2')}</li>
           </ul>
@@ -130,14 +130,14 @@ export function ExternalLinkModal({
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             onClick={onCancel}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+            className="rounded-lg border border-slate-600 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
           >
             {t('externalLink.cancel')}
           </button>
           <button
             ref={confirmButtonRef}
             onClick={onConfirm}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-colors"
           >
             {t('externalLink.confirm')}
           </button>
@@ -145,10 +145,10 @@ export function ExternalLinkModal({
 
         {/* 不再提示选项 */}
         {onDontShowAgain && (
-          <div className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-700">
+          <div className="mt-4 border-t border-slate-700 pt-3">
             <button
               onClick={handleConfirmWithDontShow}
-              className="text-xs text-gray-500 hover:text-gray-700 hover:underline dark:text-gray-400 dark:hover:text-gray-300"
+              className="text-xs text-slate-500 hover:text-slate-300 hover:underline transition-colors"
             >
               {t('externalLink.dontShowAgain')}
             </button>

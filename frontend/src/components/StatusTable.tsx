@@ -110,7 +110,7 @@ function MobileListItem({
               {/* 赞助者（放在服务类型前） */}
               {showSponsor && item.sponsor && (
                 <span className="text-[10px] text-slate-500 truncate max-w-[80px]">
-                  <ExternalLink href={item.sponsorUrl} compact requireConfirm>{item.sponsor}</ExternalLink>
+                  <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                 </span>
               )}
               <span
@@ -399,7 +399,7 @@ export function StatusTable({
                     </span>
                     {showSponsor && item.sponsor && (
                       <span className="text-[10px] text-slate-500 leading-none">
-                        <ExternalLink href={item.sponsorUrl} compact requireConfirm>{item.sponsor}</ExternalLink>
+                        <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                       </span>
                     )}
                   </div>
