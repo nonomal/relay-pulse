@@ -202,5 +202,18 @@
     "commercial": {
       "tooltip": "Commercial paid service site"
     }
+  },
+  "externalLink": {
+    "title": "Leaving RelayPulse",
+    "target": "Target website",
+    "thirdPartyNotice": "The service provider you are about to visit is operated independently by a third party.",
+    "riskTip1": "Our monitoring data only represents technical connectivity, not an endorsement of merchant credibility or financial security.",
+    "riskTip2": "AI relay services carry inherent industry risks. Please be mindful of fund safety and consider small deposits.",
+    "cancel": "Cancel",
+    "confirm": "I understand the risks, continue",
+    "dontShowAgain": "Don't show again this session",
+    "ariaLabel": "Visit {{name}} (opens in new window)",
+    "ariaLabelGeneric": "External link (opens in new window)",
+    "httpWarning": "Unencrypted HTTP link"
   }
 }

@@ -103,14 +103,14 @@ function MobileListItem({
           <div className="min-w-0 flex-1">
             {showProvider && (
               <span className="font-semibold text-slate-100 truncate text-sm leading-none block">
-                <ExternalLink href={item.providerUrl} compact>{item.providerName}</ExternalLink>
+                <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
               </span>
             )}
             <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
               {/* 赞助者（放在服务类型前） */}
               {showSponsor && item.sponsor && (
                 <span className="text-[10px] text-slate-500 truncate max-w-[80px]">
-                  <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
+                  <ExternalLink href={item.sponsorUrl} compact requireConfirm>{item.sponsor}</ExternalLink>
                 </span>
               )}
               <span
@@ -395,11 +395,11 @@ export function StatusTable({
                 <td className="px-4 py-[11px]">
                   <div className="flex flex-col">
                     <span className="font-medium text-slate-200 text-sm leading-none">
-                      <ExternalLink href={item.providerUrl} compact>{item.providerName}</ExternalLink>
+                      <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
                     </span>
                     {showSponsor && item.sponsor && (
                       <span className="text-[10px] text-slate-500 leading-none">
-                        <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
+                        <ExternalLink href={item.sponsorUrl} compact requireConfirm>{item.sponsor}</ExternalLink>
                       </span>
                     )}
                   </div>

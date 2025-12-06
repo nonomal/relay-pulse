@@ -94,7 +94,7 @@ export function StatusCard({
             <div className="flex items-center gap-2 flex-wrap">
               {showProvider && (
                 <h3 className="text-base sm:text-lg font-bold text-slate-100">
-                  <ExternalLink href={item.providerUrl}>{item.providerName}</ExternalLink>
+                  <ExternalLink href={item.providerUrl} requireConfirm>{item.providerName}</ExternalLink>
                 </h3>
               )}
               <span

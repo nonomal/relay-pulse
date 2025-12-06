@@ -202,5 +202,18 @@
     "commercial": {
       "tooltip": "商业付费服务站点"
     }
+  },
+  "externalLink": {
+    "title": "即将离开 RelayPulse",
+    "target": "目标网站",
+    "thirdPartyNotice": "您即将访问的服务商由第三方独立运营。",
+    "riskTip1": "本站监控数据仅代表技术连通性，不代表对商家信誉或资金安全的背书。",
+    "riskTip2": "AI 中转服务存在行业固有风险，请务必注意资金安全，建议小额充值。",
+    "cancel": "取消",
+    "confirm": "我已知晓风险，继续访问",
+    "dontShowAgain": "本次会话不再提示",
+    "ariaLabel": "访问 {{name}}（在新窗口打开）",
+    "ariaLabelGeneric": "外部链接（在新窗口打开）",
+    "httpWarning": "非加密 HTTP 链接"
   }
 }
