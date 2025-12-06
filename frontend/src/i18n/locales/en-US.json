@@ -148,11 +148,15 @@
       },
       "neutralMaintenance": {
         "title": "Open and Transparent Operations",
-        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsors receive exclusive badges, high-frequency monitoring, and brand display rights, but never influence data objectivity"
+        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsors receive pinned display, exclusive badges, and high-frequency monitoring, but availability data remains objective and accurate"
       },
       "monitoringScope": {
         "title": "Full-Stack Protocol Verification",
         "text": "Covers TCP connectivity, RTT latency, and deep validation of response content, effectively detecting \"fake alive\" APIs that connect but cannot converse"
+      },
+      "liability": {
+        "title": "Disclaimer",
+        "text": "Monitoring data is for technical reference only and does not constitute endorsement of any third-party provider's credibility or financial security. Users interact with providers at their own risk"
       }
     },
     "issuesBtn": "Report an issue",

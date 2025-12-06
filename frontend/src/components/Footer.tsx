@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Github, Tag, ChevronDown, ChevronUp, Bug, Zap, Handshake, ShieldCheck } from 'lucide-react';
+import { Github, Tag, ChevronDown, ChevronUp, Bug, Zap, Handshake, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useVersionInfo } from '../hooks/useVersionInfo';
 import { FEEDBACK_URLS } from '../constants';
@@ -25,6 +25,11 @@ export function Footer() {
       title: t('footer.disclaimer.monitoringScope.title'),
       text: t('footer.disclaimer.monitoringScope.text'),
     },
+    {
+      icon: AlertTriangle,
+      title: t('footer.disclaimer.liability.title'),
+      text: t('footer.disclaimer.liability.text'),
+    },
   ];
 
   return (
@@ -41,7 +46,7 @@ export function Footer() {
 
       {/* 免责声明内容 - 移动端折叠 */}
       <div className={`${expanded ? 'block' : 'hidden'} sm:block`}>
-        <div className="grid gap-2 sm:gap-3 sm:grid-cols-3">
+        <div className="grid gap-2 sm:gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {notices.map(({ icon: Icon, title, text }) => (
             <div
               key={title}
