@@ -182,6 +182,12 @@ Issues and Pull Requests welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md)
 
 [![Star History Chart](https://api.star-history.com/svg?repos=prehisle/relay-pulse&type=Date)](https://star-history.com/#prehisle/relay-pulse&Date)
 
+## ⚠️ Disclaimer
+
+This project is a technical monitoring tool provided under the MIT License.
+
+**Operational Liability**: The author is not responsible for the content, reliability, credibility, or financial security of any third-party services monitored or listed by instances of this software (including relaypulse.top). Users interact with third-party service providers at their own risk.
+
 ## 📄 License
 
 [MIT License](LICENSE) © 2025

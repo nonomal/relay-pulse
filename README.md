@@ -196,6 +196,12 @@ curl http://localhost:8080/api/version
 
 [![Star History Chart](https://api.star-history.com/svg?repos=prehisle/relay-pulse&type=Date)](https://star-history.com/#prehisle/relay-pulse&Date)
 
+## ⚠️ 免责声明
+
+本项目是基于 MIT 许可证发布的技术监控工具。
+
+**运营免责**：作者不对任何使用本软件搭建的站点（包括 relaypulse.top）上展示的第三方服务商的内容、可靠性、信誉或资金安全负责。用户与第三方服务商的交互风险自负。
+
 ## 📄 许可证
 
 [MIT License](LICENSE) © 2025
