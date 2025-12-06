@@ -8,11 +8,11 @@ export type Breakpoint = 'mobile' | 'tablet' | 'desktop';
 /**
  * 响应式断点定义
  * mobile: < 768px (Tooltip 底部 Sheet vs 悬浮)
- * tablet: < 960px (StatusTable 卡片 vs 表格 + 热力图聚合)
+ * tablet: < 1024px (StatusTable 卡片 vs 表格，与 Tailwind lg: 断点一致)
  */
 export const BREAKPOINTS = {
   mobile: '(max-width: 767px)',
-  tablet: '(max-width: 959px)',
+  tablet: '(max-width: 1023px)',
 } as const;
 
 /**

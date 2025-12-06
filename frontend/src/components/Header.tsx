@@ -116,27 +116,27 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
   };
 
   return (
-    <header className="flex flex-col gap-1 sm:gap-2 mb-3 border-b border-slate-800/50 pb-2">
+    <header className="flex flex-col gap-1 lg:gap-2 mb-3 border-b border-slate-800/50 pb-2">
       {/* 第一行：Logo + 标题 + 操作按钮（桌面端右侧完整显示） */}
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="p-1.5 sm:p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20 flex-shrink-0">
-              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-cyan-400" />
+        <div className="min-w-0 flex-shrink-0">
+          <div className="flex items-center gap-2 lg:gap-3">
+            <div className="p-1.5 lg:p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20 flex-shrink-0">
+              <Activity className="w-5 h-5 lg:w-6 lg:h-6 text-cyan-400" />
             </div>
-            <h1 className="text-2xl sm:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
+            <h1 className="text-2xl lg:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
               RelayPulse
             </h1>
           </div>
           {/* 移动端 Tagline - 作为副标题 */}
-          <p className="sm:hidden text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 pl-1">
+          <p className="lg:hidden text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 pl-1">
             <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
             <span className="truncate">{t('header.tagline')}</span>
           </p>
         </div>
 
-        {/* 移动端：紧凑操作按钮（语言国旗 + 收藏 + 分享） */}
-        <div className="flex items-center gap-1 sm:hidden flex-shrink-0">
+        {/* 移动端：右上角操作区（语言 + 收藏 + 分享 + 统计卡片） */}
+        <div className="flex items-center gap-1 lg:hidden flex-shrink-0">
           {/* 语言切换器 - 点击展开 */}
           <div className="relative">
             <button
@@ -189,10 +189,23 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           >
             <Share2 size={16} />
           </button>
+          {/* 统计卡片 - 极简模式（最右侧） */}
+          <div className="flex gap-1 ml-1">
+            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800"
+                 title={t('header.stats.healthy')}>
+              <CheckCircle size={12} className="text-emerald-400" />
+              <span className="font-mono font-bold text-emerald-400 text-xs">{stats.healthy}</span>
+            </div>
+            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800"
+                 title={t('header.stats.issues')}>
+              <AlertTriangle size={12} className="text-rose-400" />
+              <span className="font-mono font-bold text-rose-400 text-xs">{stats.issues}</span>
+            </div>
+          </div>
         </div>
 
         {/* 桌面端：右侧完整操作区（语言 + 收藏 + 分享 + 推荐 + 统计卡片） */}
-        <div className="hidden sm:flex items-center gap-3 flex-shrink-0">
+        <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
           {/* 语言切换器 */}
           <div className="relative inline-block group">
             <button
@@ -259,56 +272,36 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             {t('header.recommendBtn')}
           </a>
 
-          {/* 统计卡片 */}
-          <div className="flex gap-4">
+          {/* 统计卡片 - 两行布局 */}
+          <div className="flex gap-3">
             {/* 正常运行 */}
-            <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg">
-              <div className="p-1.5 rounded-full bg-emerald-500/10 text-emerald-400">
-                <CheckCircle size={16} />
+            <div className="flex flex-col items-center px-4 py-2 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg">
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                <CheckCircle size={14} className="text-emerald-400" />
+                <span>{t('header.stats.healthy')}</span>
               </div>
-              <span className="font-mono font-bold text-emerald-400 text-base">{stats.healthy}</span>
-              <span className="text-slate-400 text-xs">{t('header.stats.healthy')}</span>
+              <span className="font-mono font-bold text-emerald-400 text-xl">{stats.healthy}</span>
             </div>
             {/* 异常告警 */}
-            <div className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg">
-              <div className="p-1.5 rounded-full bg-rose-500/10 text-rose-400">
-                <AlertTriangle size={16} />
+            <div className="flex flex-col items-center px-4 py-2 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg">
+              <div className="flex items-center gap-1.5 text-slate-400 text-xs">
+                <AlertTriangle size={14} className="text-rose-400" />
+                <span>{t('header.stats.issues')}</span>
               </div>
-              <span className="font-mono font-bold text-rose-400 text-base">{stats.issues}</span>
-              <span className="text-slate-400 text-xs">{t('header.stats.issues')}</span>
+              <span className="font-mono font-bold text-rose-400 text-xl">{stats.issues}</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* 桌面端 Tagline */}
-      <p className="hidden sm:flex text-slate-400 text-sm items-center gap-2">
+      <p className="hidden lg:flex text-slate-400 text-sm items-center gap-2">
         <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         {t('header.tagline')}
       </p>
 
-      {/* 移动端：统计卡片 + 筛选/刷新 + 推荐按钮 */}
-      <div className="flex items-center gap-1.5 sm:hidden">
-        {/* 统计卡片 - 移动端极简模式（仅图标+数字） */}
-        <div className="flex gap-1.5">
-          {/* 正常运行 */}
-          <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg"
-               title={t('header.stats.healthy')}>
-            <div className="p-0.5 rounded-full bg-emerald-500/10 text-emerald-400">
-              <CheckCircle size={12} />
-            </div>
-            <span className="font-mono font-bold text-emerald-400 text-xs">{stats.healthy}</span>
-          </div>
-          {/* 异常告警 */}
-          <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg"
-               title={t('header.stats.issues')}>
-            <div className="p-0.5 rounded-full bg-rose-500/10 text-rose-400">
-              <AlertTriangle size={12} />
-            </div>
-            <span className="font-mono font-bold text-rose-400 text-xs">{stats.issues}</span>
-          </div>
-        </div>
-
+      {/* 移动端：筛选/刷新 + 推荐按钮 */}
+      <div className="flex items-center gap-1.5 lg:hidden">
         {/* 移动端：筛选按钮 */}
         {onFilterClick && (
           <button

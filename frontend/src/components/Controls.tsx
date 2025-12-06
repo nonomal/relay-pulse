@@ -131,9 +131,9 @@ export function Controls({
 
   return (
     <>
-      <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 mb-2 sm:mb-4 overflow-visible">
+      <div className="flex flex-col lg:flex-row gap-2 lg:gap-3 mb-2 lg:mb-4 overflow-visible">
         {/* 筛选和视图控制（移动端隐藏，筛选/刷新已移到 Header） */}
-        <div className="hidden sm:flex flex-1 flex-wrap gap-3 items-center bg-slate-900/40 p-3 rounded-2xl border border-slate-800/50 overflow-visible">
+        <div className="hidden lg:flex flex-1 flex-wrap gap-3 items-center bg-slate-900/40 p-3 rounded-2xl border border-slate-800/50 overflow-visible">
           {/* 桌面端：直接显示筛选器 */}
           <div className="flex items-center gap-2 text-slate-400 text-sm font-medium px-2">
             <Filter size={16} />
@@ -175,7 +175,7 @@ export function Controls({
           )}
 
           {/* 刷新按钮（桌面端显示，移动端已移到 Header） */}
-          <div className="relative ml-auto hidden sm:block">
+          <div className="relative ml-auto hidden lg:block">
             <button
               onClick={onRefresh}
               className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20 group min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
@@ -237,7 +237,7 @@ export function Controls({
       {/* 移动端筛选抽屉 */}
       {showFilterDrawer && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm sm:hidden"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => onFilterDrawerClose?.()}
         >
           <div

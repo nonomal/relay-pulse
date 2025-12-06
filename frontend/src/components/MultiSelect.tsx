@@ -142,7 +142,7 @@ export function MultiSelect({
         aria-expanded={isOpen}
         aria-disabled={disabled}
         className={`
-          flex items-center justify-between gap-2 w-full sm:w-auto min-w-[140px]
+          flex items-center justify-between gap-2 w-full lg:w-auto
           bg-slate-800 text-slate-200 text-sm rounded-lg
           border border-slate-700 p-2 outline-none
           transition-all hover:bg-slate-750
@@ -185,7 +185,7 @@ export function MultiSelect({
           role="listbox"
           aria-multiselectable="true"
           className="
-            absolute z-50 mt-1 w-full min-w-[200px]
+            absolute z-50 mt-1 min-w-full w-max
             bg-slate-800 border border-slate-700 rounded-lg shadow-xl
             max-h-[320px] flex flex-col
           "
