@@ -376,7 +376,7 @@ export function StatusTable({
               </div>
             </th>
             <th className="px-2 py-3 font-medium whitespace-nowrap">{t('table.headers.lastCheck')}</th>
-            <th className="px-2 py-3 font-medium flex-1 min-w-[180px]">
+            <th className="pl-2 pr-4 py-3 font-medium min-w-[240px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-slate-700 px-1 rounded">
@@ -482,8 +482,8 @@ export function StatusTable({
                   <span className="text-slate-600 text-xs">-</span>
                 )}
               </td>
-              <td className="px-2 py-2 align-middle">
-                <div className="flex items-center gap-[2px] h-6 w-full max-w-xs overflow-hidden rounded-sm">
+              <td className="pl-2 pr-4 py-2 align-middle">
+                <div className="flex items-center gap-[2px] h-6 w-full overflow-hidden rounded-sm">
                   {item.history.map((point, idx) => (
                     <HeatmapBlock
                       key={idx}
