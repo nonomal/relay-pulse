@@ -6,7 +6,7 @@ import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
-import { parsePriceRatio } from '../utils/format';
+import { formatPriceRatio } from '../utils/format';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { getServiceIconComponent } from './ServiceIcon';
 import { BadgeCell } from './badges';
@@ -115,21 +115,11 @@ export function StatusCard({
                   {t('card.uptime')} {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </span>
-              {(() => {
-                const parsed = parsePriceRatio(item.priceRatio, item.priceVariance);
-                if (!parsed) return null;
-                return (
-                  <span className="text-slate-400">
-                    {t('table.headers.priceRatio')}:{' '}
-                    <span className="text-slate-300">
-                      {parsed.base}x
-                      {parsed.variance && (
-                        <span className="text-[10px] text-slate-500 ml-0.5">±{parsed.variance}</span>
-                      )}
-                    </span>
-                  </span>
-                );
-              })()}
+              {item.priceRatio != null && (
+                <span className="text-slate-400">
+                  {t('table.headers.priceRatio')}: <span className="text-slate-300">{formatPriceRatio(item.priceRatio, item.priceVariance)}</span>
+                </span>
+              )}
             </div>
           </div>
         </div>
