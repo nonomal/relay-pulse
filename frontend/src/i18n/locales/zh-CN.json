@@ -84,8 +84,8 @@
       "sponsor": "赞助者",
       "service": "服务",
       "channel": "通道",
-      "priceRatio": "承诺倍率",
-      "priceRatioUnit": "(¥/USD)",
+      "priceRatio": "承诺倍率上限",
+      "priceRatioUnit": "¥/$",
       "listedDays": "收录天数",
       "status": "当前状态",
       "uptime": "可用率",
@@ -98,7 +98,7 @@
       "uptime": "可用率",
       "status": "当前状态",
       "service": "服务类型",
-      "priceRatio": "倍率",
+      "priceRatio": "倍率上限",
       "listedDays": "收录"
     },
     "categoryLabels": {

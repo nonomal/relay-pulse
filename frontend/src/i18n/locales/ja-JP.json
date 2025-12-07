@@ -84,8 +84,8 @@
       "sponsor": "スポンサー",
       "service": "サービス",
       "channel": "チャネル",
-      "priceRatio": "公約倍率",
-      "priceRatioUnit": "(¥/USD)",
+      "priceRatio": "公約倍率上限",
+      "priceRatioUnit": "¥/$",
       "listedDays": "掲載日数",
       "status": "現在の状態",
       "uptime": "稼働率",
@@ -98,7 +98,7 @@
       "uptime": "稼働率",
       "status": "現在の状態",
       "service": "サービス種別",
-      "priceRatio": "価格倍率",
+      "priceRatio": "倍率上限",
       "listedDays": "掲載"
     },
     "categoryLabels": {

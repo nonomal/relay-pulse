@@ -84,8 +84,8 @@
       "sponsor": "Sponsor",
       "service": "Service",
       "channel": "Channel",
-      "priceRatio": "Promised Ratio",
-      "priceRatioUnit": "(¥/USD)",
+      "priceRatio": "Max Ratio",
+      "priceRatioUnit": "¥/$",
       "listedDays": "Listed Days",
       "status": "Current status",
       "uptime": "Uptime",
@@ -98,7 +98,7 @@
       "uptime": "Uptime",
       "status": "Current status",
       "service": "Service type",
-      "priceRatio": "Ratio",
+      "priceRatio": "Max Ratio",
       "listedDays": "Listed"
     },
     "categoryLabels": {
