@@ -112,7 +112,8 @@
     "timeLabels": {
       "24h": "24h",
       "days": "{{count}}d"
-    }
+    },
+    "notProvided": "未提供"
   },
   "card": {
     "uptime": "可用率:"

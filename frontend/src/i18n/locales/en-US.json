@@ -112,7 +112,8 @@
     "timeLabels": {
       "24h": "24h",
       "days": "{{count}}d"
-    }
+    },
+    "notProvided": "Not provided"
   },
   "card": {
     "uptime": "Uptime:"

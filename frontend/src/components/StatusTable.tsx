@@ -438,7 +438,7 @@ export function StatusTable({
                 {item.channel || '-'}
               </td>
               <td className="p-4 font-mono text-xs text-slate-300">
-                {formatPriceRatio(item.priceRatio, item.priceVariance)}
+                {formatPriceRatio(item.priceRatio, item.priceVariance, t('table.notProvided'))}
               </td>
               <td className="p-4">
                 <div className="flex items-center gap-2">

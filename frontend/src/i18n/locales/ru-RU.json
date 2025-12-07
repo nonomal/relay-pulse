@@ -112,7 +112,8 @@
     "timeLabels": {
       "24h": "24ч",
       "days": "{{count}}д"
-    }
+    },
+    "notProvided": "Не указано"
   },
   "card": {
     "uptime": "Доступность:"

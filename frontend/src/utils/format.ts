@@ -2,13 +2,15 @@
  * 格式化承诺倍率显示
  * @param ratio 基础倍率
  * @param variance 浮动范围（可选）
+ * @param emptyText 空值时的显示文本（默认 "-"）
  * @returns 格式化字符串，如 "0.8" 或 "0.8±0.2"
  */
 export function formatPriceRatio(
   ratio: number | null | undefined,
-  variance: number | null | undefined
+  variance: number | null | undefined,
+  emptyText = '-'
 ): string {
-  if (ratio == null) return '-';
+  if (ratio == null) return emptyText;
 
   // 移除末尾多余的零，保持简洁
   const formatNum = (n: number) => {
