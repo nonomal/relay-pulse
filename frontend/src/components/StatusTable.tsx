@@ -452,7 +452,7 @@ export function StatusTable({
               </td>
               <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">
                 {(() => {
-                  const priceData = formatPriceRatioStructured(item.priceRatio, item.priceVariance);
+                  const priceData = formatPriceRatioStructured(item.priceMin, item.priceMax);
                   if (!priceData) return <span className="text-slate-500">-</span>;
                   return (
                     <div className="flex flex-col leading-tight">

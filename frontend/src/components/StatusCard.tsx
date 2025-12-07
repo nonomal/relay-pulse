@@ -115,8 +115,8 @@ export function StatusCard({
                   {t('card.uptime')} {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </span>
-              {item.priceRatio != null && (() => {
-                const priceData = formatPriceRatioStructured(item.priceRatio, item.priceVariance);
+              {(item.priceMin != null || item.priceMax != null) && (() => {
+                const priceData = formatPriceRatioStructured(item.priceMin, item.priceMax);
                 if (!priceData) return null;
                 return (
                   <span className="text-slate-400">

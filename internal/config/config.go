@@ -38,23 +38,23 @@ type RiskBadge struct {
 
 // ServiceConfig 单个服务监控配置
 type ServiceConfig struct {
-	Provider      string            `yaml:"provider" json:"provider"`
-	ProviderSlug  string            `yaml:"provider_slug" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
-	ProviderURL   string            `yaml:"provider_url" json:"provider_url"`   // 服务商官网链接（可选）
-	Service       string            `yaml:"service" json:"service"`
-	Category      string            `yaml:"category" json:"category"`             // 分类：commercial（商业站）或 public（公益站）
-	Sponsor       string            `yaml:"sponsor" json:"sponsor"`               // 赞助者：提供 API Key 的个人或组织
-	SponsorURL    string            `yaml:"sponsor_url" json:"sponsor_url"`       // 赞助者链接（可选）
-	SponsorLevel  SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`   // 赞助商等级：basic/advanced/enterprise（可选）
-	PriceRatio    *float64          `yaml:"price_ratio" json:"price_ratio"`       // 官方承诺倍率基础值（可选，如 0.8 表示官方价格的 0.8 倍）
-	PriceVariance *float64          `yaml:"price_variance" json:"price_variance"` // 倍率浮动范围（可选，如 0.2 表示 ±0.2）
-	Risks         []RiskBadge       `yaml:"-" json:"risks,omitempty"`             // 风险徽标（由 risk_providers 自动注入，不在此配置）
-	Channel       string            `yaml:"channel" json:"channel"`               // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
-	ListedSince   string            `yaml:"listed_since" json:"listed_since"`     // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
-	URL           string            `yaml:"url" json:"url"`
-	Method        string            `yaml:"method" json:"method"`
-	Headers       map[string]string `yaml:"headers" json:"headers"`
-	Body          string            `yaml:"body" json:"body"`
+	Provider     string            `yaml:"provider" json:"provider"`
+	ProviderSlug string            `yaml:"provider_slug" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
+	ProviderURL  string            `yaml:"provider_url" json:"provider_url"`   // 服务商官网链接（可选）
+	Service      string            `yaml:"service" json:"service"`
+	Category     string            `yaml:"category" json:"category"`           // 分类：commercial（商业站）或 public（公益站）
+	Sponsor      string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
+	SponsorURL   string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
+	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
+	PriceMin     *float64          `yaml:"price_min" json:"price_min"`         // 承诺倍率下限（可选，如 0.05）
+	PriceMax     *float64          `yaml:"price_max" json:"price_max"`         // 承诺倍率上限（可选，如 0.2）
+	Risks        []RiskBadge       `yaml:"-" json:"risks,omitempty"`           // 风险徽标（由 risk_providers 自动注入，不在此配置）
+	Channel      string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
+	ListedSince  string            `yaml:"listed_since" json:"listed_since"`   // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
+	URL          string            `yaml:"url" json:"url"`
+	Method       string            `yaml:"method" json:"method"`
+	Headers      map[string]string `yaml:"headers" json:"headers"`
+	Body         string            `yaml:"body" json:"body"`
 
 	// SuccessContains 可选：响应体需包含的关键字，用于判定请求语义是否成功
 	SuccessContains string `yaml:"success_contains" json:"success_contains"`
@@ -268,23 +268,16 @@ func (c *AppConfig) Validate() error {
 			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 basic/advanced/enterprise 之一（或留空）", i, m.SponsorLevel)
 		}
 
-		// PriceRatio 验证（可选字段，不能为负）
-		if m.PriceRatio != nil && *m.PriceRatio < 0 {
-			return fmt.Errorf("monitor[%d]: price_ratio 不能为负数", i)
+		// PriceMin/PriceMax 验证（可选字段）
+		if m.PriceMin != nil && *m.PriceMin < 0 {
+			return fmt.Errorf("monitor[%d]: price_min 不能为负数", i)
 		}
-
-		// PriceVariance 验证（可选字段，不能为负，且必须依赖 price_ratio）
-		if m.PriceVariance != nil {
-			if *m.PriceVariance < 0 {
-				return fmt.Errorf("monitor[%d]: price_variance 不能为负数", i)
-			}
-			if m.PriceRatio == nil {
-				return fmt.Errorf("monitor[%d]: 配置了 price_variance 但缺少 price_ratio", i)
-			}
-			// price_ratio ± price_variance 的下界不能为负
-			if *m.PriceRatio < *m.PriceVariance {
-				return fmt.Errorf("monitor[%d]: price_ratio - price_variance 不能为负数", i)
-			}
+		if m.PriceMax != nil && *m.PriceMax < 0 {
+			return fmt.Errorf("monitor[%d]: price_max 不能为负数", i)
+		}
+		// 若同时配置了 min 和 max，min 必须 <= max
+		if m.PriceMin != nil && m.PriceMax != nil && *m.PriceMin > *m.PriceMax {
+			return fmt.Errorf("monitor[%d]: price_min 不能大于 price_max", i)
 		}
 
 		// ListedSince 验证（可选字段，格式必须为 "2006-01-02"）

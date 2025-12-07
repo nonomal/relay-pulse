@@ -59,7 +59,7 @@ function comparePrimary(
   } else if (key === 'uptime') {
     return compareUptime(a.uptime, b.uptime, direction);
   } else if (key === 'priceRatio') {
-    return comparePriceRatio(a.priceRatio, b.priceRatio, direction);
+    return comparePriceRatio(a.priceMin, a.priceMax, b.priceMin, b.priceMax, direction);
   } else if (key === 'listedDays') {
     return compareListedDays(a.listedDays, b.listedDays, direction);
   } else {
@@ -95,15 +95,35 @@ function compareUptime(
 }
 
 /**
- * priceRatio 特殊排序：null 值始终排最后
+ * 计算价格排序用的代表值（中心值）
+ */
+function getPriceValue(
+  priceMin: number | null | undefined,
+  priceMax: number | null | undefined
+): number | null {
+  if (priceMin != null && priceMax != null) {
+    return (priceMin + priceMax) / 2;
+  }
+  if (priceMin != null) return priceMin;
+  if (priceMax != null) return priceMax;
+  return null;
+}
+
+/**
+ * priceRatio 特殊排序：null 值始终排最后，使用中心值比较
  */
 function comparePriceRatio(
-  aRatio: number | null | undefined,
-  bRatio: number | null | undefined,
+  aMin: number | null | undefined,
+  aMax: number | null | undefined,
+  bMin: number | null | undefined,
+  bMax: number | null | undefined,
   direction: 'asc' | 'desc'
 ): number {
-  const aHasData = aRatio != null;
-  const bHasData = bRatio != null;
+  const aValue = getPriceValue(aMin, aMax);
+  const bValue = getPriceValue(bMin, bMax);
+
+  const aHasData = aValue != null;
+  const bHasData = bValue != null;
 
   // null 值始终排最后
   if (aHasData && !bHasData) return -1;
@@ -111,8 +131,8 @@ function comparePriceRatio(
   if (!aHasData && !bHasData) return 0;
 
   // 两者都有数据，正常比较
-  if (aRatio! < bRatio!) return direction === 'asc' ? -1 : 1;
-  if (aRatio! > bRatio!) return direction === 'asc' ? 1 : -1;
+  if (aValue! < bValue!) return direction === 'asc' ? -1 : 1;
+  if (aValue! > bValue!) return direction === 'asc' ? 1 : -1;
   return 0;
 }
 

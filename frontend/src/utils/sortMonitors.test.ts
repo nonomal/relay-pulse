@@ -286,12 +286,12 @@ describe('sortMonitors', () => {
     });
   });
 
-  describe('priceRatio 排序', () => {
+  describe('priceRatio 排序 (使用 priceMin/priceMax)', () => {
     it('按倍率升序排序，null 值排最后', () => {
       const data = [
-        createMockData({ id: '1', priceRatio: 0.8, lastCheckLatency: 100 }),
-        createMockData({ id: '2', priceRatio: null, lastCheckLatency: 100 }),
-        createMockData({ id: '3', priceRatio: 1.2, lastCheckLatency: 100 }),
+        createMockData({ id: '1', priceMin: 0.8, priceMax: 0.8, lastCheckLatency: 100 }),
+        createMockData({ id: '2', priceMin: null, priceMax: null, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceMin: 1.2, priceMax: 1.2, lastCheckLatency: 100 }),
       ];
       const config: SortConfig = { key: 'priceRatio', direction: 'asc' };
 
@@ -302,9 +302,9 @@ describe('sortMonitors', () => {
 
     it('按倍率降序排序，null 值排最后', () => {
       const data = [
-        createMockData({ id: '1', priceRatio: 0.8, lastCheckLatency: 100 }),
-        createMockData({ id: '2', priceRatio: null, lastCheckLatency: 100 }),
-        createMockData({ id: '3', priceRatio: 1.2, lastCheckLatency: 100 }),
+        createMockData({ id: '1', priceMin: 0.8, priceMax: 0.8, lastCheckLatency: 100 }),
+        createMockData({ id: '2', priceMin: null, priceMax: null, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceMin: 1.2, priceMax: 1.2, lastCheckLatency: 100 }),
       ];
       const config: SortConfig = { key: 'priceRatio', direction: 'desc' };
 
@@ -315,9 +315,9 @@ describe('sortMonitors', () => {
 
     it('多个 null 值按延迟二级排序', () => {
       const data = [
-        createMockData({ id: '1', priceRatio: null, lastCheckLatency: 200 }),
-        createMockData({ id: '2', priceRatio: 0.9, lastCheckLatency: 100 }),
-        createMockData({ id: '3', priceRatio: null, lastCheckLatency: 100 }),
+        createMockData({ id: '1', priceMin: null, priceMax: null, lastCheckLatency: 200 }),
+        createMockData({ id: '2', priceMin: 0.9, priceMax: 0.9, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceMin: null, priceMax: null, lastCheckLatency: 100 }),
       ];
       const config: SortConfig = { key: 'priceRatio', direction: 'asc' };
 
@@ -329,9 +329,9 @@ describe('sortMonitors', () => {
 
     it('全部为 null 时按延迟排序', () => {
       const data = [
-        createMockData({ id: '1', priceRatio: null, lastCheckLatency: 300 }),
-        createMockData({ id: '2', priceRatio: null, lastCheckLatency: 100 }),
-        createMockData({ id: '3', priceRatio: null, lastCheckLatency: 200 }),
+        createMockData({ id: '1', priceMin: null, priceMax: null, lastCheckLatency: 300 }),
+        createMockData({ id: '2', priceMin: null, priceMax: null, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceMin: null, priceMax: null, lastCheckLatency: 200 }),
       ];
       const config: SortConfig = { key: 'priceRatio', direction: 'desc' };
 
@@ -339,6 +339,19 @@ describe('sortMonitors', () => {
 
       // 全部 null，按延迟升序
       expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('使用中心值排序（区间）', () => {
+      const data = [
+        createMockData({ id: '1', priceMin: 0.5, priceMax: 1.0, lastCheckLatency: 100 }), // 中心值 0.75
+        createMockData({ id: '2', priceMin: 0.8, priceMax: 1.2, lastCheckLatency: 100 }), // 中心值 1.0
+        createMockData({ id: '3', priceMin: 0.6, priceMax: 0.6, lastCheckLatency: 100 }), // 中心值 0.6
+      ];
+      const config: SortConfig = { key: 'priceRatio', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.id)).toEqual(['3', '1', '2']); // 0.6 < 0.75 < 1.0
     });
   });
 });

@@ -60,8 +60,8 @@ export interface MonitorResult {
   sponsor_url?: string;                // 赞助者链接
   sponsor_level?: SponsorLevel;        // 赞助商等级：basic/advanced/enterprise
   risks?: RiskBadge[];                 // 风险徽标数组
-  price_ratio?: number;                // 官方承诺倍率基础值
-  price_variance?: number;             // 倍率浮动范围
+  price_min?: number;                  // 承诺倍率下限
+  price_max?: number;                  // 承诺倍率上限
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
   current_status: CurrentStatus | null;
@@ -109,8 +109,8 @@ export interface ProcessedMonitorData {
   sponsorUrl?: string | null;          // 赞助者链接
   sponsorLevel?: SponsorLevel;         // 赞助商等级
   risks?: RiskBadge[];                 // 风险徽标数组
-  priceRatio?: number | null;          // 官方承诺倍率基础值
-  priceVariance?: number | null;       // 倍率浮动范围
+  priceMin?: number | null;            // 承诺倍率下限
+  priceMax?: number | null;            // 承诺倍率上限
   listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
