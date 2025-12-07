@@ -121,7 +121,7 @@ export function StatusCard({
                 return (
                   <span className="text-slate-400">
                     {t('table.headers.priceRatio')}: <span className="text-slate-300">{priceData.base}</span>
-                    {priceData.range && <span className="text-slate-500 text-[10px] ml-0.5">({priceData.range})</span>}
+                    {priceData.sub && <span className="text-slate-500 text-[10px] ml-0.5">({priceData.sub})</span>}
                   </span>
                 );
               })()}

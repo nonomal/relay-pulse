@@ -457,8 +457,8 @@ export function StatusTable({
                   return (
                     <div className="flex flex-col leading-tight">
                       <span className="text-slate-300">{priceData.base}</span>
-                      {priceData.range && (
-                        <span className="text-[10px] text-slate-500">{priceData.range}</span>
+                      {priceData.sub && (
+                        <span className="text-[10px] text-slate-500">{priceData.sub}</span>
                       )}
                     </div>
                   );
