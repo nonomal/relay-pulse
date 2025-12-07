@@ -10,32 +10,11 @@ import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsor
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
+import { formatPriceRatio } from '../utils/format';
 import { getServiceIconComponent } from './ServiceIcon';
 import type { ProcessedMonitorData, SortConfig } from '../types';
 
 type HistoryPoint = ProcessedMonitorData['history'][number];
-
-/**
- * 格式化倍率显示：基础值±方差 / 基础值 / "-"
- */
-function formatPriceRatio(
-  ratio: number | null | undefined,
-  variance: number | null | undefined
-): string {
-  if (ratio == null) return '-';
-
-  // 移除末尾多余的零，保持简洁
-  const formatNum = (n: number) => {
-    const str = n.toFixed(3);
-    return str.replace(/\.?0+$/, '');
-  };
-
-  const base = formatNum(ratio);
-  if (variance != null && variance > 0) {
-    return `${base}±${formatNum(variance)}`;
-  }
-  return base;
-}
 
 interface StatusTableProps {
   data: ProcessedMonitorData[];
