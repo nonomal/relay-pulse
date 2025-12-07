@@ -308,7 +308,7 @@ export function StatusTable({
             {/* 徽标列 - 仅在有徽标时显示，可排序 */}
             {hasBadges && (
               <th
-                className="p-4 font-medium w-16 cursor-pointer hover:text-cyan-400 transition-colors"
+                className="px-2 py-3 font-medium w-12 cursor-pointer hover:text-cyan-400 transition-colors"
                 onClick={() => onSort('badgeScore')}
               >
                 <div className="flex items-center">
@@ -319,7 +319,7 @@ export function StatusTable({
             {/* 服务商列（合并赞助者） */}
             {showProvider && (
               <th
-                className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+                className="px-3 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
                 onClick={() => onSort('providerName')}
               >
                 <div className="flex items-center">
@@ -328,7 +328,7 @@ export function StatusTable({
               </th>
             )}
             <th
-              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
               onClick={() => onSort('serviceType')}
             >
               <div className="flex items-center">
@@ -336,7 +336,7 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
               onClick={() => onSort('channel')}
             >
               <div className="flex items-center">
@@ -344,7 +344,7 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
               onClick={() => onSort('priceRatio')}
             >
               <div className="flex items-center">
@@ -352,7 +352,7 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
               onClick={() => onSort('listedDays')}
             >
               <div className="flex items-center">
@@ -360,7 +360,7 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
               onClick={() => onSort('currentStatus')}
             >
               <div className="flex items-center">
@@ -368,15 +368,15 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
               onClick={() => onSort('uptime')}
             >
               <div className="flex items-center">
                 {t('table.headers.uptime')} <SortIcon columnKey="uptime" />
               </div>
             </th>
-            <th className="p-4 font-medium">{t('table.headers.lastCheck')}</th>
-            <th className="p-4 font-medium w-1/3 min-w-[200px]">
+            <th className="px-2 py-3 font-medium whitespace-nowrap">{t('table.headers.lastCheck')}</th>
+            <th className="px-2 py-3 font-medium flex-1 min-w-[180px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-slate-700 px-1 rounded">
@@ -398,7 +398,7 @@ export function StatusTable({
             >
               {/* 徽标列 - 使用 BadgeCell 统一渲染 */}
               {hasBadges && (
-                <td className="px-4 py-[11px]">
+                <td className="px-2 py-2">
                   {hasItemBadges ? (
                     <BadgeCell
                       item={item}
@@ -411,7 +411,7 @@ export function StatusTable({
               )}
               {/* 服务商列（合并赞助者，紧凑两行布局） */}
               {showProvider && (
-                <td className="px-4 py-[11px]">
+                <td className="px-3 py-2">
                   <div className="flex flex-col">
                     <span className="font-medium text-slate-200 text-sm leading-none">
                       <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
@@ -424,7 +424,7 @@ export function StatusTable({
                   </div>
                 </td>
               )}
-              <td className="p-4">
+              <td className="px-2 py-2">
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${
                     item.serviceType === 'cc'
@@ -443,29 +443,29 @@ export function StatusTable({
                   {item.serviceType.toUpperCase()}
                 </span>
               </td>
-              <td className="p-4 text-slate-400 text-xs">
+              <td className="px-2 py-2 text-slate-400 text-xs">
                 {item.channel || '-'}
               </td>
-              <td className="p-4 font-mono text-xs text-slate-300">
+              <td className="px-2 py-2 font-mono text-xs text-slate-300 whitespace-nowrap">
                 {formatPriceRatio(item.priceRatio, item.priceVariance)}
               </td>
-              <td className="p-4 font-mono text-xs text-slate-400">
+              <td className="px-2 py-2 font-mono text-xs text-slate-400 whitespace-nowrap">
                 {item.listedDays != null ? `${item.listedDays}d` : '-'}
               </td>
-              <td className="p-4">
-                <div className="flex items-center gap-2">
+              <td className="px-2 py-2">
+                <div className="flex items-center gap-1.5 whitespace-nowrap">
                   <StatusDot status={item.currentStatus} size="sm" />
                   <span className={STATUS[item.currentStatus].text}>
                     {STATUS[item.currentStatus].label}
                   </span>
                 </div>
               </td>
-              <td className="p-4 font-mono font-bold">
+              <td className="px-2 py-2 font-mono font-bold whitespace-nowrap">
                 <span style={{ color: availabilityToColor(item.uptime) }}>
                   {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </td>
-              <td className="p-4">
+              <td className="px-2 py-2">
                 {item.lastCheckTimestamp ? (
                   <div className="text-xs text-slate-400 font-mono flex flex-col gap-0.5">
                     <span>{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
@@ -482,7 +482,7 @@ export function StatusTable({
                   <span className="text-slate-600 text-xs">-</span>
                 )}
               </td>
-              <td className="p-4 align-middle">
+              <td className="px-2 py-2 align-middle">
                 <div className="flex items-center gap-[2px] h-6 w-full max-w-xs overflow-hidden rounded-sm">
                   {item.history.map((point, idx) => (
                     <HeatmapBlock
