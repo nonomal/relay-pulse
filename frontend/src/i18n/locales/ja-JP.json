@@ -84,7 +84,7 @@
       "sponsor": "スポンサー",
       "service": "サービス",
       "channel": "チャネル",
-      "priceRatio": "公約倍率",
+      "priceRatio": "公約倍率 (¥/USD)",
       "status": "現在の状態",
       "uptime": "稼働率",
       "lastCheck": "最終チェック",

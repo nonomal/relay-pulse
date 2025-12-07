@@ -84,7 +84,7 @@
       "sponsor": "赞助者",
       "service": "服务",
       "channel": "通道",
-      "priceRatio": "承诺倍率",
+      "priceRatio": "承诺倍率 (¥/USD)",
       "status": "当前状态",
       "uptime": "可用率",
       "lastCheck": "最后检测",

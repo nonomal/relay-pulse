@@ -84,7 +84,7 @@
       "sponsor": "Sponsor",
       "service": "Service",
       "channel": "Channel",
-      "priceRatio": "Promised Ratio",
+      "priceRatio": "Promised Ratio (¥/USD)",
       "status": "Current status",
       "uptime": "Uptime",
       "lastCheck": "Last check",
