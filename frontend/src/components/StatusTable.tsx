@@ -10,7 +10,7 @@ import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsor
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
-import { formatPriceRatio } from '../utils/format';
+import { parsePriceRatio } from '../utils/format';
 import { getServiceIconComponent } from './ServiceIcon';
 import type { ProcessedMonitorData, SortConfig } from '../types';
 
@@ -438,7 +438,18 @@ export function StatusTable({
                 {item.channel || '-'}
               </td>
               <td className="p-4 font-mono text-xs text-slate-300">
-                {formatPriceRatio(item.priceRatio, item.priceVariance, t('table.notProvided'))}
+                {(() => {
+                  const parsed = parsePriceRatio(item.priceRatio, item.priceVariance);
+                  if (!parsed) return t('table.notProvided');
+                  return (
+                    <>
+                      {parsed.base}x
+                      {parsed.variance && (
+                        <span className="text-[10px] text-slate-500 ml-0.5">±{parsed.variance}</span>
+                      )}
+                    </>
+                  );
+                })()}
               </td>
               <td className="p-4">
                 <div className="flex items-center gap-2">
