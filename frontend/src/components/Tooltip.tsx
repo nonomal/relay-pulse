@@ -219,7 +219,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="bg-slate-900/95 backdrop-blur-md text-slate-200 text-xs p-3 rounded-lg border border-slate-700 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] flex flex-col gap-2 min-w-[180px]">
+      <div className="bg-slate-900/95 backdrop-blur-md text-slate-200 text-xs p-3 rounded-lg border border-slate-700 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] flex flex-col gap-2 min-w-[200px]">
         <TooltipContent />
 
         {/* 小三角箭头 */}
