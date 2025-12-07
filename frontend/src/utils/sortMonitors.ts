@@ -95,22 +95,21 @@ function compareUptime(
 }
 
 /**
- * 计算价格排序用的代表值（中心值）
+ * 计算价格排序用的代表值（上限优先）
+ * 用户心理：关心"最多付多少"，按上限排序更保护用户
  */
 function getPriceValue(
   priceMin: number | null | undefined,
   priceMax: number | null | undefined
 ): number | null {
-  if (priceMin != null && priceMax != null) {
-    return (priceMin + priceMax) / 2;
-  }
-  if (priceMin != null) return priceMin;
+  // 优先使用上限（用户最坏情况）
   if (priceMax != null) return priceMax;
+  if (priceMin != null) return priceMin;
   return null;
 }
 
 /**
- * priceRatio 特殊排序：null 值始终排最后，使用中心值比较
+ * priceRatio 特殊排序：null 值始终排最后，按上限比较
  */
 function comparePriceRatio(
   aMin: number | null | undefined,

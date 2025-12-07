@@ -376,13 +376,13 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **类型**: number（可选）
 - **说明**: 服务商声明的承诺倍率下限
 - **约束**: 不能为负数；若同时配置 `price_max`，则 `price_min` 必须 ≤ `price_max`
-- **排序**: 按中心值 `(min+max)/2` 排序，未配置的排最后
 - **示例**: `0.05`
 
 ##### `price_max`
 - **类型**: number（可选）
 - **说明**: 服务商声明的承诺倍率上限
 - **约束**: 不能为负数；若同时配置 `price_min`，则 `price_max` 必须 ≥ `price_min`
+- **排序**: 按上限排序（用户关心"最多付多少"），未配置的排最后
 - **显示逻辑**:
   - 若 `price_min == price_max`：只显示单个值
   - 若不同：显示中心值 + 区间，如 `0.125 / 0.05~0.2`

@@ -341,17 +341,18 @@ describe('sortMonitors', () => {
       expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
     });
 
-    it('使用中心值排序（区间）', () => {
+    it('按上限排序（保护用户，关注最坏情况）', () => {
       const data = [
-        createMockData({ id: '1', priceMin: 0.5, priceMax: 1.0, lastCheckLatency: 100 }), // 中心值 0.75
-        createMockData({ id: '2', priceMin: 0.8, priceMax: 1.2, lastCheckLatency: 100 }), // 中心值 1.0
-        createMockData({ id: '3', priceMin: 0.6, priceMax: 0.6, lastCheckLatency: 100 }), // 中心值 0.6
+        createMockData({ id: '1', priceMin: 0.01, priceMax: 0.5, lastCheckLatency: 100 }), // 上限 0.5
+        createMockData({ id: '2', priceMin: 0.3, priceMax: 0.4, lastCheckLatency: 100 }),  // 上限 0.4
+        createMockData({ id: '3', priceMin: 0.1, priceMax: 0.6, lastCheckLatency: 100 }),  // 上限 0.6
       ];
       const config: SortConfig = { key: 'priceRatio', direction: 'asc' };
 
       const result = sortMonitors(data, config);
 
-      expect(result.map((d) => d.id)).toEqual(['3', '1', '2']); // 0.6 < 0.75 < 1.0
+      // 按上限升序：0.4 < 0.5 < 0.6（而非按中心值或下限）
+      expect(result.map((d) => d.id)).toEqual(['2', '1', '3']);
     });
   });
 });
