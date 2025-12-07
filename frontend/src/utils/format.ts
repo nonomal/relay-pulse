@@ -10,7 +10,7 @@ function formatNum(n: number): string {
  * 格式化承诺倍率显示（简单字符串版本）
  * @param priceMin 倍率下限
  * @param priceMax 倍率上限
- * @returns 格式化字符串，如 "0.125" 或 "0.05~0.2"
+ * @returns 格式化字符串，如 "0.125" 或 "0.125 / 0.05~0.2"
  */
 export function formatPriceRatio(
   priceMin: number | null | undefined,
@@ -18,23 +18,15 @@ export function formatPriceRatio(
 ): string {
   if (priceMin == null && priceMax == null) return '-';
 
-  // 只有下限
-  if (priceMin != null && priceMax == null) {
-    return formatNum(priceMin);
+  const min = priceMin ?? priceMax!;
+  const max = priceMax ?? priceMin!;
+
+  if (min === max) {
+    return formatNum(min);
   }
 
-  // 只有上限
-  if (priceMin == null && priceMax != null) {
-    return formatNum(priceMax);
-  }
-
-  // 两者都有
-  if (priceMin === priceMax) {
-    return formatNum(priceMin!);
-  }
-
-  // 显示区间
-  return `${formatNum(priceMin!)}~${formatNum(priceMax!)}`;
+  const center = (min + max) / 2;
+  return `${formatNum(center)} / ${formatNum(min)}~${formatNum(max)}`;
 }
 
 /**
