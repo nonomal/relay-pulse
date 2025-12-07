@@ -10,7 +10,7 @@ import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsor
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
-import { formatPriceRatio } from '../utils/format';
+import { formatPriceRatioStructured } from '../utils/format';
 import { getServiceIconComponent } from './ServiceIcon';
 import type { ProcessedMonitorData, SortConfig } from '../types';
 
@@ -344,11 +344,15 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
               onClick={() => onSort('priceRatio')}
             >
               <div className="flex items-center">
-                {t('table.headers.priceRatio')} <SortIcon columnKey="priceRatio" />
+                <div className="flex flex-col leading-tight">
+                  <span>{t('table.headers.priceRatio')}</span>
+                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.priceRatioUnit')}</span>
+                </div>
+                <SortIcon columnKey="priceRatio" />
               </div>
             </th>
             <th
@@ -446,8 +450,19 @@ export function StatusTable({
               <td className="px-2 py-2 text-slate-400 text-xs">
                 {item.channel || '-'}
               </td>
-              <td className="px-2 py-2 font-mono text-xs text-slate-300 whitespace-nowrap">
-                {formatPriceRatio(item.priceRatio, item.priceVariance)}
+              <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">
+                {(() => {
+                  const priceData = formatPriceRatioStructured(item.priceRatio, item.priceVariance);
+                  if (!priceData) return <span className="text-slate-500">-</span>;
+                  return (
+                    <div className="flex flex-col leading-tight">
+                      <span className="text-slate-300">{priceData.base}</span>
+                      {priceData.range && (
+                        <span className="text-[10px] text-slate-500">{priceData.range}</span>
+                      )}
+                    </div>
+                  );
+                })()}
               </td>
               <td className="px-2 py-2 font-mono text-xs text-slate-400 whitespace-nowrap">
                 {item.listedDays != null ? `${item.listedDays}d` : '-'}

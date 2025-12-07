@@ -6,7 +6,7 @@ import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
-import { formatPriceRatio } from '../utils/format';
+import { formatPriceRatioStructured } from '../utils/format';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { getServiceIconComponent } from './ServiceIcon';
 import { BadgeCell } from './badges';
@@ -115,11 +115,16 @@ export function StatusCard({
                   {t('card.uptime')} {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </span>
-              {item.priceRatio != null && (
-                <span className="text-slate-400">
-                  {t('table.headers.priceRatio')}: <span className="text-slate-300">{formatPriceRatio(item.priceRatio, item.priceVariance)}</span>
-                </span>
-              )}
+              {item.priceRatio != null && (() => {
+                const priceData = formatPriceRatioStructured(item.priceRatio, item.priceVariance);
+                if (!priceData) return null;
+                return (
+                  <span className="text-slate-400">
+                    {t('table.headers.priceRatio')}: <span className="text-slate-300">{priceData.base}</span>
+                    {priceData.range && <span className="text-slate-500 text-[10px] ml-0.5">({priceData.range})</span>}
+                  </span>
+                );
+              })()}
               {item.listedDays != null && (
                 <span className="text-slate-400">
                   {t('table.headers.listedDays')}: <span className="text-slate-300">{item.listedDays}d</span>
