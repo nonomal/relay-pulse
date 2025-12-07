@@ -201,6 +201,7 @@ function MobileSortMenu({
     { key: 'currentStatus', label: t('table.sorting.status') },
     { key: 'serviceType', label: t('table.sorting.service') },
     { key: 'priceRatio', label: t('table.sorting.priceRatio') },
+    { key: 'listedDays', label: t('table.sorting.listedDays') },
   ];
 
   return (
@@ -352,6 +353,14 @@ export function StatusTable({
             </th>
             <th
               className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              onClick={() => onSort('listedDays')}
+            >
+              <div className="flex items-center">
+                {t('table.headers.listedDays')} <SortIcon columnKey="listedDays" />
+              </div>
+            </th>
+            <th
+              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
               onClick={() => onSort('currentStatus')}
             >
               <div className="flex items-center">
@@ -439,6 +448,9 @@ export function StatusTable({
               </td>
               <td className="p-4 font-mono text-xs text-slate-300">
                 {formatPriceRatio(item.priceRatio, item.priceVariance)}
+              </td>
+              <td className="p-4 font-mono text-xs text-slate-400">
+                {item.listedDays != null ? `${item.listedDays}d` : '-'}
               </td>
               <td className="p-4">
                 <div className="flex items-center gap-2">

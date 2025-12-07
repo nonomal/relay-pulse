@@ -166,6 +166,7 @@ type MonitorResult struct {
 	Risks         []config.RiskBadge  `json:"risks,omitempty"`          // 风险徽标数组
 	PriceRatio    *float64            `json:"price_ratio,omitempty"`    // 官方承诺倍率基础值
 	PriceVariance *float64            `json:"price_variance,omitempty"` // 倍率浮动范围
+	ListedDays    *int                `json:"listed_days,omitempty"`    // 收录天数（从 listed_since 计算）
 	Channel       string              `json:"channel"`                  // 业务通道标识
 	Current       *CurrentStatus      `json:"current_status"`
 	Timeline      []storage.TimePoint `json:"timeline"`
@@ -424,6 +425,18 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		slug = strings.ToLower(strings.TrimSpace(task.Provider))
 	}
 
+	// 计算收录天数（从 listed_since 到今天）
+	var listedDays *int
+	if task.ListedSince != "" {
+		if listedDate, err := time.Parse("2006-01-02", task.ListedSince); err == nil {
+			days := int(time.Since(listedDate).Hours() / 24)
+			if days < 0 {
+				days = 0 // 防止未来日期导致负数
+			}
+			listedDays = &days
+		}
+	}
+
 	return MonitorResult{
 		Provider:      task.Provider,
 		ProviderSlug:  slug,
@@ -436,6 +449,7 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		Risks:         task.Risks,
 		PriceRatio:    task.PriceRatio,
 		PriceVariance: task.PriceVariance,
+		ListedDays:    listedDays,
 		Channel:       task.Channel,
 		Current:       current,
 		Timeline:      timeline,

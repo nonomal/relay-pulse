@@ -60,6 +60,8 @@ function comparePrimary(
     return compareUptime(a.uptime, b.uptime, direction);
   } else if (key === 'priceRatio') {
     return comparePriceRatio(a.priceRatio, b.priceRatio, direction);
+  } else if (key === 'listedDays') {
+    return compareListedDays(a.listedDays, b.listedDays, direction);
   } else {
     aValue = a[key as keyof ProcessedMonitorData] as number | string;
     bValue = b[key as keyof ProcessedMonitorData] as number | string;
@@ -111,6 +113,28 @@ function comparePriceRatio(
   // 两者都有数据，正常比较
   if (aRatio! < bRatio!) return direction === 'asc' ? -1 : 1;
   if (aRatio! > bRatio!) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
+
+/**
+ * listedDays 特殊排序：null 值始终排最后
+ */
+function compareListedDays(
+  aDays: number | null | undefined,
+  bDays: number | null | undefined,
+  direction: 'asc' | 'desc'
+): number {
+  const aHasData = aDays != null;
+  const bHasData = bDays != null;
+
+  // null 值始终排最后
+  if (aHasData && !bHasData) return -1;
+  if (!aHasData && bHasData) return 1;
+  if (!aHasData && !bHasData) return 0;
+
+  // 两者都有数据，正常比较
+  if (aDays! < bDays!) return direction === 'asc' ? -1 : 1;
+  if (aDays! > bDays!) return direction === 'asc' ? 1 : -1;
   return 0;
 }
 

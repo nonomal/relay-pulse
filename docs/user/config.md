@@ -49,6 +49,7 @@ monitors:
     channel: "vip"             # 业务通道（可选）
     price_ratio: 0.8           # 承诺倍率（可选）: 服务商声明的价格倍率
     price_variance: 0.1        # 倍率浮动（可选）: 显示为 "0.8±0.1"
+    listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
     url: "https://api.88code.com/v1/chat/completions"  # 健康检查端点（必填）
     method: "POST"             # HTTP 方法（必填）
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
@@ -386,6 +387,13 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
   - 必须同时配置 `price_ratio`
   - `price_ratio - price_variance` 不能为负数（即下界不能为负）
 - **示例**: `0.1`（配合 `price_ratio: 0.8` 显示为 "0.8±0.1"）
+
+##### `listed_since`
+- **类型**: string（可选，格式 `YYYY-MM-DD`）
+- **说明**: 服务商收录日期，用于在前端显示"收录天数"
+- **约束**: 必须为有效日期格式，如 `"2024-06-15"`
+- **排序**: 支持在表格中按收录天数排序，未配置的排最后
+- **示例**: `"2024-06-15"`（API 返回 `listed_days` 为从该日期到今天的天数）
 
 ##### `api_key`
 - **类型**: string

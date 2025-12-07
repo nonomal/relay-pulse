@@ -120,6 +120,11 @@ export function StatusCard({
                   {t('table.headers.priceRatio')}: <span className="text-slate-300">{formatPriceRatio(item.priceRatio, item.priceVariance)}</span>
                 </span>
               )}
+              {item.listedDays != null && (
+                <span className="text-slate-400">
+                  {t('table.headers.listedDays')}: <span className="text-slate-300">{item.listedDays}d</span>
+                </span>
+              )}
             </div>
           </div>
         </div>

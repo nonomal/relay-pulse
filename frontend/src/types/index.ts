@@ -62,6 +62,7 @@ export interface MonitorResult {
   risks?: RiskBadge[];                 // 风险徽标数组
   price_ratio?: number;                // 官方承诺倍率基础值
   price_variance?: number;             // 倍率浮动范围
+  listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
@@ -110,6 +111,7 @@ export interface ProcessedMonitorData {
   risks?: RiskBadge[];                 // 风险徽标数组
   priceRatio?: number | null;          // 官方承诺倍率基础值
   priceVariance?: number | null;       // 倍率浮动范围
+  listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   history: Array<{

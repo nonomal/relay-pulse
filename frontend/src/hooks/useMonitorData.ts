@@ -217,6 +217,7 @@ export function useMonitorData({
               risks: item.risks,  // 直接传递风险徽标数组
               priceRatio: item.price_ratio ?? null,      // 官方承诺倍率
               priceVariance: item.price_variance ?? null, // 倍率浮动范围
+              listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
               history,
               currentStatus,

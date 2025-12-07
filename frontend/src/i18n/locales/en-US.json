@@ -85,6 +85,7 @@
       "service": "Service",
       "channel": "Channel",
       "priceRatio": "Promised Ratio (¥/USD)",
+      "listedDays": "Listed Days",
       "status": "Current status",
       "uptime": "Uptime",
       "lastCheck": "Last check",
@@ -96,7 +97,8 @@
       "uptime": "Uptime",
       "status": "Current status",
       "service": "Service type",
-      "priceRatio": "Ratio"
+      "priceRatio": "Ratio",
+      "listedDays": "Listed"
     },
     "categoryLabels": {
       "promoted": "Commercial",

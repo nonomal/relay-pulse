@@ -85,6 +85,7 @@
       "service": "Сервис",
       "channel": "Канал",
       "priceRatio": "Заявленный коэф. (¥/USD)",
+      "listedDays": "Дней в списке",
       "status": "Текущее состояние",
       "uptime": "Доступность",
       "lastCheck": "Последняя проверка",
@@ -96,7 +97,8 @@
       "uptime": "Доступность",
       "status": "Текущее состояние",
       "service": "Тип сервиса",
-      "priceRatio": "Коэффициент"
+      "priceRatio": "Коэффициент",
+      "listedDays": "Дней"
     },
     "categoryLabels": {
       "promoted": "Коммерческий",

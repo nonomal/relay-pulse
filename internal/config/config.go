@@ -50,6 +50,7 @@ type ServiceConfig struct {
 	PriceVariance *float64          `yaml:"price_variance" json:"price_variance"` // 倍率浮动范围（可选，如 0.2 表示 ±0.2）
 	Risks         []RiskBadge       `yaml:"-" json:"risks,omitempty"`             // 风险徽标（由 risk_providers 自动注入，不在此配置）
 	Channel       string            `yaml:"channel" json:"channel"`               // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
+	ListedSince   string            `yaml:"listed_since" json:"listed_since"`     // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
 	URL           string            `yaml:"url" json:"url"`
 	Method        string            `yaml:"method" json:"method"`
 	Headers       map[string]string `yaml:"headers" json:"headers"`
@@ -283,6 +284,13 @@ func (c *AppConfig) Validate() error {
 			// price_ratio ± price_variance 的下界不能为负
 			if *m.PriceRatio < *m.PriceVariance {
 				return fmt.Errorf("monitor[%d]: price_ratio - price_variance 不能为负数", i)
+			}
+		}
+
+		// ListedSince 验证（可选字段，格式必须为 "2006-01-02"）
+		if m.ListedSince != "" {
+			if _, err := time.Parse("2006-01-02", m.ListedSince); err != nil {
+				return fmt.Errorf("monitor[%d]: listed_since 格式错误，应为 YYYY-MM-DD", i)
 			}
 		}
 
