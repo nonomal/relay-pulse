@@ -285,4 +285,60 @@ describe('sortMonitors', () => {
       expect(result.map((d) => d.id)).toEqual(['2', '1']);
     });
   });
+
+  describe('priceRatio 排序', () => {
+    it('按倍率升序排序，null 值排最后', () => {
+      const data = [
+        createMockData({ id: '1', priceRatio: 0.8, lastCheckLatency: 100 }),
+        createMockData({ id: '2', priceRatio: null, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceRatio: 1.2, lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'priceRatio', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.id)).toEqual(['1', '3', '2']); // 0.8 < 1.2 < null
+    });
+
+    it('按倍率降序排序，null 值排最后', () => {
+      const data = [
+        createMockData({ id: '1', priceRatio: 0.8, lastCheckLatency: 100 }),
+        createMockData({ id: '2', priceRatio: null, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceRatio: 1.2, lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'priceRatio', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.id)).toEqual(['3', '1', '2']); // 1.2 > 0.8 > null
+    });
+
+    it('多个 null 值按延迟二级排序', () => {
+      const data = [
+        createMockData({ id: '1', priceRatio: null, lastCheckLatency: 200 }),
+        createMockData({ id: '2', priceRatio: 0.9, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceRatio: null, lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'priceRatio', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      // 0.9 排第一，两个 null 按延迟排序
+      expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('全部为 null 时按延迟排序', () => {
+      const data = [
+        createMockData({ id: '1', priceRatio: null, lastCheckLatency: 300 }),
+        createMockData({ id: '2', priceRatio: null, lastCheckLatency: 100 }),
+        createMockData({ id: '3', priceRatio: null, lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'priceRatio', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      // 全部 null，按延迟升序
+      expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
+    });
+  });
 });

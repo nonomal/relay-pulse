@@ -155,18 +155,20 @@ type CurrentStatus struct {
 
 // MonitorResult API返回结构
 type MonitorResult struct {
-	Provider     string              `json:"provider"`
-	ProviderSlug string              `json:"provider_slug"` // URL slug（用于生成专属页面链接）
-	ProviderURL  string              `json:"provider_url"`  // 服务商官网链接
-	Service      string              `json:"service"`
-	Category     string              `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
-	Sponsor      string              `json:"sponsor"`                 // 赞助者
-	SponsorURL   string              `json:"sponsor_url"`             // 赞助者链接
-	SponsorLevel config.SponsorLevel `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
-	Risks        []config.RiskBadge  `json:"risks,omitempty"`         // 风险徽标数组
-	Channel      string              `json:"channel"`                 // 业务通道标识
-	Current      *CurrentStatus      `json:"current_status"`
-	Timeline     []storage.TimePoint `json:"timeline"`
+	Provider      string              `json:"provider"`
+	ProviderSlug  string              `json:"provider_slug"` // URL slug（用于生成专属页面链接）
+	ProviderURL   string              `json:"provider_url"`  // 服务商官网链接
+	Service       string              `json:"service"`
+	Category      string              `json:"category"`                 // 分类：commercial（商业站）或 public（公益站）
+	Sponsor       string              `json:"sponsor"`                  // 赞助者
+	SponsorURL    string              `json:"sponsor_url"`              // 赞助者链接
+	SponsorLevel  config.SponsorLevel `json:"sponsor_level,omitempty"`  // 赞助商等级：basic/advanced/enterprise
+	Risks         []config.RiskBadge  `json:"risks,omitempty"`          // 风险徽标数组
+	PriceRatio    *float64            `json:"price_ratio,omitempty"`    // 官方承诺倍率基础值
+	PriceVariance *float64            `json:"price_variance,omitempty"` // 倍率浮动范围
+	Channel       string              `json:"channel"`                  // 业务通道标识
+	Current       *CurrentStatus      `json:"current_status"`
+	Timeline      []storage.TimePoint `json:"timeline"`
 }
 
 // GetStatus 获取监控状态
@@ -423,18 +425,20 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 	}
 
 	return MonitorResult{
-		Provider:     task.Provider,
-		ProviderSlug: slug,
-		ProviderURL:  task.ProviderURL,
-		Service:      task.Service,
-		Category:     task.Category,
-		Sponsor:      task.Sponsor,
-		SponsorURL:   task.SponsorURL,
-		SponsorLevel: task.SponsorLevel,
-		Risks:        task.Risks,
-		Channel:      task.Channel,
-		Current:      current,
-		Timeline:     timeline,
+		Provider:      task.Provider,
+		ProviderSlug:  slug,
+		ProviderURL:   task.ProviderURL,
+		Service:       task.Service,
+		Category:      task.Category,
+		Sponsor:       task.Sponsor,
+		SponsorURL:    task.SponsorURL,
+		SponsorLevel:  task.SponsorLevel,
+		Risks:         task.Risks,
+		PriceRatio:    task.PriceRatio,
+		PriceVariance: task.PriceVariance,
+		Channel:       task.Channel,
+		Current:       current,
+		Timeline:      timeline,
 	}
 }
 

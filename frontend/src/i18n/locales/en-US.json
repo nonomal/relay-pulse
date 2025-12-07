@@ -84,6 +84,7 @@
       "sponsor": "Sponsor",
       "service": "Service",
       "channel": "Channel",
+      "priceRatio": "Promised Ratio",
       "status": "Current status",
       "uptime": "Uptime",
       "lastCheck": "Last check",
@@ -94,7 +95,8 @@
       "provider": "Provider",
       "uptime": "Uptime",
       "status": "Current status",
-      "service": "Service type"
+      "service": "Service type",
+      "priceRatio": "Ratio"
     },
     "categoryLabels": {
       "promoted": "Commercial",

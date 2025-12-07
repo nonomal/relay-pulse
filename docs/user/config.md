@@ -47,6 +47,8 @@ monitors:
     sponsor: "团队自有"         # 赞助者（必填）
     sponsor_level: "advanced"  # 赞助等级（可选）: basic/advanced/enterprise
     channel: "vip"             # 业务通道（可选）
+    price_ratio: 0.8           # 承诺倍率（可选）: 服务商声明的价格倍率
+    price_variance: 0.1        # 倍率浮动（可选）: 显示为 "0.8±0.1"
     url: "https://api.88code.com/v1/chat/completions"  # 健康检查端点（必填）
     method: "POST"             # HTTP 方法（必填）
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
@@ -368,6 +370,22 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **类型**: string
 - **说明**: 业务通道标识（用于区分同一服务的不同渠道）
 - **示例**: `"vip"`, `"free"`, `"premium"`
+
+##### `price_ratio`
+- **类型**: number（可选）
+- **说明**: 服务商上架时声明的承诺倍率，相对于官方价格的比例
+- **约束**: 不能为负数
+- **排序**: 支持在表格中按倍率排序，未配置的排最后
+- **示例**: `0.8`（表示官方价格的 0.8 倍）
+
+##### `price_variance`
+- **类型**: number（可选）
+- **说明**: 倍率的浮动范围，前端显示为 `price_ratio±price_variance`
+- **约束**:
+  - 不能为负数
+  - 必须同时配置 `price_ratio`
+  - `price_ratio - price_variance` 不能为负数（即下界不能为负）
+- **示例**: `0.1`（配合 `price_ratio: 0.8` 显示为 "0.8±0.1"）
 
 ##### `api_key`
 - **类型**: string

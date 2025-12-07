@@ -84,6 +84,7 @@
       "sponsor": "赞助者",
       "service": "服务",
       "channel": "通道",
+      "priceRatio": "承诺倍率",
       "status": "当前状态",
       "uptime": "可用率",
       "lastCheck": "最后检测",
@@ -94,7 +95,8 @@
       "provider": "服务商",
       "uptime": "可用率",
       "status": "当前状态",
-      "service": "服务类型"
+      "service": "服务类型",
+      "priceRatio": "倍率"
     },
     "categoryLabels": {
       "promoted": "商业站",

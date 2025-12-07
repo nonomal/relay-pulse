@@ -15,6 +15,28 @@ import type { ProcessedMonitorData, SortConfig } from '../types';
 
 type HistoryPoint = ProcessedMonitorData['history'][number];
 
+/**
+ * 格式化倍率显示：基础值±方差 / 基础值 / "-"
+ */
+function formatPriceRatio(
+  ratio: number | null | undefined,
+  variance: number | null | undefined
+): string {
+  if (ratio == null) return '-';
+
+  // 移除末尾多余的零，保持简洁
+  const formatNum = (n: number) => {
+    const str = n.toFixed(3);
+    return str.replace(/\.?0+$/, '');
+  };
+
+  const base = formatNum(ratio);
+  if (variance != null && variance > 0) {
+    return `${base}±${formatNum(variance)}`;
+  }
+  return base;
+}
+
 interface StatusTableProps {
   data: ProcessedMonitorData[];
   sortConfig: SortConfig;
@@ -199,6 +221,7 @@ function MobileSortMenu({
     { key: 'uptime', label: t('table.sorting.uptime') },
     { key: 'currentStatus', label: t('table.sorting.status') },
     { key: 'serviceType', label: t('table.sorting.service') },
+    { key: 'priceRatio', label: t('table.sorting.priceRatio') },
   ];
 
   return (
@@ -342,6 +365,14 @@ export function StatusTable({
             </th>
             <th
               className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              onClick={() => onSort('priceRatio')}
+            >
+              <div className="flex items-center">
+                {t('table.headers.priceRatio')} <SortIcon columnKey="priceRatio" />
+              </div>
+            </th>
+            <th
+              className="p-4 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
               onClick={() => onSort('currentStatus')}
             >
               <div className="flex items-center">
@@ -426,6 +457,9 @@ export function StatusTable({
               </td>
               <td className="p-4 text-slate-400 text-xs">
                 {item.channel || '-'}
+              </td>
+              <td className="p-4 font-mono text-xs text-slate-300">
+                {formatPriceRatio(item.priceRatio, item.priceVariance)}
               </td>
               <td className="p-4">
                 <div className="flex items-center gap-2">

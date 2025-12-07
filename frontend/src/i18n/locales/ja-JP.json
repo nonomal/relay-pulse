@@ -84,6 +84,7 @@
       "sponsor": "スポンサー",
       "service": "サービス",
       "channel": "チャネル",
+      "priceRatio": "公約倍率",
       "status": "現在の状態",
       "uptime": "稼働率",
       "lastCheck": "最終チェック",
@@ -94,7 +95,8 @@
       "provider": "プロバイダ",
       "uptime": "稼働率",
       "status": "現在の状態",
-      "service": "サービス種別"
+      "service": "サービス種別",
+      "priceRatio": "価格倍率"
     },
     "categoryLabels": {
       "promoted": "商用サイト",

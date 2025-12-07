@@ -58,6 +58,8 @@ function comparePrimary(
     bValue = STATUS[b.currentStatus as StatusKey]?.weight ?? 0;
   } else if (key === 'uptime') {
     return compareUptime(a.uptime, b.uptime, direction);
+  } else if (key === 'priceRatio') {
+    return comparePriceRatio(a.priceRatio, b.priceRatio, direction);
   } else {
     aValue = a[key as keyof ProcessedMonitorData] as number | string;
     bValue = b[key as keyof ProcessedMonitorData] as number | string;
@@ -87,6 +89,28 @@ function compareUptime(
   // 两者都有数据，正常比较
   if (aUptime < bUptime) return direction === 'asc' ? -1 : 1;
   if (aUptime > bUptime) return direction === 'asc' ? 1 : -1;
+  return 0;
+}
+
+/**
+ * priceRatio 特殊排序：null 值始终排最后
+ */
+function comparePriceRatio(
+  aRatio: number | null | undefined,
+  bRatio: number | null | undefined,
+  direction: 'asc' | 'desc'
+): number {
+  const aHasData = aRatio != null;
+  const bHasData = bRatio != null;
+
+  // null 值始终排最后
+  if (aHasData && !bHasData) return -1;
+  if (!aHasData && bHasData) return 1;
+  if (!aHasData && !bHasData) return 0;
+
+  // 两者都有数据，正常比较
+  if (aRatio! < bRatio!) return direction === 'asc' ? -1 : 1;
+  if (aRatio! > bRatio!) return direction === 'asc' ? 1 : -1;
   return 0;
 }
 

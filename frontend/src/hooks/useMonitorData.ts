@@ -215,6 +215,8 @@ export function useMonitorData({
               sponsorUrl: validateUrl(item.sponsor_url),
               sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
               risks: item.risks,  // 直接传递风险徽标数组
+              priceRatio: item.price_ratio ?? null,      // 官方承诺倍率
+              priceVariance: item.price_variance ?? null, // 倍率浮动范围
               channel: item.channel || undefined,
               history,
               currentStatus,
