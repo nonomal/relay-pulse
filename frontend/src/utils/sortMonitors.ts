@@ -230,8 +230,27 @@ export function sortMonitorsWithPinning(
   // 1. 筛选符合置顶条件的项
   const pinnedCandidates = items.filter(item => meetsPinCriteria(item, pinConfig));
 
-  // 2. 按赞助级别降序排序（同级别按可用率降序）
-  pinnedCandidates.sort((a, b) => {
+  // 2. 按 provider + service 去重，避免同一服务商的同类服务重复置顶
+  //    每组保留赞助级别最高、可用率最高的一个
+  const bestByProviderService = new Map<string, ProcessedMonitorData>();
+  for (const item of pinnedCandidates) {
+    const key = `${item.providerId}|${item.serviceType}`;
+    const existing = bestByProviderService.get(key);
+    if (!existing) {
+      bestByProviderService.set(key, item);
+      continue;
+    }
+    // 比较：赞助级别优先，同级别按可用率
+    const itemWeight = SPONSOR_WEIGHTS[item.sponsorLevel!] || 0;
+    const existingWeight = SPONSOR_WEIGHTS[existing.sponsorLevel!] || 0;
+    if (itemWeight > existingWeight || (itemWeight === existingWeight && item.uptime > existing.uptime)) {
+      bestByProviderService.set(key, item);
+    }
+  }
+  const dedupedCandidates = Array.from(bestByProviderService.values());
+
+  // 3. 按赞助级别降序排序（同级别按可用率降序）
+  dedupedCandidates.sort((a, b) => {
     const aWeight = SPONSOR_WEIGHTS[a.sponsorLevel!] || 0;
     const bWeight = SPONSOR_WEIGHTS[b.sponsorLevel!] || 0;
     if (aWeight !== bWeight) return bWeight - aWeight;
@@ -239,15 +258,15 @@ export function sortMonitorsWithPinning(
     return b.uptime - a.uptime;
   });
 
-  // 3. 取前 N 个
-  const pinnedItems = pinnedCandidates.slice(0, pinConfig.max_pinned);
+  // 4. 取前 N 个
+  const pinnedItems = dedupedCandidates.slice(0, pinConfig.max_pinned);
   const pinnedIds = new Set(pinnedItems.map(item => item.id));
 
-  // 4. 其余项按可用率降序排序
+  // 5. 其余项按可用率降序排序
   const remainingItems = items.filter(item => !pinnedIds.has(item.id));
   const sortedRemaining = sortMonitors(remainingItems, { key: 'uptime', direction: 'desc' });
 
-  // 5. 合并结果，标记置顶项
+  // 6. 合并结果，标记置顶项
   return [
     ...pinnedItems.map(item => ({ ...item, pinned: true })),
     ...sortedRemaining.map(item => ({ ...item, pinned: false })),
