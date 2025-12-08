@@ -1,0 +1,63 @@
+/**
+ * Light Warm 主题
+ * 暖米白底，偏奶油色，柔和舒适
+ */
+
+[data-theme="light-warm"] {
+  color-scheme: light;
+
+  /* 背景层次 - 暖米白 */
+  --bg-page: 40 30% 96%;            /* 米白 */
+  --bg-surface: 38 25% 93%;         /* 奶油色 */
+  --bg-elevated: 40 35% 99%;        /* 暖白卡片 */
+  --bg-muted: 36 20% 88%;           /* 分区背景 */
+
+  /* 文字层次 */
+  --text-primary: 25 25% 17%;       /* 深棕灰 */
+  --text-secondary: 25 15% 40%;     /* 中棕灰 */
+  --text-muted: 25 10% 52%;         /* 浅棕灰 */
+  --text-inverse: 40 30% 97%;       /* 白色 */
+
+  /* 边框 */
+  --border-default: 30 18% 83%;
+  --border-strong: 28 14% 73%;
+
+  /* 强调色 - 蓝绿 */
+  --accent: 195 85% 40%;            /* 蓝绿 */
+  --accent-strong: 198 90% 34%;
+
+  /* 状态色 */
+  --success: 140 50% 34%;
+  --warning: 32 95% 44%;
+  --danger: 348 72% 48%;
+  --info: 210 70% 48%;              /* 暖蓝 */
+
+  /* 图表色 */
+  --chart-green: 140 50% 34%;
+  --chart-yellow: 32 95% 44%;
+  --chart-red: 348 72% 48%;
+  --chart-gray: 30 12% 60%;
+
+  /* 赞助商色 */
+  --sponsor-basic: 140 50% 34%;
+  --sponsor-advanced: 195 85% 40%;
+  --sponsor-enterprise: 32 95% 44%;
+
+  /* 服务类型色 */
+  --service-cc: 280 50% 52%;        /* 暖紫 */
+  --service-cx: 210 70% 48%;        /* 暖蓝 */
+
+  /* 辅助色 */
+  --blue: 210 70% 48%;
+  --blue-muted: 210 60% 52%;
+
+  /* 渐变 */
+  --gradient-hero: linear-gradient(135deg, hsl(195 85% 40%), hsl(210 75% 48%));
+  --gradient-button: linear-gradient(to bottom right, hsl(195 85% 40%), hsl(210 75% 48%));
+
+  /* 发光效果 - 亮色主题降低透明度 */
+  --glow-success: 140 50% 34% / 0.35;
+  --glow-warning: 32 95% 44% / 0.35;
+  --glow-danger: 348 72% 48% / 0.35;
+  --glow-muted: 30 12% 60% / 0.25;
+}

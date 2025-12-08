@@ -26,14 +26,15 @@ function LanguageLayout({ lang }: LanguageLayoutProps) {
 
 /**
  * 路由级加载占位符
- * 使用与主题一致的深色背景和三点跳动动画，避免视觉跳跃
+ * 使用与主题一致的背景色和三点跳动动画，避免视觉跳跃
+ * 注意：使用 CSS 变量以支持主题切换
  */
 function RouterFallback() {
   return (
     <div
       style={{
         minHeight: '100vh',
-        backgroundColor: '#020617',
+        backgroundColor: 'hsl(var(--bg-page, 222 47% 4%))',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -47,7 +48,7 @@ function RouterFallback() {
             width: '10px',
             height: '10px',
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #06b6d4, #3b82f6)',
+            background: 'var(--gradient-button, linear-gradient(135deg, #06b6d4, #3b82f6))',
             animation: `bounce 0.6s ease-in-out ${delay}s infinite alternate`,
           }}
         />

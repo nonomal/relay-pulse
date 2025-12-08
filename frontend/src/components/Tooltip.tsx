@@ -95,7 +95,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
   // Tooltip 内容（桌面和移动端共用）
   const TooltipContent = () => (
     <>
-      <div className="text-slate-400 text-center">
+      <div className="text-secondary text-center">
         {formatTimeRange(tooltip.data!.timestampNum, timeRange)}
       </div>
       {tooltip.data!.availability >= 0 && (
@@ -108,7 +108,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
       )}
       {tooltip.data!.latency > 0 && (
         <div className="text-[10px] text-center">
-          <span className="text-slate-500">{t('tooltip.latency')} </span>
+          <span className="text-muted">{t('tooltip.latency')} </span>
           <span style={{ color: latencyToColor(tooltip.data!.latency, slowLatencyMs) }}>
             {tooltip.data!.latency}ms
           </span>
@@ -116,13 +116,13 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
       )}
 
       {/* 状态统计 */}
-      <div className="flex flex-col gap-1 pt-2 border-t border-slate-700/50">
+      <div className="flex flex-col gap-1 pt-2 border-t border-default/50">
         {statusSummary.map((item) => (
           <div key={item.key} className="flex justify-between items-center gap-3 text-[11px]">
-            <span className="text-slate-300">
+            <span className="text-secondary">
               {item.emoji} {item.label}
             </span>
-            <span className="text-slate-100 font-semibold tabular-nums">
+            <span className="text-primary font-semibold tabular-nums">
               {item.value} {t('tooltip.count')}
             </span>
           </div>
@@ -131,12 +131,12 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
 
       {/* 黄色波动细分 */}
       {degradedSubstatus.length > 0 && (
-        <div className="flex flex-col gap-1 pt-2 border-t border-slate-700/50">
-          <div className="text-[10px] text-slate-400 mb-0.5">{t('tooltip.degradedTitle')}</div>
+        <div className="flex flex-col gap-1 pt-2 border-t border-default/50">
+          <div className="text-[10px] text-secondary mb-0.5">{t('tooltip.degradedTitle')}</div>
           {degradedSubstatus.map((item) => (
             <div key={item.key} className="flex justify-between items-center gap-3 text-[10px] pl-2">
-              <span className="text-slate-400">• {item.label}</span>
-              <span className="text-slate-200 tabular-nums">{item.value}</span>
+              <span className="text-secondary">• {item.label}</span>
+              <span className="text-primary tabular-nums">{item.value}</span>
             </div>
           ))}
         </div>
@@ -144,12 +144,12 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
 
       {/* 红色不可用细分 */}
       {unavailableSubstatus.length > 0 && (
-        <div className="flex flex-col gap-1 pt-2 border-t border-slate-700/50">
-          <div className="text-[10px] text-slate-400 mb-0.5">{t('tooltip.unavailableTitle')}</div>
+        <div className="flex flex-col gap-1 pt-2 border-t border-default/50">
+          <div className="text-[10px] text-secondary mb-0.5">{t('tooltip.unavailableTitle')}</div>
           {unavailableSubstatus.map((item) => (
             <div key={item.key} className="flex justify-between items-center gap-3 text-[10px] pl-2">
-              <span className="text-slate-400">• {item.label}</span>
-              <span className="text-slate-200 tabular-nums">{item.value}</span>
+              <span className="text-secondary">• {item.label}</span>
+              <span className="text-primary tabular-nums">{item.value}</span>
             </div>
           ))}
         </div>
@@ -165,7 +165,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
         onClick={onClose}
       >
         <div
-          className="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-700 rounded-t-2xl p-4 pb-6 animate-slide-up"
+          className="absolute bottom-0 left-0 right-0 bg-surface border-t border-default rounded-t-2xl p-4 pb-6 animate-slide-up"
           onClick={(e) => e.stopPropagation()}
           style={{
             animation: 'slideUp 0.2s ease-out',
@@ -173,15 +173,15 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
         >
           {/* 拖动指示条 */}
           <div className="flex justify-center mb-3">
-            <div className="w-10 h-1 bg-slate-700 rounded-full" />
+            <div className="w-10 h-1 bg-muted rounded-full" />
           </div>
 
           {/* 头部 */}
           <div className="flex justify-between items-center mb-3">
-            <h3 className="text-sm font-semibold text-slate-200">{t('tooltip.title')}</h3>
+            <h3 className="text-sm font-semibold text-primary">{t('tooltip.title')}</h3>
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+              className="p-1.5 rounded-lg bg-elevated text-secondary hover:text-primary transition-colors"
               aria-label={t('common.close')}
             >
               <X size={16} />
@@ -219,11 +219,11 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
         transform: 'translate(-50%, -100%)',
       }}
     >
-      <div className="bg-slate-900/95 backdrop-blur-md text-slate-200 text-xs p-3 rounded-lg border border-slate-700 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] flex flex-col gap-2 min-w-[200px]">
+      <div className="bg-surface/95 backdrop-blur-md text-primary text-xs p-3 rounded-lg border border-default shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] flex flex-col gap-2 min-w-[200px]">
         <TooltipContent />
 
         {/* 小三角箭头 */}
-        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-slate-700 transform rotate-45"></div>
+        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-surface border-r border-b border-default transform rotate-45"></div>
       </div>
     </div>
   );

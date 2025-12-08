@@ -195,15 +195,15 @@ export default function ProviderPage() {
         <meta name="description" content={t('provider.pageDescription', { name: providerDisplayName })} />
       </Helmet>
 
-      <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white overflow-x-hidden">
+      <div className="min-h-screen bg-page text-primary font-sans selection-accent overflow-x-hidden">
         {/* 全局 Tooltip */}
         <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
 
         {/* 背景装饰 */}
         {!isEmbedMode && (
           <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-            <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px]" />
-            <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[120px]" />
+            <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
+            <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
           </div>
         )}
 
@@ -252,17 +252,17 @@ export default function ProviderPage() {
         {/* 主内容区域 - 移除 py-6 以减小与控制面板的间距 */}
         <main>
           {error ? (
-            <div className="flex flex-col items-center justify-center py-20 text-rose-400">
+            <div className="flex flex-col items-center justify-center py-20 text-danger">
               <Server size={64} className="mb-4 opacity-20" />
               <p className="text-lg">{t('common.error', { message: error })}</p>
             </div>
           ) : loading && data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-slate-500 gap-4">
-              <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center h-64 text-muted gap-4">
+              <div className="w-12 h-12 border-4 border-accent/20 rounded-full animate-spin" style={{ borderTopColor: 'hsl(var(--accent))' }} />
               <p className="animate-pulse">{t('common.loading')}</p>
             </div>
           ) : data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-600">
+            <div className="flex flex-col items-center justify-center py-20 text-muted">
               <Server size={64} className="mb-4 opacity-20" />
               <p className="text-lg">{t('common.noData')}</p>
             </div>
@@ -329,16 +329,16 @@ function ProviderNotFound({ providerSlug, isEmbedMode }: ProviderNotFoundProps) 
         <meta name="robots" content="noindex, nofollow" />
       </Helmet>
 
-      <div className={`min-h-screen flex items-center justify-center ${isEmbedMode ? '' : 'bg-black'}`}>
+      <div className={`min-h-screen flex items-center justify-center ${isEmbedMode ? '' : 'bg-page'}`}>
         <div className="text-center px-4">
-          <h1 className="text-6xl font-bold text-zinc-100 mb-4">404</h1>
-          <p className="text-xl text-zinc-400 mb-8">
+          <h1 className="text-6xl font-bold text-primary mb-4">404</h1>
+          <p className="text-xl text-muted mb-8">
             {t('provider.notFoundMessage', { slug: providerSlug })}
           </p>
           {!isEmbedMode && (
             <a
               href="/"
-              className="inline-block px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-100 rounded-lg transition-colors"
+              className="inline-block px-6 py-3 bg-elevated hover:bg-muted/50 text-primary rounded-lg transition-colors"
             >
               {t('provider.backToHome')}
             </a>

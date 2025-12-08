@@ -136,28 +136,28 @@ export function Controls({
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row gap-2 lg:gap-3 mb-2 lg:mb-4 overflow-visible">
+      <div className="flex flex-col lg:flex-row gap-2 mb-2 lg:mb-3 overflow-visible">
         {/* 筛选和视图控制（移动端隐藏，筛选/刷新已移到 Header） */}
-        <div className="hidden lg:flex flex-1 flex-wrap gap-3 items-center bg-slate-900/40 p-3 rounded-2xl border border-slate-800/50 overflow-visible">
+        <div className="hidden lg:flex flex-1 flex-wrap gap-2 items-center bg-surface/40 p-2 rounded-2xl overflow-visible">
           {/* 桌面端：直接显示筛选器 */}
-          <div className="flex items-center gap-2 text-slate-400 text-sm font-medium px-2">
+          <div className="flex items-center gap-2 text-secondary text-sm font-medium px-1">
             <Filter size={16} />
           </div>
-          <div className="flex flex-wrap gap-3 flex-1 overflow-visible">
+          <div className="flex flex-wrap gap-2 flex-1 overflow-visible">
             {FilterSelects()}
           </div>
 
-          <div className="w-px h-8 bg-slate-700 mx-2"></div>
+          <div className="w-px h-6 bg-muted mx-1"></div>
 
           {/* 视图切换（仅桌面端显示） */}
           {!isMobile && (
-            <div className="flex bg-slate-800 rounded-lg p-1 border border-slate-700">
+            <div className="flex bg-elevated rounded-lg p-1 border border-default">
               <button
                 onClick={() => onViewModeChange('table')}
-                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                   viewMode === 'table'
-                    ? 'bg-slate-700 text-cyan-400 shadow'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-muted text-accent shadow'
+                    : 'text-secondary hover:text-primary'
                 }`}
                 title={t('controls.views.table')}
                 aria-label={t('controls.views.switchToTable')}
@@ -166,10 +166,10 @@ export function Controls({
               </button>
               <button
                 onClick={() => onViewModeChange('grid')}
-                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center ${
+                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                   viewMode === 'grid'
-                    ? 'bg-slate-700 text-cyan-400 shadow'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-muted text-accent shadow'
+                    : 'text-secondary hover:text-primary'
                 }`}
                 title={t('controls.views.card')}
                 aria-label={t('controls.views.switchToCard')}
@@ -183,7 +183,7 @@ export function Controls({
           <div className="relative ml-auto hidden lg:block">
             <button
               onClick={onRefresh}
-              className="p-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20 group min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer"
+              className="p-2.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 group min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               title={t('common.refresh')}
               aria-label={t('common.refresh')}
             >
@@ -194,7 +194,7 @@ export function Controls({
             </button>
             {/* 冷却提示 */}
             {refreshCooldown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg whitespace-nowrap shadow-lg border border-slate-700 z-50">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-elevated text-secondary text-xs rounded-lg whitespace-nowrap shadow-lg border border-default z-50">
                 {t('common.refreshCooldown')}
               </div>
             )}
@@ -202,7 +202,7 @@ export function Controls({
         </div>
 
         {/* 时间范围选择 */}
-        <div className="relative z-20 bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md flex items-center gap-1 overflow-visible">
+        <div className="relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md flex items-center gap-1 overflow-visible">
           {/* 时间对齐切换图标（附属于 24h，放在前面） */}
           <button
             onClick={() => {
@@ -214,10 +214,10 @@ export function Controls({
             title={timeRange === '24h'
               ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
               : undefined}
-            className={`p-2 rounded-xl transition-all duration-200 flex-shrink-0 ${
+            className={`p-2 rounded-xl transition-all duration-200 flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
               timeRange === '24h'
-                ? 'text-cyan-400 hover:bg-slate-800 cursor-pointer'
-                : 'text-slate-600 cursor-not-allowed'
+                ? 'text-accent hover:bg-elevated cursor-pointer'
+                : 'text-muted cursor-not-allowed'
             }`}
           >
             {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
@@ -227,10 +227,10 @@ export function Controls({
             <button
               key={range.id}
               onClick={() => onTimeRangeChange(range.id)}
-              className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 ${
+              className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                 timeRange === range.id
-                  ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  ? 'bg-gradient-button text-inverse shadow-lg shadow-accent/25'
+                  : 'text-secondary hover:text-primary hover:bg-elevated'
               }`}
             >
               {range.label}
@@ -253,23 +253,23 @@ export function Controls({
           onClick={() => onFilterDrawerClose?.()}
         >
           <div
-            className="absolute bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto"
+            className="absolute bottom-0 left-0 right-0 bg-surface border-t border-default rounded-t-2xl p-6 max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* 抽屉头部 */}
             <div className="flex justify-between items-center mb-6">
               <div className="flex items-center gap-2">
-                <Filter size={20} className="text-cyan-400" />
-                <h3 className="text-lg font-semibold text-slate-100">{t('controls.mobile.filterTitle')}</h3>
+                <Filter size={20} className="text-accent" />
+                <h3 className="text-lg font-semibold text-primary">{t('controls.mobile.filterTitle')}</h3>
                 {activeFiltersCount > 0 && (
-                  <span className="px-2 py-0.5 bg-cyan-500 text-white text-xs rounded-full">
+                  <span className="px-2 py-0.5 bg-accent text-inverse text-xs rounded-full">
                     {activeFiltersCount}
                   </span>
                 )}
               </div>
               <button
                 onClick={() => onFilterDrawerClose?.()}
-                className="p-2 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+                className="p-2 rounded-lg bg-elevated text-secondary hover:text-primary transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
                 aria-label={t('controls.mobile.closeFilter')}
               >
                 <X size={20} />
@@ -289,7 +289,7 @@ export function Controls({
                     onServiceChange([]);
                     onChannelChange([]);
                   }}
-                  className="w-full py-3 bg-slate-800 text-slate-300 rounded-lg hover:bg-slate-750 transition-colors font-medium"
+                  className="w-full py-3 bg-elevated text-secondary rounded-lg hover:bg-muted transition-colors font-medium focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
                 >
                   {t('common.clear')}
                 </button>
@@ -298,7 +298,7 @@ export function Controls({
               {/* 应用按钮 */}
               <button
                 onClick={() => onFilterDrawerClose?.()}
-                className="w-full py-3 bg-gradient-to-br from-cyan-500 to-blue-600 text-white rounded-lg font-medium shadow-lg shadow-cyan-500/25 hover:shadow-cyan-500/40 transition-all"
+                className="w-full py-3 bg-gradient-button text-inverse rounded-lg font-medium shadow-lg shadow-accent/25 hover:shadow-accent/40 transition-all focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               >
                 {t('common.apply')}
               </button>

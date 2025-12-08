@@ -57,7 +57,7 @@ export function BadgeCell({
 
       {/* 分隔符 - 仅在正负徽标都存在时显示 */}
       {hasPositiveBadges && hasNegativeBadges && (
-        <span className="text-slate-600 text-xs select-none mx-0.5">|</span>
+        <span className="text-muted text-xs select-none mx-0.5">|</span>
       )}
 
       {/* 负向徽标组 */}

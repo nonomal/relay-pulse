@@ -24,90 +24,93 @@ export const getTimeRanges = (t: TFunction): TimeRange[] => [
 ];
 
 // 状态配置（保留以兼容现有代码）
+// 使用语义化 CSS 类名，支持主题切换
 export const STATUS: Record<string, StatusConfig> = {
   AVAILABLE: {
-    color: 'bg-emerald-500',
-    text: 'text-emerald-400',
-    glow: 'shadow-[0_0_10px_rgba(16,185,129,0.6)]',
+    color: 'bg-success',
+    text: 'text-success',
+    glow: 'glow-success',
     label: '可用',
     weight: 3,
   },
   DEGRADED: {
-    color: 'bg-amber-400',
-    text: 'text-amber-400',
-    glow: 'shadow-[0_0_10px_rgba(251,191,36,0.6)]',
+    color: 'bg-warning',
+    text: 'text-warning',
+    glow: 'glow-warning',
     label: '波动',
     weight: 2,
   },
   MISSING: {
-    color: 'bg-slate-400',
-    text: 'text-slate-400',
-    glow: 'shadow-[0_0_10px_rgba(148,163,184,0.4)]',
+    color: 'bg-secondary',
+    text: 'text-secondary',
+    glow: 'glow-muted',
     label: '无数据',
     weight: 1,  // 算作可用（避免初期可用率过低）
   },
   UNAVAILABLE: {
-    color: 'bg-rose-500',
-    text: 'text-rose-400',
-    glow: 'shadow-[0_0_10px_rgba(244,63,94,0.6)]',
+    color: 'bg-danger',
+    text: 'text-danger',
+    glow: 'glow-danger',
     label: '不可用',
     weight: 1,
   },
 };
 
 // 状态配置工厂函数（i18n 版本）
+// 使用语义化 CSS 类名，支持主题切换
 export const getStatusConfig = (t: TFunction): Record<string, StatusConfig> => ({
   AVAILABLE: {
-    color: 'bg-emerald-500',
-    text: 'text-emerald-400',
-    glow: 'shadow-[0_0_10px_rgba(16,185,129,0.6)]',
+    color: 'bg-success',
+    text: 'text-success',
+    glow: 'glow-success',
     label: t('status.available'),
     weight: 3,
   },
   DEGRADED: {
-    color: 'bg-amber-400',
-    text: 'text-amber-400',
-    glow: 'shadow-[0_0_10px_rgba(251,191,36,0.6)]',
+    color: 'bg-warning',
+    text: 'text-warning',
+    glow: 'glow-warning',
     label: t('status.degraded'),
     weight: 2,
   },
   MISSING: {
-    color: 'bg-slate-400',
-    text: 'text-slate-400',
-    glow: 'shadow-[0_0_10px_rgba(148,163,184,0.4)]',
+    color: 'bg-secondary',
+    text: 'text-secondary',
+    glow: 'glow-muted',
     label: t('status.missing'),
     weight: 1,  // 算作可用（避免初期可用率过低）
   },
   UNAVAILABLE: {
-    color: 'bg-rose-500',
-    text: 'text-rose-400',
-    glow: 'shadow-[0_0_10px_rgba(244,63,94,0.6)]',
+    color: 'bg-danger',
+    text: 'text-danger',
+    glow: 'glow-danger',
     label: t('status.unavailable'),
     weight: 1,
   },
 });
 
 // 保留原有导出以兼容不需要翻译的场景
+// 使用语义化 CSS 类名，支持主题切换
 export const STATUS_COLORS = {
   AVAILABLE: {
-    color: 'bg-emerald-500',
-    text: 'text-emerald-400',
-    glow: 'shadow-[0_0_10px_rgba(16,185,129,0.6)]',
+    color: 'bg-success',
+    text: 'text-success',
+    glow: 'glow-success',
   },
   DEGRADED: {
-    color: 'bg-amber-400',
-    text: 'text-amber-400',
-    glow: 'shadow-[0_0_10px_rgba(251,191,36,0.6)]',
+    color: 'bg-warning',
+    text: 'text-warning',
+    glow: 'glow-warning',
   },
   MISSING: {
-    color: 'bg-slate-400',
-    text: 'text-slate-400',
-    glow: 'shadow-[0_0_10px_rgba(148,163,184,0.4)]',
+    color: 'bg-secondary',
+    text: 'text-secondary',
+    glow: 'glow-muted',
   },
   UNAVAILABLE: {
-    color: 'bg-rose-500',
-    text: 'text-rose-400',
-    glow: 'shadow-[0_0_10px_rgba(244,63,94,0.6)]',
+    color: 'bg-danger',
+    text: 'text-danger',
+    glow: 'glow-danger',
   },
 } as const;
 

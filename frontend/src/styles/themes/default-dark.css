@@ -1,0 +1,64 @@
+/**
+ * Default Dark 主题
+ * 现有主题，slate + cyan 配色
+ */
+
+:root,
+[data-theme="default-dark"] {
+  color-scheme: dark;
+
+  /* 背景层次 */
+  --bg-page: 222 47% 4%;           /* #020617 slate-950 */
+  --bg-surface: 217 33% 10%;        /* #0f172a slate-900 */
+  --bg-elevated: 215 28% 15%;       /* #1e293b slate-800 */
+  --bg-muted: 215 25% 22%;          /* #334155 slate-700 */
+
+  /* 文字层次 */
+  --text-primary: 210 40% 90%;      /* #e2e8f0 slate-200 */
+  --text-secondary: 215 20% 65%;    /* #94a3b8 slate-400 */
+  --text-muted: 215 16% 47%;        /* #64748b slate-500 */
+  --text-inverse: 222 47% 4%;       /* 深色背景上的反色文字 */
+
+  /* 边框 */
+  --border-default: 217 24% 20%;    /* slate-800 偏亮 */
+  --border-strong: 215 20% 28%;     /* slate-700 */
+
+  /* 强调色 (cyan) */
+  --accent: 188 84% 56%;            /* #22d3ee cyan-400 */
+  --accent-strong: 187 92% 42%;     /* #06b6d4 cyan-500 */
+
+  /* 状态色 */
+  --success: 152 56% 45%;           /* #10b981 emerald-500 */
+  --warning: 43 96% 56%;            /* #fbbf24 amber-400 */
+  --danger: 343 80% 57%;            /* #f43f5e rose-500 */
+  --info: 217 91% 60%;              /* #3b82f6 blue-500 */
+
+  /* 图表/渐变色 */
+  --chart-green: 142 71% 45%;       /* #22c55e green-500 */
+  --chart-yellow: 45 93% 47%;       /* #eab308 yellow-500 */
+  --chart-red: 0 84% 60%;           /* #ef4444 red-500 */
+  --chart-gray: 215 20% 65%;        /* #94a3b8 slate-400 */
+
+  /* 赞助商色 */
+  --sponsor-basic: 152 76% 39%;     /* emerald-500 */
+  --sponsor-advanced: 187 92% 42%;  /* cyan-500 */
+  --sponsor-enterprise: 43 96% 56%; /* amber-400 */
+
+  /* 服务类型色 */
+  --service-cc: 270 60% 70%;        /* purple-400 */
+  --service-cx: 217 91% 60%;        /* blue-400 */
+
+  /* 辅助色 */
+  --blue: 217 91% 60%;              /* blue-500 */
+  --blue-muted: 217 91% 60%;        /* blue-400 */
+
+  /* 渐变 */
+  --gradient-hero: linear-gradient(135deg, hsl(187 92% 42%), hsl(217 91% 60%));
+  --gradient-button: linear-gradient(to bottom right, hsl(187 92% 42%), hsl(217 91% 60%));
+
+  /* 发光效果 */
+  --glow-success: 152 56% 45% / 0.6;
+  --glow-warning: 43 96% 56% / 0.6;
+  --glow-danger: 343 80% 57% / 0.6;
+  --glow-muted: 215 20% 65% / 0.4;
+}

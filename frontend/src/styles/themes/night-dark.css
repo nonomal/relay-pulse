@@ -1,0 +1,63 @@
+/**
+ * Night Dark 主题
+ * 护眼暖色调，降低蓝光，偏棕灰
+ */
+
+[data-theme="night-dark"] {
+  color-scheme: dark;
+
+  /* 背景层次 - 暖棕灰 */
+  --bg-page: 30 15% 5%;             /* 深暖灰 */
+  --bg-surface: 28 12% 10%;         /* 稍浅暖灰 */
+  --bg-elevated: 26 10% 15%;        /* 卡片背景 */
+  --bg-muted: 24 8% 22%;            /* 交互区域 */
+
+  /* 文字层次 - 暖白 */
+  --text-primary: 35 25% 88%;       /* 暖白 */
+  --text-secondary: 30 15% 62%;     /* 暖灰 */
+  --text-muted: 28 10% 45%;         /* 弱文字 */
+  --text-inverse: 30 15% 5%;
+
+  /* 边框 - 暖色调 */
+  --border-default: 28 10% 18%;
+  --border-strong: 26 8% 26%;
+
+  /* 强调色 - 暖橙黄 */
+  --accent: 35 85% 55%;             /* 暖橙黄 */
+  --accent-strong: 32 90% 48%;
+
+  /* 状态色 - 暖色调整 */
+  --success: 140 50% 42%;           /* 偏暖绿 */
+  --warning: 38 90% 52%;            /* 暖黄 */
+  --danger: 8 75% 55%;              /* 暖红/珊瑚 */
+  --info: 200 60% 55%;              /* 偏暖蓝 */
+
+  /* 图表色 - 暖色调整 */
+  --chart-green: 140 50% 42%;
+  --chart-yellow: 38 90% 52%;
+  --chart-red: 8 75% 55%;
+  --chart-gray: 30 12% 58%;
+
+  /* 赞助商色 - 暖色调整 */
+  --sponsor-basic: 140 50% 42%;     /* 暖绿 */
+  --sponsor-advanced: 35 85% 55%;   /* 暖橙黄 */
+  --sponsor-enterprise: 38 90% 52%; /* 暖黄 */
+
+  /* 服务类型色 */
+  --service-cc: 280 45% 65%;        /* 偏暖紫 */
+  --service-cx: 200 60% 55%;        /* 偏暖蓝 */
+
+  /* 辅助色 */
+  --blue: 200 60% 55%;
+  --blue-muted: 200 50% 50%;
+
+  /* 渐变 */
+  --gradient-hero: linear-gradient(135deg, hsl(35 85% 55%), hsl(280 45% 65%));
+  --gradient-button: linear-gradient(to bottom right, hsl(35 85% 55%), hsl(32 90% 48%));
+
+  /* 发光效果 */
+  --glow-success: 140 50% 42% / 0.6;
+  --glow-warning: 38 90% 52% / 0.6;
+  --glow-danger: 8 75% 55% / 0.6;
+  --glow-muted: 30 12% 58% / 0.4;
+}

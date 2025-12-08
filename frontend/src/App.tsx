@@ -193,14 +193,14 @@ function App() {
         <meta name="description" content={t('meta.description')} />
       </Helmet>
 
-      <div className="min-h-screen bg-slate-950 text-slate-200 font-sans selection:bg-cyan-500 selection:text-white">
+      <div className="min-h-screen bg-page text-primary font-sans selection-accent">
         {/* 全局 Tooltip */}
         <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
 
         {/* 背景装饰 */}
         <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-600/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-cyan-600/10 rounded-full blur-[120px]" />
+          <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
+          <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
         </div>
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
@@ -244,17 +244,17 @@ function App() {
 
           {/* 内容区域 */}
           {error ? (
-            <div className="flex flex-col items-center justify-center py-20 text-rose-400">
+            <div className="flex flex-col items-center justify-center py-20 text-danger">
               <Server size={64} className="mb-4 opacity-20" />
               <p className="text-lg">{t('common.error', { message: error })}</p>
             </div>
           ) : loading && data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-64 text-slate-500 gap-4">
-              <div className="w-12 h-12 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+            <div className="flex flex-col items-center justify-center h-64 text-muted gap-4">
+              <div className="w-12 h-12 border-4 border-accent/20 rounded-full animate-spin" style={{ borderTopColor: 'hsl(var(--accent))' }} />
               <p className="animate-pulse">{t('common.loading')}</p>
             </div>
           ) : data.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-600">
+            <div className="flex flex-col items-center justify-center py-20 text-muted">
               <Server size={64} className="mb-4 opacity-20" />
               <p className="text-lg">{t('common.noData')}</p>
             </div>

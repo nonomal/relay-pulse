@@ -232,6 +232,86 @@ frontend/src/
 - **组件组合**: 小型、可复用组件
 - **响应式设计**: 移动优先，使用 matchMedia API 实现稳定断点检测
 - **国际化**: react-i18next + react-router-dom 实现 URL 路径多语言
+- **主题系统**: 4 套主题 + 语义化 CSS 变量
+
+### 主题系统
+
+**支持的主题**:
+- `default-dark`: 默认暗色（青色强调）
+- `night-dark`: 护眼暖暗（琥珀色强调）
+- `light-cool`: 冷灰亮色（青色强调）
+- `light-warm`: 暖灰亮色（琥珀色强调）
+
+**技术实现**:
+```
+frontend/src/
+├── styles/themes/           → 主题 CSS 文件
+│   ├── index.css           → 入口 + 语义化工具类
+│   ├── default-dark.css    → 默认暗色主题变量
+│   ├── night-dark.css      → 护眼暖暗主题变量
+│   ├── light-cool.css      → 冷灰亮色主题变量
+│   └── light-warm.css      → 暖灰亮色主题变量
+├── hooks/useTheme.ts        → 主题状态管理 Hook
+└── components/ThemeSwitcher.tsx → 主题切换器组件
+```
+
+**语义化颜色变量** (`themes/*.css`):
+```css
+:root[data-theme="default-dark"] {
+  /* 背景层级 */
+  --bg-page: 222 47% 3%;       /* 最底层页面背景 */
+  --bg-surface: 217 33% 8%;    /* 卡片/面板背景 */
+  --bg-elevated: 215 28% 12%;  /* 悬浮/弹出层背景 */
+  --bg-muted: 215 25% 18%;     /* 禁用/次要背景 */
+
+  /* 文字层级 */
+  --text-primary: 210 40% 98%;   /* 主要文字 */
+  --text-secondary: 215 20% 65%; /* 次要文字 */
+  --text-muted: 215 15% 45%;     /* 禁用文字 */
+
+  /* 强调色 */
+  --accent: 187 85% 53%;         /* 主强调色 */
+  --accent-strong: 187 90% 60%;  /* 强调色悬停态 */
+
+  /* 状态色 */
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --danger: 0 84% 60%;
+}
+```
+
+**语义化工具类** (`themes/index.css`):
+```css
+@layer utilities {
+  .bg-page { background-color: hsl(var(--bg-page)); }
+  .bg-surface { background-color: hsl(var(--bg-surface)); }
+  .text-primary { color: hsl(var(--text-primary)); }
+  .text-accent { color: hsl(var(--accent)); }
+  /* ... 更多工具类 */
+}
+```
+
+**FOUC 防护** (`index.html`):
+```html
+<script>
+  (function() {
+    var theme = 'default-dark';
+    try {
+      var stored = localStorage.getItem('relay-pulse-theme');
+      if (stored && ['default-dark','night-dark','light-cool','light-warm'].indexOf(stored) !== -1) {
+        theme = stored;
+      }
+    } catch (e) {}
+    document.documentElement.setAttribute('data-theme', theme);
+    // 设置初始背景色防止白屏...
+  })();
+</script>
+```
+
+**使用规范**:
+- ❌ 避免硬编码颜色：`text-slate-500`、`bg-zinc-800`
+- ✅ 使用语义化类：`text-muted`、`bg-elevated`
+- 透明度变体：`bg-surface/60`、`text-accent/50`
 
 ### 国际化架构 (i18n)
 

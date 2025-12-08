@@ -143,15 +143,15 @@ export function MultiSelect({
         aria-disabled={disabled}
         className={`
           flex items-center justify-between gap-2 w-full lg:w-auto
-          bg-slate-800 text-slate-200 text-sm rounded-lg
-          border border-slate-700 p-2 outline-none
-          transition-all hover:bg-slate-750
-          focus:ring-2 focus:ring-cyan-500 focus:border-transparent
+          bg-elevated text-primary text-sm rounded-lg
+          border border-default p-2 outline-none
+          transition-all hover:bg-muted
+          focus:ring-2 focus:ring-accent focus:border-transparent
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
-          ${!isAllSelected ? 'border-cyan-500/50' : ''}
+          ${!isAllSelected ? 'border-accent/50' : ''}
         `}
       >
-        <span className={`truncate ${isAllSelected ? 'text-slate-400' : 'text-slate-200'}`}>
+        <span className={`truncate ${isAllSelected ? 'text-secondary' : 'text-primary'}`}>
           {displayText}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -165,16 +165,16 @@ export function MultiSelect({
                   handleClear(e);
                 }
               }}
-              className="p-0.5 hover:bg-slate-700 rounded transition-colors focus:outline-none focus:ring-1 focus:ring-cyan-500"
+              className="p-0.5 hover:bg-muted rounded transition-colors focus:outline-none focus:ring-1 focus:ring-accent"
               aria-label={t('common.clear')}
               tabIndex={0}
             >
-              <X size={14} className="text-slate-400 hover:text-slate-200" />
+              <X size={14} className="text-secondary hover:text-primary" />
             </button>
           )}
           <ChevronDown
             size={16}
-            className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`text-secondary transition-transform ${isOpen ? 'rotate-180' : ''}`}
           />
         </div>
       </div>
@@ -186,15 +186,15 @@ export function MultiSelect({
           aria-multiselectable="true"
           className="
             absolute z-50 mt-1 min-w-full w-max
-            bg-slate-800 border border-slate-700 rounded-lg shadow-xl
+            bg-elevated border border-default rounded-lg shadow-xl
             max-h-[320px] flex flex-col
           "
         >
           {/* 搜索框 */}
           {searchable && (
-            <div className="p-2 border-b border-slate-700 flex-shrink-0">
+            <div className="p-2 border-b border-default flex-shrink-0">
               <div className="relative">
-                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-500" />
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -203,10 +203,10 @@ export function MultiSelect({
                   placeholder={t('controls.multiSelect.searchPlaceholder')}
                   className="
                     w-full pl-8 pr-3 py-1.5 text-sm
-                    bg-slate-900 text-slate-200 rounded-md
-                    border border-slate-700 outline-none
-                    focus:ring-1 focus:ring-cyan-500 focus:border-cyan-500
-                    placeholder:text-slate-500
+                    bg-surface text-primary rounded-md
+                    border border-default outline-none
+                    focus:ring-1 focus:ring-accent focus:border-accent
+                    placeholder:text-muted
                   "
                 />
               </div>
@@ -226,26 +226,26 @@ export function MultiSelect({
                   w-full flex items-center gap-2 px-3 py-2 text-sm text-left
                   transition-colors
                   ${isAllSelected
-                    ? 'bg-cyan-500/10 text-cyan-400'
-                    : 'text-slate-300 hover:bg-slate-700/50'
+                    ? 'bg-accent/10 text-accent'
+                    : 'text-secondary hover:bg-muted/50'
                   }
                 `}
               >
                 <span className={`
                   w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
                   ${isAllSelected
-                    ? 'bg-cyan-500 border-cyan-500'
-                    : 'border-slate-600'
+                    ? 'bg-accent border-accent'
+                    : 'border-default'
                   }
                 `}>
-                  {isAllSelected && <Check size={12} className="text-white" />}
+                  {isAllSelected && <Check size={12} className="text-inverse" />}
                 </span>
                 <span className="truncate">{displayPlaceholder}</span>
               </button>
             )}
 
             {/* 分隔线 - 仅在没有搜索时显示 */}
-            {!search.trim() && <div className="h-px bg-slate-700 mx-2 my-1" />}
+            {!search.trim() && <div className="h-px bg-muted mx-2 my-1" />}
 
             {/* 服务商选项 */}
             {filteredOptions.length > 0 ? (
@@ -262,26 +262,26 @@ export function MultiSelect({
                       w-full flex items-center gap-2 px-3 py-2 text-sm text-left
                       transition-colors
                       ${isSelected
-                        ? 'bg-cyan-500/10 text-cyan-400'
-                        : 'text-slate-300 hover:bg-slate-700/50'
+                        ? 'bg-accent/10 text-accent'
+                        : 'text-secondary hover:bg-muted/50'
                       }
                     `}
                   >
                     <span className={`
                       w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
                       ${isSelected
-                        ? 'bg-cyan-500 border-cyan-500'
-                        : 'border-slate-600'
+                        ? 'bg-accent border-accent'
+                        : 'border-default'
                       }
                     `}>
-                      {isSelected && <Check size={12} className="text-white" />}
+                      {isSelected && <Check size={12} className="text-inverse" />}
                     </span>
                     <span className="truncate">{option.label}</span>
                   </button>
                 );
               })
             ) : (
-              <div className="px-3 py-4 text-sm text-slate-500 text-center">
+              <div className="px-3 py-4 text-sm text-muted text-center">
                 {t('controls.multiSelect.noResults')}
               </div>
             )}

@@ -80,12 +80,12 @@ export function ExternalLinkModal({
     >
       <div
         ref={modalRef}
-        className="relative w-full max-w-xl rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl"
+        className="relative w-full max-w-xl rounded-xl border border-default bg-elevated p-6 shadow-2xl"
       >
         {/* 关闭按钮 */}
         <button
           onClick={onCancel}
-          className="absolute right-4 top-4 text-slate-400 hover:text-slate-200 transition-colors"
+          className="absolute right-4 top-4 text-secondary hover:text-primary transition-colors"
           aria-label={t('common.close')}
         >
           <X size={20} />
@@ -93,29 +93,29 @@ export function ExternalLinkModal({
 
         {/* 标题 */}
         <div className="mb-4 flex items-center gap-3 pr-8">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-yellow-500/20">
-            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-warning/20">
+            <AlertTriangle className="h-5 w-5 text-warning" />
           </div>
           <h2
             id="external-link-modal-title"
-            className="text-lg font-semibold text-slate-100"
+            className="text-lg font-semibold text-primary"
           >
             {t('externalLink.title')}
           </h2>
         </div>
 
         {/* 目标信息 */}
-        <div className="mb-4 rounded-lg bg-slate-700/50 px-4 py-3 border border-slate-600">
-          <p className="text-sm text-slate-200">
-            {t('externalLink.target')}: <strong className="text-white">{targetName}</strong>
+        <div className="mb-4 rounded-lg bg-muted/50 px-4 py-3 border border-default">
+          <p className="text-sm text-primary">
+            {t('externalLink.target')}: <strong className="text-primary">{targetName}</strong>
           </p>
-          <p className="mt-1 truncate text-xs text-slate-400">{targetDomain}</p>
+          <p className="mt-1 truncate text-xs text-secondary">{targetDomain}</p>
         </div>
 
         {/* 风险提示 */}
-        <div className="mb-6 space-y-3 text-sm text-slate-300">
+        <div className="mb-6 space-y-3 text-sm text-secondary">
           <p>{t('externalLink.thirdPartyNotice')}</p>
-          <ul className="ml-4 list-disc space-y-2 text-slate-400">
+          <ul className="ml-4 list-disc space-y-2 text-secondary">
             <li>{t('externalLink.riskTip1')}</li>
             <li>{t('externalLink.riskTip2')}</li>
           </ul>
@@ -125,14 +125,14 @@ export function ExternalLinkModal({
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
           <button
             onClick={onCancel}
-            className="rounded-lg border border-slate-600 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-slate-100 transition-colors"
+            className="rounded-lg border border-default px-4 py-2.5 text-sm font-medium text-secondary hover:bg-muted hover:text-primary transition-colors"
           >
             {t('externalLink.cancel')}
           </button>
           <button
             ref={confirmButtonRef}
             onClick={onConfirm}
-            className="rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-slate-800 transition-colors"
+            className="rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-inverse hover:bg-accent/90 focus:outline-none focus:ring-2 focus:ring-accent focus:ring-offset-2 focus:ring-offset-elevated transition-colors"
           >
             {t('externalLink.confirm')}
           </button>
@@ -140,10 +140,10 @@ export function ExternalLinkModal({
 
         {/* 不再提示选项 */}
         {onDontShowAgain && (
-          <div className="mt-4 border-t border-slate-700 pt-3">
+          <div className="mt-4 border-t border-default pt-3">
             <button
               onClick={handleConfirmWithDontShow}
-              className="text-xs text-slate-500 hover:text-slate-300 hover:underline transition-colors"
+              className="text-xs text-muted hover:text-secondary hover:underline transition-colors"
             >
               {t('externalLink.dontShowAgain')}
             </button>

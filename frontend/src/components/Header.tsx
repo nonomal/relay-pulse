@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Activity, CheckCircle, AlertTriangle, Sparkles, Globe, Bookmark, Share2, Filter, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle, AlertTriangle, Sparkles, Bookmark, Share2, Filter, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FEEDBACK_URLS } from '../constants';
-import { SUPPORTED_LANGUAGES, LANGUAGE_PATH_MAP, isSupportedLanguage, type SupportedLanguage } from '../i18n';
+import { SUPPORTED_LANGUAGES, LANGUAGE_PATH_MAP, LANGUAGE_NAMES, isSupportedLanguage, type SupportedLanguage } from '../i18n';
 import { FlagIcon } from './FlagIcon';
 import { useToast } from './Toast';
 import { shareCurrentPage, getBookmarkShortcut } from '../utils/share';
+import { ThemeSwitcher } from './ThemeSwitcher';
 
 interface HeaderProps {
   stats: {
@@ -28,8 +29,9 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
   const location = useLocation();
   const { showToast } = useToast();
 
-  // 移动端语言下拉菜单状态
+  // 语言下拉菜单状态
   const [showMobileLangMenu, setShowMobileLangMenu] = useState(false);
+  const [showDesktopLangMenu, setShowDesktopLangMenu] = useState(false);
 
   // 获取当前语言，使用类型守卫确保类型安全
   const currentLang: SupportedLanguage = isSupportedLanguage(i18n.language) ? i18n.language : 'zh-CN';
@@ -54,22 +56,6 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
       // Web Share API 成功时不需要提示，系统会处理
     } else {
       showToast(t('share.copyFailed'), 'error');
-    }
-  };
-
-  // 语言简称显示（按钮和下拉项共用）
-  const getLanguageShortLabel = (lang: string): string => {
-    switch (lang) {
-      case 'zh-CN':
-        return 'CN';
-      case 'en-US':
-        return 'EN';
-      case 'ru-RU':
-        return 'RU';
-      case 'ja-JP':
-        return 'JA';
-      default:
-        return lang;
     }
   };
 
@@ -116,22 +102,27 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
   };
 
   return (
-    <header className="flex flex-col gap-1 lg:gap-2 mb-3 border-b border-slate-800/50 pb-2">
+    <header className="flex flex-col gap-1 lg:gap-1.5 mb-2 border-b border-default/50 pb-1.5">
       {/* 第一行：Logo + 标题 + 操作按钮（桌面端右侧完整显示） */}
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-shrink-0">
           <div className="flex items-center gap-2 lg:gap-3">
-            <div className="p-1.5 lg:p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20 flex-shrink-0">
-              <Activity className="w-5 h-5 lg:w-6 lg:h-6 text-cyan-400" />
+            <div className="p-1.5 lg:p-2 bg-accent/10 rounded-lg border border-accent/20 flex-shrink-0 animate-heartbeat">
+              <Activity className="w-5 h-5 lg:w-6 lg:h-6 text-accent" />
             </div>
-            <h1 className="text-2xl lg:text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400">
-              RelayPulse
-            </h1>
+            <div>
+              <h1 className="text-2xl lg:text-3xl font-bold text-gradient-hero">
+                RelayPulse
+              </h1>
+              {/* 桌面端 Tagline - 作为副标题 */}
+              <p className="hidden lg:block text-secondary text-xs mt-0.5">
+                {t('header.tagline')}
+              </p>
+            </div>
           </div>
           {/* 移动端 Tagline - 作为副标题 */}
-          <p className="lg:hidden text-[10px] text-slate-500 mt-1 flex items-center gap-1.5 pl-1">
-            <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse flex-shrink-0"></span>
-            <span className="truncate">{t('header.tagline')}</span>
+          <p className="lg:hidden text-[10px] text-muted mt-1 pl-1 truncate">
+            {t('header.tagline')}
           </p>
         </div>
 
@@ -141,7 +132,7 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           <div className="relative">
             <button
               onClick={() => setShowMobileLangMenu(!showMobileLangMenu)}
-              className="p-2 rounded-lg border border-slate-700 bg-slate-800/50 hover:bg-slate-700/50 hover:border-slate-600 transition-all duration-200"
+              className="p-2 rounded-lg bg-elevated/50 hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               aria-label={t('accessibility.changeLanguage')}
               aria-expanded={showMobileLangMenu}
             >
@@ -155,7 +146,11 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
                   className="fixed inset-0 z-40"
                   onClick={() => setShowMobileLangMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-24 py-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-50">
+                <div
+                  className="absolute right-0 mt-1 bg-elevated border border-default rounded-lg shadow-xl z-50"
+                  role="listbox"
+                  aria-label={t('accessibility.selectLanguage')}
+                >
                   {SUPPORTED_LANGUAGES.map((lang) => (
                     <button
                       key={lang}
@@ -163,89 +158,111 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
                         handleLanguageChange(lang);
                         setShowMobileLangMenu(false);
                       }}
-                      className={`w-full px-3 py-2 text-left flex items-center gap-2 hover:bg-slate-700/50 transition-colors ${
-                        currentLang === lang ? 'bg-slate-700/30' : ''
+                      className={`w-full p-2 flex items-center justify-center hover:bg-muted/50 transition-colors first:rounded-t-lg last:rounded-b-lg focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                        currentLang === lang ? 'bg-accent/20' : ''
                       }`}
+                      role="option"
+                      aria-selected={currentLang === lang}
+                      aria-label={LANGUAGE_NAMES[lang]?.native || lang}
                     >
                       <FlagIcon language={lang} className="w-5 h-auto flex-shrink-0" />
-                      <span className="text-xs font-medium text-slate-300">{getLanguageShortLabel(lang)}</span>
                     </button>
                   ))}
                 </div>
               </>
             )}
           </div>
+
+          {/* 主题切换器 */}
+          <ThemeSwitcher />
+
           <button
             onClick={handleBookmark}
-            className="p-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 hover:border-slate-600 transition-all duration-200"
+            className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
             aria-label={t('share.bookmark')}
           >
             <Bookmark size={16} />
           </button>
           <button
             onClick={handleShare}
-            className="p-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 hover:border-slate-600 transition-all duration-200"
+            className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
             aria-label={t('share.share')}
           >
             <Share2 size={16} />
           </button>
           {/* 统计卡片 - 极简模式（最右侧） */}
           <div className="flex gap-1 ml-1">
-            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800"
+            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-surface/50 border border-default"
                  title={t('header.stats.healthy')}>
-              <CheckCircle size={12} className="text-emerald-400" />
-              <span className="font-mono font-bold text-emerald-400 text-xs">{stats.healthy}</span>
+              <CheckCircle size={12} className="text-success" />
+              <span className="font-mono font-bold text-success text-xs">{stats.healthy}</span>
             </div>
-            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-slate-900/50 border border-slate-800"
+            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-surface/50 border border-default"
                  title={t('header.stats.issues')}>
-              <AlertTriangle size={12} className="text-rose-400" />
-              <span className="font-mono font-bold text-rose-400 text-xs">{stats.issues}</span>
+              <AlertTriangle size={12} className="text-danger" />
+              <span className="font-mono font-bold text-danger text-xs">{stats.issues}</span>
             </div>
           </div>
         </div>
 
         {/* 桌面端：右侧完整操作区（语言 + 收藏 + 分享 + 推荐 + 统计卡片） */}
-        <div className="hidden lg:flex items-center gap-3 flex-shrink-0">
-          {/* 语言切换器 */}
-          <div className="relative inline-block group">
+        <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
+          {/* 语言切换器 - 点击/键盘展开 */}
+          <div className="relative inline-block">
             <button
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-300 hover:bg-slate-700/50 hover:border-slate-600 transition-all duration-200"
+              onClick={() => setShowDesktopLangMenu(!showDesktopLangMenu)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setShowDesktopLangMenu(false);
+              }}
+              className="p-2 rounded-lg bg-elevated/50 hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               aria-label={t('accessibility.changeLanguage')}
+              aria-expanded={showDesktopLangMenu}
+              aria-haspopup="listbox"
             >
-              <Globe size={16} className="text-slate-400" />
-              <span className="text-sm font-medium">
-                {getLanguageShortLabel(currentLang)}
-              </span>
-              <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
+              <FlagIcon language={currentLang} className="w-5 h-auto" />
             </button>
-            <div className="absolute left-0 mt-2 w-full py-2 bg-slate-800 border border-slate-700 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              {SUPPORTED_LANGUAGES.map((lang) => (
-                <button
-                  key={lang}
-                  onClick={() => handleLanguageChange(lang)}
-                  className={`w-full px-3 py-2.5 text-left flex items-center gap-2.5 hover:bg-slate-700/50 transition-colors ${
-                    currentLang === lang ? 'bg-slate-700/30 text-cyan-400' : 'text-slate-300'
-                  }`}
+            {showDesktopLangMenu && (
+              <>
+                {/* 点击外部关闭 */}
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowDesktopLangMenu(false)}
+                />
+                <div
+                  className="absolute left-0 mt-1 bg-elevated border border-default rounded-lg shadow-xl z-50"
+                  role="listbox"
+                  aria-label={t('accessibility.selectLanguage')}
                 >
-                  <FlagIcon language={lang} className="w-5 h-auto flex-shrink-0" />
-                  <span className="text-sm font-medium leading-none">{getLanguageShortLabel(lang)}</span>
-                  {currentLang === lang && (
-                    <svg className="w-3.5 h-3.5 ml-auto flex-shrink-0 text-cyan-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </button>
-              ))}
-            </div>
+                  {SUPPORTED_LANGUAGES.map((lang) => (
+                    <button
+                      key={lang}
+                      onClick={() => {
+                        handleLanguageChange(lang);
+                        setShowDesktopLangMenu(false);
+                      }}
+                      className={`w-full p-2 flex items-center justify-center hover:bg-muted/50 transition-colors first:rounded-t-lg last:rounded-b-lg focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                        currentLang === lang ? 'bg-accent/20' : ''
+                      }`}
+                      role="option"
+                      aria-selected={currentLang === lang}
+                      aria-label={LANGUAGE_NAMES[lang]?.native || lang}
+                    >
+                      <FlagIcon language={lang} className="w-5 h-auto flex-shrink-0" />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
+
+          {/* 主题切换器 */}
+          <ThemeSwitcher />
 
           {/* 收藏和分享按钮 */}
           <div className="flex gap-1">
             <button
               onClick={handleBookmark}
-              className="p-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 hover:border-slate-600 transition-all duration-200"
+              className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               aria-label={t('share.bookmark')}
               title={t('share.bookmark')}
             >
@@ -253,7 +270,7 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             </button>
             <button
               onClick={handleShare}
-              className="p-2 rounded-lg border border-slate-700 bg-slate-800/50 text-slate-400 hover:text-slate-200 hover:bg-slate-700/50 hover:border-slate-600 transition-all duration-200"
+              className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               aria-label={t('share.share')}
               title={t('share.share')}
             >
@@ -266,39 +283,27 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-cyan-500/40 bg-cyan-500/10 text-cyan-200 font-semibold tracking-wide shadow-[0_0_12px_rgba(6,182,212,0.25)] hover:bg-cyan-500/20 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-accent/40 bg-accent/10 text-accent font-semibold tracking-wide shadow-accent hover:bg-accent/20 transition focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
           >
             <Sparkles size={14} />
             {t('header.recommendBtn')}
           </a>
 
-          {/* 统计卡片 - 两行布局 */}
-          <div className="flex gap-3">
-            {/* 正常运行 */}
-            <div className="flex flex-col items-center px-4 py-2 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg">
-              <div className="flex items-center gap-1.5 text-slate-400 text-xs">
-                <CheckCircle size={14} className="text-emerald-400" />
-                <span>{t('header.stats.healthy')}</span>
-              </div>
-              <span className="font-mono font-bold text-emerald-400 text-xl">{stats.healthy}</span>
+          {/* 统计卡片 - 紧凑单行 */}
+          <div className="flex gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface/50 border border-default"
+                 title={t('header.stats.healthy')}>
+              <CheckCircle size={14} className="text-success" />
+              <span className="font-mono font-bold text-success text-lg">{stats.healthy}</span>
             </div>
-            {/* 异常告警 */}
-            <div className="flex flex-col items-center px-4 py-2 rounded-xl bg-slate-900/50 border border-slate-800 backdrop-blur-sm shadow-lg">
-              <div className="flex items-center gap-1.5 text-slate-400 text-xs">
-                <AlertTriangle size={14} className="text-rose-400" />
-                <span>{t('header.stats.issues')}</span>
-              </div>
-              <span className="font-mono font-bold text-rose-400 text-xl">{stats.issues}</span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface/50 border border-default"
+                 title={t('header.stats.issues')}>
+              <AlertTriangle size={14} className="text-danger" />
+              <span className="font-mono font-bold text-danger text-lg">{stats.issues}</span>
             </div>
           </div>
         </div>
       </div>
-
-      {/* 桌面端 Tagline */}
-      <p className="hidden lg:flex text-slate-400 text-sm items-center gap-2">
-        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-        {t('header.tagline')}
-      </p>
 
       {/* 移动端：筛选/刷新 + 推荐按钮 */}
       <div className="flex items-center gap-1.5 lg:hidden">
@@ -306,13 +311,13 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
         {onFilterClick && (
           <button
             onClick={onFilterClick}
-            className="flex items-center gap-1 px-2 py-1 bg-slate-800 text-slate-300 rounded-lg border border-slate-700 hover:bg-slate-750 transition-colors text-xs"
+            className="flex items-center gap-1 px-2 py-1 bg-elevated text-secondary rounded-lg border border-default hover:bg-muted transition-colors text-xs focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
             title={t('controls.mobile.filterBtn')}
           >
             <Filter size={12} />
             <span>{t('controls.mobile.filterBtnShort')}</span>
             {activeFiltersCount > 0 && (
-              <span className="px-1 py-0.5 bg-cyan-500 text-white text-[10px] rounded-full leading-none">
+              <span className="px-1 py-0.5 bg-accent text-inverse text-[10px] rounded-full leading-none">
                 {activeFiltersCount}
               </span>
             )}
@@ -324,13 +329,13 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           <div className="relative">
             <button
               onClick={onRefresh}
-              className="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20 transition-colors border border-cyan-500/20"
+              className="p-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               title={t('common.refresh')}
             >
               <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             </button>
             {refreshCooldown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 bg-slate-800 text-slate-300 text-[10px] rounded whitespace-nowrap shadow-lg border border-slate-700 z-50">
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 bg-elevated text-secondary text-[10px] rounded whitespace-nowrap shadow-lg border border-default z-50">
                 {t('common.refreshCooldown')}
               </div>
             )}
@@ -342,7 +347,7 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-cyan-500/40 bg-cyan-500/10 text-cyan-200 text-xs font-medium shadow-[0_0_8px_rgba(6,182,212,0.2)] hover:bg-cyan-500/20 transition whitespace-nowrap ml-auto"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent text-xs font-medium shadow-accent hover:bg-accent/20 transition whitespace-nowrap ml-auto focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
         >
           <Sparkles size={12} />
           {t('header.recommendBtnShort')}

@@ -15,7 +15,7 @@ function RiskIcon() {
       {/* 警告三角形 */}
       <polygon
         points="12,3 22,21 2,21"
-        className="fill-amber-500/80"
+        className="fill-warning/80"
       />
       {/* 感叹号 */}
       <rect x="11" y="9" width="2" height="6" fill="white" rx="0.5" />
@@ -40,14 +40,14 @@ export function RiskBadge({ risk, className = '' }: RiskBadgeProps) {
       aria-label={`${risk.label}: ${defaultTooltip}`}
     >
       {/* 背景容器 - 淡红色圆角矩形 */}
-      <span className="inline-flex items-center justify-center px-1 py-0.5 bg-red-500/15 rounded">
+      <span className="inline-flex items-center justify-center px-1 py-0.5 bg-danger/15 rounded">
         <RiskIcon />
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
-        <span className="font-medium text-amber-400">{risk.label}</span>
+      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+        <span className="font-medium text-warning">{risk.label}</span>
         {hasLink && (
-          <span className="text-slate-400 ml-1">- {t('badges.risk.clickToView')}</span>
+          <span className="text-secondary ml-1">- {t('badges.risk.clickToView')}</span>
         )}
       </span>
     </span>

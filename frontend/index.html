@@ -7,6 +7,35 @@
     <meta name="description" content="RelayPulse - Monitor availability, latency, and sponsored routes of LLM relay services worldwide in real time, helping developers quickly evaluate provider quality and discover the most stable API providers." />
     <title>RelayPulse - Availability monitoring for LLM relay services</title>
 
+    <!-- 主题初始化脚本（必须同步执行，防止 FOUC 闪烁） -->
+    <script>
+      (function() {
+        var STORAGE_KEY = 'relay-pulse-theme';
+        var DEFAULT_THEME = 'default-dark';
+        var DARK_THEMES = ['default-dark', 'night-dark'];
+        var VALID_THEMES = ['default-dark', 'night-dark', 'light-cool', 'light-warm'];
+
+        var theme = DEFAULT_THEME;
+        try {
+          var stored = localStorage.getItem(STORAGE_KEY);
+          if (stored && VALID_THEMES.indexOf(stored) !== -1) {
+            theme = stored;
+          }
+        } catch (e) {
+          // localStorage 不可用（隐私模式/安全策略），使用默认主题
+        }
+
+        var isDark = DARK_THEMES.indexOf(theme) !== -1;
+        document.documentElement.setAttribute('data-theme', theme);
+        document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+
+        // 设置初始背景色和 loader 颜色（防止白屏）
+        var bgColor = isDark ? '#020617' : '#f8fafc';
+        var loaderColor = isDark ? '#06b6d4' : '#0891b2';
+        document.write('<style>body{background-color:' + bgColor + ';--loader-color:' + loaderColor + '}</style>');
+      })();
+    </script>
+
     <!-- Google Analytics -->
     <script>
       window.GA_MEASUREMENT_ID = '%VITE_GA_MEASUREMENT_ID%';
@@ -27,12 +56,11 @@
       }
     </script>
   </head>
-  <body style="margin: 0; background-color: #020617;">
+  <body style="margin: 0;">
     <div id="root">
       <!-- 初始加载状态：在 React 挂载前显示，避免白屏闪烁 -->
       <div id="initial-loader" style="
         min-height: 100vh;
-        background-color: #020617;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -47,7 +75,7 @@
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #06b6d4, #3b82f6);
+            background: var(--loader-color, #06b6d4);
             animation: bounce 0.6s ease-in-out infinite alternate;
           }
           @keyframes bounce {

@@ -1,0 +1,63 @@
+/**
+ * Light Cool 主题
+ * 冷灰白底，偏蓝灰，专业清爽
+ */
+
+[data-theme="light-cool"] {
+  color-scheme: light;
+
+  /* 背景层次 - 冷灰白 */
+  --bg-page: 210 25% 97%;           /* 微蓝白 */
+  --bg-surface: 210 22% 94%;        /* 浅冷灰 */
+  --bg-elevated: 210 18% 99%;       /* 纯白卡片 */
+  --bg-muted: 210 15% 90%;          /* 分区背景 */
+
+  /* 文字层次 */
+  --text-primary: 215 28% 17%;      /* 深蓝灰 */
+  --text-secondary: 215 18% 40%;    /* 中灰 */
+  --text-muted: 215 12% 55%;        /* 浅灰 */
+  --text-inverse: 210 25% 98%;      /* 白色 */
+
+  /* 边框 */
+  --border-default: 215 18% 85%;
+  --border-strong: 215 15% 75%;
+
+  /* 强调色 - 冷青蓝 */
+  --accent: 192 80% 42%;            /* 冷青蓝 */
+  --accent-strong: 194 85% 35%;
+
+  /* 状态色 */
+  --success: 144 55% 36%;
+  --warning: 38 92% 45%;
+  --danger: 352 75% 50%;
+  --info: 217 80% 50%;              /* 冷蓝 */
+
+  /* 图表色 */
+  --chart-green: 144 55% 36%;
+  --chart-yellow: 38 92% 45%;
+  --chart-red: 352 75% 50%;
+  --chart-gray: 215 15% 65%;
+
+  /* 赞助商色 */
+  --sponsor-basic: 144 55% 36%;
+  --sponsor-advanced: 192 80% 42%;
+  --sponsor-enterprise: 38 92% 45%;
+
+  /* 服务类型色 */
+  --service-cc: 270 50% 55%;        /* 紫色 */
+  --service-cx: 217 80% 50%;        /* 蓝色 */
+
+  /* 辅助色 */
+  --blue: 217 80% 50%;
+  --blue-muted: 217 70% 55%;
+
+  /* 渐变 */
+  --gradient-hero: linear-gradient(135deg, hsl(192 80% 42%), hsl(217 80% 50%));
+  --gradient-button: linear-gradient(to bottom right, hsl(192 80% 42%), hsl(217 80% 50%));
+
+  /* 发光效果 - 亮色主题降低透明度 */
+  --glow-success: 144 55% 36% / 0.4;
+  --glow-warning: 38 92% 45% / 0.4;
+  --glow-danger: 352 75% 50% / 0.4;
+  --glow-muted: 215 15% 65% / 0.3;
+}

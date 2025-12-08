@@ -175,10 +175,10 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
           flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium
           transition-all duration-200 whitespace-nowrap
           ${disabled
-            ? 'bg-slate-800/50 text-slate-500 cursor-not-allowed'
+            ? 'bg-elevated/50 text-muted cursor-not-allowed'
             : value
-              ? 'bg-gradient-to-br from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25'
-              : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80'
+              ? 'bg-gradient-button text-inverse shadow-lg shadow-accent/25'
+              : 'bg-elevated/80 text-secondary hover:bg-muted/80'
           }
         `}
         title={disabled ? t('timeFilter.disabled24h') : undefined}
@@ -190,7 +190,7 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
 
       {/* 下拉菜单 */}
       {isOpen && !disabled && (
-        <div className="absolute top-full left-0 mt-2 z-[9999] min-w-[200px] bg-slate-800 rounded-xl border border-slate-700 shadow-xl overflow-hidden">
+        <div className="absolute top-full left-0 mt-2 z-[9999] min-w-[200px] bg-elevated rounded-xl border border-default shadow-xl overflow-hidden">
           {/* 预设选项 */}
           {!customMode && (
             <div className="py-1">
@@ -203,8 +203,8 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
                     w-full flex items-center justify-between px-4 py-2.5 text-sm
                     transition-colors
                     ${preset.utcValue === value || (preset.utcValue === null && value === null)
-                      ? 'bg-cyan-600/20 text-cyan-400'
-                      : 'text-slate-300 hover:bg-slate-700/50'
+                      ? 'bg-accent/20 text-accent'
+                      : 'text-secondary hover:bg-muted/50'
                     }
                   `}
                 >
@@ -214,7 +214,7 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
               ))}
 
               {/* 分隔线 */}
-              <div className="border-t border-slate-700 my-1" />
+              <div className="border-t border-default my-1" />
 
               {/* 自定义按钮 */}
               <button
@@ -224,8 +224,8 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
                   w-full flex items-center justify-between px-4 py-2.5 text-sm
                   transition-colors
                   ${!matchedPreset && value
-                    ? 'bg-cyan-600/20 text-cyan-400'
-                    : 'text-slate-300 hover:bg-slate-700/50'
+                    ? 'bg-accent/20 text-accent'
+                    : 'text-secondary hover:bg-muted/50'
                   }
                 `}
               >
@@ -238,7 +238,7 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
           {/* 自定义时间选择器（使用本地时间） */}
           {customMode && (
             <div className="p-4 space-y-4">
-              <div className="text-sm text-slate-400 mb-2">
+              <div className="text-sm text-secondary mb-2">
                 {t('timeFilter.customRange.title')} ({timezoneName})
               </div>
 
@@ -246,7 +246,7 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
                 <select
                   value={customStart}
                   onChange={(e) => setCustomStart(e.target.value)}
-                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="flex-1 bg-muted border border-default rounded-lg px-3 py-2 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   {TIME_START_OPTIONS.map((time) => (
                     <option key={time} value={time}>
@@ -255,12 +255,12 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
                   ))}
                 </select>
 
-                <span className="text-slate-400">—</span>
+                <span className="text-secondary">—</span>
 
                 <select
                   value={customEnd}
                   onChange={(e) => setCustomEnd(e.target.value)}
-                  className="flex-1 bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                  className="flex-1 bg-muted border border-default rounded-lg px-3 py-2 text-sm text-primary focus:outline-none focus:ring-2 focus:ring-accent"
                 >
                   {TIME_END_OPTIONS.map((time) => (
                     <option key={time} value={time}>
@@ -272,7 +272,7 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
 
               {/* 验证提示 */}
               {customStart === customEnd && (
-                <div className="text-xs text-rose-400">
+                <div className="text-xs text-danger">
                   {t('timeFilter.validation.startBeforeEnd')}
                 </div>
               )}
@@ -281,7 +281,7 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
                 <button
                   type="button"
                   onClick={() => setCustomMode(false)}
-                  className="flex-1 px-3 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors"
+                  className="flex-1 px-3 py-2 text-sm text-secondary hover:text-primary transition-colors"
                 >
                   {t('common.cancel')}
                 </button>
@@ -292,8 +292,8 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
                   className={`
                     flex-1 px-3 py-2 text-sm rounded-lg transition-colors
                     ${isCustomValid
-                      ? 'bg-cyan-600 text-white hover:bg-cyan-500'
-                      : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+                      ? 'bg-accent text-inverse hover:bg-accent/90'
+                      : 'bg-muted text-muted cursor-not-allowed'
                     }
                   `}
                 >

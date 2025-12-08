@@ -12,7 +12,7 @@ function BasicBadge() {
     <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
         points="12,4 4,18 20,18"
-        className="fill-emerald-500/80"
+        className="fill-success/80"
       />
     </svg>
   );
@@ -24,7 +24,7 @@ function AdvancedBadge() {
     <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
         points="12,2 21,7 21,17 12,22 3,17 3,7"
-        className="fill-cyan-500/80"
+        className="fill-accent/80"
       />
     </svg>
   );
@@ -37,7 +37,7 @@ function EnterpriseBadge() {
       {/* 外层菱形 */}
       <polygon
         points="12,2 22,12 12,22 2,12"
-        className="fill-amber-400"
+        className="fill-warning"
       />
       {/* 中心光点 */}
       <circle
@@ -75,9 +75,9 @@ export function SponsorBadge({ level, className = '' }: SponsorBadgeProps) {
     >
       <BadgeIcon />
       {/* 延迟 tooltip - 悬停 700ms 后显示，左对齐避免左侧裁剪 */}
-      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-slate-800 text-slate-200 text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
         <span className="font-medium">{name}</span>
-        <span className="text-slate-400 ml-1">- {tooltip}</span>
+        <span className="text-secondary ml-1">- {tooltip}</span>
       </span>
     </span>
   );
