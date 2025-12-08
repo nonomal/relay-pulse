@@ -3,6 +3,7 @@ package monitor
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -103,6 +104,10 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 			logger.Warn("probe", "读取响应体失败",
 				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", readErr)
 		}
+
+		// gzip 解压：当 Content-Encoding 包含 gzip 时，手动解压响应体
+		// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
+		bodyBytes = decompressGzipIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel)
 	} else {
 		_, _ = io.Copy(io.Discard, resp.Body)
 	}
@@ -166,6 +171,47 @@ func evaluateStatus(baseStatus int, baseSubStatus storage.SubStatus, body []byte
 	}
 
 	return baseStatus, baseSubStatus
+}
+
+// decompressGzipIfNeeded 检测并解压 gzip 压缩的响应体
+// 当 Content-Encoding 包含 gzip 时进行解压，失败则保留原始数据
+// 额外检测 gzip 魔术头（0x1f 0x8b）作为兜底，处理服务器漏写 Content-Encoding 的情况
+func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service, channel string) []byte {
+	if len(data) == 0 {
+		return data
+	}
+
+	// 检查是否需要解压：Content-Encoding 声明 gzip 或数据以 gzip 魔术头开始
+	contentEncoding := strings.ToLower(resp.Header.Get("Content-Encoding"))
+	isGzipHeader := strings.Contains(contentEncoding, "gzip")
+	isGzipMagic := len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+
+	if !isGzipHeader && !isGzipMagic {
+		return data
+	}
+
+	// 创建 gzip reader
+	gr, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		logger.Warn("probe", "gzip 解压初始化失败，使用原始响应体",
+			"provider", provider, "service", service, "channel", channel, "error", err)
+		return data
+	}
+	defer gr.Close()
+
+	// 读取解压后的数据
+	decompressed, err := io.ReadAll(gr)
+	if err != nil {
+		logger.Warn("probe", "gzip 解压读取失败，使用原始响应体",
+			"provider", provider, "service", service, "channel", channel, "error", err)
+		return data
+	}
+
+	logger.Debug("probe", "gzip 解压成功",
+		"provider", provider, "service", service, "channel", channel,
+		"compressed_size", len(data), "decompressed_size", len(decompressed))
+
+	return decompressed
 }
 
 // determineStatus 根据HTTP状态码和延迟判定监控状态
