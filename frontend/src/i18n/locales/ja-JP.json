@@ -119,7 +119,8 @@
       "status": "現在の状態",
       "service": "サービス種別",
       "priceRatio": "倍率上限",
-      "listedDays": "掲載"
+      "listedDays": "掲載",
+      "latency": "レイテンシ"
     },
     "categoryLabels": {
       "promoted": "商用サイト",
@@ -197,7 +198,8 @@
   "accessibility": {
     "uptimeBlock": "稼働率 {{uptime}}%",
     "noDataBlock": "データなし",
-    "changeLanguage": "言語を切り替え"
+    "changeLanguage": "言語を切り替え",
+    "selectLanguage": "言語を選択"
   },
   "share": {
     "bookmark": "ブックマーク",
@@ -244,5 +246,17 @@
     "ariaLabel": "{{name}} にアクセス（新しいウィンドウで開きます）",
     "ariaLabelGeneric": "外部リンク（新しいウィンドウで開きます）",
     "httpWarning": "暗号化されていない HTTP リンク"
+  },
+  "theme": {
+    "switchTheme": "テーマを切替",
+    "selectTheme": "テーマを選択",
+    "defaultDark": "デフォルトダーク",
+    "nightDark": "ナイトダーク",
+    "lightCool": "ライトクール",
+    "lightWarm": "ライトウォーム",
+    "defaultDarkShort": "暗い",
+    "nightDarkShort": "夜間",
+    "lightCoolShort": "涼色",
+    "lightWarmShort": "暖色"
   }
 }

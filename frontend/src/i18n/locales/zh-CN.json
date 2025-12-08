@@ -119,7 +119,8 @@
       "status": "当前状态",
       "service": "服务类型",
       "priceRatio": "倍率上限",
-      "listedDays": "收录"
+      "listedDays": "收录",
+      "latency": "延迟"
     },
     "categoryLabels": {
       "promoted": "商业站",
@@ -197,7 +198,8 @@
   "accessibility": {
     "uptimeBlock": "可用率 {{uptime}}%",
     "noDataBlock": "无数据",
-    "changeLanguage": "切换语言"
+    "changeLanguage": "切换语言",
+    "selectLanguage": "选择语言"
   },
   "share": {
     "bookmark": "收藏",
@@ -244,5 +246,17 @@
     "ariaLabel": "访问 {{name}}（在新窗口打开）",
     "ariaLabelGeneric": "外部链接（在新窗口打开）",
     "httpWarning": "非加密 HTTP 链接"
+  },
+  "theme": {
+    "switchTheme": "切换主题",
+    "selectTheme": "选择主题",
+    "defaultDark": "默认暗色",
+    "nightDark": "护眼暗色",
+    "lightCool": "冷灰亮色",
+    "lightWarm": "暖灰亮色",
+    "defaultDarkShort": "暗色",
+    "nightDarkShort": "护眼",
+    "lightCoolShort": "冷亮",
+    "lightWarmShort": "暖亮"
   }
 }

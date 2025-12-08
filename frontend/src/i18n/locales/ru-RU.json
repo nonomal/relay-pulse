@@ -119,7 +119,8 @@
       "status": "Текущее состояние",
       "service": "Тип сервиса",
       "priceRatio": "Макс. коэф.",
-      "listedDays": "Дней"
+      "listedDays": "Дней",
+      "latency": "Задержка"
     },
     "categoryLabels": {
       "promoted": "Коммерческий",
@@ -197,7 +198,8 @@
   "accessibility": {
     "uptimeBlock": "Доступность {{uptime}}%",
     "noDataBlock": "Нет данных",
-    "changeLanguage": "Изменить язык"
+    "changeLanguage": "Изменить язык",
+    "selectLanguage": "Выбрать язык"
   },
   "share": {
     "bookmark": "В закладки",
@@ -244,5 +246,17 @@
     "ariaLabel": "Посетить {{name}} (откроется в новом окне)",
     "ariaLabelGeneric": "Внешняя ссылка (откроется в новом окне)",
     "httpWarning": "Незашифрованная HTTP-ссылка"
+  },
+  "theme": {
+    "switchTheme": "Сменить тему",
+    "selectTheme": "Выбрать тему",
+    "defaultDark": "Тёмная по умолчанию",
+    "nightDark": "Ночная тёмная",
+    "lightCool": "Светлая холодная",
+    "lightWarm": "Светлая тёплая",
+    "defaultDarkShort": "Тёмная",
+    "nightDarkShort": "Ночь",
+    "lightCoolShort": "Холод",
+    "lightWarmShort": "Тепло"
   }
 }

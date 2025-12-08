@@ -11,7 +11,8 @@ import { calculateBadgeScore, SPONSOR_WEIGHTS } from './badgeUtils';
  *    - badgeScore: 按徽标综合分数排序（公益站+10，赞助商正向，风险负向）
  *    - currentStatus: 按状态权重排序
  *    - uptime: uptime < 0 视为无数据，始终排最后
- * 3. 二级排序：主字段相等时，按 lastCheckLatency 升序（延迟低的优先）
+ *    - latency: 不可用状态的延迟不参与排序，排最后（无二级排序）
+ * 3. 二级排序：主字段相等时，按 lastCheckLatency 升序（延迟主排序除外）
  *
  * @param data 监控数据数组
  * @param sortConfig 排序配置
@@ -30,7 +31,11 @@ export function sortMonitors(
     if (comparison !== 0) {
       return comparison;
     }
-    // 二级排序：按延迟升序
+    // 延迟主排序时不使用二级排序（UNAVAILABLE 的延迟不参与排序）
+    if (sortConfig.key === 'latency') {
+      return 0;
+    }
+    // 其他字段：二级排序按延迟升序
     return compareLatency(a.lastCheckLatency, b.lastCheckLatency);
   });
 }
@@ -62,6 +67,8 @@ function comparePrimary(
     return comparePriceRatio(a.priceMin, a.priceMax, b.priceMin, b.priceMax, direction);
   } else if (key === 'listedDays') {
     return compareListedDays(a.listedDays, b.listedDays, direction);
+  } else if (key === 'latency') {
+    return compareLatencyPrimary(a, b, direction);
   } else {
     aValue = a[key as keyof ProcessedMonitorData] as number | string;
     bValue = b[key as keyof ProcessedMonitorData] as number | string;
@@ -171,6 +178,42 @@ function compareLatency(
   if (bLatency === undefined) return -1;
   // 按延迟升序（低延迟优先）
   return aLatency - bLatency;
+}
+
+/**
+ * 延迟主排序：不可用状态的延迟不参与排序，排最后
+ *
+ * 优先级（升序时）：
+ * 1. 可用状态 + 有延迟值 → 按延迟排序
+ * 2. 可用状态 + 无延迟值 → 排在有延迟的后面
+ * 3. UNAVAILABLE 状态 → 始终排最后（无论延迟值）
+ */
+function compareLatencyPrimary(
+  a: ProcessedMonitorData,
+  b: ProcessedMonitorData,
+  direction: 'asc' | 'desc'
+): number {
+  const aIsUnavailable = a.currentStatus === 'UNAVAILABLE';
+  const bIsUnavailable = b.currentStatus === 'UNAVAILABLE';
+
+  // UNAVAILABLE 状态始终排最后（优先级最低）
+  if (aIsUnavailable && !bIsUnavailable) return 1;
+  if (!aIsUnavailable && bIsUnavailable) return -1;
+  if (aIsUnavailable && bIsUnavailable) return 0; // 两者都是 UNAVAILABLE，保持原顺序
+
+  // 此时两者都是可用状态，判断是否有延迟值
+  const aHasLatency = a.lastCheckLatency !== undefined;
+  const bHasLatency = b.lastCheckLatency !== undefined;
+
+  // 无延迟值排在有延迟值的后面
+  if (aHasLatency && !bHasLatency) return -1;
+  if (!aHasLatency && bHasLatency) return 1;
+  if (!aHasLatency && !bHasLatency) return 0; // 两者都无延迟，保持原顺序
+
+  // 两者都有延迟值，按延迟比较
+  if (a.lastCheckLatency! < b.lastCheckLatency!) return direction === 'asc' ? -1 : 1;
+  if (a.lastCheckLatency! > b.lastCheckLatency!) return direction === 'asc' ? 1 : -1;
+  return 0;
 }
 
 /**

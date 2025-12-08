@@ -355,4 +355,117 @@ describe('sortMonitors', () => {
       expect(result.map((d) => d.id)).toEqual(['2', '1', '3']);
     });
   });
+
+  describe('延迟主排序', () => {
+    it('按延迟升序排序（有效延迟）', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'AVAILABLE', lastCheckLatency: 300 }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.lastCheckLatency)).toEqual([100, 200, 300]);
+    });
+
+    it('按延迟降序排序', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'AVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '2', currentStatus: 'DEGRADED', lastCheckLatency: 300 }),
+        createMockData({ id: '3', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.lastCheckLatency)).toEqual([300, 200, 100]);
+    });
+
+    it('不可用状态的延迟排最后（无论延迟值大小）', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'UNAVAILABLE', lastCheckLatency: 50 }), // 虽然延迟最低，但不可用
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 300 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      // UNAVAILABLE 排最后，即使其延迟值最小
+      expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('undefined 延迟排最后', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'AVAILABLE', lastCheckLatency: undefined }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('UNAVAILABLE 始终排最后，即使可用状态无延迟', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'UNAVAILABLE', lastCheckLatency: 50 }),  // UNAVAILABLE 排最后
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),   // 有效延迟
+        createMockData({ id: '3', currentStatus: 'AVAILABLE', lastCheckLatency: undefined }), // 可用但无延迟
+        createMockData({ id: '4', currentStatus: 'UNAVAILABLE', lastCheckLatency: 100 }), // UNAVAILABLE 排最后
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      // 优先级：有延迟的可用状态 > 无延迟的可用状态 > UNAVAILABLE
+      // id=2 (200ms) → id=3 (undefined) → id=1 和 id=4 (UNAVAILABLE 保持原顺序)
+      expect(result.map((d) => d.id)).toEqual(['2', '3', '1', '4']);
+    });
+
+    it('绿色和黄色状态同等对待', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'DEGRADED', lastCheckLatency: 100 }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 150 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      // 不区分状态，纯按延迟排序
+      expect(result.map((d) => d.lastCheckLatency)).toEqual([100, 150, 200]);
+    });
+
+    it('降序排序时不可用状态仍排最后', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'UNAVAILABLE', lastCheckLatency: 1000 }), // 虽然延迟最高，但不可用
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 300 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      // 降序排序有效延迟，UNAVAILABLE 仍排最后
+      expect(result.map((d) => d.id)).toEqual(['3', '2', '1']);
+    });
+
+    it('多个 UNAVAILABLE 保持原顺序（延迟不参与排序）', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'UNAVAILABLE', lastCheckLatency: 500 }),
+        createMockData({ id: '2', currentStatus: 'UNAVAILABLE', lastCheckLatency: 100 }), // 延迟更低但不应排到前面
+        createMockData({ id: '3', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'latency', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      // id=3 排第一，id=1 和 id=2 保持原顺序（不按延迟排序）
+      expect(result.map((d) => d.id)).toEqual(['3', '1', '2']);
+    });
+  });
 });

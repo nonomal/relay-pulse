@@ -119,7 +119,8 @@
       "status": "Current status",
       "service": "Service type",
       "priceRatio": "Max Ratio",
-      "listedDays": "Listed"
+      "listedDays": "Listed",
+      "latency": "Latency"
     },
     "categoryLabels": {
       "promoted": "Commercial",
@@ -197,7 +198,8 @@
   "accessibility": {
     "uptimeBlock": "Uptime {{uptime}}%",
     "noDataBlock": "No data",
-    "changeLanguage": "Change language"
+    "changeLanguage": "Change language",
+    "selectLanguage": "Select language"
   },
   "share": {
     "bookmark": "Bookmark",
@@ -244,5 +246,17 @@
     "ariaLabel": "Visit {{name}} (opens in new window)",
     "ariaLabelGeneric": "External link (opens in new window)",
     "httpWarning": "Unencrypted HTTP link"
+  },
+  "theme": {
+    "switchTheme": "Switch theme",
+    "selectTheme": "Select theme",
+    "defaultDark": "Default Dark",
+    "nightDark": "Night Dark",
+    "lightCool": "Light Cool",
+    "lightWarm": "Light Warm",
+    "defaultDarkShort": "Dark",
+    "nightDarkShort": "Night",
+    "lightCoolShort": "Cool",
+    "lightWarmShort": "Warm"
   }
 }

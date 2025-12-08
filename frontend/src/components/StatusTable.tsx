@@ -69,11 +69,11 @@ function MobileListItem({
 
   // 置顶项使用对应徽标颜色的极淡背景色
   const pinnedBgClass = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
-  const baseBgClass = pinnedBgClass || 'bg-slate-900/60';
+  const baseBgClass = pinnedBgClass || 'bg-surface/60';
 
   return (
     <div
-      className={`${baseBgClass} border border-slate-800 rounded-r-xl ${hasLeftBorder ? 'rounded-l-sm border-l-2' : 'rounded-l-xl'} p-3 space-y-2`}
+      className={`${baseBgClass} border border-default rounded-r-xl ${hasLeftBorder ? 'rounded-l-sm border-l-2' : 'rounded-l-xl'} p-3 space-y-2`}
       style={borderColor ? { borderLeftColor: borderColor } : undefined}
     >
       {/* 徽标行 - 仅在有徽标时显示 */}
@@ -90,41 +90,41 @@ function MobileListItem({
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* 服务图标 */}
-          <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-slate-800 flex items-center justify-center border border-slate-700 text-slate-200">
+          <div className="w-8 h-8 flex-shrink-0 rounded-lg bg-elevated flex items-center justify-center border border-default text-primary">
             {ServiceIcon ? (
               <ServiceIcon className="w-4 h-4" />
             ) : item.serviceType === 'cc' ? (
-              <Zap className="text-purple-400" size={14} />
+              <Zap className="text-service-cc" size={14} />
             ) : (
-              <Shield className="text-blue-400" size={14} />
+              <Shield className="text-service-cx" size={14} />
             )}
           </div>
 
           {/* 服务商名称 */}
           <div className="min-w-0 flex-1">
             {showProvider && (
-              <span className="font-semibold text-slate-100 truncate text-sm leading-none block">
+              <span className="font-semibold text-primary truncate text-sm leading-tight block">
                 <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
               </span>
             )}
-            <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+            <div className="flex items-center gap-2 mt-0.5 text-xs text-secondary">
               {/* 赞助者（放在服务类型前） */}
               {showSponsor && item.sponsor && (
-                <span className="text-[10px] text-slate-500 truncate max-w-[80px]">
+                <span className="text-[10px] text-muted truncate max-w-[80px]">
                   <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                 </span>
               )}
               <span
                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 ${
                   item.serviceType === 'cc'
-                    ? 'border-purple-500/30 text-purple-300 bg-purple-500/10'
-                    : 'border-blue-500/30 text-blue-300 bg-blue-500/10'
+                    ? 'border-service-cc text-service-cc bg-service-cc'
+                    : 'border-service-cx text-service-cx bg-service-cx'
                 }`}
               >
                 {item.serviceType.toUpperCase()}
               </span>
               {item.channel && (
-                <span className="text-slate-500 truncate">{item.channel}</span>
+                <span className="text-muted truncate">{item.channel}</span>
               )}
             </div>
           </div>
@@ -132,7 +132,7 @@ function MobileListItem({
 
         {/* 状态、可用率、时间和延迟 */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-slate-800 border border-slate-700">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-elevated border border-default">
             <StatusDot status={item.currentStatus} size="sm" />
             <span className={`text-xs font-bold ${STATUS[item.currentStatus].text}`}>
               {STATUS[item.currentStatus].label}
@@ -145,7 +145,7 @@ function MobileListItem({
             {item.uptime >= 0 ? `${item.uptime}%` : '--'}
           </span>
           {/* 时间和延迟（总是显示） */}
-          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-mono">
+          <div className="flex items-center gap-2 text-[10px] text-muted font-mono">
             {item.lastCheckTimestamp && (
               <span>
                 {new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, {
@@ -199,6 +199,7 @@ function MobileSortMenu({
     { key: 'providerName', label: t('table.sorting.provider') },
     { key: 'uptime', label: t('table.sorting.uptime') },
     { key: 'currentStatus', label: t('table.sorting.status') },
+    { key: 'latency', label: t('table.sorting.latency') },
     { key: 'serviceType', label: t('table.sorting.service') },
     { key: 'priceRatio', label: t('table.sorting.priceRatio') },
     { key: 'listedDays', label: t('table.sorting.listedDays') },
@@ -206,7 +207,7 @@ function MobileSortMenu({
 
   return (
     <div className="flex items-center gap-2 mb-2 overflow-x-auto pb-2">
-      <span className="text-xs text-slate-500 flex-shrink-0">{t('controls.sortBy')}</span>
+      <span className="text-xs text-muted flex-shrink-0">{t('controls.sortBy')}</span>
       {sortOptions.map((option) => {
         // 初始状态下不高亮任何排序按钮
         const isActive = !isInitialSort && sortConfig.key === option.key;
@@ -214,10 +215,10 @@ function MobileSortMenu({
           <button
             key={option.key}
             onClick={() => onSort(option.key)}
-            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
               isActive
-                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
-                : 'bg-slate-800 text-slate-400 border border-slate-700 hover:text-slate-200'
+                ? 'bg-accent/20 text-accent border border-accent/30'
+                : 'bg-elevated text-secondary border border-default hover:text-primary'
             }`}
           >
             {option.label}
@@ -265,9 +266,9 @@ export function StatusTable({
       return <ArrowUpDown size={14} className="opacity-30 ml-1" />;
     }
     return sortConfig.direction === 'asc' ? (
-      <ArrowUp size={14} className="text-cyan-400 ml-1" />
+      <ArrowUp size={14} className="text-accent ml-1" />
     ) : (
-      <ArrowDown size={14} className="text-cyan-400 ml-1" />
+      <ArrowDown size={14} className="text-accent ml-1" />
     );
   };
 
@@ -301,15 +302,18 @@ export function StatusTable({
 
   // 桌面端：表格视图
   return (
-    <div className="overflow-x-auto rounded-2xl border border-slate-800/50 shadow-xl">
-      <table className="w-full text-left border-collapse bg-slate-900/40 backdrop-blur-sm">
+    <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-default/50 shadow-xl">
+      <table className="w-full text-left border-collapse bg-surface/40 backdrop-blur-sm">
         <thead>
-          <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
+          <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 徽标列 - 仅在有徽标时显示，可排序 */}
             {hasBadges && (
               <th
-                className="px-2 py-3 font-medium w-12 cursor-pointer hover:text-cyan-400 transition-colors"
+                className="px-2 py-3 font-medium w-12 cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
                 onClick={() => onSort('badgeScore')}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('badgeScore'))}
+                tabIndex={0}
+                role="button"
               >
                 <div className="flex items-center">
                   {t('table.headers.badge')} <SortIcon columnKey="badgeScore" />
@@ -319,8 +323,11 @@ export function StatusTable({
             {/* 服务商列（合并赞助者） */}
             {showProvider && (
               <th
-                className="px-3 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+                className="px-3 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
                 onClick={() => onSort('providerName')}
+                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('providerName'))}
+                tabIndex={0}
+                role="button"
               >
                 <div className="flex items-center">
                   {t('table.headers.provider')} <SortIcon columnKey="providerName" />
@@ -328,24 +335,33 @@ export function StatusTable({
               </th>
             )}
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('serviceType')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('serviceType'))}
+              tabIndex={0}
+              role="button"
             >
               <div className="flex items-center">
                 {t('table.headers.service')} <SortIcon columnKey="serviceType" />
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('channel')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('channel'))}
+              tabIndex={0}
+              role="button"
             >
               <div className="flex items-center">
                 {t('table.headers.channel')} <SortIcon columnKey="channel" />
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('priceRatio')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('priceRatio'))}
+              tabIndex={0}
+              role="button"
             >
               <div className="flex items-center">
                 <div className="flex flex-col leading-tight">
@@ -356,41 +372,60 @@ export function StatusTable({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('listedDays')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('listedDays'))}
+              tabIndex={0}
+              role="button"
             >
               <div className="flex items-center">
                 {t('table.headers.listedDays')} <SortIcon columnKey="listedDays" />
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('currentStatus')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('currentStatus'))}
+              tabIndex={0}
+              role="button"
             >
               <div className="flex items-center">
                 {t('table.headers.status')} <SortIcon columnKey="currentStatus" />
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-cyan-400 transition-colors whitespace-nowrap"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('uptime')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('uptime'))}
+              tabIndex={0}
+              role="button"
             >
               <div className="flex items-center">
                 {t('table.headers.uptime')} <SortIcon columnKey="uptime" />
               </div>
             </th>
-            <th className="px-2 py-3 font-medium whitespace-nowrap">{t('table.headers.lastCheck')}</th>
+            <th
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              onClick={() => onSort('latency')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('latency'))}
+              tabIndex={0}
+              role="button"
+            >
+              <div className="flex items-center">
+                {t('table.headers.lastCheck')} <SortIcon columnKey="latency" />
+              </div>
+            </th>
             <th className="pl-2 pr-4 py-3 font-medium min-w-[240px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
-                <span className="text-[10px] normal-case opacity-50 border border-slate-700 px-1 rounded">
+                <span className="text-[10px] normal-case opacity-50 border border-default px-1 rounded">
                   {currentTimeRange?.label}
                 </span>
               </div>
             </th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-800/50 text-sm">
+        <tbody className="divide-y divide-default/50 text-sm">
           {data.map((item) => {
             const ServiceIcon = getServiceIconComponent(item.serviceType);
             const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
@@ -398,11 +433,11 @@ export function StatusTable({
             return (
             <tr
               key={item.id}
-              className={`group hover:bg-slate-800/40 transition-[background-color,color] ${pinnedBg} ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
+              className={`group hover:bg-elevated/40 transition-[background-color,color] ${pinnedBg} ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
             >
               {/* 徽标列 - 使用 BadgeCell 统一渲染 */}
               {hasBadges && (
-                <td className="px-2 py-2">
+                <td className="px-2 py-1.5">
                   {hasItemBadges ? (
                     <BadgeCell
                       item={item}
@@ -415,25 +450,25 @@ export function StatusTable({
               )}
               {/* 服务商列（合并赞助者，紧凑两行布局） */}
               {showProvider && (
-                <td className="px-3 py-2">
-                  <div className="flex flex-col">
-                    <span className="font-medium text-slate-200 text-sm leading-none">
+                <td className="px-2 py-1.5">
+                  <div className="flex flex-col gap-0">
+                    <span className="font-medium text-primary text-sm leading-tight">
                       <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
                     </span>
                     {showSponsor && item.sponsor && (
-                      <span className="text-[10px] text-slate-500 leading-none">
+                      <span className="text-[10px] text-muted leading-tight -mt-1">
                         <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                       </span>
                     )}
                   </div>
                 </td>
               )}
-              <td className="px-2 py-2">
+              <td className="px-2 py-1.5">
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${
                     item.serviceType === 'cc'
-                      ? 'border-purple-500/30 text-purple-300 bg-purple-500/10'
-                      : 'border-blue-500/30 text-blue-300 bg-blue-500/10'
+                      ? 'border-service-cc text-service-cc bg-service-cc'
+                      : 'border-service-cx text-service-cx bg-service-cx'
                   }`}
                 >
                   {ServiceIcon ? (
@@ -447,27 +482,27 @@ export function StatusTable({
                   {item.serviceType.toUpperCase()}
                 </span>
               </td>
-              <td className="px-2 py-2 text-slate-400 text-xs">
+              <td className="px-2 py-2 text-secondary text-xs">
                 {item.channel || '-'}
               </td>
               <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">
                 {(() => {
                   const priceData = formatPriceRatioStructured(item.priceMin, item.priceMax);
-                  if (!priceData) return <span className="text-slate-500">-</span>;
+                  if (!priceData) return <span className="text-muted">-</span>;
                   return (
                     <div className="flex flex-col leading-tight">
-                      <span className="text-slate-300">{priceData.base}</span>
+                      <span className="text-secondary">{priceData.base}</span>
                       {priceData.sub && (
-                        <span className="text-[10px] text-slate-500">{priceData.sub}</span>
+                        <span className="text-[10px] text-muted">{priceData.sub}</span>
                       )}
                     </div>
                   );
                 })()}
               </td>
-              <td className="px-2 py-2 font-mono text-xs text-slate-400 whitespace-nowrap">
+              <td className="px-2 py-2 font-mono text-xs text-secondary whitespace-nowrap">
                 {item.listedDays != null ? `${item.listedDays}d` : '-'}
               </td>
-              <td className="px-2 py-2">
+              <td className="px-2 py-1.5">
                 <div className="flex items-center gap-1.5 whitespace-nowrap">
                   <StatusDot status={item.currentStatus} size="sm" />
                   <span className={STATUS[item.currentStatus].text}>
@@ -480,9 +515,9 @@ export function StatusTable({
                   {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </td>
-              <td className="px-2 py-2">
+              <td className="px-2 py-1.5">
                 {item.lastCheckTimestamp ? (
-                  <div className="text-xs text-slate-400 font-mono flex flex-col gap-0.5">
+                  <div className="text-xs text-secondary font-mono flex flex-col gap-0.5">
                     <span>{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                     {item.lastCheckLatency !== undefined && (
                       <span
@@ -494,11 +529,11 @@ export function StatusTable({
                     )}
                   </div>
                 ) : (
-                  <span className="text-slate-600 text-xs">-</span>
+                  <span className="text-muted text-xs">-</span>
                 )}
               </td>
-              <td className="pl-2 pr-4 py-2 align-middle">
-                <div className="flex items-center gap-[2px] h-6 w-full overflow-hidden rounded-sm">
+              <td className="pl-2 pr-4 py-1.5 align-middle">
+                <div className="flex items-center gap-[2px] h-5 w-full overflow-hidden rounded-sm">
                   {item.history.map((point, idx) => (
                     <HeatmapBlock
                       key={idx}
