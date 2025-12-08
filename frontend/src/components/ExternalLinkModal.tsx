@@ -80,7 +80,7 @@ export function ExternalLinkModal({
     >
       <div
         ref={modalRef}
-        className="relative w-full max-w-lg rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl"
+        className="relative w-full max-w-xl rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl"
       >
         {/* 关闭按钮 */}
         <button
