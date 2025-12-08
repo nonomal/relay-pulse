@@ -38,11 +38,6 @@
   --chart-red: 348 72% 48%;
   --chart-gray: 30 12% 60%;
 
-  /* 赞助商色 */
-  --sponsor-basic: 140 50% 34%;
-  --sponsor-advanced: 195 85% 40%;
-  --sponsor-enterprise: 32 95% 44%;
-
   /* 服务类型色 */
   --service-cc: 280 50% 52%;        /* 暖紫 */
   --service-cx: 210 70% 48%;        /* 暖蓝 */

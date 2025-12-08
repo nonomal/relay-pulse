@@ -12,7 +12,7 @@ function BasicBadge() {
     <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
         points="12,4 4,18 20,18"
-        className="fill-success/80"
+        className="fill-sponsor-basic"
       />
     </svg>
   );
@@ -24,7 +24,7 @@ function AdvancedBadge() {
     <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon
         points="12,2 21,7 21,17 12,22 3,17 3,7"
-        className="fill-accent/80"
+        className="fill-sponsor-advanced"
       />
     </svg>
   );
@@ -37,7 +37,7 @@ function EnterpriseBadge() {
       {/* 外层菱形 */}
       <polygon
         points="12,2 22,12 12,22 2,12"
-        className="fill-warning"
+        className="fill-sponsor-enterprise"
       />
       {/* 中心光点 */}
       <circle

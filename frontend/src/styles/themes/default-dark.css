@@ -39,11 +39,6 @@
   --chart-red: 0 84% 60%;           /* #ef4444 red-500 */
   --chart-gray: 215 20% 65%;        /* #94a3b8 slate-400 */
 
-  /* 赞助商色 */
-  --sponsor-basic: 152 76% 39%;     /* emerald-500 */
-  --sponsor-advanced: 187 92% 42%;  /* cyan-500 */
-  --sponsor-enterprise: 43 96% 56%; /* amber-400 */
-
   /* 服务类型色 */
   --service-cc: 270 60% 70%;        /* purple-400 */
   --service-cx: 217 91% 60%;        /* blue-400 */

@@ -106,16 +106,17 @@
   .fill-accent { fill: hsl(var(--accent)); }
   .fill-accent\/80 { fill: hsl(var(--accent) / 0.8); }
 
-  /* 赞助商色 - 仅左边框，避免影响 divide-y 的行分隔线 */
-  .border-sponsor-basic { border-left-color: hsl(var(--sponsor-basic) / 0.4); }
-  .border-sponsor-advanced { border-left-color: hsl(var(--sponsor-advanced) / 0.4); }
-  .border-sponsor-enterprise { border-left-color: hsl(var(--sponsor-enterprise) / 0.4); }
-  .bg-sponsor-basic { background-color: hsl(var(--sponsor-basic) / 0.05); }
-  .bg-sponsor-advanced { background-color: hsl(var(--sponsor-advanced) / 0.05); }
-  .bg-sponsor-enterprise { background-color: hsl(var(--sponsor-enterprise) / 0.05); }
-  .fill-sponsor-basic { fill: hsl(var(--sponsor-basic) / 0.8); }
-  .fill-sponsor-advanced { fill: hsl(var(--sponsor-advanced) / 0.8); }
-  .fill-sponsor-enterprise { fill: hsl(var(--sponsor-enterprise)); }
+  /* 赞助商色 - 固定颜色，不随主题变化（品牌一致性） */
+  /* basic: emerald-500, advanced: cyan-500, enterprise: amber-400 */
+  .border-sponsor-basic { border-left-color: hsl(152 76% 39% / 0.4); }
+  .border-sponsor-advanced { border-left-color: hsl(187 92% 42% / 0.4); }
+  .border-sponsor-enterprise { border-left-color: hsl(43 96% 56% / 0.4); }
+  .bg-sponsor-basic { background-color: hsl(152 76% 39% / 0.05); }
+  .bg-sponsor-advanced { background-color: hsl(187 92% 42% / 0.05); }
+  .bg-sponsor-enterprise { background-color: hsl(43 96% 56% / 0.05); }
+  .fill-sponsor-basic { fill: hsl(152 76% 39% / 0.8); }
+  .fill-sponsor-advanced { fill: hsl(187 92% 42% / 0.8); }
+  .fill-sponsor-enterprise { fill: hsl(43 96% 56%); }
 
   /* 服务类型色 */
   .bg-service-cc { background-color: hsl(var(--service-cc) / 0.1); }

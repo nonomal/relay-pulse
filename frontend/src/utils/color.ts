@@ -226,7 +226,7 @@ export function latencyToColor(latency: number, slowLatencyMs: number): string {
 
 /**
  * 根据赞助商等级返回左边框 Tailwind 类名（用于表格行）
- * 使用语义化 CSS 类名，支持主题切换
+ * 使用固定颜色，不随主题变化（品牌一致性）
  */
 export function sponsorLevelToBorderClass(level?: string): string {
   if (!level) return '';
@@ -240,21 +240,22 @@ export function sponsorLevelToBorderClass(level?: string): string {
 
 /**
  * 根据赞助商等级返回卡片左边框颜色
- * 返回 CSS 变量引用，支持主题切换
+ * 使用固定颜色值，不随主题变化（品牌一致性）
  */
 export function sponsorLevelToCardBorderColor(level?: string): string | undefined {
   if (!level) return undefined;
+  // 固定颜色：basic=emerald, advanced=cyan, enterprise=amber
   const BORDER_COLORS: Record<string, string> = {
-    basic: 'hsl(var(--sponsor-basic) / 0.4)',
-    advanced: 'hsl(var(--sponsor-advanced) / 0.4)',
-    enterprise: 'hsl(var(--sponsor-enterprise) / 0.4)',
+    basic: 'hsl(152 76% 39% / 0.4)',
+    advanced: 'hsl(187 92% 42% / 0.4)',
+    enterprise: 'hsl(43 96% 56% / 0.4)',
   };
   return BORDER_COLORS[level];
 }
 
 /**
  * 根据赞助商等级返回置顶背景色（语义化 CSS 类名）
- * 使用 5% 透明度，支持主题切换
+ * 使用固定颜色（5% 透明度），不随主题变化（品牌一致性）
  */
 export function sponsorLevelToPinnedBgClass(level?: string): string {
   if (!level) return '';
