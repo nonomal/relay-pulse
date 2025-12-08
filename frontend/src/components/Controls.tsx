@@ -138,7 +138,7 @@ export function Controls({
     <>
       <div className="flex flex-col lg:flex-row gap-2 mb-2 lg:mb-3 overflow-visible">
         {/* 筛选和视图控制（移动端隐藏，筛选/刷新已移到 Header） */}
-        <div className="hidden lg:flex flex-1 flex-wrap gap-2 items-center bg-surface/40 p-2 rounded-2xl overflow-visible">
+        <div className="hidden lg:flex flex-1 flex-wrap gap-2 items-center bg-surface/60 p-2 rounded-2xl overflow-visible">
           {/* 桌面端：直接显示筛选器 */}
           <div className="flex items-center gap-2 text-secondary text-sm font-medium px-1">
             <Filter size={16} />
@@ -151,7 +151,7 @@ export function Controls({
 
           {/* 视图切换（仅桌面端显示） */}
           {!isMobile && (
-            <div className="flex bg-elevated rounded-lg p-1 border border-default">
+            <div className="flex bg-surface rounded-lg p-1 border border-default/50 shadow-sm">
               <button
                 onClick={() => onViewModeChange('table')}
                 className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${

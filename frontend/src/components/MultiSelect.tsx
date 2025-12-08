@@ -235,7 +235,7 @@ export function MultiSelect({
                   w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
                   ${isAllSelected
                     ? 'bg-accent border-accent'
-                    : 'border-default'
+                    : 'border-strong'
                   }
                 `}>
                   {isAllSelected && <Check size={12} className="text-inverse" />}
@@ -271,7 +271,7 @@ export function MultiSelect({
                       w-4 h-4 rounded border flex items-center justify-center flex-shrink-0
                       ${isSelected
                         ? 'bg-accent border-accent'
-                        : 'border-default'
+                        : 'border-strong'
                       }
                     `}>
                       {isSelected && <Check size={12} className="text-inverse" />}

@@ -472,11 +472,11 @@ export function StatusTable({
                   }`}
                 >
                   {ServiceIcon ? (
-                    <ServiceIcon className="w-3.5 h-3.5 mr-1" />
+                    <ServiceIcon className="w-3.5 h-3.5 mr-1 text-primary" />
                   ) : (
                     <>
-                      {item.serviceType === 'cc' && <Zap size={10} className="mr-1" />}
-                      {item.serviceType === 'cx' && <Shield size={10} className="mr-1" />}
+                      {item.serviceType === 'cc' && <Zap size={10} className="mr-1 text-primary" />}
+                      {item.serviceType === 'cx' && <Shield size={10} className="mr-1 text-primary" />}
                     </>
                   )}
                   {item.serviceType.toUpperCase()}
