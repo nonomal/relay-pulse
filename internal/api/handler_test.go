@@ -81,7 +81,7 @@ func TestBuildTimelineLatencyCalculation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// 调用 buildTimeline（使用 now 作为 endTime，模拟动态滑动窗口）
-			timeline := h.buildTimeline(tt.records, now, "24h", 0.7)
+			timeline := h.buildTimeline(tt.records, now, "24h", 0.7, nil)
 
 			// 找到有数据的 bucket（最后一个，因为所有记录时间戳都是 now）
 			var latency int
@@ -116,7 +116,7 @@ func TestBuildTimelineLatencyRounding(t *testing.T) {
 		{Status: 1, Latency: 101, Timestamp: now.Unix()},
 	}
 
-	timeline := h.buildTimeline(records, now, "24h", 0.7)
+	timeline := h.buildTimeline(records, now, "24h", 0.7, nil)
 
 	var latency int
 	for _, point := range timeline {

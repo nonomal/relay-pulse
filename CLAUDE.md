@@ -155,7 +155,8 @@ internal/
 ├── scheduler/             → 任务调度
 │   └── scheduler.go       → 周期性健康检查、并发执行
 └── api/                   → HTTP API 层
-    ├── handler.go         → 请求处理器、查询参数处理
+    ├── handler.go         → 请求处理器、查询参数处理、TimeFilter 时段过滤
+    ├── time_filter_test.go → TimeFilter 单元测试
     └── server.go          → Gin 服务器设置、中间件、CORS
 ```
 
@@ -612,9 +613,17 @@ curl http://localhost:8080/api/status
 
 # 查询参数：
 # - period: "24h", "7d", "30d" (默认: "24h")
+# - align: 时间对齐模式，"hour"=整点对齐 (可选)
+# - time_filter: 每日时段过滤，格式 HH:MM-HH:MM (UTC)，仅 7d/30d 可用
 # - provider: 按 provider 名称过滤
 # - service: 按 service 名称过滤
 curl "http://localhost:8080/api/status?period=7d&provider=88code"
+
+# 时段过滤示例：只看工作时间 (09:00-17:00 UTC)
+curl "http://localhost:8080/api/status?period=7d&time_filter=09:00-17:00"
+
+# 跨午夜时段示例：晚高峰 (22:00-04:00 UTC，跨越午夜)
+curl "http://localhost:8080/api/status?period=30d&time_filter=22:00-04:00"
 ```
 
 **响应格式**:
@@ -637,7 +646,7 @@ curl "http://localhost:8080/api/status?period=7d&provider=88code"
 ### 后端测试
 
 - 测试文件与源文件放在一起（`*_test.go`）
-- 关键测试文件：`internal/config/config_test.go`、`internal/monitor/probe_test.go`
+- 关键测试文件：`internal/config/config_test.go`、`internal/monitor/probe_test.go`、`internal/api/time_filter_test.go`
 - 使用 `go test -v` 查看详细输出
 
 ### 前端测试
