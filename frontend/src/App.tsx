@@ -24,6 +24,7 @@ function App() {
   const [urlState, urlActions] = useUrlState();
   const {
     timeRange,
+    timeFilter,      // 每日时段过滤
     filterProvider,
     filterService,
     filterChannel,
@@ -37,6 +38,7 @@ function App() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const {
     setTimeRange,
+    setTimeFilter,   // 每日时段过滤
     setFilterProvider,
     setFilterService,
     setFilterChannel,
@@ -90,6 +92,7 @@ function App() {
   const { loading, error, data, stats, channels, providers, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
     timeAlign,
+    timeFilter,
     filterService,
     filterProvider,
     filterChannel,
@@ -219,6 +222,7 @@ function App() {
             filterCategory={filterCategory}
             timeRange={timeRange}
             timeAlign={timeAlign}
+            timeFilter={timeFilter}
             viewMode={viewMode}
             loading={loading}
             channels={channels}
@@ -232,6 +236,7 @@ function App() {
             onCategoryChange={setFilterCategory}
             onTimeRangeChange={setTimeRange}
             onTimeAlignChange={setTimeAlign}
+            onTimeFilterChange={setTimeFilter}
             onViewModeChange={setViewMode}
             onRefresh={handleRefresh}
             refreshCooldown={refreshCooldown}

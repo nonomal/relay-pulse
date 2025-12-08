@@ -3,6 +3,7 @@ import { Filter, RefreshCw, LayoutGrid, List, X, Clock, AlignStartVertical } fro
 import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
 import { MultiSelect } from './MultiSelect';
+import { TimeFilterPicker } from './TimeFilterPicker';
 import type { MultiSelectOption } from './MultiSelect';
 import type { ViewMode, ProviderOption } from '../types';
 
@@ -12,7 +13,8 @@ interface ControlsProps {
   filterChannel: string[];   // 多选通道，空数组表示"全部"
   filterCategory: string[];  // 多选分类，空数组表示"全部"
   timeRange: string;
-  timeAlign: string; // 时间对齐模式：空=动态窗口, "hour"=整点对齐
+  timeAlign: string;         // 时间对齐模式：空=动态窗口, "hour"=整点对齐
+  timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
   viewMode: ViewMode;
   loading: boolean;
   channels: string[];
@@ -27,7 +29,8 @@ interface ControlsProps {
   onChannelChange: (channels: string[]) => void;    // 多选回调
   onCategoryChange: (categories: string[]) => void; // 多选回调
   onTimeRangeChange: (range: string) => void;
-  onTimeAlignChange: (align: string) => void; // 切换时间对齐模式
+  onTimeAlignChange: (align: string) => void;       // 切换时间对齐模式
+  onTimeFilterChange: (filter: string | null) => void; // 切换每日时段过滤
   onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
 }
@@ -39,6 +42,7 @@ export function Controls({
   filterCategory,
   timeRange,
   timeAlign,
+  timeFilter,
   viewMode,
   loading,
   channels,
@@ -54,6 +58,7 @@ export function Controls({
   onCategoryChange,
   onTimeRangeChange,
   onTimeAlignChange,
+  onTimeFilterChange,
   onViewModeChange,
   onRefresh,
 }: ControlsProps) {
@@ -196,8 +201,8 @@ export function Controls({
           </div>
         </div>
 
-        {/* 时间范围选择（添加横向滚动） */}
-        <div className="bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md flex items-center gap-1 overflow-x-auto scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+        {/* 时间范围选择 */}
+        <div className="relative z-20 bg-slate-900/40 p-2 rounded-2xl border border-slate-800/50 backdrop-blur-md flex items-center gap-1 overflow-visible">
           {/* 时间对齐切换图标（附属于 24h，放在前面） */}
           <button
             onClick={() => {
@@ -231,6 +236,13 @@ export function Controls({
               {range.label}
             </button>
           ))}
+
+          {/* 时段筛选（仅 7d/30d 有效） */}
+          <TimeFilterPicker
+            value={timeFilter}
+            disabled={timeRange === '24h'}
+            onChange={onTimeFilterChange}
+          />
         </div>
       </div>
 

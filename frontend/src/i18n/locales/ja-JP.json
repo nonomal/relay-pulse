@@ -18,7 +18,27 @@
     "lastCheck": "最終チェック",
     "uptime": "稼働率",
     "now": "今",
-    "unknownProvider": "名前のないプロバイダ"
+    "unknownProvider": "名前のないプロバイダ",
+    "cancel": "キャンセル"
+  },
+  "timeFilter": {
+    "presets": {
+      "all": "終日",
+      "work": "勤務時間",
+      "morning": "午前",
+      "afternoon": "午後",
+      "evening": "夜間",
+      "custom": "カスタム"
+    },
+    "disabled24h": "24時間表示では時間帯フィルターは不要です",
+    "customRange": {
+      "title": "カスタム時間帯",
+      "start": "開始時刻",
+      "end": "終了時刻"
+    },
+    "validation": {
+      "startBeforeEnd": "開始時刻は終了時刻より前にしてください"
+    }
   },
   "header": {
     "tagline": "API中継サービスの可用性マトリクスをリアルタイム監視",

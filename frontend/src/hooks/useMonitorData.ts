@@ -77,7 +77,8 @@ const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({
 
 interface UseMonitorDataOptions {
   timeRange: string;
-  timeAlign?: string; // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
+  timeAlign?: string;        // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
+  timeFilter?: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
   filterService: string[];   // 多选服务，空数组表示"全部"
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
   filterChannel: string[];   // 多选通道，空数组表示"全部"
@@ -89,6 +90,7 @@ interface UseMonitorDataOptions {
 export function useMonitorData({
   timeRange,
   timeAlign = '',
+  timeFilter = null,
   filterService,
   filterProvider,
   filterChannel,
@@ -137,7 +139,9 @@ export function useMonitorData({
           // 使用真实 API
           // align 参数仅在 24h 模式下有效
           const alignParam = (timeAlign && timeRange === '24h') ? `&align=${encodeURIComponent(timeAlign)}` : '';
-          const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}`;
+          // time_filter 参数仅在 7d/30d 模式下有效
+          const timeFilterParam = (timeFilter && timeRange !== '24h') ? `&time_filter=${encodeURIComponent(timeFilter)}` : '';
+          const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}${timeFilterParam}`;
 
           // 手动刷新时绕过浏览器缓存
           const fetchOptions: RequestInit = forceRefresh ? { cache: 'no-store' } : {};
@@ -265,7 +269,7 @@ export function useMonitorData({
         clearTimeout(debounceTimer);
       }
     };
-  }, [timeRange, timeAlign, reloadToken, forceRefresh]);
+  }, [timeRange, timeAlign, timeFilter, reloadToken, forceRefresh]);
 
   // 页面可见性驱动的自动轮询
   useEffect(() => {

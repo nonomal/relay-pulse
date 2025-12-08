@@ -18,7 +18,27 @@
     "lastCheck": "最后检测",
     "uptime": "可用率",
     "now": "现在",
-    "unknownProvider": "未命名服务商"
+    "unknownProvider": "未命名服务商",
+    "cancel": "取消"
+  },
+  "timeFilter": {
+    "presets": {
+      "all": "全天",
+      "work": "工作时间",
+      "morning": "上午",
+      "afternoon": "下午",
+      "evening": "晚上",
+      "custom": "自定义"
+    },
+    "disabled24h": "24h 周期无需时段筛选",
+    "customRange": {
+      "title": "自定义时段",
+      "start": "开始时间",
+      "end": "结束时间"
+    },
+    "validation": {
+      "startBeforeEnd": "开始时间必须早于结束时间"
+    }
   },
   "header": {
     "tagline": "实时监控API中转服务可用性矩阵",

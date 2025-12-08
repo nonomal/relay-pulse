@@ -174,3 +174,10 @@ export interface ProviderOption {
   value: string;  // 规范化的键（小写），用于筛选
   label: string;  // 显示标签（保留原始大小写）
 }
+
+// 时段筛选预设
+export interface TimeFilterPreset {
+  id: string;           // 预设 ID（如 'all', 'work', 'morning'）
+  labelKey: string;     // i18n 翻译 key
+  value: string | null; // 时段值：null=全天, "09:00-17:00"=自定义
+}

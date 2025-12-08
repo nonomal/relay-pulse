@@ -18,7 +18,27 @@
     "lastCheck": "Last check",
     "uptime": "Uptime",
     "now": "Now",
-    "unknownProvider": "Unnamed provider"
+    "unknownProvider": "Unnamed provider",
+    "cancel": "Cancel"
+  },
+  "timeFilter": {
+    "presets": {
+      "all": "All day",
+      "work": "Work hours",
+      "morning": "Morning",
+      "afternoon": "Afternoon",
+      "evening": "Evening",
+      "custom": "Custom"
+    },
+    "disabled24h": "Time filter not needed for 24h period",
+    "customRange": {
+      "title": "Custom time range",
+      "start": "Start time",
+      "end": "End time"
+    },
+    "validation": {
+      "startBeforeEnd": "Start time must be before end time"
+    }
   },
   "header": {
     "tagline": "Real-time availability matrix for API relay services",

@@ -1,4 +1,4 @@
-import type { Provider, TimeRange, StatusConfig } from '../types';
+import type { Provider, TimeRange, StatusConfig, TimeFilterPreset } from '../types';
 import type { TFunction } from 'i18next';
 
 // 服务商列表
@@ -139,3 +139,38 @@ export const FEEDBACK_URLS = {
     legacyFeedbackUrl ||
     'https://github.com/prehisle/relay-pulse/issues/new?template=2-bug-report.yml',
 } as const;
+
+// 时段筛选预设配置
+// 注意：value 代表用户本地时间，组件会在发送给后端时转换为 UTC
+export const TIME_FILTER_PRESETS: TimeFilterPreset[] = [
+  { id: 'all', labelKey: 'timeFilter.presets.all', value: null },
+  { id: 'work', labelKey: 'timeFilter.presets.work', value: '09:00-17:00' },      // 本地工作时间
+  { id: 'morning', labelKey: 'timeFilter.presets.morning', value: '06:00-12:00' }, // 本地上午
+  { id: 'afternoon', labelKey: 'timeFilter.presets.afternoon', value: '12:00-18:00' }, // 本地下午
+  { id: 'evening', labelKey: 'timeFilter.presets.evening', value: '18:00-24:00' }, // 本地晚上
+];
+
+// 时段筛选预设工厂函数（i18n 版本）
+export const getTimeFilterPresets = (t: TFunction): Array<TimeFilterPreset & { label: string }> =>
+  TIME_FILTER_PRESETS.map((preset) => ({
+    ...preset,
+    label: t(preset.labelKey),
+  }));
+
+// 生成 30 分钟粒度的时间选项（00:00 到 24:00）
+export const TIME_OPTIONS: string[] = (() => {
+  const options: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 30]) {
+      options.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  options.push('24:00'); // 24:00 表示午夜（结束时间专用）
+  return options;
+})();
+
+// 时段筛选的开始时间选项（00:00 到 23:30，不包括 24:00）
+export const TIME_START_OPTIONS = TIME_OPTIONS.slice(0, -1);
+
+// 时段筛选的结束时间选项（00:30 到 24:00，不包括 00:00）
+export const TIME_END_OPTIONS = TIME_OPTIONS.slice(1);

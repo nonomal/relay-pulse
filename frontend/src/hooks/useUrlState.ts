@@ -17,6 +17,7 @@ import type { ViewMode, SortConfig } from '../types';
 
 interface UrlState {
   timeRange: string;
+  timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
   filterService: string[];   // 多选服务，空数组表示"全部"
   filterChannel: string[];   // 多选通道，空数组表示"全部"
@@ -28,6 +29,7 @@ interface UrlState {
 
 interface UrlStateActions {
   setTimeRange: (value: string) => void;
+  setTimeFilter: (value: string | null) => void; // 每日时段过滤
   setFilterProvider: (value: string[]) => void;  // 多选服务商
   setFilterService: (value: string[]) => void;   // 多选服务
   setFilterChannel: (value: string[]) => void;   // 多选通道
@@ -39,6 +41,7 @@ interface UrlStateActions {
 // 默认值
 const DEFAULTS = {
   timeRange: '24h',
+  timeFilter: null as string | null, // 全天（无过滤）
   filterProvider: [] as string[],  // 空数组表示"全部"
   filterService: [] as string[],   // 空数组表示"全部"
   filterChannel: [] as string[],   // 空数组表示"全部"
@@ -54,6 +57,7 @@ const DEFAULT_SORT_PARAM = `${DEFAULTS.sortKey}_${DEFAULTS.sortDirection}`;
 // URL 参数名映射
 const PARAM_KEYS = {
   timeRange: 'period',
+  timeFilter: 'tf',  // 时段过滤：简短 key 保持 URL 简洁
   filterProvider: 'provider',
   filterService: 'service',
   filterChannel: 'channel',
@@ -147,8 +151,13 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     // - 刷新页面后 hasManualSort 重置为 false，若 URL 无 sort 参数则恢复置顶
     const isInitialSort = !hasManualSort && !hasSortParam;
 
+    // 解析时段过滤参数：空值为 null 表示全天
+    const rawTimeFilter = searchParams.get(PARAM_KEYS.timeFilter);
+    const timeFilter = rawTimeFilter && rawTimeFilter.trim() ? rawTimeFilter.trim() : null;
+
     return {
       timeRange: searchParams.get(PARAM_KEYS.timeRange) || DEFAULTS.timeRange,
+      timeFilter,
       filterProvider: parseArrayParam(PARAM_KEYS.filterProvider, normalizeLower),
       filterService: parseArrayParam(PARAM_KEYS.filterService, normalizeLower),
       filterChannel: parseArrayParam(PARAM_KEYS.filterChannel, normalizePreserveCase),
@@ -176,6 +185,19 @@ export function useUrlState(): [UrlState, UrlStateActions] {
   const setTimeRange = useCallback((value: string) => {
     updateParam(PARAM_KEYS.timeRange, value, DEFAULTS.timeRange);
   }, [updateParam]);
+
+  // 时段过滤 setter（null 表示全天，移除 URL 参数）
+  const setTimeFilter = useCallback((value: string | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === null || value === '') {
+        next.delete(PARAM_KEYS.timeFilter);
+      } else {
+        next.set(PARAM_KEYS.timeFilter, value);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // 多选数组参数的通用 setter
   const setArrayParam = useCallback((
@@ -241,6 +263,7 @@ export function useUrlState(): [UrlState, UrlStateActions] {
 
   const actions: UrlStateActions = {
     setTimeRange,
+    setTimeFilter,
     setFilterProvider,
     setFilterService,
     setFilterChannel,

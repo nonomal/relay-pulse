@@ -39,6 +39,7 @@ export default function ProviderPage() {
 
   // 状态管理
   const [timeRange, setTimeRange] = useState('24h');
+  const [timeFilter, setTimeFilter] = useState<string | null>(null);
   const [filterService, setFilterService] = useState<string[]>([]);
   const [filterChannel, setFilterChannel] = useState<string[]>([]);
   // filterCategory 在 Provider 页面固定为空数组（全部），不需要状态
@@ -92,6 +93,7 @@ export default function ProviderPage() {
   const { data: allData, loading, error, stats, channels, slowLatencyMs, refetch } = useMonitorData({
     timeRange,
     timeAlign,
+    timeFilter,
     filterService,
     filterProvider: [], // 空数组表示全部
     filterChannel,
@@ -222,6 +224,7 @@ export default function ProviderPage() {
         <Controls
           timeRange={timeRange}
           timeAlign={timeAlign}
+          timeFilter={timeFilter}
           filterService={filterService}
           filterProvider={[]}
           filterChannel={filterChannel}
@@ -236,6 +239,7 @@ export default function ProviderPage() {
           onFilterDrawerClose={() => setShowFilterDrawer(false)}
           onTimeRangeChange={setTimeRange}
           onTimeAlignChange={setTimeAlign}
+          onTimeFilterChange={setTimeFilter}
           onServiceChange={setFilterService}
           onProviderChange={() => {}} // 无操作
           onChannelChange={setFilterChannel}

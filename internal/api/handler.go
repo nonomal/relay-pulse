@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,6 +19,97 @@ import (
 	"monitor/internal/logger"
 	"monitor/internal/storage"
 )
+
+// TimeFilter 每日时段过滤器（UTC 时区）
+// 用于过滤特定时间段内的探测记录，如工作时间 09:00-17:00
+// 支持跨午夜的时间范围，如 22:00-04:00（表示 22:00 到次日 04:00）
+type TimeFilter struct {
+	StartHour     int  // 开始小时 (0-23)
+	StartMinute   int  // 开始分钟 (0 或 30)
+	EndHour       int  // 结束小时 (0-24，24:00 表示午夜)
+	EndMinute     int  // 结束分钟 (0 或 30)
+	CrossMidnight bool // 是否跨午夜（start > end）
+}
+
+// timeFilterRegex 时段格式正则：HH:MM-HH:MM
+var timeFilterRegex = regexp.MustCompile(`^(\d{2}):(\d{2})-(\d{2}):(\d{2})$`)
+
+// Contains 检查给定 UTC 时间是否在时段范围内（左闭右开区间）
+// 支持跨午夜的时间范围，如 22:00-04:00
+func (f *TimeFilter) Contains(t time.Time) bool {
+	h, m, _ := t.UTC().Clock()
+	startMinutes := f.StartHour*60 + f.StartMinute
+	endMinutes := f.EndHour*60 + f.EndMinute
+	currentMinutes := h*60 + m
+
+	if f.CrossMidnight {
+		// 跨午夜：22:00-04:00 表示 [22:00, 24:00) ∪ [00:00, 04:00)
+		return currentMinutes >= startMinutes || currentMinutes < endMinutes
+	}
+	// 正常范围：09:00-17:00 表示 [09:00, 17:00)
+	return currentMinutes >= startMinutes && currentMinutes < endMinutes
+}
+
+// String 返回时段的字符串表示
+func (f *TimeFilter) String() string {
+	return fmt.Sprintf("%02d:%02d-%02d:%02d", f.StartHour, f.StartMinute, f.EndHour, f.EndMinute)
+}
+
+// ParseTimeFilter 解析时段参数
+// 返回 nil 表示无过滤（全天）
+// 格式：HH:MM-HH:MM，分钟必须为 00 或 30，支持 24:00 表示午夜
+// 支持跨午夜的时间范围，如 22:00-04:00（表示 22:00 到次日 04:00）
+func ParseTimeFilter(param string) (*TimeFilter, error) {
+	if param == "" {
+		return nil, nil
+	}
+
+	// 正则校验格式
+	matches := timeFilterRegex.FindStringSubmatch(param)
+	if len(matches) != 5 {
+		return nil, fmt.Errorf("无效的时段格式: %s（应为 HH:MM-HH:MM）", param)
+	}
+
+	startH, _ := strconv.Atoi(matches[1])
+	startM, _ := strconv.Atoi(matches[2])
+	endH, _ := strconv.Atoi(matches[3])
+	endM, _ := strconv.Atoi(matches[4])
+
+	// 粒度校验：分钟必须为 00 或 30
+	if (startM != 0 && startM != 30) || (endM != 0 && endM != 30) {
+		return nil, fmt.Errorf("分钟必须为 00 或 30: %s", param)
+	}
+
+	// 范围校验：开始 0-23，结束 0-24
+	if startH < 0 || startH > 23 {
+		return nil, fmt.Errorf("开始小时必须在 0-23 范围内: %s", param)
+	}
+	if endH < 0 || endH > 24 {
+		return nil, fmt.Errorf("结束小时必须在 0-24 范围内: %s", param)
+	}
+	// 24:00 只允许 24:00，不允许 24:30
+	if endH == 24 && endM != 0 {
+		return nil, fmt.Errorf("24 点只允许 24:00: %s", param)
+	}
+
+	// 判断是否跨午夜
+	startTotal := startH*60 + startM
+	endTotal := endH*60 + endM
+	crossMidnight := startTotal >= endTotal
+
+	// 开始和结束相同时无效（无时段）
+	if startTotal == endTotal {
+		return nil, fmt.Errorf("开始时间不能等于结束时间: %s", param)
+	}
+
+	return &TimeFilter{
+		StartHour:     startH,
+		StartMinute:   startM,
+		EndHour:       endH,
+		EndMinute:     endM,
+		CrossMidnight: crossMidnight,
+	}, nil
+}
 
 // statusCache API 响应缓存，防止高频查询打爆数据库
 type statusCache struct {
@@ -176,7 +269,8 @@ type MonitorResult struct {
 func (h *Handler) GetStatus(c *gin.Context) {
 	// 参数解析
 	period := c.DefaultQuery("period", "24h")
-	align := c.DefaultQuery("align", "") // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
+	align := c.DefaultQuery("align", "")                 // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
+	timeFilterParam := c.DefaultQuery("time_filter", "") // 每日时段过滤：HH:MM-HH:MM（UTC）
 	qProvider := strings.ToLower(strings.TrimSpace(c.DefaultQuery("provider", "all")))
 	qService := c.DefaultQuery("service", "all")
 	// include_hidden 参数：用于内部调试，默认不包含隐藏的监控项
@@ -198,15 +292,36 @@ func (h *Handler) GetStatus(c *gin.Context) {
 		return
 	}
 
+	// 验证 time_filter 参数
+	var timeFilter *TimeFilter
+	if timeFilterParam != "" {
+		// 时段过滤仅支持 7d 和 30d 周期
+		if period == "24h" || period == "1d" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "时段过滤仅支持 7d 和 30d 周期",
+			})
+			return
+		}
+
+		var err error
+		timeFilter, err = ParseTimeFilter(timeFilterParam)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+	}
+
 	// 构建缓存 key（使用明确的分隔符避免碰撞）
-	cacheKey := fmt.Sprintf("p=%s|align=%s|prov=%s|svc=%s|hidden=%t", period, align, qProvider, qService, includeHidden)
+	cacheKey := fmt.Sprintf("p=%s|align=%s|tf=%s|prov=%s|svc=%s|hidden=%t", period, align, timeFilterParam, qProvider, qService, includeHidden)
 
 	// 使用缓存（singleflight 防止缓存击穿）
 	// 注意：使用独立 context，避免单个请求取消影响其他等待的请求
 	data, err := h.cache.load(cacheKey, func() ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		return h.queryAndSerialize(ctx, period, align, qProvider, qService, includeHidden)
+		return h.queryAndSerialize(ctx, period, align, timeFilter, qProvider, qService, includeHidden)
 	})
 
 	if err != nil {
@@ -224,7 +339,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 }
 
 // queryAndSerialize 查询数据库并序列化为 JSON（缓存 miss 时调用）
-func (h *Handler) queryAndSerialize(ctx context.Context, period, align, qProvider, qService string, includeHidden bool) ([]byte, error) {
+func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, timeFilter *TimeFilter, qProvider, qService string, includeHidden bool) ([]byte, error) {
 	// 解析时间范围（支持对齐模式）
 	startTime, endTime := h.parseTimeRange(period, align)
 
@@ -261,10 +376,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align, qProvide
 
 	if enableConcurrent {
 		mode = "concurrent"
-		response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, concurrentLimit)
+		response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit)
 	} else {
 		mode = "serial"
-		response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight)
+		response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter)
 	}
 
 	if err != nil {
@@ -290,6 +405,11 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align, qProvide
 		meta["align"] = align
 		meta["start_time"] = startTime.UTC().Format(time.RFC3339)
 		meta["end_time"] = endTime.UTC().Format(time.RFC3339)
+	}
+	// 返回时段过滤信息
+	if timeFilter != nil {
+		meta["time_filter"] = timeFilter.String()
+		meta["timezone"] = "UTC"
 	}
 
 	result := gin.H{
@@ -340,7 +460,7 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 }
 
 // getStatusSerial 串行查询（原有逻辑）
-func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64) ([]MonitorResult, error) {
+func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) ([]MonitorResult, error) {
 	var response []MonitorResult
 	store := h.storage.WithContext(ctx)
 
@@ -358,7 +478,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 		}
 
 		// 构建响应
-		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight)
+		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter)
 		response = append(response, result)
 	}
 
@@ -366,7 +486,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 }
 
 // getStatusConcurrent 并发查询（使用 errgroup + 并发限制）
-func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, limit int) ([]MonitorResult, error) {
+func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, limit int) ([]MonitorResult, error) {
 	// 使用请求的 context（支持取消）
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(limit) // 限制最大并发度
@@ -391,7 +511,7 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 			}
 
 			// 构建响应（固定位置写入，保持顺序）
-			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight)
+			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter)
 			return nil
 		})
 	}
@@ -405,9 +525,9 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 }
 
 // buildMonitorResult 构建单个监控项的响应结构
-func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64) MonitorResult {
+func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) MonitorResult {
 	// 转换为时间轴数据
-	timeline := h.buildTimeline(history, endTime, period, degradedWeight)
+	timeline := h.buildTimeline(history, endTime, period, degradedWeight, timeFilter)
 
 	// 转换为API响应格式（不暴露数据库主键）
 	var current *CurrentStatus
@@ -536,7 +656,8 @@ type bucketStats struct {
 
 // buildTimeline 构建固定长度的时间轴，计算每个 bucket 的可用率和平均延迟
 // endTime 为时间窗口的结束时间（对齐模式下为整点，动态模式下为当前时间）
-func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64) []storage.TimePoint {
+// timeFilter 为每日时段过滤器，nil 表示全天（不过滤）
+func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) []storage.TimePoint {
 	// 根据 period 确定 bucket 策略
 	bucketCount, bucketWindow, format := h.determineBucketStrategy(period)
 
@@ -561,6 +682,12 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 	// 聚合每个 bucket 的探测结果
 	for _, record := range records {
 		t := time.Unix(record.Timestamp, 0)
+
+		// 时段过滤：跳过不在指定时间段内的记录
+		if timeFilter != nil && !timeFilter.Contains(t) {
+			continue
+		}
+
 		timeDiff := baseTime.Sub(t)
 
 		// 跳过超出时间窗口的记录：
