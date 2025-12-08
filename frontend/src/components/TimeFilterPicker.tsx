@@ -44,20 +44,30 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
   }, [localToUtc]);
 
   // 将 UTC 时间范围转换为本地时间范围
+  // 特殊处理：结束时间 00:00 显示为 24:00（表示当天结束）
   const utcRangeToLocal = useCallback((utcRange: string): string => {
     const [utcStart, utcEnd] = utcRange.split('-');
-    return `${utcToLocal(utcStart)}-${utcToLocal(utcEnd)}`;
+    const localStart = utcToLocal(utcStart);
+    let localEnd = utcToLocal(utcEnd);
+    if (localEnd === '00:00') {
+      localEnd = '24:00';
+    }
+    return `${localStart}-${localEnd}`;
   }, [utcToLocal]);
 
   // 从 UTC value 解析并转换为本地时间
+  // 特殊处理：结束时间 00:00 应显示为 24:00（表示当天结束）
   const parseValueToLocal = useCallback((val: string | null): { start: string; end: string } => {
     if (val && val.includes('-')) {
       const [utcStart, utcEnd] = val.split('-');
       if (utcStart && utcEnd) {
-        return {
-          start: utcToLocal(utcStart),
-          end: utcToLocal(utcEnd),
-        };
+        const localStart = utcToLocal(utcStart);
+        let localEnd = utcToLocal(utcEnd);
+        // 结束时间 00:00 显示为 24:00（午夜作为一天的结束而非开始）
+        if (localEnd === '00:00') {
+          localEnd = '24:00';
+        }
+        return { start: localStart, end: localEnd };
       }
     }
     // 默认值：本地时间 09:00-17:00
