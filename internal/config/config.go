@@ -46,8 +46,8 @@ type ServiceConfig struct {
 	Sponsor      string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
 	SponsorURL   string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
 	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
-	PriceMin     *float64          `yaml:"price_min" json:"price_min"`         // 承诺倍率下限（可选，如 0.05）
-	PriceMax     *float64          `yaml:"price_max" json:"price_max"`         // 承诺倍率上限（可选，如 0.2）
+	PriceMin     *float64          `yaml:"price_min" json:"price_min"`         // 参考倍率下限（可选，如 0.05）
+	PriceMax     *float64          `yaml:"price_max" json:"price_max"`         // 参考倍率上限（可选，如 0.2）
 	Risks        []RiskBadge       `yaml:"-" json:"risks,omitempty"`           // 风险徽标（由 risk_providers 自动注入，不在此配置）
 	Channel      string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
 	ListedSince  string            `yaml:"listed_since" json:"listed_since"`   // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数

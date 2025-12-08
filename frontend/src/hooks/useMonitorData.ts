@@ -219,8 +219,8 @@ export function useMonitorData({
               sponsorUrl: validateUrl(item.sponsor_url),
               sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
               risks: item.risks,  // 直接传递风险徽标数组
-              priceMin: item.price_min ?? null,  // 承诺倍率下限
-              priceMax: item.price_max ?? null,  // 承诺倍率上限
+              priceMin: item.price_min ?? null,  // 参考倍率下限
+              priceMax: item.price_max ?? null,  // 参考倍率上限
               listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
               history,

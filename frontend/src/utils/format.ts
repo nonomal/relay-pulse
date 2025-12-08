@@ -7,7 +7,7 @@ function formatNum(n: number): string {
 }
 
 /**
- * 格式化承诺倍率显示（简单字符串版本）
+ * 格式化参考倍率显示（简单字符串版本）
  * @param priceMin 倍率下限
  * @param priceMax 倍率上限
  * @returns 格式化字符串，如 "0.2" 或 "≤0.2 · 0.05~"
@@ -38,7 +38,7 @@ export function formatPriceRatio(
 }
 
 /**
- * 格式化承诺倍率（结构化版本，上限为主、下限为辅）
+ * 格式化参考倍率（结构化版本，上限为主、下限为辅）
  * @param priceMin 倍率下限
  * @param priceMax 倍率上限
  * @returns { base: string, sub?: string } 或 null

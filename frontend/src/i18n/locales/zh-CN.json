@@ -104,7 +104,7 @@
       "sponsor": "赞助者",
       "service": "服务",
       "channel": "通道",
-      "priceRatio": "承诺倍率上限",
+      "priceRatio": "参考倍率上限",
       "priceRatioUnit": "¥/$",
       "listedDays": "收录天数",
       "status": "当前状态",
