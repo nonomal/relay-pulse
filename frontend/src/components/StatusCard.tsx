@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, memo } from 'react';
 import { Activity, Clock, Zap, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
@@ -15,6 +15,15 @@ import type { ProcessedMonitorData } from '../types';
 
 type HistoryPoint = ProcessedMonitorData['history'][number];
 
+// ServiceIcon 模块级缓存，与 StatusTable 保持一致
+const serviceIconCache = new Map<string, ReturnType<typeof getServiceIconComponent>>();
+const getCachedServiceIcon = (serviceType: string) => {
+  if (!serviceIconCache.has(serviceType)) {
+    serviceIconCache.set(serviceType, getServiceIconComponent(serviceType));
+  }
+  return serviceIconCache.get(serviceType);
+};
+
 interface StatusCardProps {
   item: ProcessedMonitorData;
   timeRange: string;
@@ -26,7 +35,7 @@ interface StatusCardProps {
   onBlockLeave: () => void;
 }
 
-export function StatusCard({
+function StatusCardComponent({
   item,
   timeRange,
   slowLatencyMs,
@@ -46,7 +55,7 @@ export function StatusCard({
 
   const STATUS = getStatusConfig(t);
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
-  const ServiceIcon = getServiceIconComponent(item.serviceType);
+  const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
   // 检查是否有徽标需要显示
   const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
@@ -181,6 +190,7 @@ export function StatusCard({
               width={`${100 / aggregatedHistory.length}%`}
               onHover={onBlockHover}
               onLeave={onBlockLeave}
+              isMobile={false}
             />
           ))}
         </div>
@@ -195,3 +205,5 @@ export function StatusCard({
     </div>
   );
 }
+
+export const StatusCard = memo(StatusCardComponent);

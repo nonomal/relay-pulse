@@ -151,7 +151,7 @@ function App() {
     setSortConfig({ key, direction });
   };
 
-  const handleBlockHover = (
+  const handleBlockHover = useCallback((
     e: React.MouseEvent<HTMLDivElement>,
     point: ProcessedMonitorData['history'][number]
   ) => {
@@ -162,11 +162,11 @@ function App() {
       y: rect.top - 10,
       data: point,
     });
-  };
+  }, []);
 
-  const handleBlockLeave = () => {
+  const handleBlockLeave = useCallback(() => {
     setTooltip((prev) => ({ ...prev, show: false }));
-  };
+  }, []);
 
   const handleRefresh = () => {
     const now = Date.now();

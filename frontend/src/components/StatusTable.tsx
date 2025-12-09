@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
+import { FixedSizeList as List, type ListChildComponentProps } from 'react-window';
 import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
@@ -15,6 +16,19 @@ import { getServiceIconComponent } from './ServiceIcon';
 import type { ProcessedMonitorData, SortConfig } from '../types';
 
 type HistoryPoint = ProcessedMonitorData['history'][number];
+
+// 虚拟滚动常量
+const MOBILE_ROW_HEIGHT = 160;  // 移动端卡片高度（约 150px 内容 + 10px 间距）
+const MOBILE_MAX_HEIGHT = 800;  // 移动端列表最大高度
+
+// ServiceIcon 模块级缓存，避免重复调用 getServiceIconComponent
+const serviceIconCache = new Map<string, ReturnType<typeof getServiceIconComponent>>();
+const getCachedServiceIcon = (serviceType: string) => {
+  if (!serviceIconCache.has(serviceType)) {
+    serviceIconCache.set(serviceType, getServiceIconComponent(serviceType));
+  }
+  return serviceIconCache.get(serviceType);
+};
 
 interface StatusTableProps {
   data: ProcessedMonitorData[];
@@ -50,7 +64,7 @@ function MobileListItem({
 }) {
   const { t, i18n } = useTranslation();
   const STATUS = getStatusConfig(t);
-  const ServiceIcon = getServiceIconComponent(item.serviceType);
+  const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
   // 聚合热力图数据
   const aggregatedHistory = useMemo(
@@ -71,10 +85,17 @@ function MobileListItem({
   const pinnedBgClass = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
   const baseBgClass = pinnedBgClass || 'bg-surface/60';
 
+  // 卡片最小高度 = 行高(160) - 行间距(8) = 152px
+  // 确保所有卡片高度一致，避免虚拟列表中间距不均
+  const cardMinHeight = 152;
+
   return (
     <div
       className={`${baseBgClass} border border-default rounded-r-xl ${hasLeftBorder ? 'rounded-l-sm border-l-2' : 'rounded-l-xl'} p-3 space-y-2`}
-      style={borderColor ? { borderLeftColor: borderColor } : undefined}
+      style={{
+        ...(borderColor ? { borderLeftColor: borderColor } : {}),
+        minHeight: cardMinHeight,
+      }}
     >
       {/* 徽标行 - 仅在有徽标时显示 */}
       {hasItemBadges && (
@@ -126,6 +147,12 @@ function MobileListItem({
               {item.channel && (
                 <span className="text-muted truncate">{item.channel}</span>
               )}
+              {/* 收录时间 */}
+              {item.listedDays != null && (
+                <span className="text-[10px] text-muted font-mono flex-shrink-0">
+                  {item.listedDays}d
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -175,6 +202,7 @@ function MobileListItem({
             height="h-full"
             onHover={onBlockHover}
             onLeave={onBlockLeave}
+            isMobile
           />
         ))}
       </div>
@@ -236,7 +264,7 @@ function MobileSortMenu({
   );
 }
 
-export function StatusTable({
+function StatusTableComponent({
   data,
   sortConfig,
   isInitialSort = false,
@@ -274,25 +302,44 @@ export function StatusTable({
 
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
 
-  // 移动端：卡片列表视图
+  // 移动端：虚拟滚动卡片列表视图
   if (isMobile) {
+    // 计算虚拟列表高度（最大 MOBILE_MAX_HEIGHT，最小为所有项目高度）
+    const mobileListHeight = Math.min(
+      data.length * MOBILE_ROW_HEIGHT,
+      MOBILE_MAX_HEIGHT
+    );
+
+    // 虚拟列表行渲染函数（itemSize=208，卡片高度200，底部留8px间距）
+    const renderMobileRow = ({ index, style }: ListChildComponentProps) => (
+      <div style={style}>
+        <div style={{ marginBottom: 8 }}>
+          <MobileListItem
+            item={data[index]}
+            slowLatencyMs={slowLatencyMs}
+            showCategoryTag={showCategoryTag}
+            showProvider={showProvider}
+            showSponsor={showSponsor}
+            onBlockHover={onBlockHover}
+            onBlockLeave={onBlockLeave}
+          />
+        </div>
+      </div>
+    );
+
     return (
       <div>
         <MobileSortMenu sortConfig={sortConfig} isInitialSort={isInitialSort} onSort={onSort} />
-        <div className="space-y-2">
-          {data.map((item) => (
-            <MobileListItem
-              key={item.id}
-              item={item}
-              slowLatencyMs={slowLatencyMs}
-              showCategoryTag={showCategoryTag}
-              showProvider={showProvider}
-              showSponsor={showSponsor}
-              onBlockHover={onBlockHover}
-              onBlockLeave={onBlockLeave}
-            />
-          ))}
-        </div>
+        <List
+          height={mobileListHeight}
+          itemCount={data.length}
+          itemSize={MOBILE_ROW_HEIGHT}
+          width="100%"
+          overscanCount={3}
+          itemKey={(index) => data[index].id}
+        >
+          {renderMobileRow}
+        </List>
       </div>
     );
   }
@@ -427,7 +474,7 @@ export function StatusTable({
         </thead>
         <tbody className="divide-y divide-default/50 text-sm">
           {data.map((item) => {
-            const ServiceIcon = getServiceIconComponent(item.serviceType);
+            const ServiceIcon = getCachedServiceIcon(item.serviceType);
             const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
             const pinnedBg = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
             return (
@@ -542,6 +589,7 @@ export function StatusTable({
                       height="h-full"
                       onHover={onBlockHover}
                       onLeave={onBlockLeave}
+                      isMobile={false}
                     />
                   ))}
                 </div>
@@ -554,3 +602,5 @@ export function StatusTable({
     </div>
   );
 }
+
+export const StatusTable = memo(StatusTableComponent);
