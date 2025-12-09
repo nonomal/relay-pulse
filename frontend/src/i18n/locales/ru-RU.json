@@ -107,9 +107,9 @@
       "priceRatio": "Макс. коэф.",
       "priceRatioUnit": "¥/$",
       "listedDays": "Дней в списке",
-      "status": "Текущее состояние",
-      "uptime": "Доступность",
-      "lastCheck": "Последняя проверка",
+      "status": "Статус",
+      "uptime": "Доступн.",
+      "lastCheck": "Проверка",
       "trend": "Тренд качества"
     },
     "sorting": {
