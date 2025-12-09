@@ -218,7 +218,7 @@ export function useMonitorData({
               sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
               risks: item.risks,  // 直接传递风险徽标数组
               priceMin: item.price_min ?? null,  // 参考倍率下限
-              priceMax: item.price_max ?? null,  // 参考倍率上限
+              priceMax: item.price_max ?? null,  // 参考倍率
               listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
               history,

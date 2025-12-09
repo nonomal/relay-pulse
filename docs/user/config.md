@@ -48,7 +48,7 @@ monitors:
     sponsor_level: "advanced"  # 赞助等级（可选）: basic/advanced/enterprise
     channel: "vip"             # 业务通道（可选）
     price_min: 0.05            # 参考倍率下限（可选）
-    price_max: 0.2             # 参考倍率上限（可选）: 显示为 "0.125 / 0.05~0.2"
+    price_max: 0.2             # 参考倍率（可选）: 显示为 "0.125 / 0.05~0.2"
     listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
     url: "https://api.88code.com/v1/chat/completions"  # 健康检查端点（必填）
     method: "POST"             # HTTP 方法（必填）
@@ -380,9 +380,9 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 ##### `price_max`
 - **类型**: number（可选）
-- **说明**: 服务商声明的参考倍率上限
+- **说明**: 服务商声明的参考倍率（用于排序和显示）
 - **约束**: 不能为负数；若同时配置 `price_min`，则 `price_max` 必须 ≥ `price_min`
-- **排序**: 按上限排序（用户关心"最多付多少"），未配置的排最后
+- **排序**: 按此值排序（用户关心"最多付多少"），未配置的排最后
 - **显示逻辑**:
   - 若 `price_min == price_max`：只显示单个值
   - 若不同：显示中心值 + 区间，如 `0.125 / 0.05~0.2`

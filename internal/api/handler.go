@@ -258,7 +258,7 @@ type MonitorResult struct {
 	SponsorLevel config.SponsorLevel `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
 	Risks        []config.RiskBadge  `json:"risks,omitempty"`         // 风险徽标数组
 	PriceMin     *float64            `json:"price_min,omitempty"`     // 参考倍率下限
-	PriceMax     *float64            `json:"price_max,omitempty"`     // 参考倍率上限
+	PriceMax     *float64            `json:"price_max,omitempty"`     // 参考倍率
 	ListedDays   *int                `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
 	Channel      string              `json:"channel"`                 // 业务通道标识
 	Current      *CurrentStatus      `json:"current_status"`

@@ -104,7 +104,7 @@
       "sponsor": "Спонсор",
       "service": "Сервис",
       "channel": "Канал",
-      "priceRatio": "Макс. коэф.",
+      "priceRatio": "Цен. коэф.",
       "priceRatioUnit": "¥/$",
       "listedDays": "Дней в списке",
       "status": "Статус",
@@ -118,7 +118,7 @@
       "uptime": "Доступность",
       "status": "Текущее состояние",
       "service": "Тип сервиса",
-      "priceRatio": "Макс. коэф.",
+      "priceRatio": "Цен. коэф.",
       "listedDays": "Дней",
       "latency": "Задержка"
     },
