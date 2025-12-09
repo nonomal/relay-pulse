@@ -1,14 +1,9 @@
 name: Test
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'archive/**'
   pull_request:
     branches: [main]
+  workflow_dispatch:  # 允许手动触发
 
 jobs:
   test:
