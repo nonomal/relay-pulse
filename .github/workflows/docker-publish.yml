@@ -118,7 +118,7 @@ jobs:
         id: meta
         run: |
           GIT_COMMIT=$(git rev-parse --short HEAD)
-          BUILD_TIME=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
+          BUILD_TIME=$(git show -s --format=%cI HEAD)  # 使用 commit 时间，稳定缓存
 
           # 判断是 tag 还是 branch
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then

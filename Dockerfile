@@ -59,11 +59,10 @@ COPY internal/ ./internal/
 RUN rm -rf internal/api/frontend/dist && mkdir -p internal/api/frontend/dist
 COPY --from=frontend /build/dist/. ./internal/api/frontend/dist/
 
-# 验证构建产物已正确复制（包含 assets 目录和 favicon.svg）
-RUN ls -la ./internal/api/frontend/dist && \
-    ls -la ./internal/api/frontend/dist/assets && \
+# 验证关键前端产物存在
+RUN test -f ./internal/api/frontend/dist/index.html && \
     test -f ./internal/api/frontend/dist/favicon.svg && \
-    echo "✅ Frontend assets verified (including favicon.svg)"
+    echo "Frontend assets verified"
 
 # 获取构建时间和版本信息
 ARG VERSION=dev
