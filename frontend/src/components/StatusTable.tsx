@@ -350,20 +350,7 @@ function StatusTableComponent({
   // 桌面端：表格视图
   return (
     <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-default/50 shadow-xl">
-      <table className="w-full text-left border-collapse bg-surface/40 backdrop-blur-sm table-fixed">
-        {/* 使用 colgroup 定义列宽，确保热力图列获得足够空间 */}
-        <colgroup>
-          {hasBadges && <col className="w-12" />}
-          {showProvider && <col className="w-[120px]" />}
-          <col className="w-16" />  {/* 服务类型 */}
-          <col className="w-20" />  {/* 渠道 */}
-          <col className="w-16" />  {/* 倍率 */}
-          <col className="w-14" />  {/* 收录天数 */}
-          <col className="w-20" />  {/* 当前状态 */}
-          <col className="w-16" />  {/* 可用率 */}
-          <col className="w-24" />  {/* 最后检测 */}
-          <col />  {/* 热力图列 - 自动填充剩余空间 */}
-        </colgroup>
+      <table className="w-full text-left border-collapse bg-surface/40 backdrop-blur-sm">
         <thead>
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 徽标列 - 仅在有徽标时显示，可排序 */}
@@ -475,7 +462,7 @@ function StatusTableComponent({
                 {t('table.headers.lastCheck')} <SortIcon columnKey="latency" />
               </div>
             </th>
-            <th className="pl-2 pr-4 py-3 font-medium min-w-[280px]">
+            <th className="pl-2 pr-4 py-3 font-medium w-[280px] min-w-[240px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-default px-1 rounded">
