@@ -131,7 +131,7 @@ export const USE_MOCK_DATA =
 // 向后兼容：优先使用新的环境变量，回退到旧的 VITE_FEEDBACK_URL
 const legacyFeedbackUrl = import.meta.env.VITE_FEEDBACK_URL;
 export const FEEDBACK_URLS = {
-  // 推荐服务商
+  // 申请收录
   PROVIDER_SUGGESTION:
     import.meta.env.VITE_FEEDBACK_PROVIDER_URL ||
     legacyFeedbackUrl ||

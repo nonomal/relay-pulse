@@ -42,8 +42,8 @@
   },
   "header": {
     "tagline": "Real-time availability matrix for API relay services",
-    "recommendBtn": "Recommend a provider",
-    "recommendBtnShort": "Suggest",
+    "recommendBtn": "Submit provider",
+    "recommendBtnShort": "Submit",
     "stats": {
       "healthy": "Operational",
       "issues": "Issues detected"

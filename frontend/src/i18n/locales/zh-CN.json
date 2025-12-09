@@ -42,8 +42,8 @@
   },
   "header": {
     "tagline": "实时监控API中转服务可用性矩阵",
-    "recommendBtn": "推荐服务商",
-    "recommendBtnShort": "推荐",
+    "recommendBtn": "申请收录",
+    "recommendBtnShort": "收录",
     "stats": {
       "healthy": "正常运行",
       "issues": "异常告警"

@@ -42,8 +42,8 @@
   },
   "header": {
     "tagline": "API中継サービスの可用性マトリクスをリアルタイム監視",
-    "recommendBtn": "プロバイダを推薦する",
-    "recommendBtnShort": "推薦",
+    "recommendBtn": "掲載申請",
+    "recommendBtnShort": "申請",
     "stats": {
       "healthy": "正常稼働",
       "issues": "異常アラート"
