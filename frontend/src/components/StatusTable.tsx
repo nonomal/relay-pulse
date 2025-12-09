@@ -475,7 +475,7 @@ function StatusTableComponent({
                 {t('table.headers.lastCheck')} <SortIcon columnKey="latency" />
               </div>
             </th>
-            <th className="pl-2 pr-4 py-3 font-medium">
+            <th className="pl-2 pr-4 py-3 font-medium min-w-[280px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-default px-1 rounded">
