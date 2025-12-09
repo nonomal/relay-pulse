@@ -21,9 +21,8 @@ monitor.db
 monitor.db.backup_*
 *.log
 
-# Frontend development
+# Frontend development（保留 dist 以便 CI 复用预构建产物）
 frontend/node_modules
-frontend/dist
 frontend/.vite
 
 # Go development

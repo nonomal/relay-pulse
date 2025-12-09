@@ -50,6 +50,13 @@ jobs:
           mkdir -p internal/api/frontend
           cp -r frontend/dist internal/api/frontend/
 
+      - name: Upload frontend dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+          retention-days: 1
+
       - name: Go format check
         run: |
           if [ -n "$(gofmt -l .)" ]; then
@@ -79,6 +86,19 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Download frontend dist artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+      - name: Verify frontend dist
+        run: |
+          echo "Verifying frontend dist structure..."
+          ls -la frontend/dist/
+          test -f frontend/dist/index.html || (echo "ERROR: index.html not found" && exit 1)
+          echo "Frontend dist verified successfully"
 
       - name: Set up QEMU (for multi-arch)
         if: inputs.multi_arch == true
@@ -155,8 +175,9 @@ jobs:
             VERSION=${{ steps.meta.outputs.version }}
             GIT_COMMIT=${{ steps.meta.outputs.git_commit }}
             BUILD_TIME=${{ steps.meta.outputs.build_time }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            FRONTEND_SOURCE=frontend-prebuilt
+          cache-from: type=gha,scope=docker-publish
+          cache-to: type=gha,mode=max,scope=docker-publish
 
       - name: Image summary
         run: |

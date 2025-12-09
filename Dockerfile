@@ -1,19 +1,31 @@
+# syntax=docker/dockerfile:1.6
+
 # ============================================
 # Stage 1: Frontend Builder (Node.js)
 # ============================================
+ARG FRONTEND_SOURCE=frontend-builder
 FROM node:20-alpine AS frontend-builder
 
 WORKDIR /build
 
 # 复制 package.json 和 lock 文件,利用缓存
 COPY frontend/package*.json ./
-RUN npm ci --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 
 # 复制前端源代码
 COPY frontend/ ./
 
 # 构建生产版本
 RUN npm run build
+
+# ============================================
+# Stage 1.5: 预构建前端（CI artifact 复用）
+# ============================================
+FROM scratch AS frontend-prebuilt
+COPY frontend/dist/ /build/dist/
+
+# 选择前端来源（默认构建，CI 传 FRONTEND_SOURCE=frontend-prebuilt）
+FROM ${FRONTEND_SOURCE} AS frontend
 
 # ============================================
 # Stage 2: Backend Builder (Go)
@@ -36,7 +48,9 @@ COPY go.mod go.sum ./
 # 使用多个 Go 代理以提高可靠性
 ENV GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
 
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go mod download
 
 # 复制源代码
 COPY cmd/ ./cmd/
@@ -45,7 +59,7 @@ COPY internal/ ./internal/
 # 从前端构建阶段复制构建产物到 Go embed 目录
 # 先清理目标目录，避免嵌套 dist/dist/ 问题
 RUN rm -rf internal/api/frontend/dist && mkdir -p internal/api/frontend/dist
-COPY --from=frontend-builder /build/dist/. ./internal/api/frontend/dist/
+COPY --from=frontend /build/dist/. ./internal/api/frontend/dist/
 
 # 验证构建产物已正确复制（包含 assets 目录和 favicon.svg）
 RUN ls -la ./internal/api/frontend/dist && \
