@@ -165,7 +165,7 @@ function StatusCardComponent({
                 })}
               </span>
               {item.lastCheckLatency !== undefined && (
-                <span style={{ color: latencyToColor(item.lastCheckLatency, slowLatencyMs) }}>
+                <span style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, slowLatencyMs) }}>
                   {item.lastCheckLatency}ms
                 </span>
               )}
