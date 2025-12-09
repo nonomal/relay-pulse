@@ -189,7 +189,7 @@ export function useMonitorData({
 
             const currentStatus = item.current_status
               ? statusMap[item.current_status.status] || 'UNAVAILABLE'
-              : 'UNAVAILABLE';
+              : 'MISSING';  // 无探测数据时显示"无数据"，而非"不可用"
 
             // 计算可用率：仅统计有数据的时间块，无数据不参与计算
             // - 无数据 ≠ 不可用，也 ≠ 某个固定百分比，它是"未知"
