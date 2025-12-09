@@ -202,9 +202,8 @@
     "selectLanguage": "言語を選択"
   },
   "share": {
-    "bookmark": "ブックマーク",
     "share": "共有",
-    "bookmarkHint": "{{shortcut}} を押してブックマークに追加",
+    "shareShort": "共有",
     "linkCopied": "リンクをクリップボードにコピーしました",
     "copyFailed": "コピーに失敗しました。リンクを手動でコピーしてください"
   },

@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Activity, CheckCircle, AlertTriangle, Sparkles, Bookmark, Share2, Filter, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle, AlertTriangle, Sparkles, Share2, Filter, RefreshCw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FEEDBACK_URLS } from '../constants';
 import { SUPPORTED_LANGUAGES, LANGUAGE_PATH_MAP, LANGUAGE_NAMES, isSupportedLanguage, type SupportedLanguage } from '../i18n';
 import { FlagIcon } from './FlagIcon';
 import { useToast } from './Toast';
-import { shareCurrentPage, getBookmarkShortcut } from '../utils/share';
+import { shareCurrentPage } from '../utils/share';
 import { ThemeSwitcher } from './ThemeSwitcher';
 
 interface HeaderProps {
@@ -35,12 +35,6 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
 
   // 获取当前语言，使用类型守卫确保类型安全
   const currentLang: SupportedLanguage = isSupportedLanguage(i18n.language) ? i18n.language : 'zh-CN';
-
-  // 处理收藏按钮点击
-  const handleBookmark = () => {
-    const shortcut = getBookmarkShortcut();
-    showToast(t('share.bookmarkHint', { shortcut }), 'info');
-  };
 
   // 处理分享按钮点击
   const handleShare = async () => {
@@ -126,7 +120,7 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           </p>
         </div>
 
-        {/* 移动端：右上角操作区（语言 + 收藏 + 分享 + 统计卡片） */}
+        {/* 移动端：右上角操作区（语言 + 主题 + 统计卡片） */}
         <div className="flex items-center gap-1 lg:hidden flex-shrink-0">
           {/* 语言切换器 - 点击展开 */}
           <div className="relative">
@@ -176,36 +170,22 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           {/* 主题切换器 */}
           <ThemeSwitcher />
 
-          <button
-            onClick={handleBookmark}
-            className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-            aria-label={t('share.bookmark')}
-          >
-            <Bookmark size={16} />
-          </button>
-          <button
-            onClick={handleShare}
-            className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-            aria-label={t('share.share')}
-          >
-            <Share2 size={16} />
-          </button>
           {/* 统计卡片 - 极简模式（最右侧） */}
-          <div className="flex gap-1 ml-1">
-            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-surface/50 border border-default"
+          <div className="flex gap-0.5 ml-0.5 flex-shrink-0">
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-surface/50 border border-default"
                  title={t('header.stats.healthy')}>
-              <CheckCircle size={12} className="text-success" />
-              <span className="font-mono font-bold text-success text-xs">{stats.healthy}</span>
+              <CheckCircle size={10} className="text-success" />
+              <span className="font-mono font-bold text-success text-[10px]">{stats.healthy}</span>
             </div>
-            <div className="flex items-center gap-1 px-1.5 py-1 rounded-lg bg-surface/50 border border-default"
+            <div className="flex items-center gap-0.5 px-1 py-0.5 rounded bg-surface/50 border border-default"
                  title={t('header.stats.issues')}>
-              <AlertTriangle size={12} className="text-danger" />
-              <span className="font-mono font-bold text-danger text-xs">{stats.issues}</span>
+              <AlertTriangle size={10} className="text-danger" />
+              <span className="font-mono font-bold text-danger text-[10px]">{stats.issues}</span>
             </div>
           </div>
         </div>
 
-        {/* 桌面端：右侧完整操作区（语言 + 收藏 + 分享 + 推荐 + 统计卡片） */}
+        {/* 桌面端：右侧完整操作区（语言 + 主题 + 分享 + 推荐 + 统计卡片） */}
         <div className="hidden lg:flex items-center gap-2 flex-shrink-0">
           {/* 语言切换器 - 点击/键盘展开 */}
           <div className="relative inline-block">
@@ -258,25 +238,15 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           {/* 主题切换器 */}
           <ThemeSwitcher />
 
-          {/* 收藏和分享按钮 */}
-          <div className="flex gap-1">
-            <button
-              onClick={handleBookmark}
-              className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-              aria-label={t('share.bookmark')}
-              title={t('share.bookmark')}
-            >
-              <Bookmark size={16} />
-            </button>
-            <button
-              onClick={handleShare}
-              className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-              aria-label={t('share.share')}
-              title={t('share.share')}
-            >
-              <Share2 size={16} />
-            </button>
-          </div>
+          {/* 分享按钮 */}
+          <button
+            onClick={handleShare}
+            className="p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+            aria-label={t('share.share')}
+            title={t('share.share')}
+          >
+            <Share2 size={16} />
+          </button>
 
           {/* 推荐按钮 */}
           <a
@@ -342,12 +312,22 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           </div>
         )}
 
+        {/* 分享按钮 - 移动端 */}
+        <button
+          onClick={handleShare}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 text-xs ml-auto focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+          aria-label={t('share.share')}
+        >
+          <Share2 size={12} />
+          {t('share.shareShort')}
+        </button>
+
         {/* 推荐按钮 - 移动端紧凑版 */}
         <a
           href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent text-xs font-medium shadow-accent hover:bg-accent/20 transition whitespace-nowrap ml-auto focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent text-xs font-medium shadow-accent hover:bg-accent/20 transition whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
         >
           <Sparkles size={12} />
           {t('header.recommendBtnShort')}

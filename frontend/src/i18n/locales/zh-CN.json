@@ -202,9 +202,8 @@
     "selectLanguage": "选择语言"
   },
   "share": {
-    "bookmark": "收藏",
     "share": "分享",
-    "bookmarkHint": "按 {{shortcut}} 添加到书签",
+    "shareShort": "分享",
     "linkCopied": "链接已复制到剪贴板",
     "copyFailed": "复制失败，请手动复制链接"
   },

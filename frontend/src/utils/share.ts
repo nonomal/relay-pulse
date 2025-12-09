@@ -32,27 +32,6 @@ export async function copyToClipboard(text: string): Promise<boolean> {
 }
 
 /**
- * 检测是否为 Mac 系统
- */
-export function isMacOS(): boolean {
-  // 优先使用现代 API
-  if ('userAgentData' in navigator) {
-    const uaData = navigator.userAgentData as { platform?: string };
-    return uaData.platform === 'macOS';
-  }
-
-  // 降级方案
-  return /Mac|iPhone|iPad|iPod/.test(navigator.userAgent);
-}
-
-/**
- * 获取书签快捷键提示
- */
-export function getBookmarkShortcut(): string {
-  return isMacOS() ? '⌘+D' : 'Ctrl+D';
-}
-
-/**
  * 分享当前页面
  * 优先使用 Web Share API（移动端），降级到复制链接
  */
