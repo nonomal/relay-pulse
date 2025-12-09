@@ -32,14 +32,11 @@ export const HeatmapBlock = memo(function HeatmapBlock({
     [point.availability]
   );
 
-  // 处理触摸和点击事件（移动端）
-  const handleTouch = (e: React.TouchEvent<HTMLDivElement> | React.MouseEvent<HTMLDivElement>) => {
+  // 处理点击事件（移动端使用点击而非触摸，避免滑动时误触发）
+  const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
     // 阻止事件冒泡，避免触发父元素的点击
     e.stopPropagation();
-
-    // 模拟鼠标事件传递给 onHover
-    const mouseEvent = e as React.MouseEvent<HTMLDivElement>;
-    onHover(mouseEvent, point);
+    onHover(e, point);
   };
 
   return (
@@ -51,9 +48,8 @@ export const HeatmapBlock = memo(function HeatmapBlock({
       // 鼠标事件（仅桌面端，移动端禁用避免闪烁）
       onMouseEnter={isMobile ? undefined : (e) => onHover(e, point)}
       onMouseLeave={isMobile ? undefined : onLeave}
-      // 触摸事件（移动端）
-      onTouchStart={handleTouch}
-      onClick={handleTouch}
+      // 点击事件（移动端需明确点击才触发，滑动不触发）
+      onClick={handleClick}
       // 键盘可访问性（仅桌面端）
       onFocus={isMobile ? undefined : (e) => onHover(e as unknown as React.MouseEvent<HTMLDivElement>, point)}
       onBlur={isMobile ? undefined : onLeave}
