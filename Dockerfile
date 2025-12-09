@@ -48,9 +48,7 @@ COPY go.mod go.sum ./
 # 使用多个 Go 代理以提高可靠性
 ENV GOPROXY=https://goproxy.cn,https://proxy.golang.org,direct
 
-RUN --mount=type=cache,target=/go/pkg/mod \
-    --mount=type=cache,target=/root/.cache/go-build \
-    go mod download
+RUN go mod download
 
 # 复制源代码
 COPY cmd/ ./cmd/
