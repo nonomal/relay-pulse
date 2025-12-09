@@ -10,7 +10,7 @@ import type {
   SponsorLevel,
   SponsorPinConfig,
 } from '../types';
-import { API_BASE_URL, USE_MOCK_DATA, NO_DATA_AVAILABILITY } from '../constants';
+import { API_BASE_URL, USE_MOCK_DATA } from '../constants';
 import { fetchMockMonitorData } from '../utils/mockMonitor';
 import { trackAPIPerformance, trackAPIError } from '../utils/analytics';
 import { sortMonitorsWithPinning } from '../utils/sortMonitors';
@@ -191,15 +191,13 @@ export function useMonitorData({
               ? statusMap[item.current_status.status] || 'UNAVAILABLE'
               : 'UNAVAILABLE';
 
-            // 计算可用率：无数据时间块按 NO_DATA_AVAILABILITY (90%) 计入
-            // - 避免新服务商因历史数据少而显示过高可用率
+            // 计算可用率：仅统计有数据的时间块，无数据不参与计算
+            // - 无数据 ≠ 不可用，也 ≠ 某个固定百分比，它是"未知"
             // - 若全部时间块均无数据，返回 -1 由 UI 层展示为 "--"
-            const hasAnyData = history.some(point => point.availability >= 0);
-            const uptime = history.length > 0 && hasAnyData
+            const validPoints = history.filter(point => point.availability >= 0);
+            const uptime = validPoints.length > 0
               ? parseFloat((
-                  history.reduce((acc, point) =>
-                    acc + (point.availability >= 0 ? point.availability : NO_DATA_AVAILABILITY), 0
-                  ) / history.length
+                  validPoints.reduce((acc, point) => acc + point.availability, 0) / validPoints.length
                 ).toFixed(2))
               : -1;
 

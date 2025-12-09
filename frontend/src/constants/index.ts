@@ -45,7 +45,7 @@ export const STATUS: Record<string, StatusConfig> = {
     text: 'text-secondary',
     glow: 'glow-muted',
     label: '无数据',
-    weight: 1,  // 算作可用（避免初期可用率过低）
+    weight: 1,  // 排序权重与 UNAVAILABLE 相同
   },
   UNAVAILABLE: {
     color: 'bg-danger',
@@ -78,7 +78,7 @@ export const getStatusConfig = (t: TFunction): Record<string, StatusConfig> => (
     text: 'text-secondary',
     glow: 'glow-muted',
     label: t('status.missing'),
-    weight: 1,  // 算作可用（避免初期可用率过低）
+    weight: 1,  // 排序权重与 UNAVAILABLE 相同
   },
   UNAVAILABLE: {
     color: 'bg-danger',
@@ -113,12 +113,6 @@ export const STATUS_COLORS = {
     glow: 'glow-danger',
   },
 } as const;
-
-// 无数据时间块的默认可用率（%）
-// 新服务商因历史数据少，使用 90% 作为默认值
-// - 不像 0% 那样对新服务商过于严苛
-// - 也不像 100% 那样让新服务商获得不公平优势
-export const NO_DATA_AVAILABILITY = 90;
 
 // API 基础 URL（使用相对路径，自动适配当前域名）
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
