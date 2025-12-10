@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "RelayPulse - Availability monitoring for LLM relay services",
-    "description": "RelayPulse - Monitor availability, latency, and sponsored routes of LLM relay services worldwide in real time, helping developers quickly evaluate provider quality and discover the most stable API providers. Supports connectivity checks for mainstream models such as Claude and GPT."
+    "title": "RelayPulse - Real-time availability matrix for API relay services",
+    "description": "RelayPulse - Real-time monitoring of LLM relay services worldwide for availability, latency, and sponsored routes, helping developers quickly evaluate provider quality and discover the most stable API providers. Supports connectivity checks for mainstream models such as Claude and GPT."
   },
   "common": {
     "loading": "Syncing data nodes...",

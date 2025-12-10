@@ -1,7 +1,7 @@
 {
   "meta": {
-    "title": "RelayPulse - LLM 中转服务可用性监控",
-    "description": "RelayPulse - 实时监控全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性检测。"
+    "title": "RelayPulse - 实时监测API中转服务可用性矩阵",
+    "description": "RelayPulse - 实时监测全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性检测。"
   },
   "common": {
     "loading": "正在同步数据节点...",
@@ -41,7 +41,7 @@
     }
   },
   "header": {
-    "tagline": "实时监控API中转服务可用性矩阵",
+    "tagline": "实时监测API中转服务可用性矩阵",
     "recommendBtn": "申请收录",
     "recommendBtnShort": "收录",
     "stats": {
