@@ -32,7 +32,7 @@ storage:
   #   conn_max_lifetime: "1h"
 
 # ============================================
-# 监控任务配置（生产环境示例）
+# 监测任务配置（生产环境示例）
 # ============================================
 # ⚠️ 重要提示：
 # 1. 所有 api_key 应通过环境变量覆盖（MONITOR_<PROVIDER>_<SERVICE>_API_KEY）
@@ -62,7 +62,7 @@ monitors:
         "max_tokens": 1
       }
 
-  # --- 更多监控任务示例 ---
+  # --- 更多监测任务示例 ---
   # 复制上面的模板，修改 provider/service/url 等字段
   # 通过环境变量设置 API Key：
   # export MONITOR_<PROVIDER>_<SERVICE>_API_KEY="sk-real-key"

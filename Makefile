@@ -79,7 +79,7 @@ docker-build:
 
 # 直接运行（不编译）
 run:
-	@echo "正在启动监控服务..."
+	@echo "正在启动监测服务..."
 	MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(GORUN) $(MAIN_PACKAGE)
 
 # 开发模式（热重载）

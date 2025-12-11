@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-// minimalMonitor 创建最小有效的监控配置
+// minimalMonitor 创建最小有效的监测配置
 func minimalMonitor(provider, service string) ServiceConfig {
 	return ServiceConfig{
 		Provider: provider,
@@ -98,7 +98,7 @@ func TestDisabledNormalize(t *testing.T) {
 			t.Fatalf("Normalize 失败: %v", err)
 		}
 
-		// 检查禁用的监控项
+		// 检查禁用的监测项
 		if !cfg.Monitors[0].Disabled {
 			t.Errorf("monitor[0].Disabled = false, want true")
 		}
@@ -110,7 +110,7 @@ func TestDisabledNormalize(t *testing.T) {
 			t.Errorf("monitor[0].Hidden = false, want true (disabled 应自动设置 hidden)")
 		}
 
-		// 检查活跃的监控项
+		// 检查活跃的监测项
 		if cfg.Monitors[1].Disabled {
 			t.Errorf("monitor[1].Disabled = true, want false")
 		}
@@ -195,7 +195,7 @@ func TestDisabledNormalize(t *testing.T) {
 			},
 			Monitors: []ServiceConfig{
 				minimalMonitor("disabled-provider", "cc"), // 应禁用
-				minimalMonitor("hidden-provider", "cc"),   // 应隐藏但继续监控
+				minimalMonitor("hidden-provider", "cc"),   // 应隐藏但继续监测
 				minimalMonitor("active-provider", "cc"),   // 应正常
 			},
 		}

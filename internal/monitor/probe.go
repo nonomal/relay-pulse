@@ -214,7 +214,7 @@ func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service,
 	return decompressed
 }
 
-// determineStatus 根据HTTP状态码和延迟判定监控状态
+// determineStatus 根据HTTP状态码和延迟判定监测状态
 func (p *Prober) determineStatus(statusCode, latency int, slowLatency time.Duration) (int, storage.SubStatus) {
 	// 2xx = 绿色
 	if statusCode >= 200 && statusCode < 300 {

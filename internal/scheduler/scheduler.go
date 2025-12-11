@@ -15,7 +15,7 @@ import (
 
 // task 表示一个待调度的探测任务
 type task struct {
-	monitor  config.ServiceConfig // 监控配置
+	monitor  config.ServiceConfig // 监测配置
 	interval time.Duration        // 该任务的巡检间隔
 	nextRun  time.Time            // 下次执行时间
 	index    int                  // 在堆中的索引（heap.Interface 需要）
@@ -49,7 +49,7 @@ func (h *taskHeap) Pop() any {
 }
 
 // Scheduler 调度器（最小堆调度架构）
-// 支持每个监控项独立的巡检间隔
+// 支持每个监测项独立的巡检间隔
 type Scheduler struct {
 	prober *monitor.Prober
 
@@ -178,7 +178,7 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		return
 	}
 
-	// 统计禁用的监控项数量
+	// 统计禁用的监测项数量
 	disabledCount := 0
 	for _, m := range cfg.Monitors {
 		if m.Disabled {
@@ -187,17 +187,17 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	}
 	activeCount := monitorCount - disabledCount
 
-	// 如果所有监控项都被禁用，清空任务
+	// 如果所有监测项都被禁用，清空任务
 	if activeCount == 0 {
 		s.tasks = s.tasks[:0]
 		s.resetTimerLocked()
 		s.notifyWakeLocked()
-		logger.Info("scheduler", "所有监控项已禁用，调度器无任务",
+		logger.Info("scheduler", "所有监测项已禁用，调度器无任务",
 			"total", monitorCount, "disabled", disabledCount)
 		return
 	}
 
-	// 并发控制：-1 表示与活跃监控数持平；>0 为硬上限
+	// 并发控制：-1 表示与活跃监测数持平；>0 为硬上限
 	maxConcurrency := cfg.MaxConcurrency
 	if maxConcurrency == -1 {
 		maxConcurrency = activeCount
@@ -210,7 +210,7 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		"max_concurrency", maxConcurrency, "total", monitorCount,
 		"disabled", disabledCount, "active", activeCount)
 
-	// 错峰策略计算（基于活跃监控数）
+	// 错峰策略计算（基于活跃监测数）
 	useStagger := cfg.ShouldStaggerProbes() && activeCount > 1
 	var baseDelay, jitterRange time.Duration
 
@@ -242,12 +242,12 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 
 	activeIdx := 0 // 独立的活跃索引，用于错峰计算
 	for _, m := range cfg.Monitors {
-		// 跳过已禁用的监控项（不探测、不存储）
+		// 跳过已禁用的监测项（不探测、不存储）
 		if m.Disabled {
 			continue
 		}
 
-		// 使用监控项自己的 interval，为空则使用全局 fallback
+		// 使用监测项自己的 interval，为空则使用全局 fallback
 		interval := m.IntervalDuration
 		if interval == 0 {
 			interval = s.fallback
@@ -272,11 +272,11 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	s.notifyWakeLocked()
 }
 
-// findMinInterval 找到所有活跃监控项中最小的 interval（跳过已禁用的）
+// findMinInterval 找到所有活跃监测项中最小的 interval（跳过已禁用的）
 func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
 	minInterval := cfg.IntervalDuration
 	for _, m := range cfg.Monitors {
-		// 跳过已禁用的监控项
+		// 跳过已禁用的监测项
 		if m.Disabled {
 			continue
 		}

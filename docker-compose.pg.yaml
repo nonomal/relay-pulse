@@ -22,7 +22,7 @@ services:
     networks:
       - relay-pulse-network
 
-  # RelayPulse 监控服务
+  # RelayPulse 监测服务
   monitor:
     image: ghcr.io/prehisle/relay-pulse:latest
     container_name: relaypulse-monitor-pg

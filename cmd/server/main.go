@@ -21,7 +21,7 @@ func buildChannelMigrationMappings(monitors []config.ServiceConfig) []storage.Ch
 	mappings := make([]storage.ChannelMigrationMapping, 0, len(monitors))
 
 	for _, monitor := range monitors {
-		// 跳过已禁用的监控项
+		// 跳过已禁用的监测项
 		if monitor.Disabled {
 			continue
 		}

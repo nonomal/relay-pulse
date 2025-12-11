@@ -2,7 +2,7 @@
   "name": "relay-pulse-frontend",
   "private": true,
   "version": "0.1.1",
-  "description": "Relay Pulse - LLM 服务可用性监控前端",
+  "description": "Relay Pulse - LLM 服务可用性监测前端",
   "homepage": "https://relaypulse.top",
   "repository": {
     "type": "git",

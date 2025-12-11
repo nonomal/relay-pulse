@@ -1,5 +1,5 @@
 name: 📋 申请收录
-description: 申请将服务商接入监控
+description: 申请将服务商接入监测
 title: "[申请收录] "
 labels: ["enhancement", "provider-suggestion"]
 body:
@@ -11,7 +11,7 @@ body:
         ⏱️ **处理流程**：
         1. 我们会在 3 个工作日内审核配置
         2. 如有问题会在 Issue 中联系您联调
-        3. 配置验证通过后上线监控
+        3. 配置验证通过后上线监测
 
         📧 **重要**：请勿在此填写真实 API Key，提交后通过邮件单独发送。
 
@@ -29,16 +29,16 @@ body:
     attributes:
       label: 申请理由
       description: 简要说明申请收录的原因（可选）
-      placeholder: 例如：希望监控该服务商的可用性
+      placeholder: 例如：希望监测该服务商的可用性
     validations:
       required: false
 
   - type: textarea
     id: monitor-config-template
     attributes:
-      label: 监控接入配置模板（必填）
+      label: 监测接入配置模板（必填）
       description: >
-        请按下面的模板提供一份完整的监控配置（不要在此处填写真实 API Key）。
+        请按下面的模板提供一份完整的监测配置（不要在此处填写真实 API Key）。
         填写完成并提交 Issue 后，请务必通过邮箱单独发送真实 API Key：
         - 邮箱：prehisle@gmail.com
       render: yaml

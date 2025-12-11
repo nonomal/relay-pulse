@@ -7,7 +7,7 @@ import (
 	"monitor/internal/config"
 )
 
-// TestFindMinIntervalSkipsDisabled 测试 findMinInterval 跳过已禁用的监控项
+// TestFindMinIntervalSkipsDisabled 测试 findMinInterval 跳过已禁用的监测项
 func TestFindMinIntervalSkipsDisabled(t *testing.T) {
 	s := &Scheduler{}
 
@@ -29,7 +29,7 @@ func TestFindMinIntervalSkipsDisabled(t *testing.T) {
 			expected: 1 * time.Minute, // 最小的活跃 interval
 		},
 		{
-			name: "最小 interval 的监控项被禁用",
+			name: "最小 interval 的监测项被禁用",
 			cfg: &config.AppConfig{
 				IntervalDuration: 5 * time.Minute,
 				Monitors: []config.ServiceConfig{
@@ -52,7 +52,7 @@ func TestFindMinIntervalSkipsDisabled(t *testing.T) {
 			expected: 5 * time.Minute, // 全部禁用，使用全局 interval
 		},
 		{
-			name: "活跃监控项无自定义 interval",
+			name: "活跃监测项无自定义 interval",
 			cfg: &config.AppConfig{
 				IntervalDuration: 3 * time.Minute,
 				Monitors: []config.ServiceConfig{
@@ -88,7 +88,7 @@ func TestFindMinIntervalSkipsDisabled(t *testing.T) {
 	}
 }
 
-// TestCountActiveMonitors 测试统计活跃监控项数量的逻辑
+// TestCountActiveMonitors 测试统计活跃监测项数量的逻辑
 func TestCountActiveMonitors(t *testing.T) {
 	tests := []struct {
 		name           string

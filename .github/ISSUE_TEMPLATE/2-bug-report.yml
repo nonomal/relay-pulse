@@ -1,5 +1,5 @@
 name: 🐛 问题反馈
-description: 报告监控系统的问题或错误
+description: 报告监测系统的问题或错误
 title: "[问题反馈] "
 labels: ["bug"]
 body:
@@ -14,7 +14,7 @@ body:
       label: 问题类型
       description: 请选择最符合的问题类型
       options:
-        - 监控数据异常
+        - 监测数据异常
         - 页面显示错误
         - 性能/响应速度问题
         - 配置/部署问题

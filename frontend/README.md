@@ -1,6 +1,6 @@
 # Service Horizon 前端
 
-LLM 服务监控系统的前端界面，使用 React + TypeScript + TailwindCSS 构建。
+LLM 服务监测系统的前端界面，使用 React + TypeScript + TailwindCSS 构建。
 
 ## 功能特性
 
@@ -105,7 +105,7 @@ VITE_API_BASE_URL=http://localhost:8080
 
 ## API 对接
 
-前端通过 `GET /api/status` 接口获取监控数据：
+前端通过 `GET /api/status` 接口获取监测数据：
 
 - 参数: `period` (24h/7d/30d), `provider` (服务商), `service` (服务类型)
 - 返回: `{ meta: {...}, data: [{provider, service, current_status, timeline}] }`

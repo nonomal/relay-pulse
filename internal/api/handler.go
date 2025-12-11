@@ -265,7 +265,7 @@ type MonitorResult struct {
 	Timeline     []storage.TimePoint `json:"timeline"`
 }
 
-// GetStatus 获取监控状态
+// GetStatus 获取监测状态
 func (h *Handler) GetStatus(c *gin.Context) {
 	// 参数解析
 	period := c.DefaultQuery("period", "24h")
@@ -273,7 +273,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	timeFilterParam := c.DefaultQuery("time_filter", "") // 每日时段过滤：HH:MM-HH:MM（UTC）
 	qProvider := strings.ToLower(strings.TrimSpace(c.DefaultQuery("provider", "all")))
 	qService := c.DefaultQuery("service", "all")
-	// include_hidden 参数：用于内部调试，默认不包含隐藏的监控项
+	// include_hidden 参数：用于内部调试，默认不包含隐藏的监测项
 	includeHidden := strings.EqualFold(strings.TrimSpace(c.DefaultQuery("include_hidden", "false")), "true")
 
 	// 验证 period 参数
@@ -366,7 +366,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		realProvider = mappedProvider
 	}
 
-	// 过滤并去重监控项
+	// 过滤并去重监测项
 	filtered := h.filterMonitors(monitors, realProvider, qService, includeHidden)
 
 	// 根据配置选择串行或并发查询
@@ -420,18 +420,18 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	return json.Marshal(result)
 }
 
-// filterMonitors 过滤并去重监控项
+// filterMonitors 过滤并去重监测项
 func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, service string, includeHidden bool) []config.ServiceConfig {
 	var filtered []config.ServiceConfig
 	seen := make(map[string]bool)
 
 	for _, task := range monitors {
-		// 始终过滤已禁用的监控项（不探测、不存储、不展示）
+		// 始终过滤已禁用的监测项（不探测、不存储、不展示）
 		if task.Disabled {
 			continue
 		}
 
-		// 过滤隐藏的监控项（除非显式要求包含）
+		// 过滤隐藏的监测项（除非显式要求包含）
 		if !includeHidden && task.Hidden {
 			continue
 		}
@@ -524,7 +524,7 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 	return results, nil
 }
 
-// buildMonitorResult 构建单个监控项的响应结构
+// buildMonitorResult 构建单个监测项的响应结构
 func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) MonitorResult {
 	// 转换为时间轴数据
 	timeline := h.buildTimeline(history, endTime, period, degradedWeight, timeFilter)
@@ -847,17 +847,17 @@ func (h *Handler) GetSitemap(c *gin.Context) {
 	c.String(http.StatusOK, sitemap)
 }
 
-// extractUniqueProviderSlugs 从监控配置中提取唯一的 provider slugs（排除禁用和隐藏的）
+// extractUniqueProviderSlugs 从监测配置中提取唯一的 provider slugs（排除禁用和隐藏的）
 func (h *Handler) extractUniqueProviderSlugs(monitors []config.ServiceConfig) []string {
 	slugSet := make(map[string]bool)
 	var slugs []string
 
 	for _, task := range monitors {
-		// 跳过已禁用的监控项
+		// 跳过已禁用的监测项
 		if task.Disabled {
 			continue
 		}
-		// 跳过隐藏的监控项
+		// 跳过隐藏的监测项
 		if task.Hidden {
 			continue
 		}

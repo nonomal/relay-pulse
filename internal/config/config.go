@@ -36,7 +36,7 @@ type RiskBadge struct {
 	DiscussionURL string `yaml:"discussion_url" json:"discussionUrl"` // 讨论页面链接（可选）
 }
 
-// ServiceConfig 单个服务监控配置
+// ServiceConfig 单个服务监测配置
 type ServiceConfig struct {
 	Provider     string            `yaml:"provider" json:"provider"`
 	ProviderSlug string            `yaml:"provider_slug" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
@@ -61,7 +61,7 @@ type ServiceConfig struct {
 
 	// 自定义巡检间隔（可选，留空则使用全局 interval）
 	// 支持 Go duration 格式，例如 "30s"、"1m"、"5m"
-	// 付费高频监控可使用更短间隔
+	// 付费高频监测可使用更短间隔
 	Interval string `yaml:"interval" json:"interval"`
 
 	// 彻底停用配置：不探测、不存储、不展示
@@ -70,7 +70,7 @@ type ServiceConfig struct {
 	DisabledReason string `yaml:"disabled_reason" json:"disabled_reason"` // 停用原因（可选）
 
 	// 临时下架配置：隐藏但继续探测，用于商家整改期间
-	// Hidden 为 true 时，API 不返回该监控项，但调度器继续探测并存储结果
+	// Hidden 为 true 时，API 不返回该监测项，但调度器继续探测并存储结果
 	Hidden       bool   `yaml:"hidden" json:"hidden"`
 	HiddenReason string `yaml:"hidden_reason" json:"hidden_reason"` // 下架原因（可选）
 
@@ -84,28 +84,28 @@ type ServiceConfig struct {
 }
 
 // DisabledProviderConfig 批量禁用指定 provider 的配置
-// 用于彻底停用某个服务商的所有监控项（不探测、不存储、不展示）
+// 用于彻底停用某个服务商的所有监测项（不探测、不存储、不展示）
 type DisabledProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Reason   string `yaml:"reason" json:"reason"`     // 停用原因（可选）
 }
 
 // HiddenProviderConfig 批量隐藏指定 provider 的配置
-// 用于临时下架某个服务商的所有监控项
+// 用于临时下架某个服务商的所有监测项
 type HiddenProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Reason   string `yaml:"reason" json:"reason"`     // 下架原因（可选）
 }
 
 // RiskProviderConfig 服务商风险配置
-// 用于标记存在风险的服务商，风险会自动继承到该服务商的所有监控项
+// 用于标记存在风险的服务商，风险会自动继承到该服务商的所有监测项
 type RiskProviderConfig struct {
 	Provider string      `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Risks    []RiskBadge `yaml:"risks" json:"risks"`       // 风险徽标数组
 }
 
 // SponsorPinConfig 赞助商置顶配置
-// 用于在页面初始加载时置顶符合条件的赞助商监控项
+// 用于在页面初始加载时置顶符合条件的赞助商监测项
 type SponsorPinConfig struct {
 	// 是否启用置顶功能（默认 true）
 	Enabled *bool `yaml:"enabled" json:"enabled"`
@@ -177,16 +177,16 @@ type AppConfig struct {
 
 	// 并发探测的最大 goroutine 数（默认 10）
 	// - 不配置或 0: 使用默认值 10
-	// - -1: 无限制，自动扩容到监控项数量
-	// - >0: 硬上限，超过时监控项会排队等待执行
+	// - -1: 无限制，自动扩容到监测项数量
+	// - >0: 硬上限，超过时监测项会排队等待执行
 	MaxConcurrency int `yaml:"max_concurrency" json:"max_concurrency"`
 
 	// 是否在单个周期内对探测进行错峰（默认 true）
-	// 开启后会将监控项均匀分散在整个巡检周期内，避免流量突发
+	// 开启后会将监测项均匀分散在整个巡检周期内，避免流量突发
 	StaggerProbes *bool `yaml:"stagger_probes,omitempty" json:"stagger_probes,omitempty"`
 
 	// 是否启用并发查询（API 层优化，默认 false）
-	// 开启后 /api/status 接口会使用 goroutine 并发查询多个监控项，显著降低响应时间
+	// 开启后 /api/status 接口会使用 goroutine 并发查询多个监测项，显著降低响应时间
 	// 注意：需要确保数据库连接池足够大（建议 max_open_conns >= 50）
 	EnableConcurrentQuery bool `yaml:"enable_concurrent_query" json:"enable_concurrent_query"`
 
@@ -217,7 +217,7 @@ type AppConfig struct {
 	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
 
 	// 赞助商置顶配置
-	// 用于在页面初始加载时置顶符合条件的赞助商监控项
+	// 用于在页面初始加载时置顶符合条件的赞助商监测项
 	SponsorPin SponsorPinConfig `yaml:"sponsor_pin" json:"sponsor_pin"`
 
 	Monitors []ServiceConfig `yaml:"monitors"`
@@ -226,7 +226,7 @@ type AppConfig struct {
 // Validate 验证配置合法性
 func (c *AppConfig) Validate() error {
 	if len(c.Monitors) == 0 {
-		return fmt.Errorf("至少需要配置一个监控项")
+		return fmt.Errorf("至少需要配置一个监测项")
 	}
 
 	// 检查重复和必填字段
@@ -304,7 +304,7 @@ func (c *AppConfig) Validate() error {
 		// 唯一性检查（provider + service + channel 组合唯一）
 		key := m.Provider + "/" + m.Service + "/" + m.Channel
 		if seen[key] {
-			return fmt.Errorf("重复的监控项: provider=%s, service=%s, channel=%s", m.Provider, m.Service, m.Channel)
+			return fmt.Errorf("重复的监测项: provider=%s, service=%s, channel=%s", m.Provider, m.Service, m.Channel)
 		}
 		seen[key] = true
 	}
@@ -398,7 +398,7 @@ func (c *AppConfig) Normalize() error {
 
 	// 最大并发数（默认 10）
 	// - 未配置或 0：使用默认值 10
-	// - -1：无限制（自动扩容到监控项数量）
+	// - -1：无限制（自动扩容到监测项数量）
 	// - >0：作为硬上限，超过时排队执行
 	if c.MaxConcurrency == 0 {
 		c.MaxConcurrency = 10
@@ -537,14 +537,14 @@ func (c *AppConfig) Normalize() error {
 		riskProviderMap[provider] = rp.Risks
 	}
 
-	// 将全局慢请求阈值下发到每个监控项，并标准化 category、URLs、provider_slug
+	// 将全局慢请求阈值下发到每个监测项，并标准化 category、URLs、provider_slug
 	slugSet := make(map[string]int) // slug -> monitor index (用于检测重复)
 	for i := range c.Monitors {
 		if c.Monitors[i].SlowLatencyDuration == 0 {
 			c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
 		}
 
-		// 解析单监控项的 interval，空值回退到全局
+		// 解析单监测项的 interval，空值回退到全局
 		if trimmed := strings.TrimSpace(c.Monitors[i].Interval); trimmed != "" {
 			d, err := time.ParseDuration(trimmed)
 			if err != nil {
@@ -585,7 +585,7 @@ func (c *AppConfig) Normalize() error {
 
 		// 检测 slug 重复 (同一 slug 可用于不同 service，仅记录不报错)
 		if prevIdx, exists := slugSet[slug]; exists {
-			log.Printf("[Config] 注意: provider_slug '%s' 被多个监控项使用 (monitor[%d] 和 monitor[%d])", slug, prevIdx, i)
+			log.Printf("[Config] 注意: provider_slug '%s' 被多个监测项使用 (monitor[%d] 和 monitor[%d])", slug, prevIdx, i)
 		} else {
 			slugSet[slug] = i
 		}
@@ -613,7 +613,7 @@ func (c *AppConfig) Normalize() error {
 
 		// 计算最终隐藏状态：providerHidden || monitorHidden（仅对未禁用的项）
 		// 原因优先级：monitor.HiddenReason > provider.Reason
-		// 已禁用的监控项无需再覆盖隐藏原因
+		// 已禁用的监测项无需再覆盖隐藏原因
 		providerReason, providerHidden := hiddenProviderMap[normalizedProvider]
 		if !c.Monitors[i].Disabled && (providerHidden || c.Monitors[i].Hidden) {
 			c.Monitors[i].Hidden = true

@@ -182,17 +182,17 @@
       },
       "liability": {
         "title": "免责声明",
-        "text": "监控数据仅供技术参考，不构成对任何第三方服务商信誉或资金安全的背书。用户与服务商的交互风险自负"
+        "text": "监测数据仅供技术参考，不构成对任何第三方服务商信誉或资金安全的背书。用户与服务商的交互风险自负"
       }
     },
     "issuesBtn": "问题反馈",
     "openSourceLabel": "开源项目，欢迎贡献"
   },
   "provider": {
-    "pageTitle": "{{name}} - 服务监控",
-    "pageDescription": "{{name}} 的 LLM 服务可用性实时监控",
+    "pageTitle": "{{name}} - 服务监测",
+    "pageDescription": "{{name}} 的 LLM 服务可用性实时监测",
     "notFoundTitle": "服务商未找到",
-    "notFoundMessage": "服务商 \"{{slug}}\" 不存在或尚未接入监控",
+    "notFoundMessage": "服务商 \"{{slug}}\" 不存在或尚未接入监测",
     "backToHome": "返回首页"
   },
   "accessibility": {
@@ -237,7 +237,7 @@
     "title": "即将离开 RelayPulse",
     "target": "目标网站",
     "thirdPartyNotice": "您即将访问的服务商由第三方独立运营。",
-    "riskTip1": "本站监控数据仅代表技术连通性，不代表对商家信誉或资金安全的背书。",
+    "riskTip1": "本站监测数据仅代表技术连通性，不代表对商家信誉或资金安全的背书。",
     "riskTip2": "AI 中转服务存在行业固有风险，请务必注意资金安全，建议小额充值。",
     "cancel": "取消",
     "confirm": "我已知晓风险，继续访问",

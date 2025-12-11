@@ -21,7 +21,7 @@ func TestFilterMonitorsDisabled(t *testing.T) {
 	t.Run("默认模式：只返回活跃的", func(t *testing.T) {
 		result := h.filterMonitors(monitors, "all", "all", false)
 		if len(result) != 1 {
-			t.Errorf("期望返回 1 个监控项，实际返回 %d 个", len(result))
+			t.Errorf("期望返回 1 个监测项，实际返回 %d 个", len(result))
 		}
 		if len(result) > 0 && result[0].Provider != "active-provider" {
 			t.Errorf("期望返回 active-provider，实际返回 %s", result[0].Provider)
@@ -31,13 +31,13 @@ func TestFilterMonitorsDisabled(t *testing.T) {
 	t.Run("include_hidden=true：返回活跃和隐藏的，但不包括禁用的", func(t *testing.T) {
 		result := h.filterMonitors(monitors, "all", "all", true)
 		if len(result) != 2 {
-			t.Errorf("期望返回 2 个监控项，实际返回 %d 个", len(result))
+			t.Errorf("期望返回 2 个监测项，实际返回 %d 个", len(result))
 		}
 
 		// 确认禁用的不在结果中
 		for _, m := range result {
 			if m.Disabled {
-				t.Errorf("禁用的监控项不应该出现在结果中: %s", m.Provider)
+				t.Errorf("禁用的监测项不应该出现在结果中: %s", m.Provider)
 			}
 		}
 	})
@@ -101,6 +101,6 @@ func TestFilterMonitorsDedupe(t *testing.T) {
 
 	result := h.filterMonitors(monitors, "all", "all", false)
 	if len(result) != 2 {
-		t.Errorf("期望返回 2 个监控项（去重后），实际返回 %d 个", len(result))
+		t.Errorf("期望返回 2 个监测项（去重后），实际返回 %d 个", len(result))
 	}
 }

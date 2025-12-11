@@ -164,7 +164,7 @@ func (s *Server) Start() error {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	logger.Info("api", "监控服务已启动",
+	logger.Info("api", "监测服务已启动",
 		"web_ui", fmt.Sprintf("http://localhost:%s", s.port),
 		"api", fmt.Sprintf("http://localhost:%s/api/status", s.port),
 		"health", fmt.Sprintf("http://localhost:%s/health", s.port))

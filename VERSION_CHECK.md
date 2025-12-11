@@ -164,6 +164,6 @@ docker-compose up -d
    VERSION=v1.0.0 ./scripts/docker-build.sh
    ```
 
-3. **定期检查版本**: 在监控告警中包含版本信息
+3. **定期检查版本**: 在监测告警中包含版本信息
 
 4. **记录部署版本**: 在部署日志中记录 git_commit

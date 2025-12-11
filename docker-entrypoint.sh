@@ -13,7 +13,7 @@ DATA_DIR="/app/data"
 CONFIG_DATA_LINK="/config/data"
 ACTIVE_CONFIG="$CONFIG_FILE"
 
-echo "[Entrypoint] 初始化监控服务..."
+echo "[Entrypoint] 初始化监测服务..."
 
 # 检查是否挂载了外部配置文件
 if [ -f "$MOUNTED_CONFIG" ]; then
@@ -43,7 +43,7 @@ env | grep '^MONITOR_' > /dev/null && {
     echo "[Entrypoint] 未检测到 MONITOR_* 环境变量"
 }
 
-echo "[Entrypoint] 启动监控服务..."
+echo "[Entrypoint] 启动监测服务..."
 echo "----------------------------------------"
 
 # 执行主程序（main.go 通过 os.Args[1] 读取配置文件路径，不需要 -config 标志）
