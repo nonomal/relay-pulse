@@ -83,7 +83,7 @@ npm run preview       # 预览生产构建
 │   ├── storage/           # 数据存储
 │   │   ├── storage.go     # 接口定义
 │   │   └── sqlite.go      # SQLite 实现
-│   ├── monitor/           # 监控探测
+│   ├── monitor/           # 监测探测
 │   │   ├── client.go      # HTTP 客户端池
 │   │   └── probe.go       # 探测逻辑
 │   ├── scheduler/         # 调度器

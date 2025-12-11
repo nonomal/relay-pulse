@@ -5,7 +5,7 @@
 
 ## 项目概览
 
-这是一个企业级 LLM 服务可用性监控系统，支持配置热更新、SQLite/PostgreSQL 持久化和实时状态追踪。
+这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化和实时状态追踪。
 
 ### 项目文档
 
@@ -149,7 +149,7 @@ internal/
 │   ├── storage.go         → 接口定义
 │   ├── common.go          → 公共工具函数
 │   └── sqlite.go          → SQLite 实现 (modernc.org/sqlite)
-├── monitor/               → 监控逻辑
+├── monitor/               → 监测逻辑
 │   ├── client.go          → HTTP 客户端池管理
 │   └── probe.go           → 健康检查探测逻辑
 ├── scheduler/             → 任务调度
@@ -651,7 +651,7 @@ degraded_weight: 0.7   # 黄色状态的可用率权重（0-1，默认 0.7，可
 monitors:
   - provider: "88code"
     service: "cc"
-    interval: "30s"    # 可选：覆盖全局 interval（高频付费监控）
+    interval: "30s"    # 可选：覆盖全局 interval（高频付费监测）
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
     api_key: "sk-xxx"  # 可通过 MONITOR_88CODE_CC_API_KEY 覆盖
@@ -670,7 +670,7 @@ monitors:
 ### 热更新测试
 
 ```bash
-# 启动监控服务
+# 启动监测服务
 ./monitor
 
 # 在另一个终端编辑配置
@@ -678,7 +678,7 @@ vim config.yaml
 
 # 观察日志：
 # [Config] 检测到配置文件变更，正在重载...
-# [Config] 热更新成功！已加载 3 个监控任务
+# [Config] 热更新成功！已加载 3 个监测任务
 # [Scheduler] 配置已更新，下次巡检将使用新配置
 ```
 

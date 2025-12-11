@@ -35,12 +35,12 @@
 
 - 自建/采购 LLM 中转服务，持续验证 SLA
 - 多云 LLM 供应商质量对比，观察延迟与错误率
-- 外部 API 依赖监控，避免"假活"导致业务故障
+- 外部 API 依赖监测，避免"假活"导致业务故障
 
 ## 💰 成本与隐私
 
 - **探测成本极低**：`max_tokens: 1`，每次约 20 input + 1 output tokens；默认每分钟一次，约 3 万 tokens/天/服务
-- **数据本地存储**：配置与密钥仅存本地/自托管环境，监控数据不回传
+- **数据本地存储**：配置与密钥仅存本地/自托管环境，监测数据不回传
 
 ## 🚀 快速开始
 
@@ -91,7 +91,7 @@ go run cmd/server/main.go
 |--------------------|------------|
 | 🚀 5 分钟内跑起来  | [QUICKSTART.md](QUICKSTART.md) |
 | 💻 本地开发/调试   | 本文档的「本地开发」章节 |
-| ⚙️ 配置监控项      | [配置手册](docs/user/config.md) |
+| ⚙️ 配置监测项      | [配置手册](docs/user/config.md) |
 | 🤝 参与贡献        | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 > 以上 3–4 个是项目维护方优先保证更新的「核心文档」。`AGENTS.md`、`CLAUDE.md` 主要供 AI 助手使用，通常不需要人类维护。
@@ -150,7 +150,7 @@ docker compose up -d postgres monitor-pg
 ## 📊 API 端点
 
 ```bash
-# 获取监控状态（24小时）
+# 获取监测状态（24小时）
 curl http://localhost:8080/api/status
 
 # 获取 7 天历史
@@ -198,7 +198,7 @@ curl http://localhost:8080/api/version
 
 ## ⚠️ 免责声明
 
-本项目是基于 MIT 许可证发布的技术监控工具。
+本项目是基于 MIT 许可证发布的技术监测工具。
 
 **运营免责**：作者不对任何使用本软件搭建的站点（包括 relaypulse.top）上展示的第三方服务商的内容、可靠性、信誉或资金安全负责。用户与第三方服务商的交互风险自负。
 

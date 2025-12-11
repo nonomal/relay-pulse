@@ -8,7 +8,7 @@
 - ✅ 需要高并发支持
 - ✅ 多副本部署（Kubernetes）
 - ✅ 需要专业数据库备份和恢复
-- ✅ 需要数据库层面的监控和优化
+- ✅ 需要数据库层面的监测和优化
 
 ## 快速开始
 
@@ -25,9 +25,9 @@ vim .env
 # - POSTGRES_PASSWORD=你的强密码（建议 16 位以上）
 ```
 
-### 2. 准备监控配置
+### 2. 准备监测配置
 
-确保 `config.yaml` 已配置好监控服务和 API Keys。
+确保 `config.yaml` 已配置好监测服务和 API Keys。
 
 ### 3. 启动服务
 
@@ -41,7 +41,7 @@ docker-compose -f docker-compose.pg.yaml logs -f
 # 等待看到以下关键日志：
 # - "database system is ready to accept connections" (PostgreSQL)
 # - "postgres 存储已就绪" (RelayPulse)
-# - "监控服务已启动" (RelayPulse)
+# - "监测服务已启动" (RelayPulse)
 ```
 
 ### 4. 验证部署
@@ -51,7 +51,7 @@ docker-compose -f docker-compose.pg.yaml logs -f
 curl http://localhost/health
 # 预期输出: {"status":"ok"}
 
-# 查看监控数据
+# 查看监测数据
 curl http://localhost/api/status | jq
 
 # 访问 Web 界面
@@ -265,14 +265,14 @@ ERROR: relation "probe_history" does not exist
    ufw allow from 10.0.0.0/8 to any port 5432
    ```
 
-### 监控告警
+### 监测告警
 
-1. **PostgreSQL 连接数监控**
+1. **PostgreSQL 连接数监测**
    ```sql
    SELECT count(*) FROM pg_stat_activity WHERE datname='relaypulse';
    ```
 
-2. **数据库大小监控**
+2. **数据库大小监测**
    ```sql
    SELECT pg_database_size('relaypulse') as size_bytes;
    ```

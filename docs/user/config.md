@@ -39,7 +39,7 @@ storage:
     max_idle_conns: 5
     conn_max_lifetime: "1h"
 
-# 监控项列表
+# 监测项列表
 monitors:
   - provider: "88code"         # 服务商标识（必填）
     service: "cc"              # 服务类型（必填）
@@ -89,7 +89,7 @@ monitors:
 
 ### 赞助商置顶配置
 
-用于在页面初始加载时置顶符合条件的赞助商监控项，用户点击任意排序按钮后置顶失效，刷新页面恢复。
+用于在页面初始加载时置顶符合条件的赞助商监测项，用户点击任意排序按钮后置顶失效，刷新页面恢复。
 
 ```yaml
 sponsor_pin:
@@ -123,7 +123,7 @@ sponsor_pin:
 
 #### 置顶规则
 
-1. **置顶条件**: 监控项必须同时满足以下条件才会被置顶：
+1. **置顶条件**: 监测项必须同时满足以下条件才会被置顶：
    - 有 `sponsor_level` 配置
    - 无风险标记（`risks` 数组为空或未配置）
    - 可用率 ≥ `min_uptime`
@@ -146,7 +146,7 @@ sponsor_pin:
 - **说明**: 单轮巡检允许的最大并发探测数
 - **特殊值**:
   - `0` 或未配置: 使用默认值 10
-  - `-1`: 无限制，自动扩容到监控项数量
+  - `-1`: 无限制，自动扩容到监测项数量
   - `>0`: 硬上限，超过时排队等待
 - **调优建议**:
   - 小规模 (<20 项): 10-20
@@ -158,8 +158,8 @@ sponsor_pin:
 - **默认值**: `true`
 - **说明**: 是否在单个周期内对探测进行错峰分布，避免流量突发
 - **行为**:
-  - `true`: 将监控项均匀分散在整个巡检周期内执行（推荐）
-  - `false`: 所有监控项同时执行（仅用于调试或压测）
+  - `true`: 将监测项均匀分散在整个巡检周期内执行（推荐）
+  - `false`: 所有监测项同时执行（仅用于调试或压测）
 
 #### `public_base_url`
 - **类型**: string
@@ -172,7 +172,7 @@ sponsor_pin:
 - **类型**: boolean
 - **默认值**: `false`
 - **说明**: 启用 API 并发查询优化，显著降低 `/api/status` 接口响应时间
-- **性能提升**: 10 个监控项查询时间从 ~2s 降至 ~300ms（-85%）
+- **性能提升**: 10 个监测项查询时间从 ~2s 降至 ~300ms（-85%）
 - **适用场景**:
   - ✅ PostgreSQL 存储（推荐）
   - ❌ SQLite 存储（无效果，会产生警告）
@@ -221,7 +221,7 @@ storage:
 **适用场景**:
 - 单机部署
 - 开发环境
-- 小规模监控（< 100 个监控项）
+- 小规模监测（< 100 个监测项）
 
 **限制**:
 - 不支持多副本（水平扩展）
@@ -261,7 +261,7 @@ storage:
 - **`concurrent_query_limit`**：API 查询并发数（配置中的 `concurrent_query_limit`，默认 10）
 - **并发请求数**：预期同时访问 `/api/status` 的用户数
 
-**示例配置**（42 个监控项，生产环境）：
+**示例配置**（42 个监测项，生产环境）：
 
 ```yaml
 # 探测配置
@@ -284,7 +284,7 @@ storage:
 **适用场景**:
 - Kubernetes 多副本部署
 - 高可用需求
-- 大规模监控（> 100 个监控项）
+- 大规模监测（> 100 个监测项）
 
 **初始化数据库**:
 
@@ -301,7 +301,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - 保留窗口目前固定为 30 天，如需调整需修改源码或在 Issue 中提出新特性需求。
 - 运维层面的验证与手动清理命令请参考 [运维手册 - 数据保留策略（历史文档，仅供参考）](../../archive/docs/user/operations.md#数据保留策略)。
 
-### 监控项配置
+### 监测项配置
 
 #### 必填字段
 
@@ -443,11 +443,11 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 ##### `interval`
 - **类型**: string (Go duration 格式)
-- **说明**: 该监控项的自定义巡检间隔（可选），覆盖全局 `interval`
+- **说明**: 该监测项的自定义巡检间隔（可选），覆盖全局 `interval`
 - **示例**: `"30s"`, `"1m"`, `"5m"`
 - **使用场景**:
-  - **高频监控**：付费服务商需要更短的检测间隔（如 `"1m"`）
-  - **低频监控**：成本敏感或稳定服务使用更长间隔（如 `"15m"`）
+  - **高频监测**：付费服务商需要更短的检测间隔（如 `"1m"`）
+  - **低频监测**：成本敏感或稳定服务使用更长间隔（如 `"15m"`）
 - **配置示例**:
   ```yaml
   interval: "5m"  # 全局默认 5 分钟
@@ -463,7 +463,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 ##### `hidden`
 - **类型**: boolean
 - **默认值**: `false`
-- **说明**: 临时下架该监控项（隐藏但继续监控）
+- **说明**: 临时下架该监测项（隐藏但继续监测）
 - **行为**:
   - 调度器继续探测，存储结果（用于整改证据）
   - API `/api/status` 默认不返回（可加 `?include_hidden=true` 调试）
@@ -485,14 +485,14 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 ##### `disabled`
 - **类型**: boolean
 - **默认值**: `false`
-- **说明**: 彻底停用该监控项（不探测、不存储、不展示）
+- **说明**: 彻底停用该监测项（不探测、不存储、不展示）
 - **行为**:
   - 调度器不创建任务，不探测
   - 不写入数据库
   - API `/api/status` 不返回（即使加 `?include_hidden=true` 也不返回）
   - 前端不展示
   - sitemap 不包含
-- **适用场景**: 商家已彻底关闭、不再需要监控
+- **适用场景**: 商家已彻底关闭、不再需要监测
 - **示例**:
   ```yaml
   - provider: "已关站商家"
@@ -512,7 +512,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 #### Provider 级别下架
 
-批量下架整个服务商的所有监控项：
+批量下架整个服务商的所有监测项：
 
 ```yaml
 hidden_providers:
@@ -529,7 +529,7 @@ monitors:
 
 #### Monitor 级别下架
 
-下架单个监控项：
+下架单个监测项：
 
 ```yaml
 monitors:
@@ -562,12 +562,12 @@ curl "http://localhost:8080/api/status?include_hidden=true"
 
 #### Provider 级别停用
 
-批量停用整个服务商的所有监控项：
+批量停用整个服务商的所有监测项：
 
 ```yaml
 disabled_providers:
   - provider: "已跑路商家A"
-    reason: "商家已跑路，不再监控"
+    reason: "商家已跑路，不再监测"
   - provider: "已关站商家B"
     reason: "服务永久关闭"
 
@@ -579,7 +579,7 @@ monitors:
 
 #### Monitor 级别停用
 
-停用单个监控项：
+停用单个监测项：
 
 ```yaml
 monitors:
@@ -724,7 +724,7 @@ GA4 会自动追踪以下事件：
   - `change_view_mode` - 切换视图模式（table/grid）
   - `manual_refresh` - 点击刷新按钮
   - `click_external_link` - 点击外部链接（查看提供商/赞助商）
-- **性能监控**：
+- **性能监测**：
   - `api_request` - API 请求性能（包含延迟、成功/失败状态）
   - `api_error` - API 错误（包含错误类型：HTTP_XXX、NETWORK_ERROR）
 
@@ -751,7 +751,7 @@ GA4 会自动追踪以下事件：
 ❌ 无法加载配置文件: monitor[0]: 缺少必填字段 'category'
 
 # 重复的 provider + service + channel
-❌ 无法加载配置文件: 重复的监控项: provider=88code, service=cc, channel=
+❌ 无法加载配置文件: 重复的监测项: provider=88code, service=cc, channel=
 
 # 无效的 HTTP 方法
 ❌ 无法加载配置文件: monitor[0]: 无效的 method 'INVALID'
@@ -774,7 +774,7 @@ Relay Pulse 支持配置文件的热更新，修改配置后无需重启服务�
 # 启动服务
 docker compose up -d
 
-# 修改配置（添加新的监控项）
+# 修改配置（添加新的监测项）
 vi config.yaml
 
 # 观察日志
@@ -782,7 +782,7 @@ docker compose logs -f monitor
 
 # 应该看到:
 # [Config] 检测到配置文件变更，正在重载...
-# [Config] 热更新成功！已加载 3 个监控任务
+# [Config] 热更新成功！已加载 3 个监测任务
 # [Scheduler] 配置已更新，下次巡检将使用新配置
 # [Scheduler] 立即触发巡检
 ```

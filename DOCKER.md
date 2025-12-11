@@ -120,7 +120,7 @@ docker-compose up -d --build
 
 # 更新配置（热更新）
 vim config.yaml
-# 监控服务会自动检测配置变更并重载
+# 监测服务会自动检测配置变更并重载
 ```
 
 ## 端口映射
