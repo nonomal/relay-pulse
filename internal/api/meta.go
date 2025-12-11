@@ -126,8 +126,8 @@ func getMetaContent(langCode string, slug string, providerName string, isProvide
 		escapedName := html.EscapeString(providerName)
 		switch langCode {
 		case "zh-CN":
-			title = fmt.Sprintf("%s 服务可用性监控 - RelayPulse", escapedName)
-			description = fmt.Sprintf("实时监控 %s 的 API 可用性、延迟和服务质量，查看历史稳定性数据和赞助链路状态。", escapedName)
+			title = fmt.Sprintf("%s 服务可用性监测 - RelayPulse", escapedName)
+			description = fmt.Sprintf("实时监测 %s 的 API 可用性、延迟和服务质量，查看历史稳定性数据和赞助链路状态。", escapedName)
 		case "en-US":
 			title = fmt.Sprintf("%s Service Availability Monitoring - RelayPulse", escapedName)
 			description = fmt.Sprintf("Monitor %s API availability, latency, and service quality in real time. View historical stability data and sponsored route status.", escapedName)
@@ -142,17 +142,17 @@ func getMetaContent(langCode string, slug string, providerName string, isProvide
 		// 首页
 		switch langCode {
 		case "zh-CN":
-			title = "RelayPulse - LLM 中转服务可用性监控"
-			description = "RelayPulse - 实时监控全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性检测。"
+			title = "RelayPulse - 实时监测API中转服务可用性矩阵"
+			description = "RelayPulse - 实时监测全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性检测。"
 		case "en-US":
-			title = "RelayPulse - Availability monitoring for LLM relay services"
-			description = "RelayPulse - Monitor availability, latency, and sponsored routes of LLM relay services worldwide in real time, helping developers quickly evaluate provider quality and discover the most stable API providers. Supports connectivity checks for mainstream models such as Claude and GPT."
+			title = "RelayPulse - Real-time availability matrix for API relay services"
+			description = "RelayPulse - Real-time monitoring of LLM relay services worldwide for availability, latency, and sponsored routes, helping developers quickly evaluate provider quality and discover the most stable API providers. Supports connectivity checks for mainstream models such as Claude and GPT."
 		case "ru-RU":
-			title = "RelayPulse - Мониторинг доступности сервисов ретрансляции LLM"
-			description = "RelayPulse - Мониторинг доступности, задержки и спонсорских маршрутов сервисов ретрансляции LLM по всему миру в реальном времени, помогая разработчикам быстро оценивать качество провайдеров."
+			title = "RelayPulse - Матрица мониторинга доступности API-ретрансляционных сервисов в реальном времени"
+			description = "RelayPulse - Мониторинг в реальном времени доступности, задержки и спонсорских маршрутов глобальных LLM-ретрансляционных сервисов, помогающий разработчикам быстро оценивать качество провайдеров и находить самых стабильных API-поставщиков. Поддерживается проверка соединения для популярных моделей, таких как Claude и GPT."
 		case "ja-JP":
-			title = "RelayPulse - LLM リレーサービスの可用性監視"
-			description = "RelayPulse - 世界中の LLM リレーサービスの可用性、レイテンシ、スポンサールートをリアルタイムで監視し、開発者が迅速にプロバイダーの品質を評価できるようにします。"
+			title = "RelayPulse - API中継サービスの可用性マトリクスをリアルタイム監視"
+			description = "RelayPulse - 世界中のLLM中継サービスの可用性・レイテンシ・スポンサー経路をリアルタイムで監視。開発者がプロバイダの品質を素早く評価し、最も安定したAPIプロバイダを見つけられるよう支援します。Claude や GPT など主要モデルの接続性チェックに対応。"
 		}
 	}
 
@@ -253,7 +253,7 @@ func generatePageMeta(meta MetaData, baseURL string) PageMeta {
 		jsonLDData := map[string]interface{}{
 			"@context": "https://schema.org",
 			"@type":    "Service",
-			"name":     fmt.Sprintf("%s API 监控", meta.ProviderName),
+			"name":     fmt.Sprintf("%s API 监测", meta.ProviderName),
 			"provider": map[string]interface{}{
 				"@type": "Organization",
 				"name":  meta.ProviderName,
