@@ -18,7 +18,7 @@
 - 为避免文档碎片化，AI 不应随意新增顶层文档；如确有必要，应与用户确认后再创建，并优先复用现有结构（例如在 `README` 中扩展 FAQ，而不是再建新的说明文件）。
 
 ## 项目结构与模块组织
-- `cmd/server/main.go` 为 HTTP/API 入口，负责初始化配置、存储、调度和监控模块。
+- `cmd/server/main.go` 为 HTTP/API 入口，负责初始化配置、存储、调度和监测模块。
 - 核心后端代码位于 `internal/`：`config`（配置）、`monitor`（探测）、`scheduler`（调度）、`storage`（存储）、`api`（HTTP 服务）。
 - 前端代码在 `frontend/`（React + Vite + Tailwind），打包产物通过脚本嵌入到 `internal/api/frontend`。
 - 根目录下存放 `config.yaml` 及 `config.*.example.yaml`，部署相关文件在 `deploy/`，Docker 相关在 `Dockerfile` 与 `docker-compose*.yaml`。
@@ -36,7 +36,7 @@
 - 提交前建议执行 `pre-commit run --all-files`，保证格式化、编译与文档同步检查通过。
 
 ## 测试与质量保障
-- 单元测试与源码同目录存放为 `*_test.go`，重点覆盖配置加载、调度逻辑和监控探测；修改核心逻辑时应补充或更新测试。
+- 单元测试与源码同目录存放为 `*_test.go`，重点覆盖配置加载、调度逻辑和监测探测；修改核心逻辑时应补充或更新测试。
 - 推荐使用 `curl http://localhost:8080/api/status`、`curl /health` 等命令进行手工回归验证。
 - 前端改动需确保 `npm run lint` 通过，影响 UI 展示时在 PR 中附上截图说明。
 
