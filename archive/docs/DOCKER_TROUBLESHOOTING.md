@@ -30,9 +30,9 @@ docker compose up -d
 #### 方案 B: 使用兼容版本的配置文件
 
 ```bash
-# 使用 docker-compose.v1.yaml（已优化兼容性）
-docker-compose -f docker-compose.v1.yaml down
-docker-compose -f docker-compose.v1.yaml up -d
+# 使用旧版兼容配置（已归档到 archive/docker/）
+docker-compose -f archive/docker/docker-compose.v1.yaml down
+docker-compose -f archive/docker/docker-compose.v1.yaml up -d
 ```
 
 #### 方案 C: 完全清理后重启

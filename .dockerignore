@@ -5,7 +5,7 @@
 
 # Docker
 Dockerfile
-docker-compose.yml
+docker-compose*.yaml
 .dockerignore
 
 # Documentation
@@ -48,7 +48,6 @@ Thumbs.db
 
 # Config (will be mounted)
 config.yaml
-config.postgres.example.yaml
 
 # Air hot reload
 .air.toml

@@ -81,7 +81,7 @@ docker-compose restart
 
 ### 环境变量
 
-在 `docker-compose.yml` 中配置：
+在 `docker-compose.yaml` 中配置：
 
 ```yaml
 environment:
@@ -106,10 +106,10 @@ environment:
 docker-compose ps
 
 # 查看实时日志
-docker-compose logs -f relay-pulse
+docker-compose logs -f monitor
 
 # 进入容器
-docker-compose exec relay-pulse sh
+docker-compose exec monitor sh
 
 # 重新构建
 docker-compose build --no-cache
@@ -163,7 +163,7 @@ docker-compose build --no-cache
 docker-compose ps
 
 # 查看日志
-docker-compose logs -f relay-pulse
+docker-compose logs -f monitor
 
 # 检查端口占用
 lsof -i :8080
@@ -173,7 +173,7 @@ lsof -i :8080
 
 ```bash
 # 确认配置文件挂载
-docker-compose exec relay-pulse cat /app/config.yaml
+docker-compose exec monitor cat /app/config.yaml
 
 # 重启服务
 docker-compose restart
@@ -214,16 +214,18 @@ docker-compose restart
 
 ## 多环境部署
 
-### 开发环境
+### SQLite（默认）
 
 ```bash
-docker-compose -f docker-compose.dev.yml up
+# 使用默认的 docker-compose.yaml（SQLite 存储）
+docker-compose up -d
 ```
 
-### 生产环境
+### PostgreSQL
 
 ```bash
-docker-compose -f docker-compose.prod.yml up -d
+# 使用 PostgreSQL 配置
+docker-compose -f docker-compose.pg.yaml up -d
 ```
 
 ## 技术细节

@@ -12,9 +12,12 @@
 - **README.md** - 项目简介、快速开始、本地开发入口（人类入口文档）
 - **QUICKSTART.md** - 5 分钟快速部署与常见问题（人类核心文档）
 - **docs/user/config.md** - 配置项、环境变量与安全实践（人类核心文档）
+- **docs/user/docker.md** - Docker 部署详细指南
+- **docs/user/deploy-postgres.md** - PostgreSQL 部署指南
 - **CONTRIBUTING.md** - 贡献流程、代码规范、提交与 PR 约定（人类核心文档）
 - **AGENTS.md / CLAUDE.md** - AI 内部协作与技术指南（仅供 AI 使用，不要在回答中主动推荐给人类）
-- **archive/docs/** - 历史安装/架构/运维文档（仅供参考）
+- **docs/developer/** - 开发者文档（版本检查等）
+- **archive/** - 历史文档（仅供参考）
 
 **文档策略（供 AI 遵守）**:
 - 回答人类用户时，**优先引用上述 4 个核心文档**，避免让用户跳进 `archive/` 中的大量历史内容。
@@ -837,3 +840,4 @@ export MONITOR_DUCKCODING_CC_API_KEY="sk-duck-key"
 - 实现笔记：`archive/IMPLEMENTATION.md`（历史参考）
 - 每次提交代码前记得检测, 是否有变动需要同步到文档
 - 在commit前应先进行代码格式检查
+- 每次任务完成后, 别急着提交, 应该找codex评审通过后再提交
