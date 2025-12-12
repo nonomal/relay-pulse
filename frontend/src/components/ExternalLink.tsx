@@ -59,9 +59,17 @@ export function ExternalLink({
   const trackClick = useCallback(() => {
     if (!href) return;
     const label = trackLabel || (typeof children === 'string' ? children : href);
+    let domain: string | undefined;
+    try {
+      domain = new URL(href).hostname;
+    } catch {
+      // URL 解析失败时忽略
+    }
     trackEvent('click_external_link', {
-      label,
-      url: href,
+      link_text: label,
+      link_url: href,
+      link_domain: domain || '',
+      outbound: true,
     });
   }, [trackLabel, children, href]);
 
@@ -75,17 +83,25 @@ export function ExternalLink({
   // 点击处理
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
-      // 需要确认且未勾选"不再提示"
+      // 需要确认且未勾选"不再提示"：始终弹窗（安全优先）
       if (requireConfirm && !shouldSkipConfirm()) {
         e.preventDefault();
         setShowModal(true);
         return;
       }
 
-      // 直接跳转
-      trackClick();
+      // 不再提示模式或 requireConfirm=false
+      // 修饰键（Cmd/Ctrl/Shift）：保留浏览器原生行为
+      if (e.metaKey || e.ctrlKey || e.shiftKey) {
+        trackClick();
+        return; // 允许 <a> 默认行为
+      }
+
+      // 普通点击：用 window.open 避免 GA4 重复收集
+      e.preventDefault();
+      openLink();
     },
-    [requireConfirm, trackClick]
+    [requireConfirm, openLink, trackClick]
   );
 
   // 确认跳转
