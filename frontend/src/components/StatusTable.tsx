@@ -569,7 +569,7 @@ function StatusTableComponent({
                     {item.lastCheckLatency !== undefined && (
                       <span
                         className="text-[10px] font-mono"
-                        style={{ color: latencyToColor(item.lastCheckLatency, slowLatencyMs) }}
+                        style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, slowLatencyMs) }}
                       >
                         {item.lastCheckLatency}ms
                       </span>
