@@ -9,7 +9,9 @@ import (
 )
 
 // TestBuildTimelineLatencyCalculation 测试延迟统计逻辑
-// 验证：只有 status > 0 的记录才纳入延迟统计
+// 验证：
+// 1. 优先使用 status > 0 的记录计算平均延迟
+// 2. 若全部不可用，则使用所有记录的平均延迟作为参考（前端显示灰色）
 func TestBuildTimelineLatencyCalculation(t *testing.T) {
 	// 创建 Handler（不需要真实的 storage）
 	h := &Handler{
@@ -62,8 +64,17 @@ func TestBuildTimelineLatencyCalculation(t *testing.T) {
 				{Status: 0, Latency: 1000, Timestamp: now.Unix()},
 				{Status: 0, Latency: 2000, Timestamp: now.Unix()},
 			},
-			expectedLatency: 0, // 没有可用记录，延迟为0
-			description:     "全部不可用时，延迟应为0",
+			expectedLatency: 1500, // 全部不可用时，返回所有记录平均延迟作为参考 (1000+2000)/2
+			description:     "全部不可用时，返回所有记录平均延迟作为参考值",
+		},
+		{
+			name: "全部不可用且延迟为0",
+			records: []*storage.ProbeRecord{
+				{Status: 0, Latency: 0, Timestamp: now.Unix()}, // 网络错误，无延迟数据
+				{Status: 0, Latency: 0, Timestamp: now.Unix()},
+			},
+			expectedLatency: 0, // 没有有效延迟数据，返回 0
+			description:     "全部不可用且无延迟数据时，延迟为0",
 		},
 		{
 			name: "混合所有状态",
