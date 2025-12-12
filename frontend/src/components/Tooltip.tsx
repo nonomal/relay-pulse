@@ -137,8 +137,8 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
             </div>
           )}
 
-          {/* 延迟 */}
-          {tooltip.data!.latency > 0 && (
+          {/* 延迟（仅可用状态显示） */}
+          {tooltip.data!.latency > 0 && (counts.available > 0 || counts.degraded > 0) && (
             <div className="text-[10px] text-center pt-1">
               <span className="text-muted">{t('tooltip.latency')} </span>
               <span style={{ color: latencyToColor(tooltip.data!.latency, slowLatencyMs) }}>
@@ -158,7 +158,8 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
               {t('tooltip.uptime')} {tooltip.data!.availability.toFixed(2)}%
             </div>
           )}
-          {tooltip.data!.latency > 0 && (
+          {/* 延迟（仅有可用记录时显示） */}
+          {tooltip.data!.latency > 0 && tooltip.data!.availability > 0 && (
             <div className="text-[10px] text-center">
               <span className="text-muted">{t('tooltip.latency')} </span>
               <span style={{ color: latencyToColor(tooltip.data!.latency, slowLatencyMs) }}>
