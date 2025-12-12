@@ -663,6 +663,8 @@ type bucketStats struct {
 	weightedSuccess float64              // 累积成功权重（绿=1.0, 黄=degraded_weight, 红=0.0）
 	latencySum      int64                // 延迟总和（仅统计可用状态）
 	latencyCount    int                  // 有效延迟计数（仅 status > 0 的记录）
+	allLatencySum   int64                // 所有记录延迟总和（用于全不可用时的参考）
+	allLatencyCount int                  // 所有记录计数
 	last            *storage.ProbeRecord // 最新一条记录
 	statusCounts    storage.StatusCounts // 各状态计数
 }
@@ -731,6 +733,11 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 		stat := &stats[actualIndex]
 		stat.total++
 		stat.weightedSuccess += availabilityWeight(record.Status, degradedWeight)
+		// 统计所有记录的延迟（用于全不可用时的参考）
+		if record.Latency > 0 {
+			stat.allLatencySum += int64(record.Latency)
+			stat.allLatencyCount++
+		}
 		// 只统计可用状态（status > 0）的延迟
 		if record.Status > 0 {
 			stat.latencySum += int64(record.Latency)
@@ -755,9 +762,15 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 		// 计算可用率（使用权重）
 		buckets[i].Availability = (stat.weightedSuccess / float64(stat.total)) * 100
 
-		// 计算平均延迟（仅统计可用状态，四舍五入）
+		// 计算平均延迟
+		// 优先使用可用状态的延迟，若全部不可用则使用所有记录的延迟作为参考
 		if stat.latencyCount > 0 {
+			// 有可用记录：使用可用记录的平均延迟
 			avgLatency := float64(stat.latencySum) / float64(stat.latencyCount)
+			buckets[i].Latency = int(avgLatency + 0.5)
+		} else if stat.allLatencyCount > 0 {
+			// 全部不可用：使用所有记录的平均延迟作为参考（前端显示灰色）
+			avgLatency := float64(stat.allLatencySum) / float64(stat.allLatencyCount)
 			buckets[i].Latency = int(avgLatency + 0.5)
 		}
 
