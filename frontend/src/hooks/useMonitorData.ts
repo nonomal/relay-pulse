@@ -139,8 +139,11 @@ export function useMonitorData({
           // 使用真实 API
           // align 参数仅在 24h 模式下有效
           const alignParam = (timeAlign && timeRange === '24h') ? `&align=${encodeURIComponent(timeAlign)}` : '';
-          // time_filter 参数仅在 7d/30d 模式下有效
-          const timeFilterParam = (timeFilter && timeRange !== '24h') ? `&time_filter=${encodeURIComponent(timeFilter)}` : '';
+          // time_filter 参数仅在 7d/30d 模式下有效（1h/24h 关闭）
+          const timeFilterParam =
+            (timeFilter && timeRange !== '24h' && timeRange !== '1h')
+              ? `&time_filter=${encodeURIComponent(timeFilter)}`
+              : '';
           const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}${timeFilterParam}`;
 
           // 手动刷新时绕过浏览器缓存

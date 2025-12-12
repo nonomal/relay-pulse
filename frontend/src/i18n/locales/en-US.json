@@ -30,7 +30,7 @@
       "evening": "Evening",
       "custom": "Custom"
     },
-    "disabled24h": "Time filter not needed for 24h period",
+    "disabled24h": "Time filter not available for this period",
     "customRange": {
       "title": "Custom time range",
       "start": "Start time",
@@ -66,6 +66,7 @@
       "cx": "Codex (cx)"
     },
     "timeRanges": {
+      "1h": "Last 1 hour",
       "24h": "Last 24 hours",
       "24hLive": "24h·Live",
       "24hHour": "24h·Hourly",

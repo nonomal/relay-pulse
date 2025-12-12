@@ -72,6 +72,7 @@ export interface ApiResponse {
   meta: {
     period: string;
     count: number;
+    timeline_mode?: 'raw' | 'aggregated';  // 时间线模式：raw=原始记录，aggregated=聚合数据
     slow_latency_ms?: number;  // 慢延迟阈值（毫秒），用于延迟颜色渐变
     sponsor_pin?: SponsorPinConfig;  // 赞助商置顶配置
   };
@@ -134,7 +135,7 @@ export interface TimeRange {
   id: string;
   label: string;
   points: number;
-  unit: 'hour' | 'day';
+  unit: 'minute' | 'hour' | 'day';
 }
 
 // 服务商配置

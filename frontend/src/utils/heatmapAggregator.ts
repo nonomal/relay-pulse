@@ -53,6 +53,29 @@ if (import.meta.hot) {
 }
 
 /**
+ * 判断是否为 1 小时窗口（原始记录模式）
+ * 通过检测时间戳范围来判断，避免依赖外部传参
+ */
+function isOneHourRange(points: HistoryPoint[]): boolean {
+  if (points.length < 2) {
+    return false;
+  }
+
+  const timestamps = points
+    .map(point => point.timestampNum)
+    .filter(ts => Number.isFinite(ts));
+
+  if (timestamps.length < 2) {
+    return false;
+  }
+
+  const minTs = Math.min(...timestamps);
+  const maxTs = Math.max(...timestamps);
+  // 时间跨度 <= 1 小时 (3600 秒) 视为 1h 模式
+  return (maxTs - minTs) <= 3600;
+}
+
+/**
  * 聚合热力图数据点，用于移动端显示
  *
  * @param points 原始历史数据点
@@ -63,6 +86,11 @@ export function aggregateHeatmap(
   points: HistoryPoint[],
   maxBlocks = 50
 ): HistoryPoint[] {
+  // 1h 模式不聚合（桌面/移动端一致展示原始数据）
+  if (isOneHourRange(points)) {
+    return points;
+  }
+
   // 桌面端不聚合（平板/移动端才聚合，使用缓存的 matchMedia 结果）
   if (!getIsTablet()) {
     return points;
@@ -179,6 +207,8 @@ export function getAggregationFactor(timeRange: string): number {
 
   // 根据时间范围返回推荐的聚合因子
   switch (timeRange) {
+    case '1h':
+      return 1; // 1h 模式不聚合
     case '24h':
       return 2; // 48 点 → 24 块
     case '7d':

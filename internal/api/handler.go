@@ -296,7 +296,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	var timeFilter *TimeFilter
 	if timeFilterParam != "" {
 		// 时段过滤仅支持 7d 和 30d 周期
-		if period == "24h" || period == "1d" {
+		if period == "1h" || period == "24h" || period == "1d" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "时段过滤仅支持 7d 和 30d 周期",
 			})
@@ -388,9 +388,16 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 
 	logger.Info("api", "GetStatus 查询完成", "mode", mode, "monitors", len(filtered), "period", period, "align", align, "count", len(response))
 
+	// 确定 timeline 模式：1h 返回原始记录，其他返回聚合数据
+	timelineMode := "aggregated"
+	if period == "1h" {
+		timelineMode = "raw"
+	}
+
 	// 序列化为 JSON
 	meta := gin.H{
 		"period":          period,
+		"timeline_mode":   timelineMode,
 		"count":           len(response),
 		"slow_latency_ms": slowLatencyMs,
 		"sponsor_pin": gin.H{
@@ -579,6 +586,8 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 // parsePeriod 解析时间范围（仅用于验证）
 func (h *Handler) parsePeriod(period string) (time.Duration, error) {
 	switch period {
+	case "1h":
+		return time.Hour, nil
 	case "24h", "1d":
 		return 24 * time.Hour, nil
 	case "7d":
@@ -592,14 +601,18 @@ func (h *Handler) parsePeriod(period string) (time.Duration, error) {
 
 // parseTimeRange 解析时间范围，返回 (startTime, endTime)
 // align 参数控制时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
-// 注意：7d/30d 模式自动使用 day 对齐，忽略 align 参数
+// 注意：1h 固定使用动态窗口，7d/30d 模式自动使用 day 对齐，忽略 align 参数
 func (h *Handler) parseTimeRange(period, align string) (startTime, endTime time.Time) {
 	now := time.Now()
 
 	// 根据 period 计算时间范围
+	// 1h: 固定动态窗口
 	// 24h: 用户可选 align 模式
 	// 7d/30d: 强制使用 day 对齐（包含今天不完整数据）
 	switch period {
+	case "1h":
+		endTime = now // 动态滑动窗口：不对齐
+		startTime = endTime.Add(-time.Hour)
 	case "24h", "1d":
 		endTime = h.alignTimestamp(now, align)
 		startTime = endTime.Add(-24 * time.Hour)
@@ -660,6 +673,11 @@ type bucketStats struct {
 func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) []storage.TimePoint {
 	// 根据 period 确定 bucket 策略
 	bucketCount, bucketWindow, format := h.determineBucketStrategy(period)
+
+	// 1h 模式：不聚合，直接返回原始记录
+	if bucketCount == 0 {
+		return h.buildRawTimeline(records, endTime, format, degradedWeight, timeFilter)
+	}
 
 	// 使用传入的 endTime 作为基准时间（支持对齐模式）
 	baseTime := endTime
@@ -754,9 +772,52 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 	return buckets
 }
 
+// buildRawTimeline 将原始探测记录直接转换为时间轴（1h 模式专用，不聚合）
+func (h *Handler) buildRawTimeline(records []*storage.ProbeRecord, endTime time.Time, format string, degradedWeight float64, timeFilter *TimeFilter) []storage.TimePoint {
+	var timeline []storage.TimePoint
+
+	for _, record := range records {
+		t := time.Unix(record.Timestamp, 0)
+
+		// 跳过 endTime 之后的记录（窗口之外）
+		if t.After(endTime) {
+			continue
+		}
+
+		// 时段过滤
+		if timeFilter != nil && !timeFilter.Contains(t) {
+			continue
+		}
+
+		// 构建状态计数（单条记录）
+		var counts storage.StatusCounts
+		incrementStatusCount(&counts, record.Status, record.SubStatus)
+
+		// 延迟处理：与聚合分支一致，仅可用状态（status > 0）展示延迟
+		latency := 0
+		if record.Status > 0 {
+			latency = record.Latency
+		}
+
+		timeline = append(timeline, storage.TimePoint{
+			Time:         t.UTC().Format(format),
+			Timestamp:    record.Timestamp,
+			Status:       record.Status,
+			Latency:      latency,
+			Availability: statusToAvailability(record.Status, degradedWeight),
+			StatusCounts: counts,
+		})
+	}
+
+	return timeline
+}
+
 // determineBucketStrategy 根据 period 确定 bucket 数量、窗口大小和时间格式
+// count=0 表示不聚合，返回原始记录
 func (h *Handler) determineBucketStrategy(period string) (count int, window time.Duration, format string) {
 	switch period {
+	case "1h":
+		return 0, 0, "15:04:05" // 不聚合，返回原始记录
 	case "24h", "1d":
 		return 24, time.Hour, "15:04"
 	case "7d":
@@ -787,6 +848,20 @@ func availabilityWeight(status int, degradedWeight float64) float64 {
 		return degradedWeight
 	default: // 红色（不可用）或灰色（未配置）
 		return 0.0
+	}
+}
+
+// statusToAvailability 将单条状态映射为可用率百分比（1h 模式专用）
+func statusToAvailability(status int, degradedWeight float64) float64 {
+	switch status {
+	case 1: // 绿色
+		return 100.0
+	case 2: // 黄色
+		return degradedWeight * 100
+	case 0: // 红色
+		return 0.0
+	default: // 灰色（无数据）
+		return -1
 	}
 }
 

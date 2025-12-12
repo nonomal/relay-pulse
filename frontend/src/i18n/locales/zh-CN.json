@@ -30,7 +30,7 @@
       "evening": "晚上",
       "custom": "自定义"
     },
-    "disabled24h": "24h 周期无需时段筛选",
+    "disabled24h": "当前周期无需时段筛选",
     "customRange": {
       "title": "自定义时段",
       "start": "开始时间",
@@ -66,6 +66,7 @@
       "cx": "Codex (cx)"
     },
     "timeRanges": {
+      "1h": "近1小时",
       "24h": "近24小时",
       "24hLive": "24h·动态",
       "24hHour": "24h·整点",

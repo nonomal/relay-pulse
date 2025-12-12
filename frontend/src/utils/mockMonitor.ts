@@ -8,8 +8,10 @@ import type { ProcessedMonitorData, StatusKey, StatusCounts } from '../types';
 export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMonitorData[]> {
   return new Promise((resolve) => {
     setTimeout(() => {
-      // 默认使用 24h 范围，避免返回空数据
-      const rangeConfig = TIME_RANGES.find(r => r.id === timeRangeId) || TIME_RANGES[0];
+      // 默认使用 24h 范围（显式指定，避免 TIME_RANGES 顺序变化导致问题）
+      const rangeConfig = TIME_RANGES.find(r => r.id === timeRangeId)
+        || TIME_RANGES.find(r => r.id === '24h')
+        || TIME_RANGES[0];
       if (!rangeConfig) {
         console.error(`Invalid timeRangeId: ${timeRangeId}, falling back to default`);
         resolve([]);
@@ -46,7 +48,11 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
               availability = Math.random() * 60;        // 0-60%
             }
 
-            const timestampMs = Date.now() - (count - index) * (rangeConfig.unit === 'hour' ? 3600000 : 86400000);
+            // 根据 unit 计算时间步长（minute=60s, hour=3600s, day=86400s）
+            const unitMs = rangeConfig.unit === 'minute' ? 60000
+              : rangeConfig.unit === 'hour' ? 3600000
+              : 86400000;
+            const timestampMs = Date.now() - (count - index) * unitMs;
 
             // 模拟状态计数（单次探测，所以只有一个状态为 1）
             // 并根据状态类型模拟细分统计（每次只选择一个细分）
