@@ -179,8 +179,9 @@ export function useMonitorData({
           }
 
           // 转换为前端数据格式
-          processed = json.data.map((item) => {
-            const history = item.timeline.map((point, index) => ({
+          // 防御性检查：json.data 和 item.timeline 可能为 null（新站点无数据时）
+          processed = (json.data || []).map((item) => {
+            const history = (item.timeline || []).map((point, index) => ({
               index,
               status: statusMap[point.status] || 'UNAVAILABLE',
               timestamp: point.time,

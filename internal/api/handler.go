@@ -468,7 +468,8 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 
 // getStatusSerial 串行查询（原有逻辑）
 func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) ([]MonitorResult, error) {
-	var response []MonitorResult
+	// 初始化为空切片，确保 JSON 序列化时返回 [] 而不是 null
+	response := make([]MonitorResult, 0, len(monitors))
 	store := h.storage.WithContext(ctx)
 
 	for _, task := range monitors {
@@ -787,7 +788,8 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 
 // buildRawTimeline 将原始探测记录直接转换为时间轴（1h 模式专用，不聚合）
 func (h *Handler) buildRawTimeline(records []*storage.ProbeRecord, endTime time.Time, format string, degradedWeight float64, timeFilter *TimeFilter) []storage.TimePoint {
-	var timeline []storage.TimePoint
+	// 初始化为空切片，确保 JSON 序列化时返回 [] 而不是 null
+	timeline := make([]storage.TimePoint, 0)
 
 	for _, record := range records {
 		t := time.Unix(record.Timestamp, 0)
