@@ -793,17 +793,12 @@ func (h *Handler) buildRawTimeline(records []*storage.ProbeRecord, endTime time.
 		var counts storage.StatusCounts
 		incrementStatusCount(&counts, record.Status, record.SubStatus)
 
-		// 延迟处理：与聚合分支一致，仅可用状态（status > 0）展示延迟
-		latency := 0
-		if record.Status > 0 {
-			latency = record.Latency
-		}
-
+		// 延迟处理：始终返回原始延迟值，由前端决定颜色（可用=渐变，不可用=灰色）
 		timeline = append(timeline, storage.TimePoint{
 			Time:         t.UTC().Format(format),
 			Timestamp:    record.Timestamp,
 			Status:       record.Status,
-			Latency:      latency,
+			Latency:      record.Latency,
 			Availability: statusToAvailability(record.Status, degradedWeight),
 			StatusCounts: counts,
 		})
