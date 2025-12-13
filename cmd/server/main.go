@@ -126,8 +126,8 @@ func main() {
 		if err := store.MigrateChannelData(buildChannelMigrationMappings(newCfg.Monitors)); err != nil {
 			logger.Warn("main", "热更新时 channel 迁移失败", "error", err)
 		}
-		// 立即触发一次巡检，确保新配置立即生效
-		sched.TriggerNow()
+		// 注意：不再调用 TriggerNow()，rebuildTasks 已安排错峰首次执行
+		// 避免与 rebuildTasks 的首轮调度产生竞态导致重复探测
 	})
 
 	if err != nil {
