@@ -159,10 +159,38 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
   const mergedStatusCounts = group.reduce((acc, point) => {
     if (!point.statusCounts) return acc;
 
-    Object.keys(point.statusCounts).forEach(key => {
-      const typedKey = key as keyof typeof point.statusCounts;
-      acc[typedKey] = (acc[typedKey] || 0) + (point.statusCounts![typedKey] || 0);
+    // 数值字段列表
+    const numericKeys = [
+      'available', 'degraded', 'unavailable', 'missing',
+      'slow_latency', 'rate_limit', 'server_error', 'client_error',
+      'auth_error', 'invalid_request', 'network_error', 'content_mismatch'
+    ] as const;
+
+    // 合并数值字段
+    numericKeys.forEach(key => {
+      const value = point.statusCounts![key];
+      if (typeof value === 'number') {
+        acc[key] = ((acc[key] as number) || 0) + value;
+      }
     });
+
+    // 合并 http_code_breakdown（嵌套对象）
+    const breakdown = point.statusCounts!.http_code_breakdown;
+    if (breakdown) {
+      if (!acc.http_code_breakdown) {
+        acc.http_code_breakdown = {};
+      }
+      Object.entries(breakdown).forEach(([subStatus, codes]) => {
+        if (!acc.http_code_breakdown![subStatus]) {
+          acc.http_code_breakdown![subStatus] = {};
+        }
+        Object.entries(codes).forEach(([code, count]) => {
+          const codeNum = Number(code);
+          acc.http_code_breakdown![subStatus][codeNum] =
+            (acc.http_code_breakdown![subStatus][codeNum] || 0) + count;
+        });
+      });
+    }
 
     return acc;
   }, {} as NonNullable<HistoryPoint['statusCounts']>);
