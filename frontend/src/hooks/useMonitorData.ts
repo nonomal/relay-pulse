@@ -73,6 +73,7 @@ const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({
   invalid_request: counts?.invalid_request ?? 0,
   network_error: counts?.network_error ?? 0,
   content_mismatch: counts?.content_mismatch ?? 0,
+  http_code_breakdown: counts?.http_code_breakdown, // 透传 HTTP 错误码细分
 });
 
 interface UseMonitorDataOptions {

@@ -28,6 +28,7 @@ type ProbeRecord struct {
 	Channel   string    // 业务通道标识
 	Status    int       // 1=绿, 0=红, 2=黄
 	SubStatus SubStatus // 细分状态（黄色/红色原因）
+	HttpCode  int       // HTTP 状态码（0 表示非 HTTP 错误，如网络错误）
 	Latency   int       // ms
 	Timestamp int64     // Unix时间戳
 }
@@ -60,6 +61,11 @@ type StatusCounts struct {
 	InvalidRequest  int `json:"invalid_request"`  // 红色-请求参数错误次数（400）
 	NetworkError    int `json:"network_error"`    // 红色-连接失败次数
 	ContentMismatch int `json:"content_mismatch"` // 红色-内容校验失败次数
+
+	// HTTP 错误码细分统计
+	// key: SubStatus 类型（如 "server_error", "client_error"）
+	// value: 错误码 -> 出现次数 的映射
+	HttpCodeBreakdown map[string]map[int]int `json:"http_code_breakdown,omitempty"`
 }
 
 // ChannelMigrationMapping 表示 provider/service 对应的目标 channel

@@ -118,6 +118,9 @@ func (s *PostgresStorage) Init() error {
 	if err := s.ensureChannelColumn(); err != nil {
 		return err
 	}
+	if err := s.ensureHttpCodeColumn(); err != nil {
+		return err
+	}
 
 	// 在列迁移完成后创建索引
 	//
@@ -125,7 +128,7 @@ func (s *PostgresStorage) Init() error {
 	// - 覆盖索引专为核心查询优化：GetLatest() 和 GetHistory()
 	// - 所有业务查询都包含完整的 (provider, service, channel) 等值条件
 	// - timestamp DESC 支持时间范围查询和排序，避免额外排序开销
-	// - INCLUDE 子句包含查询所需的所有字段，消除回表开销
+	// - INCLUDE 子句包含查询所需的大部分字段，减少回表开销
 	// - 列顺序遵循 B-Tree 最佳实践：等值列在前，范围/排序列在后
 	//
 	// 性能优化：
@@ -134,6 +137,7 @@ func (s *PostgresStorage) Init() error {
 	// - 缓存友好（索引页比数据页更紧凑，更容易全部加载到 shared_buffers）
 	//
 	// ⚠️ 维护注意事项：
+	// - http_code 字段未纳入 INCLUDE（仅用于 Tooltip 显示），查询时会有轻微回表开销
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
 	// - CleanOldRecords() 的全表扫描是可接受的（低频维护操作）
 	// - 当数据量超过 10GB 或清理时间超过 10 秒时，考虑：
@@ -212,6 +216,35 @@ func (s *PostgresStorage) ensureChannelColumn() error {
 	return nil
 }
 
+// ensureHttpCodeColumn 在旧表上添加 http_code 列（向后兼容）
+func (s *PostgresStorage) ensureHttpCodeColumn() error {
+	ctx := s.effectiveCtx()
+	checkQuery := `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_name = 'probe_history' AND column_name = 'http_code'
+	`
+
+	var count int
+	err := s.pool.QueryRow(ctx, checkQuery).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("查询 PostgreSQL 表结构失败: %w", err)
+	}
+
+	if count > 0 {
+		return nil // 列已存在，无需添加
+	}
+
+	// 添加列
+	alterQuery := `ALTER TABLE probe_history ADD COLUMN http_code INTEGER NOT NULL DEFAULT 0`
+	if _, err := s.pool.Exec(ctx, alterQuery); err != nil {
+		return fmt.Errorf("添加 http_code 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 probe_history 表添加 http_code 列 (PostgreSQL)")
+	return nil
+}
+
 // MigrateChannelData 根据配置将 channel 为空的旧数据迁移到指定 channel
 func (s *PostgresStorage) MigrateChannelData(mappings []ChannelMigrationMapping) error {
 	ctx := s.effectiveCtx()
@@ -279,8 +312,8 @@ func (s *PostgresStorage) Close() error {
 func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO probe_history (provider, service, channel, status, sub_status, latency, timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO probe_history (provider, service, channel, status, sub_status, http_code, latency, timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		RETURNING id
 	`
 
@@ -290,6 +323,7 @@ func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 		record.Channel,
 		record.Status,
 		string(record.SubStatus),
+		record.HttpCode,
 		record.Latency,
 		record.Timestamp,
 	).Scan(&record.ID)
@@ -305,7 +339,7 @@ func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 func (s *PostgresStorage) GetLatest(provider, service, channel string) (*ProbeRecord, error) {
 	ctx := s.effectiveCtx()
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, latency, timestamp
+		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
 		WHERE provider = $1 AND service = $2 AND channel = $3
 		ORDER BY timestamp DESC
@@ -321,6 +355,7 @@ func (s *PostgresStorage) GetLatest(provider, service, channel string) (*ProbeRe
 		&record.Channel,
 		&record.Status,
 		&subStatusStr,
+		&record.HttpCode,
 		&record.Latency,
 		&record.Timestamp,
 	)
@@ -343,7 +378,7 @@ func (s *PostgresStorage) GetHistory(provider, service, channel string, since ti
 	// 使用 ORDER BY timestamp DESC 以利用索引（索引是 timestamp DESC）
 	// 返回前在 Go 代码中反转为时间升序
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, latency, timestamp
+		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
 		WHERE provider = $1 AND service = $2 AND channel = $3 AND timestamp >= $4
 		ORDER BY timestamp DESC
@@ -366,6 +401,7 @@ func (s *PostgresStorage) GetHistory(provider, service, channel string, since ti
 			&record.Channel,
 			&record.Status,
 			&subStatusStr,
+			&record.HttpCode,
 			&record.Latency,
 			&record.Timestamp,
 		)

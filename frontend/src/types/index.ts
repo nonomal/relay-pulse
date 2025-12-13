@@ -25,6 +25,11 @@ export interface StatusCounts {
   invalid_request: number;  // 请求参数错误次数（400）
   network_error: number;    // 连接失败次数
   content_mismatch: number; // 内容校验失败次数
+
+  // HTTP 错误码细分统计
+  // key: SubStatus 类型（如 "server_error", "client_error"）
+  // value: 错误码 -> 出现次数 的映射
+  http_code_breakdown?: Record<string, Record<number, number>>;
 }
 
 export interface CurrentStatus {

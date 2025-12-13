@@ -25,6 +25,7 @@ type ProbeResult struct {
 	Channel   string
 	Status    int               // 1=绿, 0=红, 2=黄
 	SubStatus storage.SubStatus // 细分状态（黄色/红色原因）
+	HttpCode  int               // HTTP 状态码（0 表示非 HTTP 错误）
 	Latency   int               // ms
 	Timestamp int64
 	Error     error
@@ -52,6 +53,7 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		Channel:   cfg.Channel,
 		Timestamp: time.Now().Unix(),
 		SubStatus: storage.SubStatusNone,
+		HttpCode:  0, // 默认为 0，表示非 HTTP 错误
 	}
 
 	// 准备请求体（去除首尾空白，某些 API 对此敏感）
@@ -87,6 +89,9 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		return result
 	}
 	defer resp.Body.Close()
+
+	// 记录 HTTP 状态码
+	result.HttpCode = resp.StatusCode
 
 	// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
 	var bodyBytes []byte
@@ -372,6 +377,7 @@ func (p *Prober) SaveResult(result *ProbeResult) error {
 		Channel:   result.Channel,
 		Status:    result.Status,
 		SubStatus: result.SubStatus,
+		HttpCode:  result.HttpCode,
 		Latency:   result.Latency,
 		Timestamp: result.Timestamp,
 	}

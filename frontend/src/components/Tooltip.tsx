@@ -76,6 +76,32 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     content_mismatch: 0,
   };
 
+  // 格式化 HTTP 错误码细分（用于 title 提示）
+  const formatHttpCodeBreakdown = (subStatusKey: string): string | null => {
+    const breakdown = counts.http_code_breakdown?.[subStatusKey];
+    if (!breakdown || Object.keys(breakdown).length === 0) return null;
+
+    // 按出现次数降序排列
+    const sorted = Object.entries(breakdown)
+      .sort(([, a], [, b]) => b - a)
+      .map(([code, count]) => `${code}×${count}`)
+      .join(', ');
+
+    return sorted;
+  };
+
+  // 获取主要错误码（出现次数最多的）
+  const getMainHttpCode = (subStatusKey: string): string => {
+    const breakdown = counts.http_code_breakdown?.[subStatusKey];
+    if (!breakdown || Object.keys(breakdown).length === 0) return '';
+
+    const entries = Object.entries(breakdown);
+    if (entries.length === 0) return '';
+
+    const [mainCode] = entries.sort(([, a], [, b]) => b - a)[0];
+    return mainCode;
+  };
+
   // 状态统计
   const statusSummary = [
     { key: 'available', emoji: '🟢', label: t('status.available'), value: counts.available },
@@ -163,6 +189,12 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
               {t('tooltip.uptime')} {tooltip.data!.availability.toFixed(2)}%
             </div>
           )}
+          {/* 检测总次数 */}
+          {(counts.available + counts.degraded + counts.unavailable) > 0 && (
+            <div className="text-[10px] text-center text-secondary">
+              {t('tooltip.totalProbes')}: {counts.available + counts.degraded + counts.unavailable}
+            </div>
+          )}
           {/* 延迟 */}
           {tooltip.data!.latency > 0 && (
             <div className="text-[10px] text-center">
@@ -209,12 +241,23 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
           {unavailableSubstatus.length > 0 && (
             <div className="flex flex-col gap-1 pt-2 border-t border-default/50">
               <div className="text-[10px] text-secondary mb-0.5">{t('tooltip.unavailableTitle')}</div>
-              {unavailableSubstatus.map((item) => (
-                <div key={item.key} className="flex justify-between items-center gap-3 text-[10px] pl-2">
-                  <span className="text-secondary">• {item.label}</span>
-                  <span className="text-primary tabular-nums">{item.value}</span>
-                </div>
-              ))}
+              {unavailableSubstatus.map((item) => {
+                const mainCode = getMainHttpCode(item.key);
+                const httpBreakdown = formatHttpCodeBreakdown(item.key);
+                return (
+                  <div
+                    key={item.key}
+                    className="flex justify-between items-center gap-3 text-[10px] pl-2"
+                    title={httpBreakdown ? `${t('tooltip.httpCodeBreakdown')}: ${httpBreakdown}` : undefined}
+                  >
+                    <span className="text-secondary">
+                      • {item.label}
+                      {mainCode && <span className="text-muted ml-1">({mainCode})</span>}
+                    </span>
+                    <span className="text-primary tabular-nums">{item.value}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
         </>

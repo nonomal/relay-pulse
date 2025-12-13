@@ -161,10 +161,12 @@
   "tooltip": {
     "title": "データの詳細",
     "uptime": "稼働率:",
+    "totalProbes": "検査回数",
     "latency": "レイテンシ:",
     "count": "回",
     "degradedTitle": "🟡 不安定状態の内訳",
-    "unavailableTitle": "🔴 利用不可状態の内訳"
+    "unavailableTitle": "🔴 利用不可状態の内訳",
+    "httpCodeBreakdown": "HTTPコード内訳"
   },
   "footer": {
     "disclaimer": {

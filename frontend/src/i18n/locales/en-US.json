@@ -161,10 +161,12 @@
   "tooltip": {
     "title": "Data details",
     "uptime": "Uptime:",
+    "totalProbes": "Total probes",
     "latency": "Latency:",
     "count": "times",
     "degradedTitle": "🟡 Degraded breakdown",
-    "unavailableTitle": "🔴 Unavailable breakdown"
+    "unavailableTitle": "🔴 Unavailable breakdown",
+    "httpCodeBreakdown": "HTTP code breakdown"
   },
   "footer": {
     "disclaimer": {

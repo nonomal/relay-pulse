@@ -744,7 +744,7 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 			stat.latencySum += int64(record.Latency)
 			stat.latencyCount++
 		}
-		incrementStatusCount(&stat.statusCounts, record.Status, record.SubStatus)
+		incrementStatusCount(&stat.statusCounts, record.Status, record.SubStatus, record.HttpCode)
 
 		// 保留最新记录
 		if stat.last == nil || record.Timestamp > stat.last.Timestamp {
@@ -806,7 +806,7 @@ func (h *Handler) buildRawTimeline(records []*storage.ProbeRecord, endTime time.
 
 		// 构建状态计数（单条记录）
 		var counts storage.StatusCounts
-		incrementStatusCount(&counts, record.Status, record.SubStatus)
+		incrementStatusCount(&counts, record.Status, record.SubStatus, record.HttpCode)
 
 		// 延迟处理：始终返回原始延迟值，由前端决定颜色（可用=渐变，不可用=灰色）
 		timeline = append(timeline, storage.TimePoint{
@@ -876,7 +876,7 @@ func statusToAvailability(status int, degradedWeight float64) float64 {
 }
 
 // incrementStatusCount 统计每种状态及细分出现次数
-func incrementStatusCount(counts *storage.StatusCounts, status int, subStatus storage.SubStatus) {
+func incrementStatusCount(counts *storage.StatusCounts, status int, subStatus storage.SubStatus, httpCode int) {
 	switch status {
 	case 1: // 绿色
 		counts.Available++
@@ -911,6 +911,26 @@ func incrementStatusCount(counts *storage.StatusCounts, status int, subStatus st
 		}
 	default: // 灰色（3）或其他
 		counts.Missing++
+	}
+
+	// 记录 HTTP 错误码细分（仅对红色状态且有有效 HTTP 响应码）
+	if httpCode > 0 && status == 0 {
+		// 仅统计与 HTTP 状态码相关的 SubStatus
+		subKey := string(subStatus)
+		switch subStatus {
+		case storage.SubStatusServerError,
+			storage.SubStatusClientError,
+			storage.SubStatusAuthError,
+			storage.SubStatusInvalidRequest,
+			storage.SubStatusRateLimit:
+			if counts.HttpCodeBreakdown == nil {
+				counts.HttpCodeBreakdown = make(map[string]map[int]int)
+			}
+			if counts.HttpCodeBreakdown[subKey] == nil {
+				counts.HttpCodeBreakdown[subKey] = make(map[int]int)
+			}
+			counts.HttpCodeBreakdown[subKey][httpCode]++
+		}
 	}
 }
 

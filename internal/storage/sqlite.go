@@ -81,6 +81,9 @@ func (s *SQLiteStorage) Init() error {
 	if err := s.ensureChannelColumn(); err != nil {
 		return err
 	}
+	if err := s.ensureHttpCodeColumn(); err != nil {
+		return err
+	}
 
 	// 在列迁移完成后创建索引
 	//
@@ -88,7 +91,7 @@ func (s *SQLiteStorage) Init() error {
 	// - 复合索引专为核心查询优化：GetLatest() 和 GetHistory()
 	// - 所有业务查询都包含完整的 (provider, service, channel) 等值条件
 	// - timestamp DESC 支持时间范围查询和排序，避免额外排序开销
-	// - 包含查询所需的所有字段（status, sub_status, latency），尽量减少回表
+	// - 包含查询所需的大部分字段（status, sub_status, latency），尽量减少回表
 	// - 列顺序遵循 B-Tree 最佳实践：等值列在前，范围/排序列在后
 	//
 	// 性能优化：
@@ -97,6 +100,7 @@ func (s *SQLiteStorage) Init() error {
 	// - 对于小型数据集（<1GB），性能提升明显
 	//
 	// ⚠️ 维护注意事项：
+	// - http_code 字段未纳入索引（仅用于 Tooltip 显示），查询时会有轻微回表开销
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
 	// - CleanOldRecords() 的全表扫描是可接受的（低频维护操作）
 	// - SQLite 对大数据量（>1GB）性能有限，建议迁移到 PostgreSQL
@@ -203,6 +207,51 @@ func (s *SQLiteStorage) ensureChannelColumn() error {
 	return nil
 }
 
+// ensureHttpCodeColumn 在旧表上添加 http_code 列（向后兼容）
+func (s *SQLiteStorage) ensureHttpCodeColumn() error {
+	ctx := s.effectiveCtx()
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(probe_history)`)
+	if err != nil {
+		return fmt.Errorf("查询表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	hasColumn := false
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			colType      string
+			notNull      int
+			defaultValue sql.NullString
+			pk           int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("扫描表结构失败: %w", err)
+		}
+		if name == "http_code" {
+			hasColumn = true
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历表结构失败: %w", err)
+	}
+
+	if hasColumn {
+		return nil // 列已存在，无需添加
+	}
+
+	// 添加列
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE probe_history ADD COLUMN http_code INTEGER NOT NULL DEFAULT 0`); err != nil {
+		return fmt.Errorf("添加 http_code 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 probe_history 表添加 http_code 列")
+	return nil
+}
+
 // MigrateChannelData 根据配置将 channel 为空的旧数据迁移到指定 channel
 func (s *SQLiteStorage) MigrateChannelData(mappings []ChannelMigrationMapping) error {
 	ctx := s.effectiveCtx()
@@ -273,8 +322,8 @@ func (s *SQLiteStorage) Close() error {
 func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO probe_history (provider, service, channel, status, sub_status, latency, timestamp)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO probe_history (provider, service, channel, status, sub_status, http_code, latency, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	result, err := s.db.ExecContext(ctx, query,
@@ -283,6 +332,7 @@ func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 		record.Channel,
 		record.Status,
 		string(record.SubStatus),
+		record.HttpCode,
 		record.Latency,
 		record.Timestamp,
 	)
@@ -300,7 +350,7 @@ func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 func (s *SQLiteStorage) GetLatest(provider, service, channel string) (*ProbeRecord, error) {
 	ctx := s.effectiveCtx()
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, latency, timestamp
+		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
 		WHERE provider = ? AND service = ? AND channel = ?
 		ORDER BY timestamp DESC
@@ -316,6 +366,7 @@ func (s *SQLiteStorage) GetLatest(provider, service, channel string) (*ProbeReco
 		&record.Channel,
 		&record.Status,
 		&subStatusStr,
+		&record.HttpCode,
 		&record.Latency,
 		&record.Timestamp,
 	)
@@ -338,7 +389,7 @@ func (s *SQLiteStorage) GetHistory(provider, service, channel string, since time
 	// 使用 ORDER BY timestamp DESC 以利用索引（索引是 timestamp DESC）
 	// 返回前在 Go 代码中反转为时间升序
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, latency, timestamp
+		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
 		WHERE provider = ? AND service = ? AND channel = ? AND timestamp >= ?
 		ORDER BY timestamp DESC
@@ -361,6 +412,7 @@ func (s *SQLiteStorage) GetHistory(provider, service, channel string, since time
 			&record.Channel,
 			&record.Status,
 			&subStatusStr,
+			&record.HttpCode,
 			&record.Latency,
 			&record.Timestamp,
 		)

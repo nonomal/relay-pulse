@@ -161,10 +161,12 @@
   "tooltip": {
     "title": "数据详情",
     "uptime": "可用率:",
+    "totalProbes": "检测次数",
     "latency": "延迟:",
     "count": "次",
     "degradedTitle": "🟡 波动细分",
-    "unavailableTitle": "🔴 不可用细分"
+    "unavailableTitle": "🔴 不可用细分",
+    "httpCodeBreakdown": "错误码分布"
   },
   "footer": {
     "disclaimer": {
