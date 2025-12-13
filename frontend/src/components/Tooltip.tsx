@@ -159,7 +159,10 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
           )}
           {unavailableSubstatus.length > 0 && (
             <div className="text-[10px] text-center text-secondary">
-              ({unavailableSubstatus.map(item => item.label).join(', ')})
+              ({unavailableSubstatus.map(item => {
+                const code = getMainHttpCode(item.key);
+                return code ? `${item.label} ${code}` : item.label;
+              }).join(', ')})
             </div>
           )}
 
