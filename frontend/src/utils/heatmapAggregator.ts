@@ -155,7 +155,22 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
     return currentPriority > worstPriority ? point.status : worst;
   }, group[0].status);
 
-  // 合并所有状态计数
+  // 合并所有状态计数（初始化默认值，确保字段完整）
+  const defaultStatusCounts: NonNullable<HistoryPoint['statusCounts']> = {
+    available: 0,
+    degraded: 0,
+    unavailable: 0,
+    missing: 0,
+    slow_latency: 0,
+    rate_limit: 0,
+    server_error: 0,
+    client_error: 0,
+    auth_error: 0,
+    invalid_request: 0,
+    network_error: 0,
+    content_mismatch: 0,
+  };
+
   const mergedStatusCounts = group.reduce((acc, point) => {
     if (!point.statusCounts) return acc;
 
@@ -170,7 +185,7 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
     numericKeys.forEach(key => {
       const value = point.statusCounts![key];
       if (typeof value === 'number') {
-        acc[key] = ((acc[key] as number) || 0) + value;
+        acc[key] = (acc[key] || 0) + value;
       }
     });
 
@@ -193,7 +208,7 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
     }
 
     return acc;
-  }, {} as NonNullable<HistoryPoint['statusCounts']>);
+  }, defaultStatusCounts);
 
   // 使用第一个点的时间戳（代表该组的起始时间）
   const firstPoint = group[0];
