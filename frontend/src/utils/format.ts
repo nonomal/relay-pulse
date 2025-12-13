@@ -51,24 +51,24 @@ export function formatPriceRatioStructured(
 ): { base: string; sub?: string } | null {
   if (priceMin == null && priceMax == null) return null;
 
-  // 只有下限
+  // 只有下限（带 ~ 表示起步，不加 ×）
   if (priceMin != null && priceMax == null) {
     return { base: `${formatNum(priceMin)}~` };
   }
 
-  // 只有上限
+  // 只有上限（加 × 明确表示倍率）
   if (priceMin == null && priceMax != null) {
-    return { base: `≤${formatNum(priceMax)}` };
+    return { base: `≤${formatNum(priceMax)}×` };
   }
 
-  // 两者都有且相等
+  // 两者都有且相等（固定倍率，加 ×）
   if (priceMin === priceMax) {
-    return { base: formatNum(priceMin!) };
+    return { base: `${formatNum(priceMin!)}×` };
   }
 
-  // 两者都有且不同：上限为主，下限起点为辅
+  // 两者都有且不同：上限为主（加 ×），下限起点为辅（带 ~，不加 ×）
   return {
-    base: `≤${formatNum(priceMax!)}`,
+    base: `≤${formatNum(priceMax!)}×`,
     sub: `${formatNum(priceMin!)}~`,
   };
 }
