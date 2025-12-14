@@ -59,6 +59,10 @@ type ServiceConfig struct {
 	// SuccessContains 可选：响应体需包含的关键字，用于判定请求语义是否成功
 	SuccessContains string `yaml:"success_contains" json:"success_contains"`
 
+	// EnvVarName 可选：自定义环境变量名（用于解决channel名称冲突）
+	// 如果指定，则使用此名称覆盖 APIKey，否则使用自动生成的 MONITOR_{PROVIDER}_{SERVICE}_{CHANNEL}_API_KEY
+	EnvVarName string `yaml:"env_var_name" json:"-"`
+
 	// 自定义巡检间隔（可选，留空则使用全局 interval）
 	// 支持 Go duration 格式，例如 "30s"、"1m"、"5m"
 	// 付费高频监测可使用更短间隔
@@ -636,7 +640,7 @@ func (c *AppConfig) Normalize() error {
 }
 
 // ApplyEnvOverrides 应用环境变量覆盖
-// API Key 格式：MONITOR_<PROVIDER>_<SERVICE>_API_KEY
+// API Key 格式：MONITOR_<PROVIDER>_<SERVICE>_<CHANNEL>_API_KEY（优先）或 MONITOR_<PROVIDER>_<SERVICE>_API_KEY（向后兼容）
 // 存储配置格式：MONITOR_STORAGE_TYPE, MONITOR_POSTGRES_HOST 等
 func (c *AppConfig) ApplyEnvOverrides() {
 	// PublicBaseURL 环境变量覆盖
@@ -679,6 +683,27 @@ func (c *AppConfig) ApplyEnvOverrides() {
 	// API Key 覆盖
 	for i := range c.Monitors {
 		m := &c.Monitors[i]
+
+		// 优先使用自定义环境变量名（解决channel名称冲突）
+		if m.EnvVarName != "" {
+			if envVal := os.Getenv(m.EnvVarName); envVal != "" {
+				m.APIKey = envVal
+				continue
+			}
+		}
+
+		// 优先查找包含 channel 的环境变量（新格式）
+		envKeyWithChannel := fmt.Sprintf("MONITOR_%s_%s_%s_API_KEY",
+			strings.ToUpper(strings.ReplaceAll(m.Provider, "-", "_")),
+			strings.ToUpper(strings.ReplaceAll(m.Service, "-", "_")),
+			strings.ToUpper(strings.ReplaceAll(m.Channel, "-", "_")))
+
+		if envVal := os.Getenv(envKeyWithChannel); envVal != "" {
+			m.APIKey = envVal
+			continue
+		}
+
+		// 向后兼容：查找不带 channel 的环境变量（旧格式）
 		envKey := fmt.Sprintf("MONITOR_%s_%s_API_KEY",
 			strings.ToUpper(strings.ReplaceAll(m.Provider, "-", "_")),
 			strings.ToUpper(strings.ReplaceAll(m.Service, "-", "_")))

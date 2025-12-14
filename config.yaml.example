@@ -121,7 +121,8 @@ monitors:
     channel: "vip-channel"  # 业务通道标识（可选），用于分类和过滤
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
-    api_key: "sk-xxxxxxxx"  # 可通过环境变量 MONITOR_88CODE_CC_API_KEY 覆盖
+    api_key: "sk-xxxxxxxx"  # 可通过环境变量 MONITOR_88CODE_CC_VIP_CHANNEL_API_KEY 覆盖
+    # env_var_name: "MONITOR_88CODE_CC_CUSTOM_API_KEY"  # 可选：自定义环境变量名（用于解决 channel 名称冲突）
     headers:
       Authorization: "Bearer {{API_KEY}}"
       Content-Type: "application/json"

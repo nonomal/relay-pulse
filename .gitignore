@@ -55,3 +55,4 @@ monitor/
 
 # Tools
 .playwright-mcp/
+config.yaml.backup-*

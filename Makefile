@@ -96,7 +96,14 @@ dev:
 	fi
 	@echo "正在启动开发服务（热重载）..."
 	@echo "修改 .go 文件将自动重新编译"
-	MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml
+	@if [ -f .env ]; then \
+		echo "📋 加载 .env 文件..."; \
+		set -a && . ./.env && set +a && \
+		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml; \
+	else \
+		echo "⚠️  未找到 .env 文件，API Keys 可能无法加载"; \
+		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml; \
+	fi
 
 # 运行测试
 test:
