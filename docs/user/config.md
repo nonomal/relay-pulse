@@ -400,6 +400,38 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **说明**: API 密钥（强烈建议使用环境变量代替）
 - **示例**: `"sk-xxx"`
 
+##### `env_var_name`
+- **类型**: string（可选）
+- **说明**: 自定义环境变量名，用于覆盖自动生成的环境变量命名规则
+- **使用场景**:
+  - **中文 channel 名称**：如 `"cx专用"`、`"cc测试key"` 等，自动生成的变量名语义不清晰
+  - **channel 名称冲突**：如同一 provider 有多个相似 channel（`"cc专用"` vs `"cc专用-特价"`）
+  - **特殊字符处理**：channel 包含无法清晰映射为变量名的字符
+- **优先级规则**:
+  1. 🥇 **自定义 `env_var_name`**（如果配置了）
+  2. 🥈 **标准格式（含 channel）**：`MONITOR_<PROVIDER>_<SERVICE>_<CHANNEL>_API_KEY`
+  3. 🥉 **标准格式（不含 channel）**：`MONITOR_<PROVIDER>_<SERVICE>_API_KEY`（向后兼容）
+- **示例**:
+  ```yaml
+  # 示例1：中文 channel，自定义语义化英文名称
+  - provider: "duckcoding"
+    service: "cx"
+    channel: "cx专用"
+    env_var_name: "MONITOR_DUCKCODING_CX_CX_DEDICATED_API_KEY"
+    # ...
+
+  # 示例2：解决同名冲突
+  - provider: "duckcoding"
+    service: "cc"
+    channel: "cc专用"
+    env_var_name: "MONITOR_DUCKCODING_CC_CC_DEDICATED_API_KEY"
+
+  - provider: "duckcoding"
+    service: "cc"
+    channel: "cc专用-特价"
+    env_var_name: "MONITOR_DUCKCODING_CC_CC_DISCOUNT_API_KEY"  # 避免冲突
+  ```
+
 ##### `headers`
 - **类型**: map[string]string
 - **说明**: 自定义请求头
@@ -614,34 +646,63 @@ monitors:
 
 ### API Key 环境变量
 
-**命名规则**:
+**命名规则**（按优先级）：
 
-```
-MONITOR_<PROVIDER>_<SERVICE>_API_KEY
-```
+1. **自定义环境变量名**（最高优先级）：
+   ```
+   配置中指定的 env_var_name 字段值
+   ```
 
-- `<PROVIDER>`: 配置中的 `provider` 字段（大写，`-` 替换为 `_`）
-- `<SERVICE>`: 配置中的 `service` 字段（大写，`-` 替换为 `_`）
+2. **标准格式（含 channel）**：
+   ```
+   MONITOR_<PROVIDER>_<SERVICE>_<CHANNEL>_API_KEY
+   ```
+
+3. **标准格式（不含 channel）**（向后兼容）：
+   ```
+   MONITOR_<PROVIDER>_<SERVICE>_API_KEY
+   ```
+
+**命名转换规则**:
+- 所有字母转为**大写**
+- 特殊字符（`-`、空格、中文等）替换为 `_`
+- 连续的 `_` 合并为一个
+- 去除首尾下划线
 
 **示例**:
 
-| 配置 | 环境变量名 |
-|------|-----------|
-| `provider: "88code"`, `service: "cc"` | `MONITOR_88CODE_CC_API_KEY` |
-| `provider: "openai"`, `service: "gpt-4"` | `MONITOR_OPENAI_GPT4_API_KEY` |
-| `provider: "anthropic"`, `service: "claude-3"` | `MONITOR_ANTHROPIC_CLAUDE3_API_KEY` |
+| 配置 | 环境变量名（按优先级） | 说明 |
+|------|----------------------|------|
+| `provider: "88code"`, `service: "cc"` | `MONITOR_88CODE_CC_API_KEY` | 无 channel，使用标准格式 |
+| `provider: "88code"`, `service: "cc"`, `channel: "vip3"` | `MONITOR_88CODE_CC_VIP3_API_KEY` | 有 channel，优先匹配带 channel 格式 |
+| `provider: "duckcoding"`, `service: "cx"`, `channel: "cx专用"` | `MONITOR_DUCKCODING_CX_CX专用_API_KEY` | 中文 channel，建议使用 `env_var_name` |
+| `provider: "duckcoding"`, `service: "cx"`, `channel: "cx专用"`, `env_var_name: "MONITOR_DUCKCODING_CX_CX_DEDICATED_API_KEY"` | `MONITOR_DUCKCODING_CX_CX_DEDICATED_API_KEY` | 自定义环境变量名，优先级最高 |
 
 **使用方式**:
 
 ```bash
 # 方式1：直接导出
-export MONITOR_88CODE_CC_API_KEY="sk-your-real-key"
+export MONITOR_88CODE_CC_VIP3_API_KEY="sk-your-real-key"
 ./monitor
 
 # 方式2：使用 .env 文件（推荐）
-echo "MONITOR_88CODE_CC_API_KEY=sk-your-real-key" > .env
+cat > .env <<EOF
+MONITOR_88CODE_CC_VIP3_API_KEY=sk-xxx
+MONITOR_DUCKCODING_CX_CX_DEDICATED_API_KEY=sk-yyy
+EOF
+
+# Docker Compose 自动加载 .env 文件
+docker compose up -d
+
+# 或手动指定
 docker compose --env-file .env up -d
 ```
+
+**最佳实践**:
+- ✅ 使用 `.env` 文件集中管理（已在 `.gitignore`，不会提交）
+- ✅ 中文 channel 使用 `env_var_name` 指定语义化英文名称
+- ✅ 生产环境使用 Secret 管理工具（Vault、K8s Secrets）
+- ❌ 避免在配置文件中硬编码 `api_key` 字段
 
 ### 存储配置环境变量
 
