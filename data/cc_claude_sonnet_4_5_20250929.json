@@ -1,4 +1,7 @@
 {
+	"metadata": {
+		"user_id": "user_792947a564a6115d55aa5c893375560ddb084839f527d391eff418ed7f95464b_account__session_792947a5-64a6-115d-55aa-5c893375560d"
+	},
 	"model": "claude-sonnet-4-5-20250929",
 	"messages": [{
 		"role": "user",
@@ -27,9 +30,6 @@
 		}
 	}],
 	"tools": [],
-	"metadata": {
-		"user_id": "user_baff005333343157c0dac38e803804e691ebde7aa9c1f0adeaac2a7a60f2fea3_account__session_f940bfd4-b199-4b66-808f-0a4cbfb04c0e"
-	},
 	"max_tokens": 20,
 	"stream": false
 }

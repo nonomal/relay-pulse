@@ -1,5 +1,8 @@
 {
 	"model": "claude-sonnet-4-5-20250929",
+	"metadata": {
+		"user_id": "user_792947a564a6115d55aa5c893375560ddb084839f527d391eff418ed7f95464b_account__session_792947a5-64a6-115d-55aa-5c893375560d"
+	},
 	"messages": [{
 		"role": "user",
 		"content": [{
@@ -21,9 +24,6 @@
 		}
 	}],
 	"tools": [],
-	"metadata": {
-		"user_id": "user_303edb5749b4261379fb3f3fdd58391a888052326f5731c0e2c65aa7fe433b88_account__session_87ee185f-a09a-45f2-afd1-a6df69a95abd"
-	},
 	"max_tokens": 32000,
 	"thinking": {
 		"budget_tokens": 31999,
