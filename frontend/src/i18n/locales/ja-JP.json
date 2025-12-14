@@ -137,6 +137,10 @@
     "timeLabels": {
       "24h": "24h",
       "days": "{{count}}d"
+    },
+    "channelTooltip": {
+      "probeUrl": "探測URL",
+      "template": "リクエストテンプレート"
     }
   },
   "card": {

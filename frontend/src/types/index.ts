@@ -69,6 +69,8 @@ export interface MonitorResult {
   price_max?: number;                  // 参考倍率
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
+  probe_url?: string;                  // 探测端点 URL（脱敏后）
+  template_name?: string;              // 请求体模板名称（如有）
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
 }
@@ -119,6 +121,8 @@ export interface ProcessedMonitorData {
   priceMax?: number | null;            // 参考倍率
   listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
+  probeUrl?: string;                   // 探测端点 URL（脱敏后）
+  templateName?: string;               // 请求体模板名称（如有）
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   history: Array<{
     index: number;

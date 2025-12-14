@@ -137,6 +137,10 @@
     "timeLabels": {
       "24h": "24ч",
       "days": "{{count}}д"
+    },
+    "channelTooltip": {
+      "probeUrl": "URL проверки",
+      "template": "Шаблон запроса"
     }
   },
   "card": {

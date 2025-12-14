@@ -137,6 +137,10 @@
     "timeLabels": {
       "24h": "24h",
       "days": "{{count}}d"
+    },
+    "channelTooltip": {
+      "probeUrl": "Probe URL",
+      "template": "Body Template"
     }
   },
   "card": {

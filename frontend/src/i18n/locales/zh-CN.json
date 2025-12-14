@@ -137,6 +137,10 @@
     "timeLabels": {
       "24h": "24h",
       "days": "{{count}}d"
+    },
+    "channelTooltip": {
+      "probeUrl": "探测地址",
+      "template": "请求体模板"
     }
   },
   "card": {

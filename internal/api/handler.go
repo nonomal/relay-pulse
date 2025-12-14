@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -268,6 +269,8 @@ type MonitorResult struct {
 	PriceMax     *float64            `json:"price_max,omitempty"`     // 参考倍率
 	ListedDays   *int                `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
 	Channel      string              `json:"channel"`                 // 业务通道标识
+	ProbeURL     string              `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）
+	TemplateName string              `json:"template_name,omitempty"` // 请求体模板名称（如有）
 	Current      *CurrentStatus      `json:"current_status"`
 	Timeline     []storage.TimePoint `json:"timeline"`
 }
@@ -586,9 +589,50 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		PriceMax:     task.PriceMax,
 		ListedDays:   listedDays,
 		Channel:      task.Channel,
+		ProbeURL:     sanitizeProbeURL(task.URL),
+		TemplateName: extractTemplateName(task.Body),
 		Current:      current,
 		Timeline:     timeline,
 	}
+}
+
+// sanitizeProbeURL 脱敏探测 URL：移除 userinfo 和 query 参数
+// 只保留 scheme://host/path 部分，避免泄露敏感信息
+// 解析失败时返回空字符串，不泄露可能包含敏感信息的原始 URL
+func sanitizeProbeURL(rawURL string) string {
+	if rawURL == "" {
+		return ""
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "" // 解析失败时返回空字符串，避免泄露敏感信息
+	}
+	u.User = nil    // 移除 user:password@
+	u.RawQuery = "" // 移除 query 参数
+	u.Fragment = "" // 移除 fragment
+	return u.String()
+}
+
+// extractTemplateName 从 body 配置中提取模板文件名
+// 支持 !include data/xxx.json 格式，返回文件名部分
+func extractTemplateName(body string) string {
+	body = strings.TrimSpace(body)
+	if !strings.HasPrefix(body, "!include ") {
+		return ""
+	}
+	// 提取路径部分
+	p := strings.TrimSpace(strings.TrimPrefix(body, "!include "))
+	// 只取第一行（防止多行内容干扰）
+	if idx := strings.IndexAny(p, "\n\r"); idx != -1 {
+		p = p[:idx]
+	}
+	// 统一路径分隔符为 /，然后提取文件名
+	p = strings.ReplaceAll(p, "\\", "/")
+	// 返回文件名（去掉目录前缀如 data/）
+	if lastSlash := strings.LastIndex(p, "/"); lastSlash >= 0 {
+		return p[lastSlash+1:]
+	}
+	return p
 }
 
 // parsePeriod 解析时间范围（仅用于验证）

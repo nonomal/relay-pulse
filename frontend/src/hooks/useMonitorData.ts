@@ -226,6 +226,8 @@ export function useMonitorData({
               priceMax: item.price_max ?? null,  // 参考倍率
               listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
+              probeUrl: item.probe_url,
+              templateName: item.template_name,
               history,
               currentStatus,
               uptime,

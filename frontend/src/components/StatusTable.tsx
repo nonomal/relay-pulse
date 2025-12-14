@@ -30,6 +30,22 @@ const getCachedServiceIcon = (serviceType: string) => {
   return serviceIconCache.get(serviceType);
 };
 
+// 构建通道悬浮提示文本
+const buildChannelTooltip = (
+  probeUrl: string | undefined,
+  templateName: string | undefined,
+  t: (key: string) => string
+): string | undefined => {
+  const parts: string[] = [];
+  if (probeUrl) {
+    parts.push(`${t('table.channelTooltip.probeUrl')}: ${probeUrl}`);
+  }
+  if (templateName) {
+    parts.push(`${t('table.channelTooltip.template')}: ${templateName}`);
+  }
+  return parts.length > 0 ? parts.join('\n') : undefined;
+};
+
 interface StatusTableProps {
   data: ProcessedMonitorData[];
   sortConfig: SortConfig;
@@ -145,7 +161,12 @@ function MobileListItem({
                 {item.serviceType.toUpperCase()}
               </span>
               {item.channel && (
-                <span className="text-muted truncate">{item.channel}</span>
+                <span
+                  className="text-muted truncate cursor-help"
+                  title={buildChannelTooltip(item.probeUrl, item.templateName, t)}
+                >
+                  {item.channel}
+                </span>
               )}
               {/* 收录时间 */}
               {item.listedDays != null && (
@@ -529,7 +550,10 @@ function StatusTableComponent({
                   {item.serviceType.toUpperCase()}
                 </span>
               </td>
-              <td className="px-2 py-2 text-secondary text-xs">
+              <td
+                className="px-2 py-2 text-secondary text-xs cursor-help"
+                title={buildChannelTooltip(item.probeUrl, item.templateName, t)}
+              >
                 {item.channel || '-'}
               </td>
               <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">
