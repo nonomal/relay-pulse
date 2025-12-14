@@ -30,21 +30,53 @@ const getCachedServiceIcon = (serviceType: string) => {
   return serviceIconCache.get(serviceType);
 };
 
-// 构建通道悬浮提示文本
-const buildChannelTooltip = (
-  probeUrl: string | undefined,
-  templateName: string | undefined,
-  t: (key: string) => string
-): string | undefined => {
-  const parts: string[] = [];
-  if (probeUrl) {
-    parts.push(`${t('table.channelTooltip.probeUrl')}: ${probeUrl}`);
+// 通道单元格组件（带自定义 CSS tooltip，替代原生 title 属性）
+interface ChannelCellProps {
+  channel?: string;
+  probeUrl?: string;
+  templateName?: string;
+  className?: string;
+}
+
+function ChannelCell({ channel, probeUrl, templateName, className = '' }: ChannelCellProps) {
+  const { t } = useTranslation();
+  const hasTooltip = !!(probeUrl || templateName);
+
+  // 无 tooltip 时直接显示文本
+  if (!hasTooltip) {
+    return <span className={className}>{channel || '-'}</span>;
   }
-  if (templateName) {
-    parts.push(`${t('table.channelTooltip.template')}: ${templateName}`);
-  }
-  return parts.length > 0 ? parts.join('\n') : undefined;
-};
+
+  // 统一向上弹出，避免被页脚遮挡
+  // 注意：不使用 mb-1 间隙，避免鼠标移入 tooltip 时触发区失去 hover 导致闪烁
+  const tooltipPositionClass = 'bottom-full left-0';
+
+  return (
+    <span className={`relative group/channel inline-flex items-center cursor-help ${className}`}>
+      <span className="truncate">{channel || '-'}</span>
+      {/* CSS tooltip - 悬停后显示，支持鼠标移入复制内容 */}
+      {/* pointer-events-none 防止不可见时拦截鼠标事件，hover 时启用 */}
+      <span
+        className={`absolute ${tooltipPositionClass} px-2 py-1.5 bg-elevated border border-default text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover/channel:opacity-100 group-hover/channel:pointer-events-auto transition-opacity delay-150 z-50 select-text cursor-text`}
+      >
+        <span className="flex flex-col gap-1">
+          {probeUrl && (
+            <span className="flex flex-col">
+              <span className="text-muted text-[10px]">{t('table.channelTooltip.probeUrl')}</span>
+              <span className="text-primary font-mono text-[11px] whitespace-nowrap">{probeUrl}</span>
+            </span>
+          )}
+          {templateName && (
+            <span className="flex flex-col">
+              <span className="text-muted text-[10px]">{t('table.channelTooltip.template')}</span>
+              <span className="text-primary font-mono text-[11px] whitespace-nowrap">{templateName}</span>
+            </span>
+          )}
+        </span>
+      </span>
+    </span>
+  );
+}
 
 interface StatusTableProps {
   data: ProcessedMonitorData[];
@@ -161,12 +193,12 @@ function MobileListItem({
                 {item.serviceType.toUpperCase()}
               </span>
               {item.channel && (
-                <span
-                  className="text-muted truncate cursor-help"
-                  title={buildChannelTooltip(item.probeUrl, item.templateName, t)}
-                >
-                  {item.channel}
-                </span>
+                <ChannelCell
+                  channel={item.channel}
+                  probeUrl={item.probeUrl}
+                  templateName={item.templateName}
+                  className="text-muted truncate"
+                />
               )}
               {/* 收录时间 */}
               {item.listedDays != null && (
@@ -550,11 +582,12 @@ function StatusTableComponent({
                   {item.serviceType.toUpperCase()}
                 </span>
               </td>
-              <td
-                className="px-2 py-2 text-secondary text-xs cursor-help"
-                title={buildChannelTooltip(item.probeUrl, item.templateName, t)}
-              >
-                {item.channel || '-'}
+              <td className="px-2 py-2 text-secondary text-xs">
+                <ChannelCell
+                  channel={item.channel}
+                  probeUrl={item.probeUrl}
+                  templateName={item.templateName}
+                />
               </td>
               <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">
                 {(() => {

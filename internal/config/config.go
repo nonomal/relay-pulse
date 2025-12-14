@@ -84,6 +84,10 @@ type ServiceConfig struct {
 	// 解析后的巡检间隔（可选，为空时使用全局 interval）
 	IntervalDuration time.Duration `yaml:"-" json:"-"`
 
+	// BodyTemplateName 请求体模板文件名（如 cc_base.json）
+	// 在配置加载时从 body: "!include data/xxx.json" 提取，供 API 返回
+	BodyTemplateName string `yaml:"-" json:"-"`
+
 	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
 }
 
@@ -824,6 +828,8 @@ func (m *ServiceConfig) resolveBodyInclude(configDir string) error {
 		return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
 	}
 
+	// 提取模板文件名（供 API 返回）
+	m.BodyTemplateName = filepath.Base(cleanPath)
 	m.Body = string(content)
 	return nil
 }

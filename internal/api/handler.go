@@ -590,7 +590,7 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		ListedDays:   listedDays,
 		Channel:      task.Channel,
 		ProbeURL:     sanitizeProbeURL(task.URL),
-		TemplateName: extractTemplateName(task.Body),
+		TemplateName: task.BodyTemplateName,
 		Current:      current,
 		Timeline:     timeline,
 	}
@@ -611,28 +611,6 @@ func sanitizeProbeURL(rawURL string) string {
 	u.RawQuery = "" // 移除 query 参数
 	u.Fragment = "" // 移除 fragment
 	return u.String()
-}
-
-// extractTemplateName 从 body 配置中提取模板文件名
-// 支持 !include data/xxx.json 格式，返回文件名部分
-func extractTemplateName(body string) string {
-	body = strings.TrimSpace(body)
-	if !strings.HasPrefix(body, "!include ") {
-		return ""
-	}
-	// 提取路径部分
-	p := strings.TrimSpace(strings.TrimPrefix(body, "!include "))
-	// 只取第一行（防止多行内容干扰）
-	if idx := strings.IndexAny(p, "\n\r"); idx != -1 {
-		p = p[:idx]
-	}
-	// 统一路径分隔符为 /，然后提取文件名
-	p = strings.ReplaceAll(p, "\\", "/")
-	// 返回文件名（去掉目录前缀如 data/）
-	if lastSlash := strings.LastIndex(p, "/"); lastSlash >= 0 {
-		return p[lastSlash+1:]
-	}
-	return p
 }
 
 // parsePeriod 解析时间范围（仅用于验证）

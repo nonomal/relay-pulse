@@ -44,6 +44,17 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 
 	// CORS中间件 - 从环境变量获取允许的来源
 	allowedOrigins := []string{"https://relaypulse.top"}
+
+	// 开发模式自动允许本地开发域名（Vite 默认端口 5173）
+	if os.Getenv("GIN_MODE") != "release" {
+		allowedOrigins = append(allowedOrigins,
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+			"http://localhost:8080",
+			"http://127.0.0.1:8080",
+		)
+	}
+
 	if extraOrigins := os.Getenv("MONITOR_CORS_ORIGINS"); extraOrigins != "" {
 		// 支持逗号分隔的多个域名，例如: MONITOR_CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 		allowedOrigins = append(allowedOrigins, strings.Split(extraOrigins, ",")...)
