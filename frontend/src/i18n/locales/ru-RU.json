@@ -260,5 +260,56 @@
     "nightDarkShort": "Ночь",
     "lightCoolShort": "Холод",
     "lightWarmShort": "Тепло"
+  },
+  "selftest": {
+    "meta": {
+      "title": "Самотестирование API",
+      "description": "Проверьте доступность и задержку вашей конечной точки API"
+    },
+    "title": "Самотестирование API",
+    "description": "Проверьте, работает ли ваша конечная точка API, проверьте задержку и доступность",
+    "form": {
+      "testType": "Тип теста",
+      "apiUrl": "URL API",
+      "apiUrlPlaceholder": "https://api.example.com/v1/...",
+      "apiUrlHint": "Только HTTPS, требуются доменные имена (IP-адреса не поддерживаются)",
+      "apiKey": "Ключ API",
+      "apiKeyPlaceholder": "sk-...",
+      "apiKeyHint": "Ваш ключ API используется только для этого теста и не будет сохранён",
+      "submit": "Начать тест",
+      "submitting": "Отправка..."
+    },
+    "status": {
+      "queued": "В очереди",
+      "running": "Выполняется",
+      "success": "Успешно",
+      "failed": "Неудачно",
+      "timeout": "Тайм-аут",
+      "canceled": "Отменено",
+      "queuePosition": "Позиция в очереди: {{position}}",
+      "updating": "Обновление..."
+    },
+    "result": {
+      "title": "Результаты теста",
+      "probeStatus": "Статус пробы",
+      "subStatus": "Детальный статус",
+      "httpCode": "Код состояния HTTP",
+      "latency": "Задержка",
+      "error": "Сообщение об ошибке",
+      "responseSnippet": "Ответ сервера",
+      "available": "Доступен",
+      "degraded": "Нестабилен",
+      "unavailable": "Недоступен"
+    },
+    "actions": {
+      "newTest": "Начать новый тест"
+    },
+    "hints": {
+      "title": "Советы по использованию",
+      "httpsOnly": "Только протокол HTTPS",
+      "domainOnly": "Требуются доменные имена, IP-адреса не поддерживаются",
+      "rateLimit": "Максимум 10 тестов в минуту на IP",
+      "privacy": "Ключи API используются только для тестирования и не сохраняются"
+    }
   }
 }

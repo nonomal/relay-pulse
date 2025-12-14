@@ -17,6 +17,7 @@ import (
 
 	"monitor/internal/config"
 	"monitor/internal/logger"
+	"monitor/internal/selftest"
 	"monitor/internal/storage"
 )
 
@@ -224,10 +225,11 @@ func (c *statusCache) load(key string, loader func() ([]byte, error)) ([]byte, e
 
 // Handler API处理器
 type Handler struct {
-	storage storage.Storage
-	config  *config.AppConfig
-	cfgMu   sync.RWMutex // 保护config的并发访问
-	cache   *statusCache // API 响应缓存
+	storage     storage.Storage
+	config      *config.AppConfig
+	cfgMu       sync.RWMutex             // 保护config的并发访问
+	cache       *statusCache             // API 响应缓存
+	selfTestMgr *selftest.TestJobManager // 自助测试管理器（可选）
 }
 
 // NewHandler 创建处理器
@@ -237,6 +239,11 @@ func NewHandler(store storage.Storage, cfg *config.AppConfig) *Handler {
 		config:  cfg,
 		cache:   newStatusCache(10*time.Second, 100), // 10 秒缓存，最多 100 条
 	}
+}
+
+// SetSelfTestManager 设置自助测试管理器（可选）
+func (h *Handler) SetSelfTestManager(mgr *selftest.TestJobManager) {
+	h.selfTestMgr = mgr
 }
 
 // CurrentStatus API返回的当前状态（不暴露数据库主键）

@@ -260,5 +260,56 @@
     "nightDarkShort": "Night",
     "lightCoolShort": "Cool",
     "lightWarmShort": "Warm"
+  },
+  "selftest": {
+    "meta": {
+      "title": "API Self-Test",
+      "description": "Self-test your API endpoint availability and latency"
+    },
+    "title": "API Self-Test",
+    "description": "Test if your API endpoint is working properly, check latency and availability",
+    "form": {
+      "testType": "Test Type",
+      "apiUrl": "API URL",
+      "apiUrlPlaceholder": "https://api.example.com/v1/...",
+      "apiUrlHint": "HTTPS only, domain names required (IP addresses not supported)",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "sk-...",
+      "apiKeyHint": "Your API key is only used for this test and will not be stored",
+      "submit": "Start Test",
+      "submitting": "Submitting..."
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "success": "Success",
+      "failed": "Failed",
+      "timeout": "Timeout",
+      "canceled": "Canceled",
+      "queuePosition": "Queue position: #{{position}}",
+      "updating": "Updating..."
+    },
+    "result": {
+      "title": "Test Results",
+      "probeStatus": "Probe Status",
+      "subStatus": "Detailed Status",
+      "httpCode": "HTTP Status Code",
+      "latency": "Latency",
+      "error": "Error Message",
+      "responseSnippet": "Server Response",
+      "available": "Available",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable"
+    },
+    "actions": {
+      "newTest": "Start New Test"
+    },
+    "hints": {
+      "title": "Usage Tips",
+      "httpsOnly": "HTTPS protocol only",
+      "domainOnly": "Domain names required, IP addresses not supported",
+      "rateLimit": "Maximum 10 tests per minute per IP",
+      "privacy": "API keys are only used for testing and will not be stored or logged"
+    }
   }
 }

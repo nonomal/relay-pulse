@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -12,6 +13,7 @@ import (
 	"monitor/internal/config"
 	"monitor/internal/logger"
 	"monitor/internal/scheduler"
+	"monitor/internal/selftest"
 	"monitor/internal/storage"
 )
 
@@ -117,6 +119,65 @@ func main() {
 	// 创建API服务器
 	server := api.NewServer(store, cfg, "8080")
 
+	// 初始化自助测试管理器（如果启用）
+	var selfTestMgr *selftest.TestJobManager
+	if cfg.SelfTest.Enabled {
+		// 设置 selftest 数据目录（用于动态读取 cc_base.json、cx_base.json 等模板）
+		// 数据目录为配置文件所在目录下的 data/ 子目录
+		configDir := filepath.Dir(configFile)
+		if configDir == "" || configDir == "." {
+			// 如果配置文件在当前目录，使用当前工作目录
+			if cwd, err := os.Getwd(); err == nil {
+				configDir = cwd
+			}
+		}
+		dataDir := filepath.Join(configDir, "data")
+		selftest.SetDataDir(dataDir)
+
+		// 解析时间间隔
+		jobTimeout, err := time.ParseDuration(cfg.SelfTest.JobTimeout)
+		if err != nil || jobTimeout <= 0 {
+			jobTimeout = 30 * time.Second
+		}
+		resultTTL, err := time.ParseDuration(cfg.SelfTest.ResultTTL)
+		if err != nil || resultTTL <= 0 {
+			resultTTL = 2 * time.Minute
+		}
+
+		// 应用默认值
+		maxConcurrent := cfg.SelfTest.MaxConcurrent
+		if maxConcurrent <= 0 {
+			maxConcurrent = 10
+		}
+		maxQueueSize := cfg.SelfTest.MaxQueueSize
+		if maxQueueSize <= 0 {
+			maxQueueSize = 50
+		}
+		rateLimitPerMinute := cfg.SelfTest.RateLimitPerMinute
+		if rateLimitPerMinute <= 0 {
+			rateLimitPerMinute = 10
+		}
+
+		// 创建 TestJobManager（内部创建独立的安全 prober）
+		selfTestMgr = selftest.NewTestJobManager(
+			maxConcurrent,
+			maxQueueSize,
+			jobTimeout,
+			resultTTL,
+			rateLimitPerMinute,
+		)
+
+		// 注入到 handler
+		server.GetHandler().SetSelfTestManager(selfTestMgr)
+
+		logger.Info("main", "自助测试功能已启用",
+			"max_concurrent", maxConcurrent,
+			"max_queue_size", maxQueueSize,
+			"job_timeout", jobTimeout,
+			"result_ttl", resultTTL,
+			"rate_limit", rateLimitPerMinute)
+	}
+
 	// 启动配置监听器（热更新）
 	watcher, err := config.NewWatcher(loader, configFile, func(newCfg *config.AppConfig) {
 		// 配置热更新回调
@@ -180,6 +241,12 @@ func main() {
 
 	// 停止调度器
 	sched.Stop()
+
+	// 停止自助测试管理器（如果启用）
+	if selfTestMgr != nil {
+		selfTestMgr.Stop()
+		logger.Info("main", "自助测试管理器已关闭")
+	}
 
 	// 停止HTTP服务器
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)

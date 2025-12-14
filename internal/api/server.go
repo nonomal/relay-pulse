@@ -51,7 +51,7 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 
 	corsConfig := cors.Config{
 		AllowOrigins:     allowedOrigins,
-		AllowMethods:     []string{"GET", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: false,
@@ -122,6 +122,12 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 	// 注册 API 路由
 	router.GET("/api/status", handler.GetStatus)
 
+	// 自助测试 API 路由（如果启用）
+	router.POST("/api/selftest", handler.CreateSelfTest)
+	router.GET("/api/selftest/config", handler.GetSelfTestConfig)
+	router.GET("/api/selftest/types", handler.GetTestTypes)
+	router.GET("/api/selftest/:id", handler.GetSelfTest)
+
 	// SEO 路由
 	router.GET("/sitemap.xml", handler.GetSitemap)
 	router.GET("/robots.txt", handler.GetRobots)
@@ -190,6 +196,11 @@ func (s *Server) Stop(ctx context.Context) error {
 // UpdateConfig 更新配置（热更新时调用）
 func (s *Server) UpdateConfig(cfg *config.AppConfig) {
 	s.handler.UpdateConfig(cfg)
+}
+
+// GetHandler returns the handler instance
+func (s *Server) GetHandler() *Handler {
+	return s.handler
 }
 
 // setupStaticFiles 设置静态文件服务（前端）

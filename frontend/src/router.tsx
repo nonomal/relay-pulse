@@ -5,6 +5,7 @@ import { useSyncLanguage } from './hooks/useSyncLanguage';
 // 路由级代码分割：懒加载页面组件
 const App = lazy(() => import('./App'));
 const ProviderPage = lazy(() => import('./pages/ProviderPage'));
+const SelfTestPage = lazy(() => import('./pages/SelfTestPage').then(m => ({ default: m.SelfTestPage })));
 
 /**
  * 语言布局组件
@@ -91,24 +92,28 @@ export default function AppRouter() {
         <Route element={<LanguageLayout />}>
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
+          <Route path="selftest" element={<SelfTestPage />} />
         </Route>
 
         {/* 英文路径 */}
         <Route path="en" element={<LanguageLayout lang="en" />}>
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
+          <Route path="selftest" element={<SelfTestPage />} />
         </Route>
 
         {/* 俄文路径 */}
         <Route path="ru" element={<LanguageLayout lang="ru" />}>
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
+          <Route path="selftest" element={<SelfTestPage />} />
         </Route>
 
         {/* 日文路径 */}
         <Route path="ja" element={<LanguageLayout lang="ja" />}>
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
+          <Route path="selftest" element={<SelfTestPage />} />
         </Route>
 
         {/* 捕获所有未匹配路径，重定向到根 */}

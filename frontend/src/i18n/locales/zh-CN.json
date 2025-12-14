@@ -260,5 +260,56 @@
     "nightDarkShort": "护眼",
     "lightCoolShort": "冷亮",
     "lightWarmShort": "暖亮"
+  },
+  "selftest": {
+    "meta": {
+      "title": "API自助测试",
+      "description": "自助测试您的 API 端点可用性和延迟"
+    },
+    "title": "API 自助测试",
+    "description": "测试您的 API 端点是否正常工作，检查延迟和可用性",
+    "form": {
+      "testType": "测试类型",
+      "apiUrl": "API 地址",
+      "apiUrlPlaceholder": "https://api.example.com/v1/...",
+      "apiUrlHint": "仅支持 HTTPS 协议，必须使用域名（不支持 IP 地址）",
+      "apiKey": "API 密钥",
+      "apiKeyPlaceholder": "sk-...",
+      "apiKeyHint": "您的 API 密钥仅用于本次测试，不会被存储",
+      "submit": "开始测试",
+      "submitting": "提交中..."
+    },
+    "status": {
+      "queued": "排队中",
+      "running": "测试中",
+      "success": "测试成功",
+      "failed": "测试失败",
+      "timeout": "测试超时",
+      "canceled": "已取消",
+      "queuePosition": "队列位置: 第 {{position}} 位",
+      "updating": "更新中..."
+    },
+    "result": {
+      "title": "测试结果",
+      "probeStatus": "探测状态",
+      "subStatus": "详细状态",
+      "httpCode": "HTTP 状态码",
+      "latency": "延迟",
+      "error": "错误信息",
+      "responseSnippet": "服务端响应",
+      "available": "可用",
+      "degraded": "降级",
+      "unavailable": "不可用"
+    },
+    "actions": {
+      "newTest": "开始新测试"
+    },
+    "hints": {
+      "title": "使用提示",
+      "httpsOnly": "仅支持 HTTPS 协议",
+      "domainOnly": "必须使用域名，不支持 IP 地址",
+      "rateLimit": "每个 IP 每分钟最多 10 次测试",
+      "privacy": "API 密钥仅用于测试，不会被存储或记录"
+    }
   }
 }
