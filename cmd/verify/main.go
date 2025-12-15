@@ -123,6 +123,7 @@ func main() {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 		Transport: &http.Transport{
+			Proxy:              http.ProxyFromEnvironment,
 			DisableCompression: true, // 禁用自动解压缩
 		},
 	}

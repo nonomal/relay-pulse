@@ -42,6 +42,7 @@ func (p *ClientPool) GetClient(provider string) *http.Client {
 	client = &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
+			Proxy:               http.ProxyFromEnvironment,
 			MaxIdleConns:        100,
 			MaxIdleConnsPerHost: 10,
 			IdleConnTimeout:     90 * time.Second,
