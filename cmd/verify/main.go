@@ -32,6 +32,12 @@ func main() {
 		*channel = *service
 	}
 
+	// 加载 .env 文件（仅用于本地开发，不覆盖已有环境变量）
+	if err := config.LoadDotenvFromConfigDir(*configFile, *verbose); err != nil {
+		fmt.Printf("⚠️  %v\n", err)
+		// 不中断执行，继续尝试加载配置
+	}
+
 	// 加载配置
 	loader := config.NewLoader()
 	cfg, err := loader.Load(*configFile)
