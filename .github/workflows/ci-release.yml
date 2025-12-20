@@ -1,0 +1,241 @@
+name: CI & Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  # 不取消正在运行的 workflow，避免"已发版但未推镜像"的不一致状态
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ==================== CI ====================
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # commitlint + semantic-release 需要完整历史
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      # Commitlint：检查本次 push 的所有新提交
+      - name: Lint commit messages
+        if: github.event_name == 'push'
+        run: |
+          npm install --no-save @commitlint/cli @commitlint/config-conventional
+          # 处理首推/强推场景：before 为全0或不可达时，从最近 tag 开始检查
+          BEFORE="${{ github.event.before }}"
+          if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]] || ! git rev-parse --verify "$BEFORE^{commit}" >/dev/null 2>&1; then
+            # 获取最近的 tag，如果没有 tag 则检查所有提交
+            BEFORE=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)
+          fi
+          npx commitlint --from "$BEFORE" --to ${{ github.sha }} --verbose
+
+      # 前端构建
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+          echo "Frontend build completed"
+          ls -la dist/
+
+      - name: Copy frontend dist to internal/api
+        run: |
+          mkdir -p internal/api/frontend
+          cp -r frontend/dist internal/api/frontend/
+          echo "Verifying embed directory..."
+          ls -la internal/api/frontend/dist/
+          test -f internal/api/frontend/dist/index.html || (echo "ERROR: index.html not found!" && exit 1)
+
+      # Go 检查
+      - name: Go format check
+        run: |
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Go files are not formatted:"
+            gofmt -l .
+            exit 1
+          fi
+
+      - name: Go vet
+        run: go vet ./...
+
+      - name: Go test
+        run: go test ./... -v -coverprofile=coverage.out
+
+      - name: Go coverage report
+        run: go tool cover -func=coverage.out
+
+      # 前端 lint
+      - name: Frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Frontend test
+        working-directory: frontend
+        continue-on-error: true  # 前端测试不阻塞 CI
+        run: npm run test -- --run
+
+      - name: Test Summary
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Go Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          go tool cover -func=coverage.out | tail -10 >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+  # ==================== Release ====================
+  release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
+      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # 保持默认 persist-credentials: true，semantic-release 需要推 tag
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Semantic Release
+        id: semantic
+        uses: cycjimmy/semantic-release-action@v4
+        with:
+          extra_plugins: |
+            @semantic-release/commit-analyzer
+            @semantic-release/release-notes-generator
+            @semantic-release/github
+            conventional-changelog-conventionalcommits
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release Summary
+        run: |
+          echo "## Release" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ steps.semantic.outputs.new_release_published }}" == "true" ]]; then
+            echo "🎉 **New release published:** v${{ steps.semantic.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "ℹ️ No new release (commit type does not trigger release)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  # ==================== Docker ====================
+  docker:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [ci, release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build version info
+        id: info
+        run: |
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(git show -s --format=%cI HEAD)
+
+          if [[ "${{ needs.release.outputs.new_release_published }}" == "true" ]]; then
+            VERSION="v${{ needs.release.outputs.new_release_version }}"
+          else
+            VERSION="$(git describe --tags --always 2>/dev/null || echo "dev-${GIT_COMMIT}")"
+          fi
+
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "git_commit=${GIT_COMMIT}" >> $GITHUB_OUTPUT
+          echo "build_time=${BUILD_TIME}" >> $GITHUB_OUTPUT
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # 始终推送 :latest
+            type=raw,value=latest
+            # 仅当发布新版本时，追加版本号 tag（带 v 前缀，与 git tag 一致）
+            type=raw,value=v${{ needs.release.outputs.new_release_version }},enable=${{ needs.release.outputs.new_release_published == 'true' }}
+          flavor: |
+            latest=false
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.info.outputs.version }}
+            GIT_COMMIT=${{ steps.info.outputs.git_commit }}
+            BUILD_TIME=${{ steps.info.outputs.build_time }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Image Summary
+        run: |
+          echo "## Docker Image Published 🐳" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [[ "${{ needs.release.outputs.new_release_published }}" == "true" ]]; then
+            echo "🏷️ **Release**: v${{ needs.release.outputs.new_release_version }}" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "🔄 **Main Branch Update** (no version release)" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Image Tags" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.meta.outputs.tags }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Info" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: ${{ steps.info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: ${{ steps.info.outputs.git_commit }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Built**: ${{ steps.info.outputs.build_time }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Pull Command" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
