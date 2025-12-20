@@ -104,10 +104,10 @@ jobs:
           go tool cover -func=coverage.out | tail -10 >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
 
-  # ==================== Release ====================
+  # ==================== Release (等待 ci 和 docker 都完成) ====================
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: ci
+    needs: [ci, docker]  # ci 和 docker 并行，都完成后才 release
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -148,10 +148,10 @@ jobs:
             echo "ℹ️ No new release (commit type does not trigger release)" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # ==================== Docker (与 release 并行) ====================
+  # ==================== Docker (与 ci 并行) ====================
   docker:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: ci  # 只依赖 ci，与 release 并行
+    # 无 needs，与 ci 并行执行（Dockerfile 有独立的前端构建阶段）
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -207,10 +207,10 @@ jobs:
           echo "- **Version**: ${{ steps.info.outputs.version }}" >> $GITHUB_STEP_SUMMARY
           echo "- **Commit**: ${{ steps.info.outputs.git_commit }}" >> $GITHUB_STEP_SUMMARY
 
-  # ==================== Tag Version (等待 release 和 docker 完成) ====================
+  # ==================== Tag Version (release 完成后给镜像打版本 tag) ====================
   tag-version:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
-    needs: [release, docker]
+    needs: release  # release 已包含对 ci 和 docker 的依赖
     runs-on: ubuntu-latest
     permissions:
       packages: write
