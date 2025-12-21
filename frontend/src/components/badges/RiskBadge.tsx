@@ -40,7 +40,7 @@ export function RiskBadge({ risk, className = '' }: RiskBadgeProps) {
       aria-label={`${risk.label}: ${defaultTooltip}`}
     >
       {/* 背景容器 - 淡红色圆角矩形 */}
-      <span className="inline-flex items-center justify-center px-1 py-0.5 bg-danger/15 rounded">
+      <span className="inline-flex items-center justify-center">
         <RiskIcon />
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
