@@ -333,6 +333,14 @@ type AppConfig struct {
 	// 限制同时执行的数据库查询数量，防止连接池耗尽
 	ConcurrentQueryLimit int `yaml:"concurrent_query_limit" json:"concurrent_query_limit"`
 
+	// 是否启用批量查询（API 层优化，默认 false）
+	// 开启后 /api/status 在 7d/30d 场景会优先使用批量查询，将 N 个监测项的 GetLatest+GetHistory 从 2N 次往返降为 2 次
+	EnableBatchQuery bool `yaml:"enable_batch_query" json:"enable_batch_query"`
+
+	// 批量查询最大 key 数（默认 300）
+	// SQLite 单条 SQL 参数上限通常为 999（每个 key 需要 3 个参数），因此默认 300 比较安全
+	BatchQueryMaxKeys int `yaml:"batch_query_max_keys" json:"batch_query_max_keys"`
+
 	// 存储配置
 	Storage StorageConfig `yaml:"storage" json:"storage"`
 
@@ -638,6 +646,14 @@ func (c *AppConfig) Normalize() error {
 		return fmt.Errorf("concurrent_query_limit 必须 >= 1，当前值: %d", c.ConcurrentQueryLimit)
 	}
 
+	// 批量查询最大 key 数（默认 300）
+	if c.BatchQueryMaxKeys == 0 {
+		c.BatchQueryMaxKeys = 300
+	}
+	if c.BatchQueryMaxKeys < 1 {
+		return fmt.Errorf("batch_query_max_keys 必须 >= 1，当前值: %d", c.BatchQueryMaxKeys)
+	}
+
 	// 赞助商置顶配置默认值
 	if c.SponsorPin.MaxPinned == 0 {
 		c.SponsorPin.MaxPinned = 3
@@ -707,6 +723,17 @@ func (c *AppConfig) Normalize() error {
 	}
 	if c.Storage.Type == "sqlite" && c.Storage.SQLite.Path == "" {
 		c.Storage.SQLite.Path = "monitor.db" // 默认路径
+	}
+	// SQLite 参数上限保护：默认上限通常为 999，每个 key 需要 3 个参数
+	if c.Storage.Type == "sqlite" && c.EnableBatchQuery {
+		const sqliteMaxParams = 999
+		const keyParams = 3
+		maxKeys := sqliteMaxParams / keyParams
+		if c.BatchQueryMaxKeys > maxKeys {
+			log.Printf("[Config] 警告: batch_query_max_keys(%d) 超出 SQLite 参数上限(%d)，已回退为 %d",
+				c.BatchQueryMaxKeys, sqliteMaxParams, maxKeys)
+			c.BatchQueryMaxKeys = maxKeys
+		}
 	}
 	if c.Storage.Type == "postgres" {
 		if c.Storage.Postgres.Port == 0 {
@@ -1150,6 +1177,8 @@ func (c *AppConfig) Clone() *AppConfig {
 		StaggerProbes:         staggerPtr,
 		EnableConcurrentQuery: c.EnableConcurrentQuery,
 		ConcurrentQueryLimit:  c.ConcurrentQueryLimit,
+		EnableBatchQuery:      c.EnableBatchQuery,
+		BatchQueryMaxKeys:     c.BatchQueryMaxKeys,
 		Storage:               c.Storage,
 		PublicBaseURL:         c.PublicBaseURL,
 		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),

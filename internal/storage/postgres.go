@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -332,6 +333,152 @@ func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 	}
 
 	return nil
+}
+
+// GetLatestBatch 批量获取每个监测项的最新记录
+//
+// 实现说明：
+// - 使用 CTE(keys) 承载入参列表，避免拼接 IN (...) 的多列比较复杂度
+// - 使用 DISTINCT ON + ORDER BY timestamp DESC 取每个 (provider,service,channel) 的最新一条
+func (s *PostgresStorage) GetLatestBatch(keys []MonitorKey) (map[MonitorKey]*ProbeRecord, error) {
+	ctx := s.effectiveCtx()
+	result := make(map[MonitorKey]*ProbeRecord, len(keys))
+	if len(keys) == 0 {
+		return result, nil
+	}
+
+	var b strings.Builder
+	args := make([]any, 0, len(keys)*3)
+
+	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		base := i*3 + 1
+		fmt.Fprintf(&b, "($%d,$%d,$%d)", base, base+1, base+2)
+		args = append(args, k.Provider, k.Service, k.Channel)
+	}
+	b.WriteString(")\n")
+	b.WriteString(`
+SELECT DISTINCT ON (p.provider, p.service, p.channel)
+	p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
+FROM probe_history p
+JOIN keys k
+	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+ORDER BY p.provider, p.service, p.channel, p.timestamp DESC, p.id DESC
+`)
+
+	rows, err := s.pool.Query(ctx, b.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询 PostgreSQL 最新记录失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rec := &ProbeRecord{}
+		var subStatusStr string
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.Provider,
+			&rec.Service,
+			&rec.Channel,
+			&rec.Status,
+			&subStatusStr,
+			&rec.HttpCode,
+			&rec.Latency,
+			&rec.Timestamp,
+		); err != nil {
+			return nil, fmt.Errorf("扫描 PostgreSQL 最新记录失败: %w", err)
+		}
+		rec.SubStatus = SubStatus(subStatusStr)
+		result[MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}] = rec
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代 PostgreSQL 最新记录失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetHistoryBatch 批量获取多个监测项的历史记录（时间范围）
+//
+// 实现说明：
+// - 使用 CTE(keys) + JOIN 过滤目标监测项集合
+// - ORDER BY 按 (provider,service,channel,timestamp DESC) 输出，便于按 key 聚合且尽量利用索引顺序
+// - 最终对每个 key 的切片做 reverse，保证返回时间升序（与 GetHistory 一致）
+func (s *PostgresStorage) GetHistoryBatch(keys []MonitorKey, since time.Time) (map[MonitorKey][]*ProbeRecord, error) {
+	ctx := s.effectiveCtx()
+	result := make(map[MonitorKey][]*ProbeRecord, len(keys))
+	if len(keys) == 0 {
+		return result, nil
+	}
+
+	var b strings.Builder
+	args := make([]any, 0, len(keys)*3+1)
+
+	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		base := i*3 + 1
+		fmt.Fprintf(&b, "($%d,$%d,$%d)", base, base+1, base+2)
+		args = append(args, k.Provider, k.Service, k.Channel)
+	}
+
+	sinceArgIndex := len(keys)*3 + 1
+	args = append(args, since.Unix())
+
+	b.WriteString(")\n")
+	fmt.Fprintf(&b, `
+SELECT
+	p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
+FROM probe_history p
+JOIN keys k
+	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+WHERE p.timestamp >= $%d
+ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
+`, sinceArgIndex)
+
+	rows, err := s.pool.Query(ctx, b.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询 PostgreSQL 历史记录失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rec := &ProbeRecord{}
+		var subStatusStr string
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.Provider,
+			&rec.Service,
+			&rec.Channel,
+			&rec.Status,
+			&subStatusStr,
+			&rec.HttpCode,
+			&rec.Latency,
+			&rec.Timestamp,
+		); err != nil {
+			return nil, fmt.Errorf("扫描 PostgreSQL 历史记录失败: %w", err)
+		}
+		rec.SubStatus = SubStatus(subStatusStr)
+		key := MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}
+		result[key] = append(result[key], rec)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代 PostgreSQL 历史记录失败: %w", err)
+	}
+
+	// DESC 取数利用索引，返回前对每个 key 翻转为时间升序
+	for k := range result {
+		reverseRecords(result[k])
+	}
+
+	return result, nil
 }
 
 // GetLatest 获取最新记录

@@ -361,6 +361,8 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	degradedWeight := h.config.DegradedWeight
 	enableConcurrent := h.config.EnableConcurrentQuery
 	concurrentLimit := h.config.ConcurrentQueryLimit
+	enableBatchQuery := h.config.EnableBatchQuery
+	batchQueryMaxKeys := h.config.BatchQueryMaxKeys
 	slowLatencyMs := int(h.config.SlowLatencyDuration / time.Millisecond)
 	sponsorPin := h.config.SponsorPin
 	enableBadges := h.config.EnableBadges
@@ -382,17 +384,30 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	// 过滤并去重监测项
 	filtered := h.filterMonitors(monitors, realProvider, qService, includeHidden)
 
-	// 根据配置选择串行或并发查询
+	// 根据配置选择批量/并发/串行查询（支持回退：batch → concurrent → serial）
 	var response []MonitorResult
 	var err error
 	var mode string
 
-	if enableConcurrent {
-		mode = "concurrent"
-		response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
-	} else {
-		mode = "serial"
-		response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
+	// 批量查询仅针对 7d/30d 的高频大查询场景启用（避免对短周期造成额外复杂度）
+	tryBatch := enableBatchQuery && (period == "7d" || period == "30d") && len(filtered) <= batchQueryMaxKeys
+	if tryBatch {
+		mode = "batch"
+		response, err = h.getStatusBatch(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
+		if err != nil {
+			logger.Warn("api", "批量查询失败，回退到并发/串行模式", "error", err, "monitors", len(filtered), "period", period)
+		}
+	}
+
+	// batch 失败/未启用时回退
+	if err != nil || !tryBatch {
+		if enableConcurrent {
+			mode = "concurrent"
+			response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
+		} else {
+			mode = "serial"
+			response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
+		}
 	}
 
 	if err != nil {
@@ -478,6 +493,47 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 	}
 
 	return filtered
+}
+
+// getStatusBatch 批量查询（GetLatestBatch + GetHistoryBatch）
+// 将 N 个监测项的查询从 2N 次 SQL 往返降为 2 次，显著优化 7d/30d 场景性能
+func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool) ([]MonitorResult, error) {
+	store := h.storage.WithContext(ctx)
+
+	// 构建查询 key 列表
+	keys := make([]storage.MonitorKey, 0, len(monitors))
+	for _, task := range monitors {
+		keys = append(keys, storage.MonitorKey{
+			Provider: task.Provider,
+			Service:  task.Service,
+			Channel:  task.Channel,
+		})
+	}
+
+	// 批量获取最新记录
+	latestMap, err := store.GetLatestBatch(keys)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询最新记录失败: %w", err)
+	}
+
+	// 批量获取历史记录
+	historyMap, err := store.GetHistoryBatch(keys, since)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询历史记录失败: %w", err)
+	}
+
+	// 组装结果（保持原有顺序）
+	results := make([]MonitorResult, len(monitors))
+	for i, task := range monitors {
+		key := storage.MonitorKey{
+			Provider: task.Provider,
+			Service:  task.Service,
+			Channel:  task.Channel,
+		}
+		results[i] = h.buildMonitorResult(task, latestMap[key], historyMap[key], endTime, period, degradedWeight, timeFilter, enableBadges)
+	}
+
+	return results, nil
 }
 
 // getStatusSerial 串行查询（原有逻辑）

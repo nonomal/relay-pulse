@@ -75,6 +75,14 @@ type ChannelMigrationMapping struct {
 	Channel  string
 }
 
+// MonitorKey 监测项唯一键（provider/service/channel）
+// 用于批量查询时作为 map 的 key，避免字符串拼接的歧义和冲突
+type MonitorKey struct {
+	Provider string
+	Service  string
+	Channel  string
+}
+
 // Storage 存储接口
 //
 // 索引依赖说明：
@@ -102,6 +110,16 @@ type Storage interface {
 	// GetHistory 获取历史记录（时间范围）
 	// 要求：必须传入 provider, service, channel 三个参数（索引覆盖）
 	GetHistory(provider, service, channel string, since time.Time) ([]*ProbeRecord, error)
+
+	// GetLatestBatch 批量获取每个监测项的最新记录
+	// 返回 map 中缺失的 key 表示该监测项没有任何记录
+	// 用于 7d/30d 场景优化，将 N 个监测项的 GetLatest 从 N 次往返降为 1 次
+	GetLatestBatch(keys []MonitorKey) (map[MonitorKey]*ProbeRecord, error)
+
+	// GetHistoryBatch 批量获取多个监测项的历史记录（时间范围）
+	// 返回 map 中缺失的 key 表示该监测项没有任何记录
+	// 用于 7d/30d 场景优化，将 N 个监测项的 GetHistory 从 N 次往返降为 1 次
+	GetHistoryBatch(keys []MonitorKey, since time.Time) (map[MonitorKey][]*ProbeRecord, error)
 
 	// CleanOldRecords 清理旧记录（保留最近N天）
 	// 注意：仅按 timestamp 过滤，会触发全表扫描（低频操作可接受）

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"monitor/internal/logger"
@@ -343,6 +344,151 @@ func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 	id, _ := result.LastInsertId()
 	record.ID = id
 	return nil
+}
+
+// GetLatestBatch 批量获取每个监测项的最新记录
+//
+// 实现说明：
+// - 使用 CTE(keys) 承载入参列表
+// - 使用窗口函数 ROW_NUMBER() 分组取最新一条（rn=1）
+func (s *SQLiteStorage) GetLatestBatch(keys []MonitorKey) (map[MonitorKey]*ProbeRecord, error) {
+	ctx := s.effectiveCtx()
+	result := make(map[MonitorKey]*ProbeRecord, len(keys))
+	if len(keys) == 0 {
+		return result, nil
+	}
+
+	var b strings.Builder
+	args := make([]any, 0, len(keys)*3)
+
+	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString("(?, ?, ?)")
+		args = append(args, k.Provider, k.Service, k.Channel)
+	}
+	b.WriteString(`),
+ranked AS (
+	SELECT
+		p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp,
+		ROW_NUMBER() OVER (PARTITION BY p.provider, p.service, p.channel ORDER BY p.timestamp DESC, p.id DESC) AS rn
+	FROM probe_history p
+	JOIN keys k
+		ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+)
+SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
+FROM ranked
+WHERE rn = 1
+`)
+
+	rows, err := s.db.QueryContext(ctx, b.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询最新记录失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rec := &ProbeRecord{}
+		var subStatusStr string
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.Provider,
+			&rec.Service,
+			&rec.Channel,
+			&rec.Status,
+			&subStatusStr,
+			&rec.HttpCode,
+			&rec.Latency,
+			&rec.Timestamp,
+		); err != nil {
+			return nil, fmt.Errorf("扫描最新记录失败: %w", err)
+		}
+		rec.SubStatus = SubStatus(subStatusStr)
+		result[MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}] = rec
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代最新记录失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetHistoryBatch 批量获取多个监测项的历史记录（时间范围）
+//
+// 实现说明：
+// - 使用 CTE(keys) + JOIN 过滤目标监测项集合
+// - ORDER BY 按 (provider,service,channel,timestamp DESC) 输出
+// - 返回前对每个 key 的切片做 reverse，保证时间升序（与 GetHistory 一致）
+func (s *SQLiteStorage) GetHistoryBatch(keys []MonitorKey, since time.Time) (map[MonitorKey][]*ProbeRecord, error) {
+	ctx := s.effectiveCtx()
+	result := make(map[MonitorKey][]*ProbeRecord, len(keys))
+	if len(keys) == 0 {
+		return result, nil
+	}
+
+	var b strings.Builder
+	args := make([]any, 0, len(keys)*3+1)
+
+	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		b.WriteString("(?, ?, ?)")
+		args = append(args, k.Provider, k.Service, k.Channel)
+	}
+	b.WriteString(")\n")
+	b.WriteString(`
+SELECT
+	p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
+FROM probe_history p
+JOIN keys k
+	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+WHERE p.timestamp >= ?
+ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
+`)
+	args = append(args, since.Unix())
+
+	rows, err := s.db.QueryContext(ctx, b.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询历史记录失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		rec := &ProbeRecord{}
+		var subStatusStr string
+		if err := rows.Scan(
+			&rec.ID,
+			&rec.Provider,
+			&rec.Service,
+			&rec.Channel,
+			&rec.Status,
+			&subStatusStr,
+			&rec.HttpCode,
+			&rec.Latency,
+			&rec.Timestamp,
+		); err != nil {
+			return nil, fmt.Errorf("扫描历史记录失败: %w", err)
+		}
+		rec.SubStatus = SubStatus(subStatusStr)
+		key := MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}
+		result[key] = append(result[key], rec)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代历史记录失败: %w", err)
+	}
+
+	// DESC 取数利用索引，返回前对每个 key 翻转为时间升序
+	for k := range result {
+		reverseRecords(result[k])
+	}
+
+	return result, nil
 }
 
 // GetLatest 获取最新记录
