@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import { FixedSizeList as List, type ListChildComponentProps } from 'react-window';
-import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, Filter } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
@@ -94,6 +94,7 @@ interface StatusTableProps {
   onSort: (key: string) => void;
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
+  onFilterProvider?: (providerId: string) => void; // 按服务商筛选
 }
 
 // 移动端卡片列表项组件
@@ -350,6 +351,7 @@ function StatusTableComponent({
   onSort,
   onBlockHover,
   onBlockLeave,
+  onFilterProvider,
 }: StatusTableProps) {
   const { t, i18n } = useTranslation();
   const [isMobile, setIsMobile] = useState(false);
@@ -594,6 +596,20 @@ function StatusTableComponent({
                             inline
                           />
                         </div>
+                        {/* 过滤按钮：悬浮时显示 */}
+                        {onFilterProvider && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onFilterProvider(item.providerId);
+                            }}
+                            className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover/provider:opacity-60 hover:!opacity-100 hover:text-accent transition-opacity cursor-pointer"
+                            title={t('table.filterByProvider')}
+                          >
+                            <Filter size={10} />
+                          </button>
+                        )}
                       </div>
                       {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
                       {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (

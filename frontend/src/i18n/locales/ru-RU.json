@@ -155,7 +155,8 @@
     "channelTooltip": {
       "probeUrl": "URL проверки",
       "template": "Шаблон запроса"
-    }
+    },
+    "filterByProvider": "Фильтровать по провайдеру"
   },
   "card": {
     "uptime": "Доступность:"

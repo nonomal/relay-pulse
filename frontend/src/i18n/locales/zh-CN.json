@@ -155,7 +155,8 @@
     "channelTooltip": {
       "probeUrl": "探测地址",
       "template": "请求体模板"
-    }
+    },
+    "filterByProvider": "按此服务商筛选"
   },
   "card": {
     "uptime": "可用率:"

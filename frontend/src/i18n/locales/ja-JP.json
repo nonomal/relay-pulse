@@ -155,7 +155,8 @@
     "channelTooltip": {
       "probeUrl": "探測URL",
       "template": "リクエストテンプレート"
-    }
+    },
+    "filterByProvider": "このプロバイダーでフィルター"
   },
   "card": {
     "uptime": "稼働率:"

@@ -155,7 +155,8 @@
     "channelTooltip": {
       "probeUrl": "Probe URL",
       "template": "Body Template"
-    }
+    },
+    "filterByProvider": "Filter by this provider"
   },
   "card": {
     "uptime": "Uptime:"

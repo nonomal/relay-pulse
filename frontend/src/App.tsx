@@ -400,6 +400,7 @@ function App() {
                   onSort={handleSort}
                   onBlockHover={handleBlockHover}
                   onBlockLeave={handleBlockLeave}
+                  onFilterProvider={(providerId) => setFilterProvider([providerId])}
                 />
               )}
 
