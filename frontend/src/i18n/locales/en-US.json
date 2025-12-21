@@ -218,11 +218,11 @@
     "sponsor": {
       "basic": {
         "name": "Node Supporter",
-        "tooltip": "Sponsors high-frequency monitoring resources with objective data"
+        "tooltip": "Sponsored single-channel high-frequency monitoring"
       },
       "advanced": {
         "name": "Core Provider",
-        "tooltip": "Multi-route deep monitoring, hexagonal all-round performance"
+        "tooltip": "Sponsored multi-channel high-frequency monitoring"
       },
       "enterprise": {
         "name": "Global Partner",
@@ -242,11 +242,11 @@
     "generic": {
       "api_key_user": {
         "label": "User API",
-        "tooltip": "User-submitted API key, welcome to apply for listing with affiliate link"
+        "tooltip": "Monitoring API Key sponsored by user"
       },
       "api_key_official": {
         "label": "Official API",
-        "tooltip": "Tested with official API key"
+        "tooltip": "Monitoring API Key sponsored by provider"
       }
     },
     "frequency": {

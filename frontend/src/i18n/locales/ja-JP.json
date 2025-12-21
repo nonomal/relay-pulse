@@ -218,11 +218,11 @@
     "sponsor": {
       "basic": {
         "name": "ノードサポーター",
-        "tooltip": "高頻度監視リソースをスポンサー、客観的なデータ"
+        "tooltip": "スポンサー提供：単一チャネル高頻度監視"
       },
       "advanced": {
         "name": "コアプロバイダー",
-        "tooltip": "マルチルート深層監視、六角形の万能パフォーマンス"
+        "tooltip": "スポンサー提供：複数チャネル高頻度監視"
       },
       "enterprise": {
         "name": "グローバルパートナー",
@@ -242,11 +242,11 @@
     "generic": {
       "api_key_user": {
         "label": "ユーザーAPI",
-        "tooltip": "ユーザー提供のAPIキー、掲載申請歓迎、アフィリエイト可"
+        "tooltip": "ユーザーがスポンサーする監視用APIキー"
       },
       "api_key_official": {
         "label": "公式API",
-        "tooltip": "公式APIキーでテスト済み"
+        "tooltip": "プロバイダーがスポンサーする監視用APIキー"
       }
     },
     "frequency": {
