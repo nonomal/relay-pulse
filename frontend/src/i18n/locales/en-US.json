@@ -238,6 +238,19 @@
     },
     "commercial": {
       "tooltip": "Commercial paid service site"
+    },
+    "generic": {
+      "api_key_user": {
+        "label": "User API",
+        "tooltip": "User-submitted API key, welcome to apply for listing with affiliate link"
+      },
+      "api_key_official": {
+        "label": "Official API",
+        "tooltip": "Tested with official API key"
+      }
+    },
+    "frequency": {
+      "tooltip": "Check interval: {{interval}}"
     }
   },
   "externalLink": {

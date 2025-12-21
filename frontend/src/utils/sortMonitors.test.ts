@@ -12,6 +12,7 @@ function createMockData(overrides: Partial<ProcessedMonitorData>): ProcessedMoni
     serviceType: 'cc',
     category: 'commercial',
     sponsor: 'Test Sponsor',
+    intervalMs: 60000,
     history: [],
     currentStatus: 'AVAILABLE',
     uptime: 99.5,

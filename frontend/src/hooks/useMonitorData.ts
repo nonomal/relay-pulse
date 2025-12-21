@@ -222,12 +222,14 @@ export function useMonitorData({
               sponsorUrl: validateUrl(item.sponsor_url),
               sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
               risks: item.risks,  // 直接传递风险徽标数组
+              badges: item.badges,  // 直接传递通用徽标数组
               priceMin: item.price_min ?? null,  // 参考倍率下限
               priceMax: item.price_max ?? null,  // 参考倍率
               listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
               probeUrl: item.probe_url,
               templateName: item.template_name,
+              intervalMs: item.interval_ms ?? 0,  // 检测间隔（毫秒），兜底 0 兼容旧后端
               history,
               currentStatus,
               uptime,

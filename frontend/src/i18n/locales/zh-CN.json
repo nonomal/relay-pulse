@@ -238,6 +238,19 @@
     },
     "commercial": {
       "tooltip": "商业付费服务站点"
+    },
+    "generic": {
+      "api_key_user": {
+        "label": "用户API",
+        "tooltip": "用户提交的 API Key，欢迎申请收录，可带 aff"
+      },
+      "api_key_official": {
+        "label": "官方API",
+        "tooltip": "使用官方 API 密钥进行测试"
+      }
+    },
+    "frequency": {
+      "tooltip": "检测频率: {{interval}}"
     }
   },
   "externalLink": {

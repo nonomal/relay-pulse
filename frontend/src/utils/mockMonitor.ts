@@ -138,6 +138,7 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
             category,
             sponsor,
             channel,
+            intervalMs: 60000, // Mock: 默认 60 秒
             history,
             currentStatus,
             uptime,

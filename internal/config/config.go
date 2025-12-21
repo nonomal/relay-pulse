@@ -6,8 +6,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // SponsorLevel 赞助商等级
@@ -30,6 +33,106 @@ func (s SponsorLevel) IsValid() bool {
 	}
 }
 
+// BadgeKind 徽标分类
+type BadgeKind string
+
+const (
+	BadgeKindSource  BadgeKind = "source"  // 标识来源（如 用户Key/官方Key）
+	BadgeKindInfo    BadgeKind = "info"    // 信息性提示
+	BadgeKindFeature BadgeKind = "feature" // 功能特性标识
+)
+
+// IsValid 检查徽标分类是否有效
+func (k BadgeKind) IsValid() bool {
+	switch k {
+	case BadgeKindSource, BadgeKindInfo, BadgeKindFeature:
+		return true
+	default:
+		return false
+	}
+}
+
+// BadgeVariant 徽标样式变体
+type BadgeVariant string
+
+const (
+	BadgeVariantDefault BadgeVariant = "default" // 默认（中性）
+	BadgeVariantSuccess BadgeVariant = "success" // 成功（正向）
+	BadgeVariantWarning BadgeVariant = "warning" // 警告
+	BadgeVariantDanger  BadgeVariant = "danger"  // 危险
+	BadgeVariantInfo    BadgeVariant = "info"    // 信息（蓝色，社区贡献等正面信息）
+)
+
+// IsValid 检查徽标样式是否有效
+func (v BadgeVariant) IsValid() bool {
+	switch v {
+	case BadgeVariantDefault, BadgeVariantSuccess, BadgeVariantWarning, BadgeVariantDanger, BadgeVariantInfo:
+		return true
+	default:
+		return false
+	}
+}
+
+// BadgeDef 全局徽标定义
+// Label 和 Tooltip 由前端 i18n 提供，后端只存储配置元数据
+type BadgeDef struct {
+	ID      string       `yaml:"id" json:"id"`                   // 唯一标识（如 "api_key_user"）
+	Kind    BadgeKind    `yaml:"kind" json:"kind"`               // 分类（source/info/feature）
+	Variant BadgeVariant `yaml:"variant" json:"variant"`         // 样式（default/success/warning/danger/info）
+	Weight  int          `yaml:"weight" json:"weight,omitempty"` // 排序权重（越大越靠前）
+	URL     string       `yaml:"url" json:"url,omitempty"`       // 可选：点击跳转链接
+}
+
+// BadgeRef 监测项级别的徽标引用
+// 支持两种 YAML 格式：
+//   - 字符串: "api_key_official"
+//   - 对象: { id: "api_key_user", tooltip: "自定义提示" }
+type BadgeRef struct {
+	ID      string `yaml:"id" json:"id"`                                       // 引用的 BadgeDef.ID
+	Tooltip string `yaml:"tooltip_override" json:"tooltip_override,omitempty"` // monitor 级 tooltip 覆盖（可选）
+}
+
+// UnmarshalYAML 支持字符串或对象两种 YAML 格式
+func (r *BadgeRef) UnmarshalYAML(node *yaml.Node) error {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		var id string
+		if err := node.Decode(&id); err != nil {
+			return err
+		}
+		r.ID = strings.TrimSpace(id)
+		r.Tooltip = ""
+		return nil
+	case yaml.MappingNode:
+		type alias BadgeRef
+		var a alias
+		if err := node.Decode(&a); err != nil {
+			return err
+		}
+		r.ID = strings.TrimSpace(a.ID)
+		r.Tooltip = strings.TrimSpace(a.Tooltip)
+		return nil
+	default:
+		return fmt.Errorf("badges 元素必须是字符串或对象")
+	}
+}
+
+// BadgeProviderConfig provider 级徽标注入配置
+type BadgeProviderConfig struct {
+	Provider string     `yaml:"provider" json:"provider"` // provider 名称
+	Badges   []BadgeRef `yaml:"badges" json:"badges"`     // 徽标引用列表
+}
+
+// ResolvedBadge 解析后的徽标（用于 API 响应）
+type ResolvedBadge struct {
+	ID              string       `json:"id"`
+	Kind            BadgeKind    `json:"kind"`
+	Variant         BadgeVariant `json:"variant"`
+	Weight          int          `json:"weight,omitempty"`
+	URL             string       `json:"url,omitempty"`
+	TooltipOverride string       `json:"tooltip_override,omitempty"` // 仅在 monitor 级覆盖时有值
+}
+
 // RiskBadge 风险徽标配置
 type RiskBadge struct {
 	Label         string `yaml:"label" json:"label"`                  // 简短标签，如"跑路风险"
@@ -38,23 +141,25 @@ type RiskBadge struct {
 
 // ServiceConfig 单个服务监测配置
 type ServiceConfig struct {
-	Provider     string            `yaml:"provider" json:"provider"`
-	ProviderSlug string            `yaml:"provider_slug" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
-	ProviderURL  string            `yaml:"provider_url" json:"provider_url"`   // 服务商官网链接（可选）
-	Service      string            `yaml:"service" json:"service"`
-	Category     string            `yaml:"category" json:"category"`           // 分类：commercial（商业站）或 public（公益站）
-	Sponsor      string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
-	SponsorURL   string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
-	SponsorLevel SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
-	PriceMin     *float64          `yaml:"price_min" json:"price_min"`         // 参考倍率下限（可选，如 0.05）
-	PriceMax     *float64          `yaml:"price_max" json:"price_max"`         // 参考倍率（可选，如 0.2）
-	Risks        []RiskBadge       `yaml:"-" json:"risks,omitempty"`           // 风险徽标（由 risk_providers 自动注入，不在此配置）
-	Channel      string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
-	ListedSince  string            `yaml:"listed_since" json:"listed_since"`   // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
-	URL          string            `yaml:"url" json:"url"`
-	Method       string            `yaml:"method" json:"method"`
-	Headers      map[string]string `yaml:"headers" json:"headers"`
-	Body         string            `yaml:"body" json:"body"`
+	Provider       string            `yaml:"provider" json:"provider"`
+	ProviderSlug   string            `yaml:"provider_slug" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
+	ProviderURL    string            `yaml:"provider_url" json:"provider_url"`   // 服务商官网链接（可选）
+	Service        string            `yaml:"service" json:"service"`
+	Category       string            `yaml:"category" json:"category"`           // 分类：commercial（商业站）或 public（公益站）
+	Sponsor        string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
+	SponsorURL     string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
+	SponsorLevel   SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
+	PriceMin       *float64          `yaml:"price_min" json:"price_min"`         // 参考倍率下限（可选，如 0.05）
+	PriceMax       *float64          `yaml:"price_max" json:"price_max"`         // 参考倍率（可选，如 0.2）
+	Risks          []RiskBadge       `yaml:"-" json:"risks,omitempty"`           // 风险徽标（由 risk_providers 自动注入，不在此配置）
+	Badges         []BadgeRef        `yaml:"badges" json:"-"`                    // 徽标引用（可选，支持 tooltip 覆盖）
+	ResolvedBadges []ResolvedBadge   `yaml:"-" json:"badges,omitempty"`          // 解析后的徽标（由 badges + badge_providers 注入）
+	Channel        string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
+	ListedSince    string            `yaml:"listed_since" json:"listed_since"`   // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
+	URL            string            `yaml:"url" json:"url"`
+	Method         string            `yaml:"method" json:"method"`
+	Headers        map[string]string `yaml:"headers" json:"headers"`
+	Body           string            `yaml:"body" json:"body"`
 
 	// SuccessContains 可选：响应体需包含的关键字，用于判定请求语义是否成功
 	SuccessContains string `yaml:"success_contains" json:"success_contains"`
@@ -239,6 +344,14 @@ type AppConfig struct {
 	// 用于标记存在风险的服务商（如跑路风险）
 	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
 
+	// 全局徽标定义（map 格式，key 为徽标 ID）
+	// Label 和 Tooltip 由前端 i18n 提供，后端只存储 id/kind/variant/weight/url
+	BadgeDefs map[string]BadgeDef `yaml:"badge_definitions" json:"badge_definitions"`
+
+	// provider 级徽标注入配置
+	// 列表中的 provider 会自动继承 badges 到对应的所有 monitors
+	BadgeProviders []BadgeProviderConfig `yaml:"badge_providers" json:"badge_providers"`
+
 	// 赞助商置顶配置
 	// 用于在页面初始加载时置顶符合条件的赞助商监测项
 	SponsorPin SponsorPinConfig `yaml:"sponsor_pin" json:"sponsor_pin"`
@@ -364,6 +477,65 @@ func (c *AppConfig) Validate() error {
 				if err := validateURL(risk.DiscussionURL, "discussion_url"); err != nil {
 					return fmt.Errorf("risk_providers[%d].risks[%d]: %w", i, j, err)
 				}
+			}
+		}
+	}
+
+	// 验证 badges（全局徽标定义）
+	// map 格式：key 为徽标 ID
+	for id, bd := range c.BadgeDefs {
+		if strings.TrimSpace(id) == "" {
+			return fmt.Errorf("badge_definitions: id 不能为空")
+		}
+
+		// 允许空值通过校验（Normalize() 会填充默认值）
+		if bd.Kind != "" && !bd.Kind.IsValid() {
+			return fmt.Errorf("badge_definitions[%s]: kind '%s' 无效，必须是 source/info/feature", id, bd.Kind)
+		}
+		if bd.Variant != "" && !bd.Variant.IsValid() {
+			return fmt.Errorf("badge_definitions[%s]: variant '%s' 无效，必须是 default/success/warning/danger/info", id, bd.Variant)
+		}
+		if bd.Weight < 0 || bd.Weight > 100 {
+			return fmt.Errorf("badge_definitions[%s]: weight 必须在 0-100 范围内", id)
+		}
+		if bd.URL != "" {
+			if err := validateURL(bd.URL, "url"); err != nil {
+				return fmt.Errorf("badge_definitions[%s]: %w", id, err)
+			}
+		}
+	}
+
+	// 验证 badge_providers
+	badgeProviderSet := make(map[string]bool)
+	for i, bp := range c.BadgeProviders {
+		provider := strings.ToLower(strings.TrimSpace(bp.Provider))
+		if provider == "" {
+			return fmt.Errorf("badge_providers[%d]: provider 不能为空", i)
+		}
+		if badgeProviderSet[provider] {
+			return fmt.Errorf("badge_providers[%d]: provider '%s' 重复配置", i, bp.Provider)
+		}
+		badgeProviderSet[provider] = true
+		for j, ref := range bp.Badges {
+			refID := strings.TrimSpace(ref.ID)
+			if refID == "" {
+				return fmt.Errorf("badge_providers[%d].badges[%d]: id 不能为空", i, j)
+			}
+			if _, exists := c.BadgeDefs[refID]; !exists {
+				return fmt.Errorf("badge_providers[%d].badges[%d]: 未找到徽标定义 '%s'", i, j, refID)
+			}
+		}
+	}
+
+	// 验证 monitors[].badges
+	for i, m := range c.Monitors {
+		for j, ref := range m.Badges {
+			refID := strings.TrimSpace(ref.ID)
+			if refID == "" {
+				return fmt.Errorf("monitors[%d].badges[%d]: id 不能为空", i, j)
+			}
+			if _, exists := c.BadgeDefs[refID]; !exists {
+				return fmt.Errorf("monitors[%d].badges[%d]: 未找到徽标定义 '%s'", i, j, refID)
 			}
 		}
 	}
@@ -602,6 +774,28 @@ func (c *AppConfig) Normalize() error {
 		riskProviderMap[provider] = rp.Risks
 	}
 
+	// 构建 badges 定义 map（id -> def），并填充默认值
+	// BadgeDefs 已经是 map 格式，直接使用
+	badgeDefMap := make(map[string]BadgeDef)
+	for id, bd := range c.BadgeDefs {
+		// 填充默认值
+		if bd.Kind == "" {
+			bd.Kind = BadgeKindInfo
+		}
+		if bd.Variant == "" {
+			bd.Variant = BadgeVariantDefault
+		}
+		bd.ID = id // 确保 ID 字段与 map key 一致
+		badgeDefMap[id] = bd
+	}
+
+	// 构建 badge_providers 快速查找 map（provider -> []BadgeRef）
+	badgeProviderMap := make(map[string][]BadgeRef)
+	for _, bp := range c.BadgeProviders {
+		provider := strings.ToLower(strings.TrimSpace(bp.Provider))
+		badgeProviderMap[provider] = bp.Badges
+	}
+
 	// 将全局慢请求阈值下发到每个监测项，并标准化 category、URLs、provider_slug
 	slugSet := make(map[string]int) // slug -> monitor index (用于检测重复)
 	for i := range c.Monitors {
@@ -694,6 +888,64 @@ func (c *AppConfig) Normalize() error {
 		// 从 risk_providers 注入风险徽标到对应的 monitors
 		if risks, exists := riskProviderMap[normalizedProvider]; exists {
 			c.Monitors[i].Risks = risks
+		}
+
+		// 从 badge_providers + monitors[].badges 注入徽标
+		// 合并策略：provider 级在前，monitor 级在后（同 id 时 monitor 级覆盖）
+		var refs []BadgeRef
+		if injected, ok := badgeProviderMap[normalizedProvider]; ok && len(injected) > 0 {
+			refs = append(refs, injected...)
+		}
+		if len(c.Monitors[i].Badges) > 0 {
+			refs = append(refs, c.Monitors[i].Badges...)
+		}
+
+		if len(refs) > 0 {
+			// 去重并解析为 ResolvedBadge
+			order := make([]string, 0, len(refs))
+			resolvedMap := make(map[string]ResolvedBadge, len(refs))
+			for _, ref := range refs {
+				id := strings.TrimSpace(ref.ID)
+				if id == "" {
+					continue
+				}
+				def, exists := badgeDefMap[id]
+				if !exists {
+					continue // 验证阶段已检查，此处跳过
+				}
+
+				// monitor 级 tooltip 覆盖
+				tooltipOverride := strings.TrimSpace(ref.Tooltip)
+
+				if _, seen := resolvedMap[id]; !seen {
+					order = append(order, id)
+				}
+				resolvedMap[id] = ResolvedBadge{
+					ID:              id,
+					Kind:            def.Kind,
+					Variant:         def.Variant,
+					Weight:          def.Weight,
+					URL:             def.URL,
+					TooltipOverride: tooltipOverride,
+				}
+			}
+
+			// 按 kind 组顺序 → weight desc → id asc 排序
+			result := make([]ResolvedBadge, 0, len(order))
+			for _, id := range order {
+				result = append(result, resolvedMap[id])
+			}
+			sort.SliceStable(result, func(a, b int) bool {
+				kindOrder := map[BadgeKind]int{BadgeKindSource: 0, BadgeKindFeature: 1, BadgeKindInfo: 2}
+				if kindOrder[result[a].Kind] != kindOrder[result[b].Kind] {
+					return kindOrder[result[a].Kind] < kindOrder[result[b].Kind]
+				}
+				if result[a].Weight != result[b].Weight {
+					return result[a].Weight > result[b].Weight // desc
+				}
+				return result[a].ID < result[b].ID // asc
+			})
+			c.Monitors[i].ResolvedBadges = result
 		}
 	}
 
@@ -870,17 +1122,69 @@ func (c *AppConfig) Clone() *AppConfig {
 		PublicBaseURL:         c.PublicBaseURL,
 		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:       make([]HiddenProviderConfig, len(c.HiddenProviders)),
+		RiskProviders:         make([]RiskProviderConfig, len(c.RiskProviders)),
+		BadgeDefs:             make(map[string]BadgeDef, len(c.BadgeDefs)),
+		BadgeProviders:        make([]BadgeProviderConfig, len(c.BadgeProviders)),
 		SponsorPin: SponsorPinConfig{
 			Enabled:   sponsorPinEnabledPtr,
 			MaxPinned: c.SponsorPin.MaxPinned,
 			MinUptime: c.SponsorPin.MinUptime,
 			MinLevel:  c.SponsorPin.MinLevel,
 		},
+		SelfTest: c.SelfTest, // SelfTest 是值类型，直接复制
 		Monitors: make([]ServiceConfig, len(c.Monitors)),
 	}
 	copy(clone.DisabledProviders, c.DisabledProviders)
 	copy(clone.HiddenProviders, c.HiddenProviders)
+	copy(clone.RiskProviders, c.RiskProviders)
+	for id, bd := range c.BadgeDefs {
+		clone.BadgeDefs[id] = bd
+	}
+	copy(clone.BadgeProviders, c.BadgeProviders)
 	copy(clone.Monitors, c.Monitors)
+
+	// 深拷贝 risk_providers 中的 risks slice
+	for i := range clone.RiskProviders {
+		if len(c.RiskProviders[i].Risks) > 0 {
+			clone.RiskProviders[i].Risks = make([]RiskBadge, len(c.RiskProviders[i].Risks))
+			copy(clone.RiskProviders[i].Risks, c.RiskProviders[i].Risks)
+		}
+	}
+
+	// 深拷贝 badge_providers 中的 badges slice
+	for i := range clone.BadgeProviders {
+		if len(c.BadgeProviders[i].Badges) > 0 {
+			clone.BadgeProviders[i].Badges = make([]BadgeRef, len(c.BadgeProviders[i].Badges))
+			copy(clone.BadgeProviders[i].Badges, c.BadgeProviders[i].Badges)
+		}
+	}
+
+	// 深拷贝 monitors 中的 slice/map 字段
+	for i := range clone.Monitors {
+		// headers map
+		if c.Monitors[i].Headers != nil {
+			clone.Monitors[i].Headers = make(map[string]string, len(c.Monitors[i].Headers))
+			for k, v := range c.Monitors[i].Headers {
+				clone.Monitors[i].Headers[k] = v
+			}
+		}
+		// risks slice
+		if len(c.Monitors[i].Risks) > 0 {
+			clone.Monitors[i].Risks = make([]RiskBadge, len(c.Monitors[i].Risks))
+			copy(clone.Monitors[i].Risks, c.Monitors[i].Risks)
+		}
+		// badges refs slice
+		if len(c.Monitors[i].Badges) > 0 {
+			clone.Monitors[i].Badges = make([]BadgeRef, len(c.Monitors[i].Badges))
+			copy(clone.Monitors[i].Badges, c.Monitors[i].Badges)
+		}
+		// resolved badges slice
+		if len(c.Monitors[i].ResolvedBadges) > 0 {
+			clone.Monitors[i].ResolvedBadges = make([]ResolvedBadge, len(c.Monitors[i].ResolvedBadges))
+			copy(clone.Monitors[i].ResolvedBadges, c.Monitors[i].ResolvedBadges)
+		}
+	}
+
 	return clone
 }
 

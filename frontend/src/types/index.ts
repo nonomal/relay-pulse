@@ -55,6 +55,20 @@ export interface RiskBadge {
   discussionUrl?: string;  // 讨论页面链接（可选）
 }
 
+// 通用徽标类型
+export type BadgeKind = 'source' | 'info' | 'feature';
+export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info';
+
+// 通用徽标（来自 API）
+export interface GenericBadge {
+  id: string;                   // 徽标唯一标识（如 "api_key_user"）
+  kind: BadgeKind;              // 分类：source/info/feature
+  variant: BadgeVariant;        // 样式：default/success/warning/danger
+  weight?: number;              // 排序权重（越大越靠前，默认 0）
+  url?: string;                 // 可选：点击跳转链接
+  tooltip_override?: string;    // monitor 级 tooltip 覆盖（可选）
+}
+
 export interface MonitorResult {
   provider: string;
   provider_slug: string;               // URL slug（用于生成专属页面链接）
@@ -65,12 +79,14 @@ export interface MonitorResult {
   sponsor_url?: string;                // 赞助者链接
   sponsor_level?: SponsorLevel;        // 赞助商等级：basic/advanced/enterprise
   risks?: RiskBadge[];                 // 风险徽标数组
+  badges?: GenericBadge[];             // 通用徽标数组
   price_min?: number;                  // 参考倍率下限
   price_max?: number;                  // 参考倍率
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
   probe_url?: string;                  // 探测端点 URL（脱敏后）
   template_name?: string;              // 请求体模板名称（如有）
+  interval_ms?: number;                // 检测间隔（毫秒，可选兼容旧版本）
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
 }
@@ -117,12 +133,14 @@ export interface ProcessedMonitorData {
   sponsorUrl?: string | null;          // 赞助者链接
   sponsorLevel?: SponsorLevel;         // 赞助商等级
   risks?: RiskBadge[];                 // 风险徽标数组
+  badges?: GenericBadge[];             // 通用徽标数组
   priceMin?: number | null;            // 参考倍率下限
   priceMax?: number | null;            // 参考倍率
   listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
   probeUrl?: string;                   // 探测端点 URL（脱敏后）
   templateName?: string;               // 请求体模板名称（如有）
+  intervalMs?: number;                 // 检测间隔（毫秒，可选）
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   history: Array<{
     index: number;

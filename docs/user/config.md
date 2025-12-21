@@ -538,6 +538,159 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **说明**: 停用原因（可选，用于运维审计）
 - **示例**: `"商家已跑路"`, `"服务永久关闭"`
 
+### 通用徽标系统配置
+
+用于在监测项上显示各类信息徽标（如 API Key 来源、功能特性等），支持多级别配置和合并。
+
+#### 徽标类型说明
+
+| 类型 (kind) | 说明 | 示例图标 |
+|-------------|------|----------|
+| `source` | 数据/Key 来源 | 用户轮廓、盾牌勾号 |
+| `info` | 信息提示 | 圆形带 i |
+| `feature` | 功能特性 | 闪电符号 |
+
+| 样式 (variant) | 颜色 | 适用场景 |
+|----------------|------|----------|
+| `default` | 灰色 | 一般信息（真正中性或禁用状态，较少使用） |
+| `success` | 绿色 | 正向信息（官方 API、功能支持） |
+| `warning` | 黄色 | 警告信息 |
+| `danger` | 红色 | 风险信息 |
+| `info` | 蓝色 | 信息类（社区贡献、用户提供的 Key） |
+
+#### 全局徽标定义 (`badge_definitions`)
+
+定义所有可复用的徽标，在 `badge_providers` 或 `monitors.badges` 中通过 `id` 引用：
+
+```yaml
+badge_definitions:
+  # API Key 来源类徽标
+  api_key_user:
+    kind: "source"       # 类型：source/info/feature
+    variant: "info"      # 样式：default/success/warning/danger/info
+    weight: 50           # 排序权重，数值越大越靠前（默认 0）
+  api_key_official:
+    kind: "source"
+    variant: "success"   # 绿色徽标，表示官方 API
+    weight: 80           # 官方 API 排在用户提交之前
+  # 功能特性类徽标
+  stream_support:
+    kind: "feature"
+    variant: "success"
+    weight: 50
+    url: "https://docs.example.com/streaming"  # 可选：点击跳转链接
+```
+
+**字段说明**：
+
+| 字段 | 类型 | 必填 | 默认值 | 说明 |
+|------|------|------|--------|------|
+| `kind` | string | 是 | - | 徽标类型：`source`/`info`/`feature` |
+| `variant` | string | 否 | `default` | 样式变体：`default`/`success`/`warning`/`danger`/`info` |
+| `weight` | number | 否 | `0` | 排序权重，越大越靠前 |
+| `url` | string | 否 | - | 可选的点击跳转链接 |
+
+#### Provider 级别徽标注入 (`badge_providers`)
+
+为同一服务商的所有监测项自动注入指定徽标：
+
+```yaml
+badge_providers:
+  - provider: "88code"
+    badges:
+      - "api_key_official"   # 简写形式：直接引用徽标 id
+  - provider: "duckcoding"
+    badges:
+      - id: "api_key_user"   # 对象形式：可覆盖 tooltip
+        tooltip_override: "用户 @example 提供的 API Key"
+```
+
+**支持的引用格式**：
+
+1. **简写形式**：直接写徽标 id 字符串
+   ```yaml
+   badges:
+     - "api_key_official"
+   ```
+
+2. **对象形式**：可覆盖 tooltip 文本
+   ```yaml
+   badges:
+     - id: "api_key_user"
+       tooltip_override: "自定义提示文本"
+   ```
+
+#### Monitor 级别徽标 (`badges`)
+
+在单个监测项中配置徽标，会与 `badge_providers` 中的 provider 级别徽标合并：
+
+```yaml
+monitors:
+  - provider: "duckcoding"
+    service: "cc"
+    # ... 其他配置
+    badges:
+      - "stream_support"         # 简写形式
+      - id: "api_key_user"       # 对象形式
+        tooltip_override: "特定通道的 API Key 说明"
+```
+
+#### 徽标合并规则
+
+1. **来源合并**：Provider 级别 + Monitor 级别徽标自动合并
+2. **去重**：相同 `id` 的徽标只保留一个（Monitor 级别优先）
+3. **排序**：按 `weight` 降序排列（越大越靠前）
+4. **覆盖**：Monitor 级别的 `tooltip_override` 优先于 Provider 级别
+
+#### 前端显示
+
+- 徽标显示在监测项的"徽标"列
+- Label 和 Tooltip 通过 i18n 翻译（键名：`badges.generic.<id>.label`、`badges.generic.<id>.tooltip`）
+- 如果配置了 `tooltip_override`，则优先使用覆盖文本
+- 检测频率指示器会自动显示在徽标区域（根据监测项的 `interval` 配置）
+
+#### 完整配置示例
+
+```yaml
+# 1. 定义全局徽标
+badge_definitions:
+  api_key_user:
+    kind: "source"
+    variant: "info"      # 蓝色，表示社区贡献
+    weight: 50
+  api_key_official:
+    kind: "source"
+    variant: "success"   # 绿色，表示官方 API
+    weight: 80
+  stream_support:
+    kind: "feature"
+    variant: "success"
+    weight: 60
+
+# 2. Provider 级别注入
+badge_providers:
+  - provider: "88code"
+    badges:
+      - "api_key_official"
+  - provider: "community-relay"
+    badges:
+      - id: "api_key_user"
+        tooltip_override: "社区用户提供的 API Key，欢迎申请收录"
+
+# 3. Monitor 级别配置
+monitors:
+  - provider: "88code"
+    service: "cc"
+    # 自动继承 api_key_official 徽标
+    # ...
+
+  - provider: "88code"
+    service: "cx"
+    badges:
+      - "stream_support"  # 额外添加流式支持徽标
+    # ...
+```
+
 ### 临时下架配置
 
 用于临时下架服务商（如商家不配合整改），支持两种级别：

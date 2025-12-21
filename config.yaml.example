@@ -125,6 +125,42 @@ storage:
 #       - label: "服务不稳定"
 
 # ============================================
+# 通用徽标系统配置
+# ============================================
+# 用于在监测项上显示各类信息徽标（API Key 来源、功能特性等）
+# 徽标颜色和图标由 kind + variant 决定，前端通过 i18n 显示翻译文本
+
+# 全局徽标定义（badge_definitions）
+# 定义所有可复用的徽标，在 badge_providers 或 monitors.badges 中通过 id 引用
+badge_definitions:
+  # API Key 来源类徽标
+  api_key_user:
+    kind: "source"       # 类型：source(来源)/info(信息)/feature(功能特性)
+    variant: "info"      # 样式：default(灰)/success(绿)/warning(黄)/danger(红)/info(蓝)
+    weight: 50           # 排序权重，数值越大越靠前（默认 0）
+  api_key_official:
+    kind: "source"
+    variant: "success"   # 绿色徽标，表示官方 API
+    weight: 80           # 官方 API 排在用户提交之前
+  # 功能特性类徽标
+  stream_support:
+    kind: "feature"
+    variant: "success"
+    weight: 50
+    url: "https://docs.example.com/streaming"  # 可选：点击跳转链接
+
+# Provider 级别徽标注入（badge_providers）
+# 为同一服务商的所有监测项自动注入指定徽标
+badge_providers:
+  - provider: "88code"
+    badges:
+      - "api_key_official"   # 简写形式：直接引用已定义的徽标 id
+  - provider: "duckcoding"
+    badges:
+      - id: "api_key_user"   # 对象形式：可覆盖 tooltip
+        tooltip_override: "用户 @example 提供的 API Key，欢迎申请收录"
+
+# ============================================
 # 监测任务配置
 # ============================================
 monitors:
@@ -185,6 +221,10 @@ monitors:
     url: "https://api.duckcoding.com/v1/messages"
     method: "POST"
     api_key: "sk-duck-xxxx"
+    # 监测项级别徽标配置（可选）
+    # 会与 badge_providers 中的 provider 级别徽标合并，并按 weight 排序
+    badges:
+      - "stream_support"  # 简写形式
     headers:
       x-api-key: "{{API_KEY}}"
       anthropic-version: "2023-06-01"

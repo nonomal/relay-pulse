@@ -103,8 +103,11 @@
   .fill-warning\/80 { fill: hsl(var(--warning) / 0.8); }
   .fill-danger { fill: hsl(var(--danger)); }
   .fill-danger\/80 { fill: hsl(var(--danger) / 0.8); }
+  .fill-info { fill: hsl(var(--info)); }
+  .fill-info\/80 { fill: hsl(var(--info) / 0.8); }
   .fill-accent { fill: hsl(var(--accent)); }
   .fill-accent\/80 { fill: hsl(var(--accent) / 0.8); }
+  .fill-muted { fill: hsl(var(--text-muted)); }
 
   /* 赞助商色 - 固定颜色，不随主题变化（品牌一致性） */
   /* basic: emerald-500, advanced: cyan-500, enterprise: amber-400 */

@@ -238,6 +238,19 @@
     },
     "commercial": {
       "tooltip": "商用の有料サービスサイト"
+    },
+    "generic": {
+      "api_key_user": {
+        "label": "ユーザーAPI",
+        "tooltip": "ユーザー提供のAPIキー、掲載申請歓迎、アフィリエイト可"
+      },
+      "api_key_official": {
+        "label": "公式API",
+        "tooltip": "公式APIキーでテスト済み"
+      }
+    },
+    "frequency": {
+      "tooltip": "検出間隔: {{interval}}"
     }
   },
   "externalLink": {

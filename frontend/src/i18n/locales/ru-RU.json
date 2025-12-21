@@ -238,6 +238,19 @@
     },
     "commercial": {
       "tooltip": "Коммерческий платный сервис"
+    },
+    "generic": {
+      "api_key_user": {
+        "label": "Пользов. API",
+        "tooltip": "Пользовательский API-ключ, заявки на размещение приветствуются"
+      },
+      "api_key_official": {
+        "label": "Офиц. API",
+        "tooltip": "Тестирование с официальным API-ключом"
+      }
+    },
+    "frequency": {
+      "tooltip": "Интервал проверки: {{interval}}"
     }
   },
   "externalLink": {

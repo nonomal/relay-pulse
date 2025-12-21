@@ -13,18 +13,26 @@ repos:
           - '@commitlint/config-conventional'
 
   # Go 代码格式化和检查
-  - repo: https://github.com/dnephin/pre-commit-golang
-    rev: v0.5.1
+  - repo: local
     hooks:
       - id: go-fmt
         name: Go Format
-        description: 检查代码格式
+        entry: bash -c 'echo "格式化 Go 文件..." && gofmt -l -w $(git diff --cached --name-only --diff-filter=ACM | grep "\.go$" || true) && git add $(git diff --cached --name-only --diff-filter=ACM | grep "\.go$" || true) 2>/dev/null; echo "Go 文件已格式化并重新暂存"'
+        language: system
+        pass_filenames: false
+        files: '\.go$'
       - id: go-vet
         name: Go Vet
-        description: 检查代码问题
+        entry: go vet ./...
+        language: system
+        pass_filenames: false
+        files: '\.go$'
       - id: go-build
         name: Go Build
-        description: 确保代码可编译
+        entry: go build ./...
+        language: system
+        pass_filenames: false
+        files: '\.go$'
 
   # 通用检查
   - repo: https://github.com/pre-commit/pre-commit-hooks
