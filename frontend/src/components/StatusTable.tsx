@@ -429,8 +429,8 @@ function StatusTableComponent({
 
   // 桌面端：表格视图
   return (
-    <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-default/50 shadow-xl">
-      <table className="w-full text-left border-collapse bg-surface/40 backdrop-blur-sm">
+    <div className="overflow-x-auto rounded-2xl border border-default/50 shadow-xl bg-surface/40 backdrop-blur-sm pb-8">
+      <table className="w-full text-left border-collapse bg-transparent">
         <thead>
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 徽标列 - 仅在有徽标时显示，可排序 */}
