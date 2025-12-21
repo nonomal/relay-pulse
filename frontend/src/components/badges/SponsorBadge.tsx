@@ -1,5 +1,8 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { SponsorLevel } from '../../types';
+import { useBadgeTooltip } from '../../hooks/useBadgeTooltip';
+import { BadgeTooltip } from './BadgeTooltip';
 
 interface SponsorBadgeProps {
   level: SponsorLevel;
@@ -64,25 +67,33 @@ const SPONSOR_BADGES: Record<SponsorLevel, React.FC> = {
  */
 export function SponsorBadge({ level, className = '', tooltipPlacement = 'top' }: SponsorBadgeProps) {
   const { t } = useTranslation();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const { isOpen, position, handleMouseEnter, handleMouseLeave } = useBadgeTooltip(
+    triggerRef,
+    tooltipPlacement
+  );
+
   const BadgeIcon = SPONSOR_BADGES[level];
   const name = t(`badges.sponsor.${level}.name`);
   const tooltip = t(`badges.sponsor.${level}.tooltip`);
 
   return (
-    <span
-      className={`relative group/sponsor inline-flex items-center cursor-default select-none ${className}`}
-      role="img"
-      aria-label={`${name}: ${tooltip}`}
-    >
-      <BadgeIcon />
-      {/* 延迟 tooltip - 悬停 700ms 后显示，左对齐避免左侧裁剪 */}
+    <>
       <span
-        data-placement={tooltipPlacement}
-        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+        ref={triggerRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`inline-flex items-center cursor-default select-none ${className}`}
+        role="img"
+        aria-label={`${name}: ${tooltip}`}
       >
+        <BadgeIcon />
+      </span>
+
+      <BadgeTooltip isOpen={isOpen} position={position}>
         <span className="font-medium">{name}</span>
         <span className="text-secondary ml-1">- {tooltip}</span>
-      </span>
-    </span>
+      </BadgeTooltip>
+    </>
   );
 }

@@ -1,6 +1,8 @@
-import type { FC } from 'react';
+import { useRef, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { GenericBadge as GenericBadgeType, BadgeVariant } from '../../types';
+import { useBadgeTooltip } from '../../hooks/useBadgeTooltip';
+import { BadgeTooltip } from './BadgeTooltip';
 
 interface GenericBadgeProps {
   badge: GenericBadgeType;
@@ -100,11 +102,6 @@ function getVariantColorClass(variant: BadgeVariant): string {
 }
 
 /**
- * 根据 badge.id 返回对应的图标组件
- * 支持的图标：api_key_user, api_key_official
- * 未知 id 回退到基于 kind 的通用图标
- */
-/**
  * 根据 badge.id 返回图标的额外样式类
  * 用于调整特定徽标的显示效果
  */
@@ -117,6 +114,11 @@ function getBadgeIconClass(badgeId: string): string {
   }
 }
 
+/**
+ * 根据 badge.id 返回对应的图标组件
+ * 支持的图标：api_key_user, api_key_official
+ * 未知 id 回退到基于 kind 的通用图标
+ */
 function getBadgeIcon(badge: GenericBadgeType): FC<{ variant: BadgeVariant }> {
   switch (badge.id) {
     case 'api_key_user':
@@ -144,6 +146,12 @@ function getBadgeIcon(badge: GenericBadgeType): FC<{ variant: BadgeVariant }> {
  */
 export function GenericBadge({ badge, className = '', tooltipPlacement = 'top' }: GenericBadgeProps) {
   const { t } = useTranslation();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const { isOpen, position, handleMouseEnter, handleMouseLeave } = useBadgeTooltip(
+    triggerRef,
+    tooltipPlacement
+  );
+
   const BadgeIcon = getBadgeIcon(badge);
   const iconClass = getBadgeIconClass(badge.id);
 
@@ -155,40 +163,48 @@ export function GenericBadge({ badge, className = '', tooltipPlacement = 'top' }
 
   const content = (
     <span
-      className={`relative group/generic inline-flex items-center select-none ${hasLink ? 'cursor-pointer' : 'cursor-default'} ${className}`}
+      ref={triggerRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`inline-flex items-center select-none ${hasLink ? 'cursor-pointer' : 'cursor-default'} ${className}`}
       role="img"
       aria-label={tooltipText ? `${labelText}: ${tooltipText}` : labelText}
     >
       <span className={iconClass}>
         <BadgeIcon variant={badge.variant} />
       </span>
-      {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      {tooltipText && (
-        <span
-          data-placement={tooltipPlacement}
-          className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/generic:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
-        >
-          <span className="font-medium">{labelText}</span>
-          <span className="text-secondary ml-1">- {tooltipText}</span>
-        </span>
-      )}
     </span>
   );
+
+  const tooltipContent = tooltipText ? (
+    <BadgeTooltip isOpen={isOpen} position={position}>
+      <span className="font-medium">{labelText}</span>
+      <span className="text-secondary ml-1">- {tooltipText}</span>
+    </BadgeTooltip>
+  ) : null;
 
   // 如果有链接，包裹为可点击链接
   if (hasLink) {
     return (
-      <a
-        href={badge.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex hover:opacity-80 transition-opacity"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {content}
-      </a>
+      <>
+        <a
+          href={badge.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex hover:opacity-80 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {content}
+        </a>
+        {tooltipContent}
+      </>
     );
   }
 
-  return content;
+  return (
+    <>
+      {content}
+      {tooltipContent}
+    </>
+  );
 }

@@ -1,5 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useBadgeTooltip } from '../../hooks/useBadgeTooltip';
+import { BadgeTooltip } from './BadgeTooltip';
 
 interface FrequencyIndicatorProps {
   intervalMs: number;  // 监测间隔（毫秒），30000 ~ 300000 (30s ~ 5min)
@@ -102,6 +104,11 @@ function FrequencyIcon({ opacity }: { opacity: number }) {
  */
 export function FrequencyIndicator({ intervalMs, className = '', tooltipPlacement = 'top' }: FrequencyIndicatorProps) {
   const { t } = useTranslation();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const { isOpen, position, handleMouseEnter, handleMouseLeave } = useBadgeTooltip(
+    triggerRef,
+    tooltipPlacement
+  );
 
   const opacity = useMemo(() => getFrequencyOpacity(intervalMs), [intervalMs]);
   const intervalText = useMemo(() => formatInterval(intervalMs), [intervalMs]);
@@ -109,19 +116,21 @@ export function FrequencyIndicator({ intervalMs, className = '', tooltipPlacemen
   const tooltip = t('badges.frequency.tooltip', { interval: intervalText });
 
   return (
-    <span
-      className={`relative group/freq inline-flex items-center cursor-default select-none ${className}`}
-      role="img"
-      aria-label={tooltip}
-    >
-      <FrequencyIcon opacity={opacity} />
-      {/* 延迟 tooltip - 悬停 700ms 后显示 */}
+    <>
       <span
-        data-placement={tooltipPlacement}
-        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/freq:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+        ref={triggerRef}
+        onMouseEnter={handleMouseEnter}
+        onMouseLeave={handleMouseLeave}
+        className={`inline-flex items-center cursor-default select-none ${className}`}
+        role="img"
+        aria-label={tooltip}
       >
-        {tooltip}
+        <FrequencyIcon opacity={opacity} />
       </span>
-    </span>
+
+      <BadgeTooltip isOpen={isOpen} position={position}>
+        {tooltip}
+      </BadgeTooltip>
+    </>
   );
 }

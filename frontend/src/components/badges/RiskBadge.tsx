@@ -1,5 +1,8 @@
+import { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { RiskBadge as RiskBadgeType } from '../../types';
+import { useBadgeTooltip } from '../../hooks/useBadgeTooltip';
+import { BadgeTooltip } from './BadgeTooltip';
 
 interface RiskBadgeProps {
   risk: RiskBadgeType;
@@ -31,46 +34,61 @@ function RiskIcon() {
  */
 export function RiskBadge({ risk, className = '', tooltipPlacement = 'top' }: RiskBadgeProps) {
   const { t } = useTranslation();
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const { isOpen, position, handleMouseEnter, handleMouseLeave } = useBadgeTooltip(
+    triggerRef,
+    tooltipPlacement
+  );
+
   const defaultTooltip = t('badges.risk.tooltip');
   const hasLink = Boolean(risk.discussionUrl);
 
   const content = (
     <span
-      className={`relative group/risk inline-flex items-center select-none ${hasLink ? 'cursor-pointer' : 'cursor-default'} ${className}`}
+      ref={triggerRef}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      className={`inline-flex items-center select-none ${hasLink ? 'cursor-pointer' : 'cursor-default'} ${className}`}
       role="img"
       aria-label={`${risk.label}: ${defaultTooltip}`}
     >
-      {/* 背景容器 - 淡红色圆角矩形 */}
       <span className="inline-flex items-center justify-center">
         <RiskIcon />
       </span>
-      {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span
-        data-placement={tooltipPlacement}
-        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
-      >
-        <span className="font-medium text-warning">{risk.label}</span>
-        {hasLink && (
-          <span className="text-secondary ml-1">- {t('badges.risk.clickToView')}</span>
-        )}
-      </span>
     </span>
+  );
+
+  const tooltipContent = (
+    <BadgeTooltip isOpen={isOpen} position={position}>
+      <span className="font-medium text-warning">{risk.label}</span>
+      {hasLink && (
+        <span className="text-secondary ml-1">- {t('badges.risk.clickToView')}</span>
+      )}
+    </BadgeTooltip>
   );
 
   // 如果有讨论链接，包裹为可点击链接
   if (hasLink) {
     return (
-      <a
-        href={risk.discussionUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex hover:opacity-80 transition-opacity"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {content}
-      </a>
+      <>
+        <a
+          href={risk.discussionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex hover:opacity-80 transition-opacity"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {content}
+        </a>
+        {tooltipContent}
+      </>
     );
   }
 
-  return content;
+  return (
+    <>
+      {content}
+      {tooltipContent}
+    </>
+  );
 }
