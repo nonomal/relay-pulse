@@ -13,6 +13,7 @@ import type { ViewMode, SortConfig } from '../types';
  * - category: 分类筛选
  * - view: 视图模式（默认 table）
  * - sort: 排序配置（格式：key_direction，如 uptime_desc）
+ * - fav: 仅显示收藏（1=是，默认否）
  */
 
 interface UrlState {
@@ -22,6 +23,7 @@ interface UrlState {
   filterService: string[];   // 多选服务，空数组表示"全部"
   filterChannel: string[];   // 多选通道，空数组表示"全部"
   filterCategory: string[];  // 多选分类，空数组表示"全部"
+  showFavoritesOnly: boolean; // 仅显示收藏
   viewMode: ViewMode;
   sortConfig: SortConfig;
   isInitialSort: boolean;    // 是否为初始排序状态（URL 无 sort 参数）
@@ -34,8 +36,11 @@ interface UrlStateActions {
   setFilterService: (value: string[]) => void;   // 多选服务
   setFilterChannel: (value: string[]) => void;   // 多选通道
   setFilterCategory: (value: string[]) => void;  // 多选分类
+  setShowFavoritesOnly: (value: boolean) => void; // 仅显示收藏
   setViewMode: (value: ViewMode) => void;
   setSortConfig: (value: SortConfig) => void;
+  enterFavoritesMode: () => void;  // 进入收藏模式（保存快照并清空筛选）
+  exitFavoritesMode: () => void;   // 退出收藏模式（恢复快照）
 }
 
 // 默认值
@@ -46,6 +51,7 @@ const DEFAULTS = {
   filterService: [] as string[],   // 空数组表示"全部"
   filterChannel: [] as string[],   // 空数组表示"全部"
   filterCategory: [] as string[],  // 空数组表示"全部"
+  showFavoritesOnly: false,        // 默认显示全部
   viewMode: 'table' as ViewMode,
   sortKey: 'uptime',
   sortDirection: 'desc' as const,
@@ -62,9 +68,22 @@ const PARAM_KEYS = {
   filterService: 'service',
   filterChannel: 'channel',
   filterCategory: 'category',
+  showFavoritesOnly: 'fav',  // 仅显示收藏
   viewMode: 'view',
   sort: 'sort',
 };
+
+// 收藏模式快照存储 key（sessionStorage）
+const SNAPSHOT_KEY = 'relay-pulse:v1:list-state';
+
+// 快照数据结构
+interface ListStateSnapshot {
+  version: 1;
+  filterProvider: string[];
+  filterService: string[];
+  filterChannel: string[];
+  filterCategory: string[];
+}
 
 /**
  * 解析排序参数
@@ -155,6 +174,9 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     const rawTimeFilter = searchParams.get(PARAM_KEYS.timeFilter);
     const timeFilter = rawTimeFilter && rawTimeFilter.trim() ? rawTimeFilter.trim() : null;
 
+    // 解析仅显示收藏参数：'1' 表示启用
+    const showFavoritesOnly = searchParams.get(PARAM_KEYS.showFavoritesOnly) === '1';
+
     return {
       timeRange: searchParams.get(PARAM_KEYS.timeRange) || DEFAULTS.timeRange,
       timeFilter,
@@ -162,6 +184,7 @@ export function useUrlState(): [UrlState, UrlStateActions] {
       filterService: parseArrayParam(PARAM_KEYS.filterService, normalizeLower),
       filterChannel: parseArrayParam(PARAM_KEYS.filterChannel, normalizePreserveCase),
       filterCategory: parseArrayParam(PARAM_KEYS.filterCategory, normalizeLower),
+      showFavoritesOnly,
       viewMode,
       sortConfig: parseSortParam(rawSortParam),
       isInitialSort,
@@ -240,6 +263,19 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     setArrayParam(PARAM_KEYS.filterCategory, values, normalizeLower);
   }, [setArrayParam, normalizeLower]);
 
+  // 仅显示收藏 setter（true='1'，false=移除参数）
+  const setShowFavoritesOnly = useCallback((value: boolean) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) {
+        next.set(PARAM_KEYS.showFavoritesOnly, '1');
+      } else {
+        next.delete(PARAM_KEYS.showFavoritesOnly);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const setViewMode = useCallback((value: ViewMode) => {
     updateParam(PARAM_KEYS.viewMode, value, DEFAULTS.viewMode);
   }, [updateParam]);
@@ -261,6 +297,96 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     }, { replace: true });
   }, [setSearchParams]);
 
+  // 进入收藏模式：保存当前筛选状态快照，清空筛选器，启用收藏模式
+  const enterFavoritesMode = useCallback(() => {
+    // 防止重复进入：已在收藏模式时不重复保存快照（避免覆盖有效快照）
+    if (state.showFavoritesOnly) return;
+
+    // 1. 保存当前筛选状态到 sessionStorage
+    const snapshot: ListStateSnapshot = {
+      version: 1,
+      filterProvider: state.filterProvider,
+      filterService: state.filterService,
+      filterChannel: state.filterChannel,
+      filterCategory: state.filterCategory,
+    };
+    try {
+      sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshot));
+    } catch {
+      // sessionStorage 不可用时静默失败
+    }
+
+    // 2. 原子性更新 URL：清空筛选器 + 设置 fav=1
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete(PARAM_KEYS.filterProvider);
+      next.delete(PARAM_KEYS.filterService);
+      next.delete(PARAM_KEYS.filterChannel);
+      next.delete(PARAM_KEYS.filterCategory);
+      next.set(PARAM_KEYS.showFavoritesOnly, '1');
+      return next;
+    }, { replace: true });
+  }, [state.showFavoritesOnly, state.filterProvider, state.filterService, state.filterChannel, state.filterCategory, setSearchParams]);
+
+  // 退出收藏模式：恢复快照中的筛选状态，移除收藏模式标记
+  const exitFavoritesMode = useCallback(() => {
+    // 1. 尝试从 sessionStorage 恢复快照
+    let snapshot: ListStateSnapshot | null = null;
+    try {
+      const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        // 校验快照结构
+        if (parsed?.version === 1 &&
+            Array.isArray(parsed.filterProvider) &&
+            Array.isArray(parsed.filterService) &&
+            Array.isArray(parsed.filterChannel) &&
+            Array.isArray(parsed.filterCategory)) {
+          snapshot = parsed;
+        }
+      }
+    } catch {
+      // 解析失败时使用默认值
+    }
+    // 无论成功与否都清理快照，避免残留
+    try {
+      sessionStorage.removeItem(SNAPSHOT_KEY);
+    } catch {
+      // 静默失败
+    }
+
+    // 2. 原子性更新 URL：先清空所有筛选器，再恢复快照中的值
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      // 移除收藏模式
+      next.delete(PARAM_KEYS.showFavoritesOnly);
+      // 先清空所有筛选器（避免收藏模式中新增的筛选残留）
+      next.delete(PARAM_KEYS.filterProvider);
+      next.delete(PARAM_KEYS.filterService);
+      next.delete(PARAM_KEYS.filterChannel);
+      next.delete(PARAM_KEYS.filterCategory);
+
+      // 恢复筛选器（如果快照存在）
+      if (snapshot) {
+        if (snapshot.filterProvider.length > 0) {
+          next.set(PARAM_KEYS.filterProvider, snapshot.filterProvider.join(','));
+        }
+        if (snapshot.filterService.length > 0) {
+          next.set(PARAM_KEYS.filterService, snapshot.filterService.join(','));
+        }
+        if (snapshot.filterChannel.length > 0) {
+          next.set(PARAM_KEYS.filterChannel, snapshot.filterChannel.join(','));
+        }
+        if (snapshot.filterCategory.length > 0) {
+          next.set(PARAM_KEYS.filterCategory, snapshot.filterCategory.join(','));
+        }
+      }
+      // 无快照时恢复为默认（空数组），即不设置参数
+
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   const actions: UrlStateActions = {
     setTimeRange,
     setTimeFilter,
@@ -268,8 +394,11 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     setFilterService,
     setFilterChannel,
     setFilterCategory,
+    setShowFavoritesOnly,
     setViewMode,
     setSortConfig,
+    enterFavoritesMode,
+    exitFavoritesMode,
   };
 
   return [state, actions];

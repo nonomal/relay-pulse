@@ -96,7 +96,21 @@
       "searchPlaceholder": "Search providers...",
       "noResults": "No results found"
     },
+    "favorites": {
+      "showOnly": "Favorites only",
+      "exitMode": "Exit favorites mode",
+      "noFavorites": "No favorites"
+    },
     "sortBy": "Sort by:"
+  },
+  "favorites": {
+    "add": "Add to favorites",
+    "remove": "Remove from favorites",
+    "empty": {
+      "title": "No favorites yet",
+      "description": "Click the ⭐ next to a provider name to add it to your favorites",
+      "showAll": "Show all"
+    }
   },
   "table": {
     "headers": {

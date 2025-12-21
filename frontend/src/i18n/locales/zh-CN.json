@@ -96,7 +96,21 @@
       "searchPlaceholder": "搜索服务商...",
       "noResults": "无匹配结果"
     },
+    "favorites": {
+      "showOnly": "仅显示收藏",
+      "exitMode": "退出收藏模式",
+      "noFavorites": "暂无收藏项"
+    },
     "sortBy": "排序:"
+  },
+  "favorites": {
+    "add": "添加收藏",
+    "remove": "取消收藏",
+    "empty": {
+      "title": "暂无收藏",
+      "description": "点击服务商名称旁的 ⭐ 添加关注的通道",
+      "showAll": "显示全部"
+    }
   },
   "table": {
     "headers": {

@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
+import { FavoriteButton } from './FavoriteButton';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { formatPriceRatioStructured } from '../utils/format';
@@ -32,6 +33,8 @@ interface StatusCardProps {
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
   showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
+  isFavorite?: (id: string) => boolean;  // 检查是否收藏
+  onToggleFavorite?: (id: string) => void;  // 切换收藏状态
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
 }
@@ -44,6 +47,8 @@ function StatusCardComponent({
   showCategoryTag = true,
   showProvider = true,
   showSponsor = true,
+  isFavorite,
+  onToggleFavorite,
   onBlockHover,
   onBlockLeave
 }: StatusCardProps) {
@@ -108,6 +113,15 @@ function StatusCardComponent({
                 <h3 className="text-base sm:text-lg font-bold text-primary">
                   <ExternalLink href={item.providerUrl} requireConfirm>{item.providerName}</ExternalLink>
                 </h3>
+              )}
+              {/* 收藏按钮 */}
+              {isFavorite && onToggleFavorite && (
+                <FavoriteButton
+                  isFavorite={isFavorite(item.id)}
+                  onToggle={() => onToggleFavorite(item.id)}
+                  size={14}
+                  inline
+                />
               )}
               <span
                 className={`px-2 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 ${

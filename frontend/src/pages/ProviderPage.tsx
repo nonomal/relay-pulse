@@ -1,20 +1,33 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { Server } from 'lucide-react';
 import { useMonitorData } from '../hooks/useMonitorData';
+import { useFavorites } from '../hooks/useFavorites';
 import { Header } from '../components/Header';
 import { Controls } from '../components/Controls';
 import { StatusTable } from '../components/StatusTable';
 import { StatusCard } from '../components/StatusCard';
 import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
+import { EmptyFavorites } from '../components/EmptyFavorites';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData } from '../types';
 
 // localStorage key for time align preference (shared with App.tsx)
 const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
+
+// 获取 ProviderPage 专用的快照 key（按 provider slug 隔离）
+const getSnapshotKey = (slug: string) =>
+  `relay-pulse:v1:list-state:p/${encodeURIComponent(slug)}`;
+
+// ProviderPage 快照数据结构（简化版，无 provider/category）
+interface ProviderPageSnapshot {
+  version: 1;
+  filterService: string[];
+  filterChannel: string[];
+}
 
 // Provider 名称规范化（小写、去空格）
 function canonicalize(value?: string): string {
@@ -81,6 +94,10 @@ export default function ProviderPage() {
   // 移动端筛选抽屉状态
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
+  // 收藏管理 Hook
+  const { favorites, isFavorite, toggleFavorite, count: favoritesCount } = useFavorites();
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+
   // 移动端检测（< 960px）
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -90,7 +107,7 @@ export default function ProviderPage() {
 
   // 数据获取 - 先获取全部数据用于构建映射
   // Provider 页面不启用置顶功能（isInitialSort=false）
-  const { data: allData, loading, error, stats, channels, slowLatencyMs, enableBadges, refetch } = useMonitorData({
+  const { data: allData, loading, error, stats, slowLatencyMs, enableBadges, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -114,19 +131,113 @@ export default function ProviderPage() {
   // 按 providerId 过滤数据
   const data = allData.filter((item) => item.providerId === realProviderId);
 
-  // 过滤 channels：只显示当前 provider 的通道
-  const providerChannels = channels.filter((channel) => {
-    return allData.some(
-      (item) => item.providerId === realProviderId && item.channel === channel
-    );
-  });
-
   // 统计激活的筛选器数量（用于移动端 Header 显示）
   // Provider 页面不显示 category 和 provider 筛选器
   const activeFiltersCount = [
+    showFavoritesOnly,
     filterService.length > 0,
     filterChannel.length > 0,
   ].filter(Boolean).length;
+
+  // 基础数据：应用收藏筛选后的数据（如适用）
+  const baseData = useMemo(() => {
+    if (!showFavoritesOnly) return data;
+    return data.filter(item => favorites.has(item.id));
+  }, [data, showFavoritesOnly, favorites]);
+
+  // 最终过滤后的数据（应用所有筛选器）
+  const filteredData = useMemo(() => {
+    let filtered = baseData;
+    if (filterService.length > 0) {
+      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
+    }
+    if (filterChannel.length > 0) {
+      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
+    }
+    return filtered;
+  }, [baseData, filterService, filterChannel]);
+
+  // 动态 Service 选项：基于 channel 筛选后的数据
+  const effectiveServices = useMemo(() => {
+    let filtered = baseData;
+    if (filterChannel.length > 0) {
+      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
+    }
+    const set = new Set<string>();
+    filtered.forEach(item => set.add(item.serviceType.toLowerCase()));
+    return Array.from(set).sort();
+  }, [baseData, filterChannel]);
+
+  // 动态 Channel 选项：基于 service 筛选后的数据
+  const effectiveChannels = useMemo(() => {
+    let filtered = baseData;
+    if (filterService.length > 0) {
+      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
+    }
+    const set = new Set<string>();
+    filtered.forEach(item => {
+      if (item.channel) set.add(item.channel);
+    });
+    return Array.from(set).sort();
+  }, [baseData, filterService]);
+
+  // 收藏模式切换（ProviderPage 独立快照管理）
+  const handleFavoritesModeChange = useCallback((enabled: boolean) => {
+    if (enabled) {
+      // 防止重复进入：已在收藏模式时不重复保存快照
+      if (showFavoritesOnly) return;
+
+      // 保存快照
+      const snapshot: ProviderPageSnapshot = {
+        version: 1,
+        filterService,
+        filterChannel,
+      };
+      try {
+        sessionStorage.setItem(getSnapshotKey(normalizedProvider), JSON.stringify(snapshot));
+      } catch {
+        // sessionStorage 不可用时静默失败
+      }
+      // 清空筛选器并启用收藏模式
+      setFilterService([]);
+      setFilterChannel([]);
+      setShowFavoritesOnly(true);
+    } else {
+      // 恢复快照
+      let snapshot: ProviderPageSnapshot | null = null;
+      try {
+        const raw = sessionStorage.getItem(getSnapshotKey(normalizedProvider));
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          // 校验快照结构
+          if (parsed?.version === 1 &&
+              Array.isArray(parsed.filterService) &&
+              Array.isArray(parsed.filterChannel)) {
+            snapshot = parsed;
+          }
+        }
+      } catch {
+        // 解析失败时使用默认值
+      }
+      // 无论成功与否都清理快照
+      try {
+        sessionStorage.removeItem(getSnapshotKey(normalizedProvider));
+      } catch {
+        // 静默失败
+      }
+
+      // 恢复筛选器
+      if (snapshot) {
+        setFilterService(snapshot.filterService);
+        setFilterChannel(snapshot.filterChannel);
+      } else {
+        // 无快照时恢复为默认
+        setFilterService([]);
+        setFilterChannel([]);
+      }
+      setShowFavoritesOnly(false);
+    }
+  }, [normalizedProvider, filterService, filterChannel, showFavoritesOnly]);
 
   // 移动端强制使用 table 视图
   const effectiveViewMode = isMobile ? 'table' : viewMode;
@@ -229,10 +340,14 @@ export default function ProviderPage() {
           filterProvider={[]}
           filterChannel={filterChannel}
           filterCategory={[]}
+          showFavoritesOnly={showFavoritesOnly}
+          favoritesCount={favoritesCount}
           viewMode={viewMode}
           loading={loading}
           providers={[]} // 空数组 → 隐藏 provider 筛选器
-          channels={providerChannels} // 只显示当前 provider 的通道
+          channels={effectiveChannels} // 收藏筛选时只显示收藏项中的通道
+          effectiveServices={effectiveServices}
+          effectiveCategories={[]}  // ProviderPage 不显示分类筛选
           showCategoryFilter={false} // 隐藏分类筛选器
           isMobile={isMobile}
           showFilterDrawer={showFilterDrawer}
@@ -244,6 +359,7 @@ export default function ProviderPage() {
           onProviderChange={() => {}} // 无操作
           onChannelChange={setFilterChannel}
           onCategoryChange={() => {}} // 无操作
+          onShowFavoritesOnlyChange={handleFavoritesModeChange}
           onViewModeChange={setViewMode}
           onRefresh={handleRefresh}
           refreshCooldown={refreshCooldown}
@@ -266,11 +382,13 @@ export default function ProviderPage() {
               <Server size={64} className="mb-4 opacity-20" />
               <p className="text-lg">{t('common.noData')}</p>
             </div>
+          ) : showFavoritesOnly && filteredData.length === 0 ? (
+            <EmptyFavorites onClearFilter={() => handleFavoritesModeChange(false)} />
           ) : (
             <>
               {effectiveViewMode === 'table' && (
                 <StatusTable
-                  data={data}
+                  data={filteredData}
                   sortConfig={sortConfig}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
@@ -278,6 +396,8 @@ export default function ProviderPage() {
                   showCategoryTag={false}
                   showProvider={!isEmbedMode}
                   showSponsor={false}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
                   onSort={handleSort}
                   onBlockHover={handleBlockHover}
                   onBlockLeave={handleBlockLeave}
@@ -286,7 +406,7 @@ export default function ProviderPage() {
 
               {effectiveViewMode === 'grid' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {data.map((item) => (
+                  {filteredData.map((item) => (
                     <StatusCard
                       key={item.id}
                       item={item}
@@ -295,6 +415,8 @@ export default function ProviderPage() {
                       enableBadges={enableBadges}
                       showCategoryTag={false}
                       showProvider={!isEmbedMode}
+                      isFavorite={isFavorite}
+                      onToggleFavorite={toggleFavorite}
                       onBlockHover={handleBlockHover}
                       onBlockLeave={handleBlockLeave}
                     />

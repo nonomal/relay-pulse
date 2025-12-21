@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
@@ -8,8 +8,10 @@ import { StatusTable } from './components/StatusTable';
 import { StatusCard } from './components/StatusCard';
 import { Tooltip } from './components/Tooltip';
 import { Footer } from './components/Footer';
+import { EmptyFavorites } from './components/EmptyFavorites';
 import { useMonitorData } from './hooks/useMonitorData';
 import { useUrlState } from './hooks/useUrlState';
+import { useFavorites } from './hooks/useFavorites';
 import { createMediaQueryEffect } from './utils/mediaQuery';
 import { trackPeriodChange, trackServiceFilter, trackEvent } from './utils/analytics';
 import type { TooltipState, ProcessedMonitorData } from './types';
@@ -29,6 +31,7 @@ function App() {
     filterService,
     filterChannel,
     filterCategory,
+    showFavoritesOnly,  // 仅显示收藏
     viewMode,
     sortConfig,
     isInitialSort,  // 是否为初始排序状态（用于赞助商置顶）
@@ -45,7 +48,12 @@ function App() {
     setFilterCategory,
     setViewMode,
     setSortConfig,
+    enterFavoritesMode,  // 进入收藏模式（保存快照）
+    exitFavoritesMode,   // 退出收藏模式（恢复快照）
   } = urlActions;
+
+  // 收藏管理 Hook
+  const { favorites, isFavorite, toggleFavorite, count: favoritesCount } = useFavorites();
 
   // 时间对齐模式（使用 localStorage 持久化，不影响分享链接）
   const [timeAlign, setTimeAlignState] = useState<string>(() => {
@@ -89,7 +97,7 @@ function App() {
   const lastRefreshRef = useRef<number>(0);
   const [refreshCooldown, setRefreshCooldown] = useState(false);
 
-  const { loading, error, data, stats, channels, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
+  const { loading, error, data, stats, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -103,11 +111,122 @@ function App() {
 
   // 统计激活的筛选器数量（用于移动端 Header 显示）
   const activeFiltersCount = [
+    showFavoritesOnly,
     filterCategory.length > 0,
     providers.length > 0 && filterProvider.length > 0,
     filterService.length > 0,
     filterChannel.length > 0,
   ].filter(Boolean).length;
+
+  // 基础数据：应用收藏筛选后的数据（如适用）
+  const baseData = useMemo(() => {
+    if (!showFavoritesOnly) return data;
+    return data.filter(item => favorites.has(item.id));
+  }, [data, showFavoritesOnly, favorites]);
+
+  // 最终过滤后的数据（应用所有筛选器）
+  const filteredData = useMemo(() => {
+    let filtered = baseData;
+    if (filterProvider.length > 0) {
+      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
+    }
+    if (filterService.length > 0) {
+      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
+    }
+    if (filterChannel.length > 0) {
+      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
+    }
+    if (filterCategory.length > 0) {
+      filtered = filtered.filter(item => filterCategory.includes(item.category));
+    }
+    return filtered;
+  }, [baseData, filterProvider, filterService, filterChannel, filterCategory]);
+
+  // 动态 Provider 选项：基于 service + channel + category 筛选后的数据
+  // 不包含 provider 筛选，避免选项自我消失
+  const effectiveProviders = useMemo(() => {
+    let filtered = baseData;
+    if (filterService.length > 0) {
+      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
+    }
+    if (filterChannel.length > 0) {
+      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
+    }
+    if (filterCategory.length > 0) {
+      filtered = filtered.filter(item => filterCategory.includes(item.category));
+    }
+    const map = new Map<string, string>();
+    filtered.forEach(item => {
+      if (!map.has(item.providerId)) {
+        map.set(item.providerId, item.providerName);
+      }
+    });
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'))
+      .map(([value, label]) => ({ value, label }));
+  }, [baseData, filterService, filterChannel, filterCategory]);
+
+  // 动态 Service 选项：基于 provider + channel + category 筛选后的数据
+  const effectiveServices = useMemo(() => {
+    let filtered = baseData;
+    if (filterProvider.length > 0) {
+      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
+    }
+    if (filterChannel.length > 0) {
+      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
+    }
+    if (filterCategory.length > 0) {
+      filtered = filtered.filter(item => filterCategory.includes(item.category));
+    }
+    const set = new Set<string>();
+    filtered.forEach(item => set.add(item.serviceType.toLowerCase()));
+    return Array.from(set).sort();
+  }, [baseData, filterProvider, filterChannel, filterCategory]);
+
+  // 动态 Channel 选项：基于 provider + service + category 筛选后的数据
+  const effectiveChannels = useMemo(() => {
+    let filtered = baseData;
+    if (filterProvider.length > 0) {
+      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
+    }
+    if (filterService.length > 0) {
+      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
+    }
+    if (filterCategory.length > 0) {
+      filtered = filtered.filter(item => filterCategory.includes(item.category));
+    }
+    const set = new Set<string>();
+    filtered.forEach(item => {
+      if (item.channel) set.add(item.channel);
+    });
+    return Array.from(set).sort();
+  }, [baseData, filterProvider, filterService, filterCategory]);
+
+  // 动态 Category 选项：基于 provider + service + channel 筛选后的数据
+  const effectiveCategories = useMemo(() => {
+    let filtered = baseData;
+    if (filterProvider.length > 0) {
+      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
+    }
+    if (filterService.length > 0) {
+      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
+    }
+    if (filterChannel.length > 0) {
+      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
+    }
+    const set = new Set<string>();
+    filtered.forEach(item => set.add(item.category));
+    return Array.from(set).sort();
+  }, [baseData, filterProvider, filterService, filterChannel]);
+
+  // 收藏模式切换（使用事务性方法，保存/恢复筛选状态快照）
+  const handleFavoritesModeChange = useCallback((enabled: boolean) => {
+    if (enabled) {
+      enterFavoritesMode();
+    } else {
+      exitFavoritesMode();
+    }
+  }, [enterFavoritesMode, exitFavoritesMode]);
 
   // 追踪时间范围变化
   useEffect(() => {
@@ -220,13 +339,17 @@ function App() {
             filterService={filterService}
             filterChannel={filterChannel}
             filterCategory={filterCategory}
+            showFavoritesOnly={showFavoritesOnly}
+            favoritesCount={favoritesCount}
             timeRange={timeRange}
             timeAlign={timeAlign}
             timeFilter={timeFilter}
             viewMode={viewMode}
             loading={loading}
-            channels={channels}
-            providers={providers}
+            channels={effectiveChannels}
+            providers={effectiveProviders}
+            effectiveServices={effectiveServices}
+            effectiveCategories={effectiveCategories}
             isMobile={isMobile}
             showFilterDrawer={showFilterDrawer}
             onFilterDrawerClose={() => setShowFilterDrawer(false)}
@@ -234,6 +357,7 @@ function App() {
             onServiceChange={setFilterService}
             onChannelChange={setFilterChannel}
             onCategoryChange={setFilterCategory}
+            onShowFavoritesOnlyChange={handleFavoritesModeChange}
             onTimeRangeChange={setTimeRange}
             onTimeAlignChange={setTimeAlign}
             onTimeFilterChange={setTimeFilter}
@@ -258,16 +382,21 @@ function App() {
               <Server size={64} className="mb-4 opacity-20" />
               <p className="text-lg">{t('common.noData')}</p>
             </div>
+          ) : showFavoritesOnly && filteredData.length === 0 ? (
+            // 开启收藏筛选但无收藏时显示空状态
+            <EmptyFavorites onClearFilter={exitFavoritesMode} />
           ) : (
             <>
               {effectiveViewMode === 'table' && (
                 <StatusTable
-                  data={data}
+                  data={filteredData}
                   sortConfig={sortConfig}
                   isInitialSort={isInitialSort}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
                   enableBadges={enableBadges}
+                  isFavorite={isFavorite}
+                  onToggleFavorite={toggleFavorite}
                   onSort={handleSort}
                   onBlockHover={handleBlockHover}
                   onBlockLeave={handleBlockLeave}
@@ -276,13 +405,15 @@ function App() {
 
               {effectiveViewMode === 'grid' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                  {data.map((item) => (
+                  {filteredData.map((item) => (
                     <StatusCard
                       key={item.id}
                       item={item}
                       timeRange={timeRange}
                       slowLatencyMs={slowLatencyMs}
                       enableBadges={enableBadges}
+                      isFavorite={isFavorite}
+                      onToggleFavorite={toggleFavorite}
                       onBlockHover={handleBlockHover}
                       onBlockLeave={handleBlockLeave}
                     />

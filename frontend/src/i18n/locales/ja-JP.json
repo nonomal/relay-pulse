@@ -96,7 +96,21 @@
       "searchPlaceholder": "プロバイダを検索...",
       "noResults": "該当なし"
     },
+    "favorites": {
+      "showOnly": "お気に入りのみ",
+      "exitMode": "お気に入りモードを終了",
+      "noFavorites": "お気に入りなし"
+    },
     "sortBy": "並び替え:"
+  },
+  "favorites": {
+    "add": "お気に入りに追加",
+    "remove": "お気に入りから削除",
+    "empty": {
+      "title": "お気に入りがありません",
+      "description": "プロバイダ名の横にある ⭐ をクリックして、お気に入りに追加してください",
+      "showAll": "すべて表示"
+    }
   },
   "table": {
     "headers": {

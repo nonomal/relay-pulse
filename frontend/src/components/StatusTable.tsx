@@ -6,6 +6,7 @@ import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { BadgeCell } from './badges';
+import { FavoriteButton } from './FavoriteButton';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
@@ -88,6 +89,8 @@ interface StatusTableProps {
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
   showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
+  isFavorite: (id: string) => boolean;  // 检查是否已收藏
+  onToggleFavorite: (id: string) => void; // 切换收藏状态
   onSort: (key: string) => void;
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
@@ -101,6 +104,8 @@ function MobileListItem({
   showCategoryTag = true,
   showProvider = true,
   showSponsor = true,
+  isFavorite,
+  onToggleFavorite,
   onBlockHover,
   onBlockLeave,
 }: {
@@ -110,6 +115,8 @@ function MobileListItem({
   showCategoryTag?: boolean;
   showProvider?: boolean;
   showSponsor?: boolean;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
 }) {
@@ -172,12 +179,20 @@ function MobileListItem({
             )}
           </div>
 
-          {/* 服务商名称 */}
+          {/* 服务商名称 + 收藏按钮 */}
           <div className="min-w-0 flex-1">
             {showProvider && (
-              <span className="font-semibold text-primary truncate text-sm leading-tight block">
-                <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-primary truncate text-sm leading-tight">
+                  <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
+                </span>
+                <FavoriteButton
+                  isFavorite={isFavorite}
+                  onToggle={onToggleFavorite}
+                  size={12}
+                  inline
+                />
+              </div>
             )}
             <div className="flex items-center gap-2 mt-0.5 text-xs text-secondary">
               {/* 赞助者（放在服务类型前） */}
@@ -330,6 +345,8 @@ function StatusTableComponent({
   showCategoryTag = true,
   showProvider = true,
   showSponsor = true,
+  isFavorite,
+  onToggleFavorite,
   onSort,
   onBlockHover,
   onBlockLeave,
@@ -368,22 +385,27 @@ function StatusTableComponent({
     );
 
     // 虚拟列表行渲染函数（itemSize=208，卡片高度200，底部留8px间距）
-    const renderMobileRow = ({ index, style }: ListChildComponentProps) => (
-      <div style={style}>
-        <div style={{ marginBottom: 8 }}>
-          <MobileListItem
-            item={data[index]}
-            slowLatencyMs={slowLatencyMs}
-            enableBadges={enableBadges}
-            showCategoryTag={showCategoryTag}
-            showProvider={showProvider}
-            showSponsor={showSponsor}
-            onBlockHover={onBlockHover}
-            onBlockLeave={onBlockLeave}
-          />
+    const renderMobileRow = ({ index, style }: ListChildComponentProps) => {
+      const item = data[index];
+      return (
+        <div style={style}>
+          <div style={{ marginBottom: 8 }}>
+            <MobileListItem
+              item={item}
+              slowLatencyMs={slowLatencyMs}
+              enableBadges={enableBadges}
+              showCategoryTag={showCategoryTag}
+              showProvider={showProvider}
+              showSponsor={showSponsor}
+              isFavorite={isFavorite(item.id)}
+              onToggleFavorite={() => onToggleFavorite(item.id)}
+              onBlockHover={onBlockHover}
+              onBlockLeave={onBlockLeave}
+            />
+          </div>
         </div>
-      </div>
-    );
+      );
+    };
 
     return (
       <div>
@@ -556,11 +578,22 @@ function StatusTableComponent({
               {/* 服务商列（两行紧贴，整体垂直居中） */}
               {showProvider && (
                 <td className="px-2 py-1.5">
-                  <div className="flex items-center h-8">
-                    <div className="flex flex-col gap-0">
-                      <span className="font-medium text-primary text-sm leading-none">
-                        <ExternalLink href={item.providerUrl} inline requireConfirm>{item.providerName}</ExternalLink>
-                      </span>
+                  <div className="flex items-center h-8 group/provider">
+                    <div className="flex flex-col gap-0 flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-primary text-sm leading-none truncate">
+                          <ExternalLink href={item.providerUrl} inline requireConfirm>{item.providerName}</ExternalLink>
+                        </span>
+                        {/* 收藏按钮：始终显示，未收藏时弱化 */}
+                        <div className="flex-shrink-0">
+                          <FavoriteButton
+                            isFavorite={isFavorite(item.id)}
+                            onToggle={() => onToggleFavorite(item.id)}
+                            size={12}
+                            inline
+                          />
+                        </div>
+                      </div>
                       {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
                       {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (
                         <span className="text-[9px] text-muted leading-none">
