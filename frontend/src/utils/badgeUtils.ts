@@ -67,7 +67,7 @@ export function hasAnyBadge(
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
     showGenericBadges?: boolean; // 是否显示通用徽标（默认 true）
-    showFrequency?: boolean;    // 是否显示检测频率（默认 true）
+    showFrequency?: boolean;    // 是否显示监测频率（默认 true）
   } = {}
 ): boolean {
   const {
@@ -113,7 +113,7 @@ export function hasAnyBadgeInList(
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
     showGenericBadges?: boolean; // 是否显示通用徽标（默认 true）
-    showFrequency?: boolean;    // 是否显示检测频率（默认 true）
+    showFrequency?: boolean;    // 是否显示监测频率（默认 true）
   } = {}
 ): boolean {
   return data.some(item => hasAnyBadge(item, options));

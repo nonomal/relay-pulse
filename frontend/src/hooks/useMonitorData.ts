@@ -233,7 +233,7 @@ export function useMonitorData({
               channel: item.channel || undefined,
               probeUrl: item.probe_url,
               templateName: item.template_name,
-              intervalMs: item.interval_ms ?? 0,  // 检测间隔（毫秒），兜底 0 兼容旧后端
+              intervalMs: item.interval_ms ?? 0,  // 监测间隔（毫秒），兜底 0 兼容旧后端
               history,
               currentStatus,
               uptime,

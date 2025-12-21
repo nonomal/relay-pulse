@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "RelayPulse - 实时监测API中转服务可用性矩阵",
-    "description": "RelayPulse - 实时监测全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性检测。"
+    "description": "RelayPulse - 实时监测全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性监测。"
   },
   "common": {
     "loading": "正在同步数据节点...",
@@ -15,7 +15,7 @@
     "sponsor": "赞助者",
     "channel": "通道",
     "latency": "延迟",
-    "lastCheck": "最后检测",
+    "lastCheck": "最后监测",
     "uptime": "可用率",
     "now": "现在",
     "unknownProvider": "未命名服务商",
@@ -110,7 +110,7 @@
       "listedDays": "收录天数",
       "status": "当前状态",
       "uptime": "可用率",
-      "lastCheck": "最后检测",
+      "lastCheck": "最后监测",
       "trend": "质量趋势"
     },
     "sorting": {
@@ -165,7 +165,7 @@
   "tooltip": {
     "title": "数据详情",
     "uptime": "可用率:",
-    "totalProbes": "检测次数",
+    "totalProbes": "监测次数",
     "latency": "延迟:",
     "count": "次",
     "degradedTitle": "🟡 波动细分",
@@ -250,7 +250,7 @@
       }
     },
     "frequency": {
-      "tooltip": "检测频率: {{interval}}"
+      "tooltip": "监测频率: {{interval}}"
     }
   },
   "externalLink": {

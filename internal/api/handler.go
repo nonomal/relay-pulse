@@ -272,7 +272,7 @@ type MonitorResult struct {
 	Channel      string                 `json:"channel"`                 // 业务通道标识
 	ProbeURL     string                 `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）
 	TemplateName string                 `json:"template_name,omitempty"` // 请求体模板名称（如有）
-	IntervalMs   int64                  `json:"interval_ms"`             // 检测间隔（毫秒）
+	IntervalMs   int64                  `json:"interval_ms"`             // 监测间隔（毫秒）
 	Current      *CurrentStatus         `json:"current_status"`
 	Timeline     []storage.TimePoint    `json:"timeline"`
 }

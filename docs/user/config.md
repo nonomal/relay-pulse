@@ -478,14 +478,14 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **说明**: 该监测项的自定义巡检间隔（可选），覆盖全局 `interval`
 - **示例**: `"30s"`, `"1m"`, `"5m"`
 - **使用场景**:
-  - **高频监测**：付费服务商需要更短的检测间隔（如 `"1m"`）
+  - **高频监测**：付费服务商需要更短的监测间隔（如 `"1m"`）
   - **低频监测**：成本敏感或稳定服务使用更长间隔（如 `"15m"`）
 - **配置示例**:
   ```yaml
   interval: "5m"  # 全局默认 5 分钟
   monitors:
     - provider: "高优先级服务商"
-      interval: "1m"   # 覆盖：每 1 分钟检测一次
+      interval: "1m"   # 覆盖：每 1 分钟监测一次
       # ...
     - provider: "普通服务商"
       # 不配置 interval，使用全局 5 分钟
@@ -540,7 +540,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 ### 徽标系统配置
 
-用于在监测项上显示各类信息徽标（如赞助商等级、分类标签、风险警告、检测频率、API Key 来源等）。
+用于在监测项上显示各类信息徽标（如赞助商等级、分类标签、风险警告、监测频率、API Key 来源等）。
 
 #### `enable_badges`
 - **类型**: boolean
@@ -555,7 +555,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
   | 赞助商徽标 | basic/advanced/enterprise 等级 | 隐藏 |
   | 分类标签 | 公益站「益」标签 | 隐藏 |
   | 风险徽标 | 风险警告标识 | 隐藏 |
-  | 检测频率 | 检测间隔指示器 | 隐藏 |
+  | 监测频率 | 监测间隔指示器 | 隐藏 |
   | 通用徽标 | API Key 来源等自定义徽标 | 隐藏 |
 - **默认徽标**: 启用后，未配置任何通用徽标时自动显示"官方 API Key"（`api_key_official`）徽标
 - **覆盖规则**: 手工配置的徽标会**完全覆盖**默认徽标（不是合并）
@@ -566,7 +566,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 # 启用徽标系统
 enable_badges: true
 
-# 场景 1：无配置 → 自动显示 api_key_official + 检测频率
+# 场景 1：无配置 → 自动显示 api_key_official + 监测频率
 monitors:
   - provider: "Example"
     service: "api"
@@ -685,7 +685,7 @@ monitors:
 - 徽标显示在监测项的"徽标"列
 - Label 和 Tooltip 通过 i18n 翻译（键名：`badges.generic.<id>.label`、`badges.generic.<id>.tooltip`）
 - 如果配置了 `tooltip_override`，则优先使用覆盖文本
-- 检测频率指示器会自动显示在徽标区域（根据监测项的 `interval` 配置）
+- 监测频率指示器会自动显示在徽标区域（根据监测项的 `interval` 配置）
 
 #### 完整配置示例
 

@@ -356,7 +356,7 @@ type AppConfig struct {
 	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
 
 	// 是否启用徽标系统（默认 false）
-	// 开启后会显示 API Key 来源、检测频率等徽标
+	// 开启后会显示 API Key 来源、监测频率等徽标
 	// 未配置任何徽标时，默认显示"官方 API Key"徽标
 	EnableBadges bool `yaml:"enable_badges" json:"enable_badges"`
 

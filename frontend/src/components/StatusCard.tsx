@@ -155,7 +155,7 @@ function StatusCardComponent({
             </span>
           </div>
 
-          {/* 最后检测时间 */}
+          {/* 最后监测时间 */}
           {item.lastCheckTimestamp && (
             <div className="text-[10px] text-muted font-mono flex flex-col items-start sm:items-end gap-0.5">
               <span className="whitespace-nowrap">

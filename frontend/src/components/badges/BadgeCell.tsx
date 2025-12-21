@@ -11,7 +11,7 @@ interface BadgeCellProps {
   showSponsor?: boolean;      // 是否显示赞助商徽标
   showRisk?: boolean;         // 是否显示风险徽标
   showGenericBadges?: boolean; // 是否显示通用徽标
-  showFrequency?: boolean;    // 是否显示检测频率指示器
+  showFrequency?: boolean;    // 是否显示监测频率指示器
   className?: string;
 }
 
@@ -22,7 +22,7 @@ interface BadgeCellProps {
  * 1. 站点类型标签（仅公益站显示蓝色「益」标签）
  * 2. 赞助商徽标（正向）
  * 3. 通用徽标（source/info/feature）
- * 4. 检测频率指示器
+ * 4. 监测频率指示器
  * 5. 分隔符 | （仅在正负徽标都存在时显示）
  * 6. 风险徽标（负向，黄色警告）
  */
@@ -73,7 +73,7 @@ export function BadgeCell({
         <GenericBadge key={badge.id} badge={badge} />
       ))}
 
-      {/* 检测频率指示器 */}
+      {/* 监测频率指示器 */}
       {showFrequency && (item.intervalMs ?? 0) > 0 && (
         <FrequencyIndicator intervalMs={item.intervalMs ?? 0} />
       )}

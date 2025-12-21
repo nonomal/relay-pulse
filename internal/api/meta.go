@@ -143,7 +143,7 @@ func getMetaContent(langCode string, slug string, providerName string, isProvide
 		switch langCode {
 		case "zh-CN":
 			title = "RelayPulse - 实时监测API中转服务可用性矩阵"
-			description = "RelayPulse - 实时监测全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性检测。"
+			description = "RelayPulse - 实时监测全球 LLM 中转服务的可用性、延迟与赞助链路，帮助开发者快速评估服务商质量，发现最稳定的 API 提供商。支持 Claude、GPT 等主流模型的连通性监测。"
 		case "en-US":
 			title = "RelayPulse - Real-time availability matrix for API relay services"
 			description = "RelayPulse - Real-time monitoring of LLM relay services worldwide for availability, latency, and sponsored routes, helping developers quickly evaluate provider quality and discover the most stable API providers. Supports connectivity checks for mainstream models such as Claude and GPT."

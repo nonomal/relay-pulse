@@ -86,7 +86,7 @@ export interface MonitorResult {
   channel: string;                     // 业务通道标识
   probe_url?: string;                  // 探测端点 URL（脱敏后）
   template_name?: string;              // 请求体模板名称（如有）
-  interval_ms?: number;                // 检测间隔（毫秒，可选兼容旧版本）
+  interval_ms?: number;                // 监测间隔（毫秒，可选兼容旧版本）
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
 }
@@ -141,7 +141,7 @@ export interface ProcessedMonitorData {
   channel?: string;                    // 业务通道标识
   probeUrl?: string;                   // 探测端点 URL（脱敏后）
   templateName?: string;               // 请求体模板名称（如有）
-  intervalMs?: number;                 // 检测间隔（毫秒，可选）
+  intervalMs?: number;                 // 监测间隔（毫秒，可选）
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   history: Array<{
     index: number;
@@ -154,8 +154,8 @@ export interface ProcessedMonitorData {
   }>;
   currentStatus: StatusKey;
   uptime: number;             // 可用率百分比
-  lastCheckTimestamp?: number; // 最后检测时间（Unix 时间戳，秒）
-  lastCheckLatency?: number;   // 最后检测延迟（毫秒）
+  lastCheckTimestamp?: number; // 最后监测时间（Unix 时间戳，秒）
+  lastCheckLatency?: number;   // 最后监测延迟（毫秒）
 }
 
 // 时间范围配置

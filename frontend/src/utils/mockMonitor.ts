@@ -125,7 +125,7 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
           const sponsors = ['团队自有', '社区赞助', 'duckcoding官方', '示例数据'];
           const sponsor = sponsors[providerIndex % sponsors.length];
 
-          // 最后一次检测信息
+          // 最后一次监测信息
           const lastCheckTimestamp = Math.floor(Date.now() / 1000);
           const lastCheckLatency = 180 + Math.floor(Math.random() * 220);
 

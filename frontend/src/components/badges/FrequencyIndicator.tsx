@@ -2,12 +2,12 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 interface FrequencyIndicatorProps {
-  intervalMs: number;  // 检测间隔（毫秒），30000 ~ 300000 (30s ~ 5min)
+  intervalMs: number;  // 监测间隔（毫秒），30000 ~ 300000 (30s ~ 5min)
   className?: string;
 }
 
 /**
- * 根据检测间隔计算透明度
+ * 根据监测间隔计算透明度
  * 30s = 1.0（高频，最亮） → 5min = 0.3（低频，较暗）
  * 透明度差异更明显，便于区分不同频率
  */
@@ -93,8 +93,8 @@ function FrequencyIcon({ opacity }: { opacity: number }) {
 }
 
 /**
- * 检测频率指示器
- * 显示心跳图标，透明度根据检测频率动态变化
+ * 监测频率指示器
+ * 显示心跳图标，透明度根据监测频率动态变化
  * - 高频（30s）：主题强调色，完全不透明
  * - 低频（5min）：主题强调色，70% 透明度
  * 无动画效果，通过 tooltip 显示具体间隔

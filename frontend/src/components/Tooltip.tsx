@@ -125,7 +125,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     { key: 'content_mismatch', label: t('subStatus.content_mismatch'), value: counts.content_mismatch },
   ].filter(item => item.value > 0);
 
-  // 1h 模式：单次检测，使用简洁显示
+  // 1h 模式：单次监测，使用简洁显示
   const isRawMode = timeRange === '1h';
 
   // 获取当前状态的显示信息（1h 模式专用）
@@ -192,7 +192,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
               {t('tooltip.uptime')} {tooltip.data!.availability.toFixed(2)}%
             </div>
           )}
-          {/* 检测总次数 */}
+          {/* 监测总次数 */}
           {(counts.available + counts.degraded + counts.unavailable) > 0 && (
             <div className="text-[10px] text-center text-secondary">
               {t('tooltip.totalProbes')}: {counts.available + counts.degraded + counts.unavailable}
