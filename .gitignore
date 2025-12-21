@@ -25,6 +25,9 @@ coverage.html
 # Air hot reload temporary files
 tmp/
 
+# Development environment PID and FIFO files
+.dev/
+
 # Logs
 *.log
 

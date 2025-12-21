@@ -31,7 +31,7 @@ CONFIG ?= config.yaml
 # 开发环境 CORS 配置（允许前端开发服务器访问）
 MONITOR_CORS_ORIGINS ?= http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,http://localhost:3000
 
-.PHONY: help build run dev test fmt clean install-air release docker-build ci
+.PHONY: help build run dev dev-all stop test fmt clean install-air release docker-build ci
 
 # 默认目标：显示帮助
 help:
@@ -40,7 +40,9 @@ help:
 	@echo "  make release       - 发布构建（需指定 VERSION=vX.Y.Z）"
 	@echo "  make docker-build  - 构建 Docker 镜像"
 	@echo "  make run           - 直接运行（无热重载）"
-	@echo "  make dev           - 开发模式（热重载，需要air）"
+	@echo "  make dev           - 后端开发模式（热重载，需要air）"
+	@echo "  make dev-all       - 一键启动前后端开发环境（热重载）"
+	@echo "  make stop          - 停止所有开发服务"
 	@echo "  make test          - 运行测试"
 	@echo "  make ci            - 本地模拟 CI 检查（lint + test）"
 	@echo "  make fmt           - 格式化代码"
@@ -104,6 +106,16 @@ dev:
 		echo "⚠️  未找到 .env 文件，API Keys 可能无法加载"; \
 		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml; \
 	fi
+
+# 一键启动前后端开发环境（热重载）
+dev-all:
+	@chmod +x ./scripts/dev-all.sh
+	@./scripts/dev-all.sh
+
+# 停止所有开发服务
+stop:
+	@chmod +x ./scripts/stop-dev.sh
+	@./scripts/stop-dev.sh
 
 # 运行测试
 test:
