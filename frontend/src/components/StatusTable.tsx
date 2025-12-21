@@ -542,7 +542,7 @@ function StatusTableComponent({
             >
               {/* 徽标列 - 使用 BadgeCell 统一渲染 */}
               {hasBadges && (
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1">
                   {hasItemBadges ? (
                     <BadgeCell
                       item={item}
@@ -553,22 +553,22 @@ function StatusTableComponent({
                   ) : null}
                 </td>
               )}
-              {/* 服务商列（合并赞助者，紧凑两行布局） */}
+              {/* 服务商列（合并赞助者，极度压缩两行布局） */}
               {showProvider && (
-                <td className="px-2 py-1.5">
+                <td className="px-2 py-1">
                   <div className="flex flex-col gap-0">
-                    <span className="font-medium text-primary text-sm leading-tight">
+                    <span className="font-medium text-primary text-sm leading-none">
                       <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
                     </span>
                     {showSponsor && item.sponsor && (
-                      <span className="text-[10px] text-muted leading-tight -mt-1">
+                      <span className="text-[9px] text-muted leading-none -mt-2">
                         <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                       </span>
                     )}
                   </div>
                 </td>
               )}
-              <td className="px-2 py-1.5">
+              <td className="px-2 py-1">
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${
                     item.serviceType === 'cc'
@@ -587,14 +587,14 @@ function StatusTableComponent({
                   {item.serviceType.toUpperCase()}
                 </span>
               </td>
-              <td className="px-2 py-2 text-secondary text-xs">
+              <td className="px-2 py-1 text-secondary text-xs">
                 <ChannelCell
                   channel={item.channel}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                 />
               </td>
-              <td className="px-2 py-2 font-mono text-xs whitespace-nowrap">
+              <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">
                 {(() => {
                   const priceData = formatPriceRatioStructured(item.priceMin, item.priceMax);
                   if (!priceData) return <span className="text-muted">-</span>;
@@ -608,10 +608,10 @@ function StatusTableComponent({
                   );
                 })()}
               </td>
-              <td className="px-2 py-2 font-mono text-xs text-secondary whitespace-nowrap">
+              <td className="px-2 py-1 font-mono text-xs text-secondary whitespace-nowrap">
                 {item.listedDays != null ? `${item.listedDays}d` : '-'}
               </td>
-              <td className="px-2 py-1.5">
+              <td className="px-2 py-1">
                 <div className="flex items-center gap-1.5 whitespace-nowrap">
                   <StatusDot status={item.currentStatus} size="sm" />
                   <span className={STATUS[item.currentStatus].text}>
@@ -619,12 +619,12 @@ function StatusTableComponent({
                   </span>
                 </div>
               </td>
-              <td className="px-2 py-2 font-mono font-bold whitespace-nowrap">
+              <td className="px-2 py-1 font-mono font-bold whitespace-nowrap">
                 <span style={{ color: availabilityToColor(item.uptime) }}>
                   {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </td>
-              <td className="px-2 py-1.5">
+              <td className="px-2 py-1">
                 {item.lastCheckTimestamp ? (
                   <div className="text-xs text-secondary font-mono flex flex-col gap-0.5">
                     <span>{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
