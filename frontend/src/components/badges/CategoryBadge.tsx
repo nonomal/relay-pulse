@@ -27,7 +27,7 @@ export function CategoryBadge({ category, className = '' }: CategoryBadgeProps) 
       role="img"
       aria-label={`${label}: ${tooltip}`}
     >
-      <span className="px-1 py-0 text-[10px] font-medium bg-info/20 text-info rounded cursor-default select-none leading-4">
+      <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-info/20 text-info rounded cursor-default select-none">
         {label}
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}

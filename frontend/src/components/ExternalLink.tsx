@@ -31,6 +31,7 @@ interface ExternalLinkProps {
   className?: string;
   trackLabel?: string;
   compact?: boolean; // 是否使用紧凑模式（32px 高度，用于表格行）
+  inline?: boolean; // 纯内联模式（无最小高度），用于多行文本紧凑排版
   requireConfirm?: boolean; // 是否需要二次确认弹窗
 }
 
@@ -47,6 +48,7 @@ export function ExternalLink({
   className = '',
   trackLabel,
   compact = false,
+  inline = false,
   requireConfirm = false,
 }: ExternalLinkProps) {
   const { t } = useTranslation();
@@ -120,9 +122,10 @@ export function ExternalLink({
     saveDontShowAgain();
   }, []);
 
+  // inline 模式：无最小高度，用于多行文本紧凑排版
   // compact 模式仍保留 32px 最小点击高度（WCAG 建议）
-  const sizeClass = compact ? 'min-h-[32px] py-0.5 -my-0.5' : 'min-h-[44px] py-1 -my-1';
-  const baseClass = `inline-flex items-center gap-1 ${sizeClass} ${className}`;
+  const sizeClass = inline ? '' : (compact ? 'min-h-[32px] py-0.5 -my-0.5' : 'min-h-[44px] py-1 -my-1');
+  const baseClass = `inline-flex items-center gap-1 ${sizeClass} ${className}`.trim();
 
   // 如果没有 URL，显示纯文本但保持相同行高，避免表格行高不一致
   if (!href) {

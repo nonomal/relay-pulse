@@ -58,7 +58,7 @@ export function BadgeCell({
   }
 
   return (
-    <div className={`flex items-center gap-1 ${className}`}>
+    <div className={`flex items-center gap-0.5 ${className}`}>
       {/* 正向徽标组 */}
       {/* 站点类型标签 - 仅公益站显示 */}
       {showCategoryTag && <CategoryBadge category={item.category} />}

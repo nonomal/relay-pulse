@@ -553,19 +553,21 @@ function StatusTableComponent({
                   ) : null}
                 </td>
               )}
-              {/* 服务商列（两行布局，统一行高） */}
+              {/* 服务商列（两行紧贴，整体垂直居中） */}
               {showProvider && (
-                <td className="px-2 py-1">
-                  <div className="relative">
-                    <span className="font-medium text-primary text-sm leading-5">
-                      <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
-                    </span>
-                    {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
-                    {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (
-                      <span className="absolute left-0 top-4 text-[9px] text-muted leading-3">
-                        <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
+                <td className="px-2 py-1.5">
+                  <div className="flex items-center h-8">
+                    <div className="flex flex-col gap-0">
+                      <span className="font-medium text-primary text-sm leading-none">
+                        <ExternalLink href={item.providerUrl} inline requireConfirm>{item.providerName}</ExternalLink>
                       </span>
-                    )}
+                      {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
+                      {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (
+                        <span className="text-[9px] text-muted leading-none">
+                          <ExternalLink href={item.sponsorUrl} inline>{item.sponsor}</ExternalLink>
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </td>
               )}
