@@ -130,6 +130,11 @@ storage:
 # 用于在监测项上显示各类信息徽标（API Key 来源、功能特性等）
 # 徽标颜色和图标由 kind + variant 决定，前端通过 i18n 显示翻译文本
 
+# 是否启用徽标系统（默认 false）
+# 开启后会显示 API Key 来源、检测频率等徽标
+# 未配置任何徽标时，默认显示"官方 API Key"徽标
+enable_badges: true
+
 # 全局徽标定义（badge_definitions）
 # 定义所有可复用的徽标，在 badge_providers 或 monitors.badges 中通过 id 引用
 badge_definitions:

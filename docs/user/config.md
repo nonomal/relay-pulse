@@ -542,6 +542,37 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 用于在监测项上显示各类信息徽标（如 API Key 来源、功能特性等），支持多级别配置和合并。
 
+#### `enable_badges`
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 是否启用通用徽标系统（generic badges）
+- **行为**:
+  - `true`: 启用通用徽标系统，显示 API Key 来源等徽标
+  - `false`: 禁用通用徽标系统，不显示通用徽标
+- **默认徽标**: 启用后，未配置任何徽标时自动显示"官方 API Key"（`api_key_official`）徽标
+- **覆盖规则**: 手工配置的徽标会**完全覆盖**默认徽标（不是合并）
+- **内置徽标**: `api_key_official` 是内置默认徽标，无需在 `badge_definitions` 中定义；若定义则会覆盖内置默认值
+- **注意**: 此配置仅控制通用徽标（`badge_definitions` 中定义的徽标），不影响赞助商徽标、分类标签、风险徽标和检测频率指示器
+
+**示例**:
+```yaml
+# 启用徽标系统
+enable_badges: true
+
+# 场景 1：无配置 → 自动显示 api_key_official + 检测频率
+monitors:
+  - provider: "Example"
+    service: "api"
+    # badges 未配置，自动注入默认徽标
+
+# 场景 2：手工配置 → 覆盖默认徽标
+monitors:
+  - provider: "Example"
+    service: "api"
+    badges:
+      - "api_key_user"  # 配置后，不再显示 api_key_official
+```
+
 #### 徽标类型说明
 
 | 类型 (kind) | 说明 | 示例图标 |

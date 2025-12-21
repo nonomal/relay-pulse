@@ -360,6 +360,7 @@ func TestBadgesNormalize(t *testing.T) {
 	t.Parallel()
 
 	cfg := &AppConfig{
+		EnableBadges: true, // 启用徽标系统
 		BadgeDefs: map[string]BadgeDef{
 			"api_key_user":      {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 5},
 			"api_key_official":  {Kind: BadgeKindSource, Variant: BadgeVariantSuccess, Weight: 10},
@@ -389,7 +390,7 @@ func TestBadgesNormalize(t *testing.T) {
 				Sponsor:  "community",
 				URL:      "https://other.com",
 				Method:   "POST",
-				// 仅使用 provider 级注入
+				// 无配置：应注入默认徽标 api_key_official
 			},
 		},
 	}
@@ -422,10 +423,84 @@ func TestBadgesNormalize(t *testing.T) {
 		}
 	}
 
-	// 验证 other 监测项无徽标（其 provider 不在 badge_providers 中）
+	// 验证 other 监测项注入默认徽标（未配置时自动注入 api_key_official）
 	otherMonitor := cfg.Monitors[1]
-	if len(otherMonitor.ResolvedBadges) != 0 {
-		t.Errorf("other monitor should have 0 badges, got %d", len(otherMonitor.ResolvedBadges))
+	if len(otherMonitor.ResolvedBadges) != 1 {
+		t.Fatalf("other monitor should have 1 default badge, got %d", len(otherMonitor.ResolvedBadges))
+	}
+	if otherMonitor.ResolvedBadges[0].ID != "api_key_official" {
+		t.Errorf("other monitor default badge = %q, want %q", otherMonitor.ResolvedBadges[0].ID, "api_key_official")
+	}
+}
+
+// TestBadgesDisabled tests that badges are not injected when EnableBadges is false
+func TestBadgesDisabled(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		EnableBadges: false, // 禁用徽标系统
+		BadgeDefs: map[string]BadgeDef{
+			"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 5},
+		},
+		BadgeProviders: []BadgeProviderConfig{
+			{Provider: "demo", Badges: []BadgeRef{{ID: "api_key_user"}}},
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider: "demo",
+				Service:  "cc",
+				Category: "commercial",
+				Sponsor:  "test",
+				URL:      "https://example.com",
+				Method:   "POST",
+			},
+		},
+	}
+
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	// 徽标系统禁用时不应有任何徽标
+	if len(cfg.Monitors[0].ResolvedBadges) != 0 {
+		t.Errorf("badges should be empty when EnableBadges=false, got %d", len(cfg.Monitors[0].ResolvedBadges))
+	}
+}
+
+// TestBadgesDefaultOverride tests that configured badges override default badges
+func TestBadgesDefaultOverride(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		EnableBadges: true,
+		BadgeDefs: map[string]BadgeDef{
+			"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantInfo, Weight: 50},
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider: "demo",
+				Service:  "cc",
+				Category: "commercial",
+				Sponsor:  "test",
+				URL:      "https://example.com",
+				Method:   "POST",
+				// 手动配置 api_key_user，覆盖默认的 api_key_official
+				Badges: []BadgeRef{{ID: "api_key_user"}},
+			},
+		},
+	}
+
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	monitor := cfg.Monitors[0]
+	if len(monitor.ResolvedBadges) != 1 {
+		t.Fatalf("monitor should have 1 badge, got %d", len(monitor.ResolvedBadges))
+	}
+	// 应显示用户配置的 api_key_user，而不是默认的 api_key_official
+	if monitor.ResolvedBadges[0].ID != "api_key_user" {
+		t.Errorf("badge = %q, want %q", monitor.ResolvedBadges[0].ID, "api_key_user")
 	}
 }
 

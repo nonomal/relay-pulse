@@ -83,6 +83,17 @@ type BadgeDef struct {
 	URL     string       `yaml:"url" json:"url,omitempty"`       // 可选：点击跳转链接
 }
 
+// 内置默认徽标定义（无需在配置文件中定义）
+// 当 monitor 未配置任何徽标时，自动注入这些默认徽标
+var defaultBadgeDefs = map[string]BadgeDef{
+	"api_key_official": {
+		ID:      "api_key_official",
+		Kind:    BadgeKindSource,
+		Variant: BadgeVariantSuccess, // 绿色，表示官方
+		Weight:  100,
+	},
+}
+
 // BadgeRef 监测项级别的徽标引用
 // 支持两种 YAML 格式：
 //   - 字符串: "api_key_official"
@@ -344,6 +355,11 @@ type AppConfig struct {
 	// 用于标记存在风险的服务商（如跑路风险）
 	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
 
+	// 是否启用徽标系统（默认 false）
+	// 开启后会显示 API Key 来源、检测频率等徽标
+	// 未配置任何徽标时，默认显示"官方 API Key"徽标
+	EnableBadges bool `yaml:"enable_badges" json:"enable_badges"`
+
 	// 全局徽标定义（map 格式，key 为徽标 ID）
 	// Label 和 Tooltip 由前端 i18n 提供，后端只存储 id/kind/variant/weight/url
 	BadgeDefs map[string]BadgeDef `yaml:"badge_definitions" json:"badge_definitions"`
@@ -521,7 +537,10 @@ func (c *AppConfig) Validate() error {
 			if refID == "" {
 				return fmt.Errorf("badge_providers[%d].badges[%d]: id 不能为空", i, j)
 			}
-			if _, exists := c.BadgeDefs[refID]; !exists {
+			// 检查用户配置和内置默认徽标
+			_, inUserDefs := c.BadgeDefs[refID]
+			_, inDefaultDefs := defaultBadgeDefs[refID]
+			if !inUserDefs && !inDefaultDefs {
 				return fmt.Errorf("badge_providers[%d].badges[%d]: 未找到徽标定义 '%s'", i, j, refID)
 			}
 		}
@@ -534,7 +553,10 @@ func (c *AppConfig) Validate() error {
 			if refID == "" {
 				return fmt.Errorf("monitors[%d].badges[%d]: id 不能为空", i, j)
 			}
-			if _, exists := c.BadgeDefs[refID]; !exists {
+			// 检查用户配置和内置默认徽标
+			_, inUserDefs := c.BadgeDefs[refID]
+			_, inDefaultDefs := defaultBadgeDefs[refID]
+			if !inUserDefs && !inDefaultDefs {
 				return fmt.Errorf("monitors[%d].badges[%d]: 未找到徽标定义 '%s'", i, j, refID)
 			}
 		}
@@ -775,8 +797,15 @@ func (c *AppConfig) Normalize() error {
 	}
 
 	// 构建 badges 定义 map（id -> def），并填充默认值
-	// BadgeDefs 已经是 map 格式，直接使用
+	// 先加载内置默认徽标，再加载用户配置（用户配置可覆盖内置）
 	badgeDefMap := make(map[string]BadgeDef)
+
+	// 1. 加载内置默认徽标
+	for id, bd := range defaultBadgeDefs {
+		badgeDefMap[id] = bd
+	}
+
+	// 2. 加载用户配置的徽标（可覆盖内置）
 	for id, bd := range c.BadgeDefs {
 		// 填充默认值
 		if bd.Kind == "" {
@@ -892,15 +921,21 @@ func (c *AppConfig) Normalize() error {
 
 		// 从 badge_providers + monitors[].badges 注入徽标
 		// 合并策略：provider 级在前，monitor 级在后（同 id 时 monitor 级覆盖）
-		var refs []BadgeRef
-		if injected, ok := badgeProviderMap[normalizedProvider]; ok && len(injected) > 0 {
-			refs = append(refs, injected...)
-		}
-		if len(c.Monitors[i].Badges) > 0 {
-			refs = append(refs, c.Monitors[i].Badges...)
-		}
+		// 仅在启用徽标系统时处理
+		if c.EnableBadges {
+			var refs []BadgeRef
+			if injected, ok := badgeProviderMap[normalizedProvider]; ok && len(injected) > 0 {
+				refs = append(refs, injected...)
+			}
+			if len(c.Monitors[i].Badges) > 0 {
+				refs = append(refs, c.Monitors[i].Badges...)
+			}
 
-		if len(refs) > 0 {
+			// 如果没有配置任何徽标，注入默认徽标
+			if len(refs) == 0 {
+				refs = []BadgeRef{{ID: "api_key_official"}}
+			}
+
 			// 去重并解析为 ResolvedBadge
 			order := make([]string, 0, len(refs))
 			resolvedMap := make(map[string]ResolvedBadge, len(refs))
@@ -1123,6 +1158,7 @@ func (c *AppConfig) Clone() *AppConfig {
 		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:       make([]HiddenProviderConfig, len(c.HiddenProviders)),
 		RiskProviders:         make([]RiskProviderConfig, len(c.RiskProviders)),
+		EnableBadges:          c.EnableBadges,
 		BadgeDefs:             make(map[string]BadgeDef, len(c.BadgeDefs)),
 		BadgeProviders:        make([]BadgeProviderConfig, len(c.BadgeProviders)),
 		SponsorPin: SponsorPinConfig{
