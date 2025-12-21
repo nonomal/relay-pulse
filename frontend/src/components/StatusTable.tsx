@@ -560,7 +560,8 @@ function StatusTableComponent({
                     <span className="font-medium text-primary text-sm leading-none">
                       <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
                     </span>
-                    {showSponsor && item.sponsor && (
+                    {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
+                    {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (
                       <span className="text-[9px] text-muted leading-none -mt-2">
                         <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                       </span>
