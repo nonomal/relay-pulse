@@ -363,6 +363,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	concurrentLimit := h.config.ConcurrentQueryLimit
 	slowLatencyMs := int(h.config.SlowLatencyDuration / time.Millisecond)
 	sponsorPin := h.config.SponsorPin
+	enableBadges := h.config.EnableBadges
 	h.cfgMu.RUnlock()
 
 	// 构建 slug -> provider 映射（slug作为provider的路由别名）
@@ -388,10 +389,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 
 	if enableConcurrent {
 		mode = "concurrent"
-		response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit)
+		response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
 	} else {
 		mode = "serial"
-		response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter)
+		response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
 	}
 
 	if err != nil {
@@ -412,6 +413,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		"timeline_mode":   timelineMode,
 		"count":           len(response),
 		"slow_latency_ms": slowLatencyMs,
+		"enable_badges":   enableBadges,
 		"sponsor_pin": gin.H{
 			"enabled":    sponsorPin.IsEnabled(),
 			"max_pinned": sponsorPin.MaxPinned,
@@ -479,7 +481,7 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 }
 
 // getStatusSerial 串行查询（原有逻辑）
-func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) ([]MonitorResult, error) {
+func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool) ([]MonitorResult, error) {
 	// 初始化为空切片，确保 JSON 序列化时返回 [] 而不是 null
 	response := make([]MonitorResult, 0, len(monitors))
 	store := h.storage.WithContext(ctx)
@@ -498,7 +500,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 		}
 
 		// 构建响应
-		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter)
+		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter, enableBadges)
 		response = append(response, result)
 	}
 
@@ -506,7 +508,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 }
 
 // getStatusConcurrent 并发查询（使用 errgroup + 并发限制）
-func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, limit int) ([]MonitorResult, error) {
+func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, limit int, enableBadges bool) ([]MonitorResult, error) {
 	// 使用请求的 context（支持取消）
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(limit) // 限制最大并发度
@@ -531,7 +533,7 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 			}
 
 			// 构建响应（固定位置写入，保持顺序）
-			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter)
+			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter, enableBadges)
 			return nil
 		})
 	}
@@ -545,7 +547,8 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 }
 
 // buildMonitorResult 构建单个监测项的响应结构
-func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter) MonitorResult {
+// enableBadges 控制是否返回徽标相关字段（SponsorLevel、Risks、Badges、IntervalMs）
+func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool) MonitorResult {
 	// 转换为时间轴数据
 	timeline := h.buildTimeline(history, endTime, period, degradedWeight, timeFilter)
 
@@ -577,6 +580,20 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		}
 	}
 
+	// 当徽标系统禁用时，清空所有徽标相关字段
+	// 注意：category 字段保留用于筛选功能，仅前端控制「益」标签显示
+	sponsorLevel := task.SponsorLevel
+	risks := task.Risks
+	badges := task.ResolvedBadges
+	intervalMs := task.IntervalDuration.Milliseconds()
+
+	if !enableBadges {
+		sponsorLevel = ""
+		risks = nil
+		badges = nil
+		intervalMs = 0
+	}
+
 	return MonitorResult{
 		Provider:     task.Provider,
 		ProviderSlug: slug,
@@ -585,16 +602,16 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		Category:     task.Category,
 		Sponsor:      task.Sponsor,
 		SponsorURL:   task.SponsorURL,
-		SponsorLevel: task.SponsorLevel,
-		Risks:        task.Risks,
-		Badges:       task.ResolvedBadges,
+		SponsorLevel: sponsorLevel,
+		Risks:        risks,
+		Badges:       badges,
 		PriceMin:     task.PriceMin,
 		PriceMax:     task.PriceMax,
 		ListedDays:   listedDays,
 		Channel:      task.Channel,
 		ProbeURL:     sanitizeProbeURL(task.URL),
 		TemplateName: task.BodyTemplateName,
-		IntervalMs:   task.IntervalDuration.Milliseconds(),
+		IntervalMs:   intervalMs,
 		Current:      current,
 		Timeline:     timeline,
 	}

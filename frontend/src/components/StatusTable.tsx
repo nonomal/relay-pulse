@@ -84,6 +84,7 @@ interface StatusTableProps {
   isInitialSort?: boolean;   // 是否为初始排序状态（控制高亮显示）
   timeRange: string;
   slowLatencyMs: number;
+  enableBadges?: boolean;      // 徽标系统总开关，默认 true
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
   showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
@@ -96,6 +97,7 @@ interface StatusTableProps {
 function MobileListItem({
   item,
   slowLatencyMs,
+  enableBadges = true,
   showCategoryTag = true,
   showProvider = true,
   showSponsor = true,
@@ -104,6 +106,7 @@ function MobileListItem({
 }: {
   item: ProcessedMonitorData;
   slowLatencyMs: number;
+  enableBadges?: boolean;
   showCategoryTag?: boolean;
   showProvider?: boolean;
   showSponsor?: boolean;
@@ -121,7 +124,7 @@ function MobileListItem({
   );
 
   // 检查是否有徽标需要显示
-  const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
+  const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
 
   // 卡片左边框颜色（仅基于赞助级别，置顶改用背景色）
   const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
@@ -323,6 +326,7 @@ function StatusTableComponent({
   isInitialSort = false,
   timeRange,
   slowLatencyMs,
+  enableBadges = true,
   showCategoryTag = true,
   showProvider = true,
   showSponsor = true,
@@ -370,6 +374,7 @@ function StatusTableComponent({
           <MobileListItem
             item={data[index]}
             slowLatencyMs={slowLatencyMs}
+            enableBadges={enableBadges}
             showCategoryTag={showCategoryTag}
             showProvider={showProvider}
             showSponsor={showSponsor}
@@ -398,7 +403,7 @@ function StatusTableComponent({
   }
 
   // 检查是否有任何徽标需要显示
-  const hasBadges = hasAnyBadgeInList(data, { showCategoryTag, showSponsor, showRisk: true });
+  const hasBadges = hasAnyBadgeInList(data, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
 
   // 桌面端：表格视图
   return (
@@ -528,7 +533,7 @@ function StatusTableComponent({
         <tbody className="divide-y divide-default/50 text-sm">
           {data.map((item) => {
             const ServiceIcon = getCachedServiceIcon(item.serviceType);
-            const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
+            const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
             const pinnedBg = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
             return (
             <tr

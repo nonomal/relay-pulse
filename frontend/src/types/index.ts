@@ -97,6 +97,7 @@ export interface ApiResponse {
     count: number;
     timeline_mode?: 'raw' | 'aggregated';  // 时间线模式：raw=原始记录，aggregated=聚合数据
     slow_latency_ms?: number;  // 慢延迟阈值（毫秒），用于延迟颜色渐变
+    enable_badges?: boolean;   // 徽标系统总开关（默认 true）
     sponsor_pin?: SponsorPinConfig;  // 赞助商置顶配置
   };
   data: MonitorResult[];

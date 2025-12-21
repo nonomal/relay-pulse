@@ -105,6 +105,7 @@ export function useMonitorData({
   const [reloadToken, setReloadToken] = useState(0);
   const [forceRefresh, setForceRefresh] = useState(false); // 手动刷新时绕过缓存
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
+  const [enableBadges, setEnableBadges] = useState<boolean>(true); // 徽标系统总开关（默认启用）
   const [sponsorPinConfig, setSponsorPinConfig] = useState<SponsorPinConfig | null>(null); // 赞助商置顶配置
 
   // 统一的刷新触发器，供手动刷新与自动轮询复用
@@ -173,6 +174,9 @@ export function useMonitorData({
           if (json.meta.slow_latency_ms && json.meta.slow_latency_ms > 0) {
             setSlowLatencyMs(json.meta.slow_latency_ms);
           }
+
+          // 提取徽标系统总开关（默认 true，兼容旧后端）
+          setEnableBadges(json.meta.enable_badges !== false);
 
           // 提取赞助商置顶配置
           if (json.meta.sponsor_pin) {
@@ -379,6 +383,7 @@ export function useMonitorData({
     channels,
     providers,
     slowLatencyMs,
+    enableBadges,
     refetch: triggerRefetch,
   };
 }

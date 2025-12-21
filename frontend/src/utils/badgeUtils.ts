@@ -62,24 +62,39 @@ export function calculateBadgeScore(item: ProcessedMonitorData): number {
 export function hasAnyBadge(
   item: ProcessedMonitorData,
   options: {
+    enableBadges?: boolean;     // 徽标系统总开关（默认 true）
     showCategoryTag?: boolean;  // 是否显示站点类型标签（仅公益站显示）
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
+    showGenericBadges?: boolean; // 是否显示通用徽标（默认 true）
+    showFrequency?: boolean;    // 是否显示检测频率（默认 true）
   } = {}
 ): boolean {
   const {
+    enableBadges = true,
     showCategoryTag = true,
     showSponsor = true,
     showRisk = true,
+    showGenericBadges = true,
+    showFrequency = true,
   } = options;
 
-  const isPublic = item.category === 'public';
+  // 徽标系统禁用时，不显示任何徽标
+  if (!enableBadges) {
+    return false;
+  }
 
-  // 商业站不显示站点类型标签，只有公益站才算有站点类型徽标
+  const isPublic = item.category === 'public';
+  const hasGenericBadges = item.badges && item.badges.length > 0;
+  const hasFrequency = (item.intervalMs ?? 0) > 0;
+
+  // 检查所有徽标类型
   return Boolean(
     (showCategoryTag && isPublic) ||
     (showSponsor && item.sponsorLevel) ||
-    (showRisk && item.risks?.length)
+    (showRisk && item.risks?.length) ||
+    (showGenericBadges && hasGenericBadges) ||
+    (showFrequency && hasFrequency)
   );
 }
 
@@ -93,9 +108,12 @@ export function hasAnyBadge(
 export function hasAnyBadgeInList(
   data: ProcessedMonitorData[],
   options: {
+    enableBadges?: boolean;     // 徽标系统总开关（默认 true）
     showCategoryTag?: boolean;  // 是否显示站点类型标签（仅公益站显示）
     showSponsor?: boolean;      // 是否显示赞助商徽标
     showRisk?: boolean;         // 是否显示风险徽标
+    showGenericBadges?: boolean; // 是否显示通用徽标（默认 true）
+    showFrequency?: boolean;    // 是否显示检测频率（默认 true）
   } = {}
 ): boolean {
   return data.some(item => hasAnyBadge(item, options));

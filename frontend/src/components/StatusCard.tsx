@@ -28,6 +28,7 @@ interface StatusCardProps {
   item: ProcessedMonitorData;
   timeRange: string;
   slowLatencyMs: number;
+  enableBadges?: boolean;      // 徽标系统总开关，默认 true
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
   showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
@@ -39,6 +40,7 @@ function StatusCardComponent({
   item,
   timeRange,
   slowLatencyMs,
+  enableBadges = true,
   showCategoryTag = true,
   showProvider = true,
   showSponsor = true,
@@ -58,7 +60,7 @@ function StatusCardComponent({
   const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
   // 检查是否有徽标需要显示
-  const hasItemBadges = hasAnyBadge(item, { showCategoryTag, showSponsor, showRisk: true });
+  const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
 
   // 卡片左边框颜色（仅基于赞助级别，置顶改用背景色）
   const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);

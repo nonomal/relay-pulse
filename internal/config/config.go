@@ -403,9 +403,6 @@ func (c *AppConfig) Validate() error {
 		if m.Category == "" {
 			return fmt.Errorf("monitor[%d]: category 不能为空（必须是 commercial 或 public）", i)
 		}
-		if strings.TrimSpace(m.Sponsor) == "" {
-			return fmt.Errorf("monitor[%d]: sponsor 不能为空", i)
-		}
 
 		// Method 枚举检查
 		validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true}

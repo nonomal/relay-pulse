@@ -89,7 +89,7 @@ function App() {
   const lastRefreshRef = useRef<number>(0);
   const [refreshCooldown, setRefreshCooldown] = useState(false);
 
-  const { loading, error, data, stats, channels, providers, slowLatencyMs, refetch } = useMonitorData({
+  const { loading, error, data, stats, channels, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -267,6 +267,7 @@ function App() {
                   isInitialSort={isInitialSort}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
+                  enableBadges={enableBadges}
                   onSort={handleSort}
                   onBlockHover={handleBlockHover}
                   onBlockLeave={handleBlockLeave}
@@ -281,6 +282,7 @@ function App() {
                       item={item}
                       timeRange={timeRange}
                       slowLatencyMs={slowLatencyMs}
+                      enableBadges={enableBadges}
                       onBlockHover={handleBlockHover}
                       onBlockLeave={handleBlockLeave}
                     />
