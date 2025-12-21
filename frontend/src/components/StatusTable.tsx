@@ -429,8 +429,8 @@ function StatusTableComponent({
 
   // 桌面端：表格视图
   return (
-    <div className="overflow-x-auto overflow-y-hidden rounded-2xl border border-default/50 shadow-xl">
-      <table className="w-full text-left border-collapse bg-surface/40 backdrop-blur-sm">
+    <div className="overflow-x-auto rounded-2xl border border-default/50 shadow-xl bg-surface/40 backdrop-blur-sm">
+      <table className="w-full text-left border-collapse bg-transparent">
         <thead>
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 徽标列 - 仅在有徽标时显示，可排序 */}
@@ -542,7 +542,7 @@ function StatusTableComponent({
                 {t('table.headers.lastCheck')} <SortIcon columnKey="latency" />
               </div>
             </th>
-            <th className="pl-2 pr-4 py-3 font-medium w-[280px] min-w-[240px]">
+            <th className="pl-2 pr-4 py-3 font-medium w-[360px] min-w-[320px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-default px-1 rounded">

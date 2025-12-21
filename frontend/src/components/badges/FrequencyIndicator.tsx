@@ -115,7 +115,7 @@ export function FrequencyIndicator({ intervalMs, className = '' }: FrequencyIndi
     >
       <FrequencyIcon opacity={opacity} />
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/freq:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/freq:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
         {tooltip}
       </span>
     </span>

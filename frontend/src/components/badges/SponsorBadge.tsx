@@ -75,7 +75,7 @@ export function SponsorBadge({ level, className = '' }: SponsorBadgeProps) {
     >
       <BadgeIcon />
       {/* 延迟 tooltip - 悬停 700ms 后显示，左对齐避免左侧裁剪 */}
-      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
         <span className="font-medium">{name}</span>
         <span className="text-secondary ml-1">- {tooltip}</span>
       </span>

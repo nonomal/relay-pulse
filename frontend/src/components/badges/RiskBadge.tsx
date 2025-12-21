@@ -44,7 +44,7 @@ export function RiskBadge({ risk, className = '' }: RiskBadgeProps) {
         <RiskIcon />
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
         <span className="font-medium text-warning">{risk.label}</span>
         {hasLink && (
           <span className="text-secondary ml-1">- {t('badges.risk.clickToView')}</span>
