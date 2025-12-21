@@ -553,16 +553,16 @@ function StatusTableComponent({
                   ) : null}
                 </td>
               )}
-              {/* 服务商列（合并赞助者，极度压缩两行布局） */}
+              {/* 服务商列（两行布局，统一行高） */}
               {showProvider && (
                 <td className="px-2 py-1">
-                  <div className="flex flex-col gap-0">
-                    <span className="font-medium text-primary text-sm leading-none">
+                  <div className="relative">
+                    <span className="font-medium text-primary text-sm leading-5">
                       <ExternalLink href={item.providerUrl} compact requireConfirm>{item.providerName}</ExternalLink>
                     </span>
                     {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
                     {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (
-                      <span className="text-[9px] text-muted leading-none -mt-2">
+                      <span className="absolute left-0 top-4 text-[9px] text-muted leading-3">
                         <ExternalLink href={item.sponsorUrl} compact>{item.sponsor}</ExternalLink>
                       </span>
                     )}
