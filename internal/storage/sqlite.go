@@ -100,7 +100,6 @@ func (s *SQLiteStorage) Init() error {
 	// - 对于小型数据集（<1GB），性能提升明显
 	//
 	// ⚠️ 维护注意事项：
-	// - http_code 字段未纳入索引（仅用于 Tooltip 显示），查询时会有轻微回表开销
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
 	// - CleanOldRecords() 的全表扫描是可接受的（低频维护操作）
 	// - SQLite 对大数据量（>1GB）性能有限，建议迁移到 PostgreSQL
@@ -108,7 +107,7 @@ func (s *SQLiteStorage) Init() error {
 	// 性能验证：EXPLAIN QUERY PLAN SELECT ... WHERE provider=? AND service=? AND channel=? AND timestamp>=?
 	indexSQL := `
 	CREATE INDEX IF NOT EXISTS idx_probe_history_psc_ts_cover
-	ON probe_history(provider, service, channel, timestamp DESC, status, sub_status, latency);
+	ON probe_history(provider, service, channel, timestamp DESC, status, sub_status, latency, http_code);
 	`
 	if _, err := s.db.ExecContext(ctx, indexSQL); err != nil {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)

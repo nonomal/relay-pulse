@@ -137,7 +137,6 @@ func (s *PostgresStorage) Init() error {
 	// - 缓存友好（索引页比数据页更紧凑，更容易全部加载到 shared_buffers）
 	//
 	// ⚠️ 维护注意事项：
-	// - http_code 字段未纳入 INCLUDE（仅用于 Tooltip 显示），查询时会有轻微回表开销
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
 	// - CleanOldRecords() 的全表扫描是可接受的（低频维护操作）
 	// - 当数据量超过 10GB 或清理时间超过 10 秒时，考虑：
@@ -148,7 +147,7 @@ func (s *PostgresStorage) Init() error {
 	indexSQL := `
 	CREATE INDEX IF NOT EXISTS idx_probe_history_psc_ts_cover
 	ON probe_history (provider, service, channel, timestamp DESC)
-	INCLUDE (status, sub_status, latency, id);
+	INCLUDE (status, sub_status, latency, id, http_code);
 	`
 	if _, err := s.pool.Exec(ctx, indexSQL); err != nil {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)
