@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 interface CategoryBadgeProps {
   category: 'commercial' | 'public';
   className?: string;
+  tooltipPlacement?: 'top' | 'bottom';
 }
 
 /**
@@ -10,7 +11,7 @@ interface CategoryBadgeProps {
  * - commercial: 不渲染（商业站是默认情况）
  * - public: 显示"益"（蓝色）
  */
-export function CategoryBadge({ category, className = '' }: CategoryBadgeProps) {
+export function CategoryBadge({ category, className = '', tooltipPlacement = 'top' }: CategoryBadgeProps) {
   const { t } = useTranslation();
 
   // 商业站不渲染任何内容
@@ -31,7 +32,10 @@ export function CategoryBadge({ category, className = '' }: CategoryBadgeProps) 
         {label}
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/category:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span
+        data-placement={tooltipPlacement}
+        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/category:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+      >
         <span className="font-medium text-info">{label}</span>
         <span className="text-secondary ml-1">- {tooltip}</span>
       </span>

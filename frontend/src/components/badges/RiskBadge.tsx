@@ -4,6 +4,7 @@ import type { RiskBadge as RiskBadgeType } from '../../types';
 interface RiskBadgeProps {
   risk: RiskBadgeType;
   className?: string;
+  tooltipPlacement?: 'top' | 'bottom';
 }
 
 /**
@@ -28,7 +29,7 @@ function RiskIcon() {
  * 风险徽标组件
  * 显示警告三角图标，可附带链接指向讨论页面
  */
-export function RiskBadge({ risk, className = '' }: RiskBadgeProps) {
+export function RiskBadge({ risk, className = '', tooltipPlacement = 'top' }: RiskBadgeProps) {
   const { t } = useTranslation();
   const defaultTooltip = t('badges.risk.tooltip');
   const hasLink = Boolean(risk.discussionUrl);
@@ -44,7 +45,10 @@ export function RiskBadge({ risk, className = '' }: RiskBadgeProps) {
         <RiskIcon />
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span
+        data-placement={tooltipPlacement}
+        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/risk:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+      >
         <span className="font-medium text-warning">{risk.label}</span>
         {hasLink && (
           <span className="text-secondary ml-1">- {t('badges.risk.clickToView')}</span>

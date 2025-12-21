@@ -4,6 +4,7 @@ import type { SponsorLevel } from '../../types';
 interface SponsorBadgeProps {
   level: SponsorLevel;
   className?: string;
+  tooltipPlacement?: 'top' | 'bottom';
 }
 
 // 🔺 节点支持：正三角形（实心，指向上）
@@ -61,7 +62,7 @@ const SPONSOR_BADGES: Record<SponsorLevel, React.FC> = {
  * 赞助商徽章组件
  * 显示 SVG 图标，hover 700ms 后显示 tooltip（包含名称和描述）
  */
-export function SponsorBadge({ level, className = '' }: SponsorBadgeProps) {
+export function SponsorBadge({ level, className = '', tooltipPlacement = 'top' }: SponsorBadgeProps) {
   const { t } = useTranslation();
   const BadgeIcon = SPONSOR_BADGES[level];
   const name = t(`badges.sponsor.${level}.name`);
@@ -75,7 +76,10 @@ export function SponsorBadge({ level, className = '' }: SponsorBadgeProps) {
     >
       <BadgeIcon />
       {/* 延迟 tooltip - 悬停 700ms 后显示，左对齐避免左侧裁剪 */}
-      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span
+        data-placement={tooltipPlacement}
+        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/sponsor:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+      >
         <span className="font-medium">{name}</span>
         <span className="text-secondary ml-1">- {tooltip}</span>
       </span>

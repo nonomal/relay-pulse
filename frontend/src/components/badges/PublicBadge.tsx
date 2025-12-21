@@ -2,13 +2,14 @@ import { useTranslation } from 'react-i18next';
 
 interface PublicBadgeProps {
   className?: string;
+  tooltipPlacement?: 'top' | 'bottom';
 }
 
 /**
  * 公益站徽标组件
  * 显示蓝色"益"标签，表示公益服务站
  */
-export function PublicBadge({ className = '' }: PublicBadgeProps) {
+export function PublicBadge({ className = '', tooltipPlacement = 'top' }: PublicBadgeProps) {
   const { t } = useTranslation();
   const label = t('table.categoryShort.charity');
   const tooltip = t('badges.public.tooltip');
@@ -23,7 +24,10 @@ export function PublicBadge({ className = '' }: PublicBadgeProps) {
         {label}
       </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/public:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span
+        data-placement={tooltipPlacement}
+        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/public:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+      >
         <span className="font-medium text-info">{label}</span>
         <span className="text-secondary ml-1">- {tooltip}</span>
       </span>

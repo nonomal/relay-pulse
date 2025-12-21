@@ -13,6 +13,7 @@ interface BadgeCellProps {
   showGenericBadges?: boolean; // 是否显示通用徽标
   showFrequency?: boolean;    // 是否显示监测频率指示器
   className?: string;
+  tooltipPlacement?: 'top' | 'bottom';  // tooltip 显示方向
 }
 
 /**
@@ -34,6 +35,7 @@ export function BadgeCell({
   showGenericBadges = true,
   showFrequency = true,
   className = '',
+  tooltipPlacement = 'top',
 }: BadgeCellProps) {
   const hasSponsor = Boolean(item.sponsorLevel);
   const hasRisks = Boolean(item.risks?.length);
@@ -61,21 +63,21 @@ export function BadgeCell({
     <div className={`flex items-center gap-0.5 ${className}`}>
       {/* 正向徽标组 */}
       {/* 站点类型标签 - 仅公益站显示 */}
-      {showCategoryTag && <CategoryBadge category={item.category} />}
+      {showCategoryTag && <CategoryBadge category={item.category} tooltipPlacement={tooltipPlacement} />}
 
       {/* 赞助商徽标 */}
       {showSponsor && hasSponsor && item.sponsorLevel && (
-        <SponsorBadge level={item.sponsorLevel} />
+        <SponsorBadge level={item.sponsorLevel} tooltipPlacement={tooltipPlacement} />
       )}
 
       {/* 通用徽标 */}
       {showGenericBadges && hasGenericBadges && item.badges?.map((badge) => (
-        <GenericBadge key={badge.id} badge={badge} />
+        <GenericBadge key={badge.id} badge={badge} tooltipPlacement={tooltipPlacement} />
       ))}
 
       {/* 监测频率指示器 */}
       {showFrequency && (item.intervalMs ?? 0) > 0 && (
-        <FrequencyIndicator intervalMs={item.intervalMs ?? 0} />
+        <FrequencyIndicator intervalMs={item.intervalMs ?? 0} tooltipPlacement={tooltipPlacement} />
       )}
 
       {/* 分隔符 - 仅在正负徽标都存在时显示 */}
@@ -86,7 +88,7 @@ export function BadgeCell({
       {/* 负向徽标组 */}
       {/* 风险徽标 - 可能有多个 */}
       {showRisk && hasRisks && item.risks?.map((risk, index) => (
-        <RiskBadge key={index} risk={risk} />
+        <RiskBadge key={index} risk={risk} tooltipPlacement={tooltipPlacement} />
       ))}
     </div>
   );

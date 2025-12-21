@@ -553,7 +553,7 @@ function StatusTableComponent({
           </tr>
         </thead>
         <tbody className="divide-y divide-default/50 text-sm">
-          {data.map((item) => {
+          {data.map((item, rowIndex) => {
             const ServiceIcon = getCachedServiceIcon(item.serviceType);
             const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
             const pinnedBg = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
@@ -571,6 +571,7 @@ function StatusTableComponent({
                       showCategoryTag={showCategoryTag}
                       showSponsor={showSponsor}
                       showRisk={true}
+                      tooltipPlacement={rowIndex === 0 ? 'bottom' : 'top'}
                     />
                   ) : null}
                 </td>

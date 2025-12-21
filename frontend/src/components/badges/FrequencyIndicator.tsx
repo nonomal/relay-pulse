@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 interface FrequencyIndicatorProps {
   intervalMs: number;  // 监测间隔（毫秒），30000 ~ 300000 (30s ~ 5min)
   className?: string;
+  tooltipPlacement?: 'top' | 'bottom';
 }
 
 /**
@@ -99,7 +100,7 @@ function FrequencyIcon({ opacity }: { opacity: number }) {
  * - 低频（5min）：主题强调色，70% 透明度
  * 无动画效果，通过 tooltip 显示具体间隔
  */
-export function FrequencyIndicator({ intervalMs, className = '' }: FrequencyIndicatorProps) {
+export function FrequencyIndicator({ intervalMs, className = '', tooltipPlacement = 'top' }: FrequencyIndicatorProps) {
   const { t } = useTranslation();
 
   const opacity = useMemo(() => getFrequencyOpacity(intervalMs), [intervalMs]);
@@ -115,7 +116,10 @@ export function FrequencyIndicator({ intervalMs, className = '' }: FrequencyIndi
     >
       <FrequencyIcon opacity={opacity} />
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
-      <span className="absolute bottom-full left-0 mb-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/freq:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
+      <span
+        data-placement={tooltipPlacement}
+        className="absolute left-0 data-[placement=top]:bottom-full data-[placement=top]:mb-1 data-[placement=bottom]:top-full data-[placement=bottom]:mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/freq:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50"
+      >
         {tooltip}
       </span>
     </span>
