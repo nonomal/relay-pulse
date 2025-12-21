@@ -14,7 +14,7 @@ interface TooltipProps {
 
 // 时间块粒度（毫秒），0 表示原始记录（不显示时间范围）
 const BUCKET_DURATION: Record<string, number> = {
-  '1h': 0,                       // 原始记录（秒级）
+  '90m': 0,                      // 原始记录（秒级）
   '24h': 60 * 60 * 1000,         // 1 小时
   '1d': 60 * 60 * 1000,          // 1 小时
   '7d': 24 * 60 * 60 * 1000,     // 1 天
@@ -29,7 +29,7 @@ function formatTimeRange(timestampSec: number, timeRange: string): string {
   const startMs = timestampSec * 1000;
   const duration = BUCKET_DURATION[timeRange] ?? BUCKET_DURATION['24h'];
 
-  // 1h: 显示精确时间点（秒级），不显示时间范围
+  // 90m: 显示精确时间点（秒级），不显示时间范围
   if (duration === 0) {
     const time = new Date(startMs);
     return `${pad2(time.getMonth() + 1)}-${pad2(time.getDate())} ${pad2(time.getHours())}:${pad2(time.getMinutes())}:${pad2(time.getSeconds())}`;
@@ -125,10 +125,10 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     { key: 'content_mismatch', label: t('subStatus.content_mismatch'), value: counts.content_mismatch },
   ].filter(item => item.value > 0);
 
-  // 1h 模式：单次监测，使用简洁显示
-  const isRawMode = timeRange === '1h';
+  // 90m 模式：单次监测，使用简洁显示
+  const isRawMode = timeRange === '90m';
 
-  // 获取当前状态的显示信息（1h 模式专用）
+  // 获取当前状态的显示信息（90m 模式专用）
   const getStatusDisplay = () => {
     if (counts.available > 0) return { emoji: '🟢', label: t('status.available') };
     if (counts.degraded > 0) return { emoji: '🟡', label: t('status.degraded') };
@@ -143,7 +143,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
         {formatTimeRange(tooltip.data!.timestampNum, timeRange)}
       </div>
 
-      {/* 1h 模式：简洁显示（状态 + 细分 + 延迟） */}
+      {/* 90m 模式：简洁显示（状态 + 细分 + 延迟） */}
       {isRawMode ? (
         <>
           {/* 状态显示 */}

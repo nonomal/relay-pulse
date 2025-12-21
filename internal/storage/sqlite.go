@@ -102,7 +102,6 @@ func (s *SQLiteStorage) Init() error {
 	//
 	// ⚠️ 维护注意事项：
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
-	// - CleanOldRecords() 的全表扫描是可接受的（低频维护操作）
 	// - SQLite 对大数据量（>1GB）性能有限，建议迁移到 PostgreSQL
 	//
 	// 性能验证：EXPLAIN QUERY PLAN SELECT ... WHERE provider=? AND service=? AND channel=? AND timestamp>=?
@@ -577,23 +576,4 @@ func (s *SQLiteStorage) GetHistory(provider, service, channel string, since time
 	reverseRecords(records)
 
 	return records, nil
-}
-
-// CleanOldRecords 清理旧记录
-func (s *SQLiteStorage) CleanOldRecords(days int) error {
-	ctx := s.effectiveCtx()
-	cutoff := time.Now().AddDate(0, 0, -days).Unix()
-	query := `DELETE FROM probe_history WHERE timestamp < ?`
-
-	result, err := s.db.ExecContext(ctx, query, cutoff)
-	if err != nil {
-		return fmt.Errorf("清理旧记录失败: %w", err)
-	}
-
-	deleted, _ := result.RowsAffected()
-	if deleted > 0 {
-		logger.Info("storage", "已清理旧记录", "deleted", deleted, "days", days)
-	}
-
-	return nil
 }

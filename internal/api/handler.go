@@ -308,7 +308,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	var timeFilter *TimeFilter
 	if timeFilterParam != "" {
 		// 时段过滤仅支持 7d 和 30d 周期
-		if period == "1h" || period == "24h" || period == "1d" {
+		if period == "90m" || period == "24h" || period == "1d" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": "时段过滤仅支持 7d 和 30d 周期",
 			})
@@ -416,9 +416,9 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 
 	logger.Info("api", "GetStatus 查询完成", "mode", mode, "monitors", len(filtered), "period", period, "align", align, "count", len(response))
 
-	// 确定 timeline 模式：1h 返回原始记录，其他返回聚合数据
+	// 确定 timeline 模式：90m 返回原始记录，其他返回聚合数据
 	timelineMode := "aggregated"
-	if period == "1h" {
+	if period == "90m" {
 		timelineMode = "raw"
 	}
 
@@ -693,8 +693,8 @@ func sanitizeProbeURL(rawURL string) string {
 // parsePeriod 解析时间范围（仅用于验证）
 func (h *Handler) parsePeriod(period string) (time.Duration, error) {
 	switch period {
-	case "1h":
-		return time.Hour, nil
+	case "90m":
+		return 90 * time.Minute, nil
 	case "24h", "1d":
 		return 24 * time.Hour, nil
 	case "7d":
@@ -708,18 +708,18 @@ func (h *Handler) parsePeriod(period string) (time.Duration, error) {
 
 // parseTimeRange 解析时间范围，返回 (startTime, endTime)
 // align 参数控制时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
-// 注意：1h 固定使用动态窗口，7d/30d 模式自动使用 day 对齐，忽略 align 参数
+// 注意：90m 固定使用动态窗口，7d/30d 模式自动使用 day 对齐，忽略 align 参数
 func (h *Handler) parseTimeRange(period, align string) (startTime, endTime time.Time) {
 	now := time.Now()
 
 	// 根据 period 计算时间范围
-	// 1h: 固定动态窗口
+	// 90m: 固定动态窗口
 	// 24h: 用户可选 align 模式
 	// 7d/30d: 强制使用 day 对齐（包含今天不完整数据）
 	switch period {
-	case "1h":
+	case "90m":
 		endTime = now // 动态滑动窗口：不对齐
-		startTime = endTime.Add(-time.Hour)
+		startTime = endTime.Add(-90 * time.Minute)
 	case "24h", "1d":
 		endTime = h.alignTimestamp(now, align)
 		startTime = endTime.Add(-24 * time.Hour)
@@ -783,7 +783,7 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 	// 根据 period 确定 bucket 策略
 	bucketCount, bucketWindow, format := h.determineBucketStrategy(period)
 
-	// 1h 模式：不聚合，直接返回原始记录
+	// 90m 模式：不聚合，直接返回原始记录
 	if bucketCount == 0 {
 		return h.buildRawTimeline(records, endTime, format, degradedWeight, timeFilter)
 	}
@@ -892,7 +892,7 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 	return buckets
 }
 
-// buildRawTimeline 将原始探测记录直接转换为时间轴（1h 模式专用，不聚合）
+// buildRawTimeline 将原始探测记录直接转换为时间轴（90m 模式专用，不聚合）
 func (h *Handler) buildRawTimeline(records []*storage.ProbeRecord, endTime time.Time, format string, degradedWeight float64, timeFilter *TimeFilter) []storage.TimePoint {
 	// 初始化为空切片，确保 JSON 序列化时返回 [] 而不是 null
 	timeline := make([]storage.TimePoint, 0)
@@ -932,7 +932,7 @@ func (h *Handler) buildRawTimeline(records []*storage.ProbeRecord, endTime time.
 // count=0 表示不聚合，返回原始记录
 func (h *Handler) determineBucketStrategy(period string) (count int, window time.Duration, format string) {
 	switch period {
-	case "1h":
+	case "90m":
 		return 0, 0, "15:04:05" // 不聚合，返回原始记录
 	case "24h", "1d":
 		return 24, time.Hour, "15:04"
@@ -967,7 +967,7 @@ func availabilityWeight(status int, degradedWeight float64) float64 {
 	}
 }
 
-// statusToAvailability 将单条状态映射为可用率百分比（1h 模式专用）
+// statusToAvailability 将单条状态映射为可用率百分比（90m 模式专用）
 func statusToAvailability(status int, degradedWeight float64) float64 {
 	switch status {
 	case 1: // 绿色

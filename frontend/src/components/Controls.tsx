@@ -299,7 +299,7 @@ export function Controls({
           {/* 时段筛选（仅 7d/30d 有效） */}
           <TimeFilterPicker
             value={timeFilter}
-            disabled={timeRange === '24h' || timeRange === '1h'}
+            disabled={timeRange === '24h' || timeRange === '90m'}
             onChange={onTimeFilterChange}
           />
         </div>

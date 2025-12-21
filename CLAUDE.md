@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-⚠️ 本文档为 AI 助手（如 Claude / ChatGPT）在此代码库中工作的内部指南，**优先由 AI 维护，人类贡献者通常不需要修改本文件**。  
+⚠️ 本文档为 AI 助手（如 Claude / ChatGPT）在此代码库中工作的内部指南，**优先由 AI 维护，人类贡献者通常不需要修改本文件**。
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
 ## 项目概览
@@ -695,7 +695,7 @@ curl http://localhost:8080/health
 curl http://localhost:8080/api/status
 
 # 查询参数：
-# - period: "24h", "7d", "30d" (默认: "24h")
+# - period: "90m", "24h", "7d", "30d" (默认: "24h")
 # - align: 时间对齐模式，"hour"=整点对齐 (可选)
 # - time_filter: 每日时段过滤，格式 HH:MM-HH:MM (UTC)，仅 7d/30d 可用
 # - provider: 按 provider 名称过滤

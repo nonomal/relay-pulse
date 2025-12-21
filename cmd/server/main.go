@@ -201,23 +201,6 @@ func main() {
 		}
 	}
 
-	// 启动定期清理任务（保留30天数据）
-	go func() {
-		ticker := time.NewTicker(24 * time.Hour)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				if err := store.CleanOldRecords(30); err != nil {
-					logger.Warn("main", "清理旧记录失败", "error", err)
-				}
-			}
-		}
-	}()
-
 	// 监听中断信号（优雅关闭）
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)

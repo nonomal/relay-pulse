@@ -139,10 +139,6 @@ func (s *PostgresStorage) Init() error {
 	//
 	// ⚠️ 维护注意事项：
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
-	// - CleanOldRecords() 的全表扫描是可接受的（低频维护操作）
-	// - 当数据量超过 10GB 或清理时间超过 10 秒时，考虑：
-	//   1. BRIN 索引：CREATE INDEX ... USING BRIN (timestamp)
-	//   2. 时间分区：PARTITION BY RANGE (timestamp)
 	//
 	// 性能验证：EXPLAIN ANALYZE SELECT ... WHERE provider=? AND service=? AND channel=? AND timestamp>=?
 	indexSQL := `
@@ -567,23 +563,4 @@ func (s *PostgresStorage) GetHistory(provider, service, channel string, since ti
 	reverseRecords(records)
 
 	return records, nil
-}
-
-// CleanOldRecords 清理旧记录
-func (s *PostgresStorage) CleanOldRecords(days int) error {
-	ctx := s.effectiveCtx()
-	cutoff := time.Now().AddDate(0, 0, -days).Unix()
-	query := `DELETE FROM probe_history WHERE timestamp < $1`
-
-	result, err := s.pool.Exec(ctx, query, cutoff)
-	if err != nil {
-		return fmt.Errorf("清理 PostgreSQL 旧记录失败: %w", err)
-	}
-
-	deleted := result.RowsAffected()
-	if deleted > 0 {
-		logger.Info("storage", "已清理旧记录 (PostgreSQL)", "deleted", deleted, "days", days)
-	}
-
-	return nil
 }

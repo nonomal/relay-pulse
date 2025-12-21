@@ -110,7 +110,7 @@ cat backup_20231128_120000.sql | docker exec -i relaypulse-postgres psql -U rela
 
 ### 清理旧数据
 
-RelayPulse 会自动清理 30 天前的数据。如需手动清理：
+RelayPulse 不会自动清理历史数据。如需手动清理：
 
 ```sql
 -- 删除 7 天前的数据

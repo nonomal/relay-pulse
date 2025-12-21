@@ -121,10 +121,6 @@ type Storage interface {
 	// 用于 7d/30d 场景优化，将 N 个监测项的 GetHistory 从 N 次往返降为 1 次
 	GetHistoryBatch(keys []MonitorKey, since time.Time) (map[MonitorKey][]*ProbeRecord, error)
 
-	// CleanOldRecords 清理旧记录（保留最近N天）
-	// 注意：仅按 timestamp 过滤，会触发全表扫描（低频操作可接受）
-	CleanOldRecords(days int) error
-
 	// MigrateChannelData 将 channel 为空的历史记录迁移到最新配置
 	// 注意：一次性操作，无需索引优化
 	MigrateChannelData(mappings []ChannelMigrationMapping) error

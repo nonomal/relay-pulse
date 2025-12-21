@@ -296,9 +296,8 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 ### 数据保留策略
 
-- 服务会自动保留最近 30 天的 `probe_history` 数据，后台定时器每 24 小时调用 `CleanOldRecords(30)` 删除更早的样本。
-- 该策略对 SQLite 与 PostgreSQL 均生效，无需额外配置即可防止数据库无限增长。
-- 保留窗口目前固定为 30 天，如需调整需修改源码或在 Issue 中提出新特性需求。
+- RelayPulse **不会自动清理历史数据**，数据会永久保留在数据库中。
+- 如需控制数据库大小，请参考下方的手动清理命令或配置外部定时任务。
 - 运维层面的验证与手动清理命令请参考 [运维手册 - 数据保留策略（历史文档，仅供参考）](../../archive/docs/user/operations.md#数据保留策略)。
 
 ### 监测项配置

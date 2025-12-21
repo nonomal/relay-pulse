@@ -53,7 +53,7 @@ if (import.meta.hot) {
 }
 
 /**
- * 判断是否为 1 小时窗口（原始记录模式）
+ * 判断是否为原始记录模式（90 分钟窗口）
  * 通过检测时间戳范围来判断，避免依赖外部传参
  */
 function isOneHourRange(points: HistoryPoint[]): boolean {
@@ -71,8 +71,8 @@ function isOneHourRange(points: HistoryPoint[]): boolean {
 
   const minTs = Math.min(...timestamps);
   const maxTs = Math.max(...timestamps);
-  // 时间跨度 <= 1 小时 (3600 秒) 视为 1h 模式
-  return (maxTs - minTs) <= 3600;
+  // 时间跨度 <= 90 分钟 (5400 秒) 视为 90m 模式
+  return (maxTs - minTs) <= 5400;
 }
 
 /**
@@ -86,7 +86,7 @@ export function aggregateHeatmap(
   points: HistoryPoint[],
   maxBlocks = 50
 ): HistoryPoint[] {
-  // 1h 模式不聚合（桌面/移动端一致展示原始数据）
+  // 90m 模式不聚合（桌面/移动端一致展示原始数据）
   if (isOneHourRange(points)) {
     return points;
   }
@@ -250,8 +250,8 @@ export function getAggregationFactor(timeRange: string): number {
 
   // 根据时间范围返回推荐的聚合因子
   switch (timeRange) {
-    case '1h':
-      return 1; // 1h 模式不聚合
+    case '90m':
+      return 1; // 90m 模式不聚合
     case '24h':
       return 2; // 48 点 → 24 块
     case '7d':
