@@ -89,7 +89,7 @@ var defaultBadgeDefs = map[string]BadgeDef{
 	"api_key_official": {
 		ID:      "api_key_official",
 		Kind:    BadgeKindSource,
-		Variant: BadgeVariantSuccess, // 绿色，表示官方
+		Variant: BadgeVariantInfo, // 蓝色，柔和
 		Weight:  100,
 	},
 }

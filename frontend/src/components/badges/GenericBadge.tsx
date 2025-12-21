@@ -103,6 +103,19 @@ function getVariantColorClass(variant: BadgeVariant): string {
  * 支持的图标：api_key_user, api_key_official
  * 未知 id 回退到基于 kind 的通用图标
  */
+/**
+ * 根据 badge.id 返回图标的额外样式类
+ * 用于调整特定徽标的显示效果
+ */
+function getBadgeIconClass(badgeId: string): string {
+  switch (badgeId) {
+    case 'api_key_official':
+      return 'opacity-60'; // 降低醒目程度
+    default:
+      return '';
+  }
+}
+
 function getBadgeIcon(badge: GenericBadgeType): FC<{ variant: BadgeVariant }> {
   switch (badge.id) {
     case 'api_key_user':
@@ -131,6 +144,7 @@ function getBadgeIcon(badge: GenericBadgeType): FC<{ variant: BadgeVariant }> {
 export function GenericBadge({ badge, className = '' }: GenericBadgeProps) {
   const { t } = useTranslation();
   const BadgeIcon = getBadgeIcon(badge);
+  const iconClass = getBadgeIconClass(badge.id);
 
   // tooltip 文本：优先使用 override，否则使用 i18n
   const tooltipText = badge.tooltip_override || t(`badges.generic.${badge.id}.tooltip`, { defaultValue: '' });
@@ -144,7 +158,9 @@ export function GenericBadge({ badge, className = '' }: GenericBadgeProps) {
       role="img"
       aria-label={tooltipText ? `${labelText}: ${tooltipText}` : labelText}
     >
-      <BadgeIcon variant={badge.variant} />
+      <span className={iconClass}>
+        <BadgeIcon variant={badge.variant} />
+      </span>
       {/* 延迟 tooltip - 悬停 700ms 后显示 */}
       {tooltipText && (
         <span className="absolute top-full left-0 mt-1 px-2 py-1 bg-elevated text-primary text-xs rounded opacity-0 group-hover/generic:opacity-100 pointer-events-none transition-opacity delay-700 whitespace-nowrap z-50">
