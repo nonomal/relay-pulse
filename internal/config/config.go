@@ -296,6 +296,22 @@ type SelfTestConfig struct {
 	ResultTTLDuration  time.Duration `yaml:"-" json:"-"`
 }
 
+// EventsConfig 状态订阅通知（事件）配置
+type EventsConfig struct {
+	// 是否启用事件功能（默认禁用）
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// 连续 N 次不可用触发 DOWN 事件（默认 2）
+	DownThreshold int `yaml:"down_threshold" json:"down_threshold"`
+
+	// 连续 N 次可用触发 UP 事件（默认 1）
+	UpThreshold int `yaml:"up_threshold" json:"up_threshold"`
+
+	// API 访问令牌（可选，空值表示无鉴权）
+	// 配置后需要在请求头中携带 Authorization: Bearer <token>
+	APIToken string `yaml:"api_token" json:"-"`
+}
+
 // AppConfig 应用配置
 type AppConfig struct {
 	// 巡检间隔（支持 Go duration 格式，例如 "30s"、"1m", "5m"）
@@ -382,6 +398,9 @@ type AppConfig struct {
 
 	// 自助测试功能配置
 	SelfTest SelfTestConfig `yaml:"selftest" json:"selftest"`
+
+	// 状态订阅通知（事件）配置
+	Events EventsConfig `yaml:"events" json:"events"`
 
 	Monitors []ServiceConfig `yaml:"monitors"`
 }
@@ -715,6 +734,20 @@ func (c *AppConfig) Normalize() error {
 			c.SelfTest.ResultTTL = "2m"
 		}
 		c.SelfTest.ResultTTLDuration = d
+	}
+
+	// Events 配置默认值
+	if c.Events.DownThreshold == 0 {
+		c.Events.DownThreshold = 2 // 默认连续 2 次不可用触发 DOWN
+	}
+	if c.Events.UpThreshold == 0 {
+		c.Events.UpThreshold = 1 // 默认 1 次可用触发 UP
+	}
+	if c.Events.DownThreshold < 1 {
+		return fmt.Errorf("events.down_threshold 必须 >= 1，当前值: %d", c.Events.DownThreshold)
+	}
+	if c.Events.UpThreshold < 1 {
+		return fmt.Errorf("events.up_threshold 必须 >= 1，当前值: %d", c.Events.UpThreshold)
 	}
 
 	// 存储配置默认值
@@ -1194,6 +1227,7 @@ func (c *AppConfig) Clone() *AppConfig {
 			MinLevel:  c.SponsorPin.MinLevel,
 		},
 		SelfTest: c.SelfTest, // SelfTest 是值类型，直接复制
+		Events:   c.Events,   // Events 是值类型，直接复制
 		Monitors: make([]ServiceConfig, len(c.Monitors)),
 	}
 	copy(clone.DisabledProviders, c.DisabledProviders)

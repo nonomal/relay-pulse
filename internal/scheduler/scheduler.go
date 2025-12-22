@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"monitor/internal/config"
+	"monitor/internal/events"
 	"monitor/internal/logger"
 	"monitor/internal/monitor"
 	"monitor/internal/storage"
@@ -51,7 +52,8 @@ func (h *taskHeap) Pop() any {
 // Scheduler 调度器（最小堆调度架构）
 // 支持每个监测项独立的巡检间隔
 type Scheduler struct {
-	prober *monitor.Prober
+	prober       *monitor.Prober
+	eventService *events.Service // 事件服务（可选）
 
 	mu      sync.Mutex
 	running bool
@@ -75,6 +77,14 @@ func NewScheduler(store storage.Storage, interval time.Duration) *Scheduler {
 		fallback: interval,
 		wakeCh:   make(chan struct{}, 1),
 	}
+}
+
+// SetEventService 设置事件服务
+// 用于探测完成后检测状态变更并产生事件
+func (s *Scheduler) SetEventService(svc *events.Service) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.eventService = svc
 }
 
 // Start 启动调度器
@@ -371,6 +381,7 @@ func (s *Scheduler) runTask(t *task) {
 	s.mu.Lock()
 	ctx := s.ctx
 	sem := s.sem
+	eventSvc := s.eventService
 	s.mu.Unlock()
 
 	if ctx == nil || sem == nil {
@@ -389,9 +400,23 @@ func (s *Scheduler) runTask(t *task) {
 		defer func() { <-sem }()
 
 		result := s.prober.Probe(ctx, &m)
-		if err := s.prober.SaveResult(result); err != nil {
+		record, err := s.prober.SaveResult(result)
+		if err != nil {
 			logger.Error("scheduler", "保存结果失败",
 				"provider", m.Provider, "service", m.Service, "channel", m.Channel, "error", err)
+			return
+		}
+
+		// 事件检测（如果启用）
+		if eventSvc != nil && eventSvc.IsEnabled() {
+			if event, err := eventSvc.ProcessRecord(record); err != nil {
+				logger.Error("scheduler", "事件检测失败",
+					"provider", m.Provider, "service", m.Service, "channel", m.Channel, "error", err)
+			} else if event != nil {
+				logger.Info("scheduler", "检测到状态变更",
+					"provider", m.Provider, "service", m.Service, "channel", m.Channel,
+					"event_type", event.EventType, "from", event.FromStatus, "to", event.ToStatus)
+			}
 		}
 	}(t.monitor)
 }

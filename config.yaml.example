@@ -74,6 +74,22 @@ selftest:
   # - 基于 Token Bucket 的 IP 级速率限制
 
 # ============================================
+# 事件通知配置（状态订阅）
+# ============================================
+# 用于订阅服务状态变更事件
+# 外部系统（如 Cloudflare Worker）可轮询 /api/events 获取事件
+# 然后触发通知（如 Telegram 消息）
+events:
+  enabled: false          # 是否启用事件功能（默认 false）
+  down_threshold: 2       # 连续 N 次不可用触发 DOWN 事件（默认 2）
+  up_threshold: 1         # 连续 N 次可用触发 UP 事件（默认 1）
+  api_token: ""           # API 访问令牌（空=无鉴权，建议生产环境配置）
+  # API 端点：
+  # - GET /api/events?since_id=0&limit=100  获取事件列表
+  # - GET /api/events/latest                获取最新事件ID
+  # 状态映射：绿色/黄色 → 可用，红色 → 不可用
+
+# ============================================
 # 存储配置（支持 SQLite 和 PostgreSQL）
 # ============================================
 storage:

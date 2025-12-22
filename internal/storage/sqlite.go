@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -111,6 +112,11 @@ func (s *SQLiteStorage) Init() error {
 	`
 	if _, err := s.db.ExecContext(ctx, indexSQL); err != nil {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)
+	}
+
+	// 事件功能相关表
+	if err := s.initEventTables(ctx); err != nil {
+		return err
 	}
 
 	return nil
@@ -576,4 +582,296 @@ func (s *SQLiteStorage) GetHistory(provider, service, channel string, since time
 	reverseRecords(records)
 
 	return records, nil
+}
+
+// ===== 状态订阅通知（事件）相关方法 =====
+
+// initEventTables 初始化事件相关表
+func (s *SQLiteStorage) initEventTables(ctx context.Context) error {
+	// 服务状态表（状态机持久化）
+	serviceStatesSchema := `
+	CREATE TABLE IF NOT EXISTS service_states (
+		provider TEXT NOT NULL,
+		service TEXT NOT NULL,
+		channel TEXT NOT NULL DEFAULT '',
+		stable_available INTEGER NOT NULL DEFAULT -1,
+		streak_count INTEGER NOT NULL DEFAULT 0,
+		streak_status INTEGER NOT NULL DEFAULT -1,
+		last_record_id INTEGER,
+		last_timestamp INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (provider, service, channel)
+	);
+	`
+	if _, err := s.db.ExecContext(ctx, serviceStatesSchema); err != nil {
+		return fmt.Errorf("创建 service_states 表失败: %w", err)
+	}
+
+	// 状态事件表
+	statusEventsSchema := `
+	CREATE TABLE IF NOT EXISTS status_events (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		provider TEXT NOT NULL,
+		service TEXT NOT NULL,
+		channel TEXT NOT NULL DEFAULT '',
+		event_type TEXT NOT NULL,
+		from_status INTEGER NOT NULL,
+		to_status INTEGER NOT NULL,
+		trigger_record_id INTEGER NOT NULL,
+		observed_at INTEGER NOT NULL,
+		created_at INTEGER NOT NULL,
+		meta TEXT
+	);
+	`
+	if _, err := s.db.ExecContext(ctx, statusEventsSchema); err != nil {
+		return fmt.Errorf("创建 status_events 表失败: %w", err)
+	}
+
+	// 创建索引
+	eventsIndexSQL := `
+	CREATE INDEX IF NOT EXISTS idx_status_events_psc_id
+	ON status_events(provider, service, channel, id);
+	`
+	if _, err := s.db.ExecContext(ctx, eventsIndexSQL); err != nil {
+		return fmt.Errorf("创建 status_events 索引失败: %w", err)
+	}
+
+	// 创建唯一约束索引（幂等性保障）
+	uniqueIndexSQL := `
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_status_events_unique
+	ON status_events(provider, service, channel, event_type, trigger_record_id);
+	`
+	if _, err := s.db.ExecContext(ctx, uniqueIndexSQL); err != nil {
+		return fmt.Errorf("创建 status_events 唯一索引失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetServiceState 获取服务状态机持久化状态
+func (s *SQLiteStorage) GetServiceState(provider, service, channel string) (*ServiceState, error) {
+	ctx := s.effectiveCtx()
+	query := `
+		SELECT provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp
+		FROM service_states
+		WHERE provider = ? AND service = ? AND channel = ?
+	`
+
+	var state ServiceState
+	var lastRecordID sql.NullInt64
+
+	err := s.db.QueryRowContext(ctx, query, provider, service, channel).Scan(
+		&state.Provider,
+		&state.Service,
+		&state.Channel,
+		&state.StableAvailable,
+		&state.StreakCount,
+		&state.StreakStatus,
+		&lastRecordID,
+		&state.LastTimestamp,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil // 尚未初始化
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询服务状态失败: %w", err)
+	}
+
+	if lastRecordID.Valid {
+		state.LastRecordID = lastRecordID.Int64
+	}
+
+	return &state, nil
+}
+
+// UpsertServiceState 写入或更新服务状态机持久化状态
+func (s *SQLiteStorage) UpsertServiceState(state *ServiceState) error {
+	ctx := s.effectiveCtx()
+	query := `
+		INSERT INTO service_states (provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(provider, service, channel) DO UPDATE SET
+			stable_available = excluded.stable_available,
+			streak_count = excluded.streak_count,
+			streak_status = excluded.streak_status,
+			last_record_id = excluded.last_record_id,
+			last_timestamp = excluded.last_timestamp
+	`
+
+	_, err := s.db.ExecContext(ctx, query,
+		state.Provider,
+		state.Service,
+		state.Channel,
+		state.StableAvailable,
+		state.StreakCount,
+		state.StreakStatus,
+		state.LastRecordID,
+		state.LastTimestamp,
+	)
+
+	if err != nil {
+		return fmt.Errorf("更新服务状态失败: %w", err)
+	}
+
+	return nil
+}
+
+// SaveStatusEvent 保存状态变更事件
+func (s *SQLiteStorage) SaveStatusEvent(event *StatusEvent) error {
+	ctx := s.effectiveCtx()
+
+	// 序列化 meta 为 JSON
+	var metaJSON sql.NullString
+	if event.Meta != nil && len(event.Meta) > 0 {
+		metaBytes, err := json.Marshal(event.Meta)
+		if err != nil {
+			return fmt.Errorf("序列化事件 meta 失败: %w", err)
+		}
+		metaJSON = sql.NullString{String: string(metaBytes), Valid: true}
+	}
+
+	query := `
+		INSERT INTO status_events (provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	result, err := s.db.ExecContext(ctx, query,
+		event.Provider,
+		event.Service,
+		event.Channel,
+		string(event.EventType),
+		event.FromStatus,
+		event.ToStatus,
+		event.TriggerRecordID,
+		event.ObservedAt,
+		event.CreatedAt,
+		metaJSON,
+	)
+
+	if err != nil {
+		// 检查是否是唯一约束冲突（幂等处理）
+		if strings.Contains(err.Error(), "UNIQUE constraint failed") {
+			return nil // 重复事件，视为成功
+		}
+		return fmt.Errorf("保存状态事件失败: %w", err)
+	}
+
+	id, _ := result.LastInsertId()
+	event.ID = id
+	return nil
+}
+
+// GetStatusEvents 查询状态变更事件列表
+func (s *SQLiteStorage) GetStatusEvents(sinceID int64, limit int, filters *EventFilters) ([]*StatusEvent, error) {
+	ctx := s.effectiveCtx()
+
+	var conditions []string
+	var args []any
+
+	// 游标条件
+	conditions = append(conditions, "id > ?")
+	args = append(args, sinceID)
+
+	// 可选过滤条件
+	if filters != nil {
+		if filters.Provider != "" {
+			conditions = append(conditions, "provider = ?")
+			args = append(args, filters.Provider)
+		}
+		if filters.Service != "" {
+			conditions = append(conditions, "service = ?")
+			args = append(args, filters.Service)
+		}
+		if filters.Channel != "" {
+			conditions = append(conditions, "channel = ?")
+			args = append(args, filters.Channel)
+		}
+		if len(filters.Types) > 0 {
+			placeholders := make([]string, len(filters.Types))
+			for i, t := range filters.Types {
+				placeholders[i] = "?"
+				args = append(args, string(t))
+			}
+			conditions = append(conditions, "event_type IN ("+strings.Join(placeholders, ",")+")")
+		}
+	}
+
+	// 限制条数
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta
+		FROM status_events
+		WHERE %s
+		ORDER BY id ASC
+		LIMIT ?
+	`, strings.Join(conditions, " AND "))
+	args = append(args, limit)
+
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询状态事件失败: %w", err)
+	}
+	defer rows.Close()
+
+	var events []*StatusEvent
+	for rows.Next() {
+		var event StatusEvent
+		var eventTypeStr string
+		var metaJSON sql.NullString
+
+		err := rows.Scan(
+			&event.ID,
+			&event.Provider,
+			&event.Service,
+			&event.Channel,
+			&eventTypeStr,
+			&event.FromStatus,
+			&event.ToStatus,
+			&event.TriggerRecordID,
+			&event.ObservedAt,
+			&event.CreatedAt,
+			&metaJSON,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描状态事件失败: %w", err)
+		}
+
+		event.EventType = EventType(eventTypeStr)
+
+		// 反序列化 meta
+		if metaJSON.Valid && metaJSON.String != "" {
+			var meta map[string]any
+			if err := json.Unmarshal([]byte(metaJSON.String), &meta); err == nil {
+				event.Meta = meta
+			}
+		}
+
+		events = append(events, &event)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代状态事件失败: %w", err)
+	}
+
+	return events, nil
+}
+
+// GetLatestEventID 获取最新事件 ID
+func (s *SQLiteStorage) GetLatestEventID() (int64, error) {
+	ctx := s.effectiveCtx()
+	query := `SELECT COALESCE(MAX(id), 0) FROM status_events`
+
+	var latestID int64
+	err := s.db.QueryRowContext(ctx, query).Scan(&latestID)
+	if err != nil {
+		return 0, fmt.Errorf("查询最新事件 ID 失败: %w", err)
+	}
+
+	return latestID, nil
 }

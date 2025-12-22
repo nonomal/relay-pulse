@@ -150,6 +150,11 @@ func (s *PostgresStorage) Init() error {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)
 	}
 
+	// 事件功能相关表
+	if err := s.initEventTables(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -563,4 +568,285 @@ func (s *PostgresStorage) GetHistory(provider, service, channel string, since ti
 	reverseRecords(records)
 
 	return records, nil
+}
+
+// ===== 状态订阅通知（事件）相关方法 =====
+
+// initEventTables 初始化事件相关表
+func (s *PostgresStorage) initEventTables(ctx context.Context) error {
+	// 服务状态表（状态机持久化）
+	serviceStatesSchema := `
+	CREATE TABLE IF NOT EXISTS service_states (
+		provider TEXT NOT NULL,
+		service TEXT NOT NULL,
+		channel TEXT NOT NULL DEFAULT '',
+		stable_available INTEGER NOT NULL DEFAULT -1,
+		streak_count INTEGER NOT NULL DEFAULT 0,
+		streak_status INTEGER NOT NULL DEFAULT -1,
+		last_record_id BIGINT,
+		last_timestamp BIGINT NOT NULL DEFAULT 0,
+		PRIMARY KEY (provider, service, channel)
+	);
+	`
+	if _, err := s.pool.Exec(ctx, serviceStatesSchema); err != nil {
+		return fmt.Errorf("创建 service_states 表失败 (PostgreSQL): %w", err)
+	}
+
+	// 状态事件表
+	statusEventsSchema := `
+	CREATE TABLE IF NOT EXISTS status_events (
+		id BIGSERIAL PRIMARY KEY,
+		provider TEXT NOT NULL,
+		service TEXT NOT NULL,
+		channel TEXT NOT NULL DEFAULT '',
+		event_type TEXT NOT NULL,
+		from_status INTEGER NOT NULL,
+		to_status INTEGER NOT NULL,
+		trigger_record_id BIGINT NOT NULL,
+		observed_at BIGINT NOT NULL,
+		created_at BIGINT NOT NULL,
+		meta JSONB
+	);
+	`
+	if _, err := s.pool.Exec(ctx, statusEventsSchema); err != nil {
+		return fmt.Errorf("创建 status_events 表失败 (PostgreSQL): %w", err)
+	}
+
+	// 创建索引
+	eventsIndexSQL := `
+	CREATE INDEX IF NOT EXISTS idx_status_events_psc_id
+	ON status_events(provider, service, channel, id);
+	`
+	if _, err := s.pool.Exec(ctx, eventsIndexSQL); err != nil {
+		return fmt.Errorf("创建 status_events 索引失败 (PostgreSQL): %w", err)
+	}
+
+	// 创建唯一约束索引（幂等性保障）
+	uniqueIndexSQL := `
+	CREATE UNIQUE INDEX IF NOT EXISTS idx_status_events_unique
+	ON status_events(provider, service, channel, event_type, trigger_record_id);
+	`
+	if _, err := s.pool.Exec(ctx, uniqueIndexSQL); err != nil {
+		return fmt.Errorf("创建 status_events 唯一索引失败 (PostgreSQL): %w", err)
+	}
+
+	return nil
+}
+
+// GetServiceState 获取服务状态机持久化状态
+func (s *PostgresStorage) GetServiceState(provider, service, channel string) (*ServiceState, error) {
+	ctx := s.effectiveCtx()
+	query := `
+		SELECT provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp
+		FROM service_states
+		WHERE provider = $1 AND service = $2 AND channel = $3
+	`
+
+	var state ServiceState
+	var lastRecordID *int64
+
+	err := s.pool.QueryRow(ctx, query, provider, service, channel).Scan(
+		&state.Provider,
+		&state.Service,
+		&state.Channel,
+		&state.StableAvailable,
+		&state.StreakCount,
+		&state.StreakStatus,
+		&lastRecordID,
+		&state.LastTimestamp,
+	)
+
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, nil // 尚未初始化
+		}
+		return nil, fmt.Errorf("查询服务状态失败 (PostgreSQL): %w", err)
+	}
+
+	if lastRecordID != nil {
+		state.LastRecordID = *lastRecordID
+	}
+
+	return &state, nil
+}
+
+// UpsertServiceState 写入或更新服务状态机持久化状态
+func (s *PostgresStorage) UpsertServiceState(state *ServiceState) error {
+	ctx := s.effectiveCtx()
+	query := `
+		INSERT INTO service_states (provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT(provider, service, channel) DO UPDATE SET
+			stable_available = EXCLUDED.stable_available,
+			streak_count = EXCLUDED.streak_count,
+			streak_status = EXCLUDED.streak_status,
+			last_record_id = EXCLUDED.last_record_id,
+			last_timestamp = EXCLUDED.last_timestamp
+	`
+
+	_, err := s.pool.Exec(ctx, query,
+		state.Provider,
+		state.Service,
+		state.Channel,
+		state.StableAvailable,
+		state.StreakCount,
+		state.StreakStatus,
+		state.LastRecordID,
+		state.LastTimestamp,
+	)
+
+	if err != nil {
+		return fmt.Errorf("更新服务状态失败 (PostgreSQL): %w", err)
+	}
+
+	return nil
+}
+
+// SaveStatusEvent 保存状态变更事件
+func (s *PostgresStorage) SaveStatusEvent(event *StatusEvent) error {
+	ctx := s.effectiveCtx()
+
+	query := `
+		INSERT INTO status_events (provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (provider, service, channel, event_type, trigger_record_id) DO NOTHING
+		RETURNING id
+	`
+
+	err := s.pool.QueryRow(ctx, query,
+		event.Provider,
+		event.Service,
+		event.Channel,
+		string(event.EventType),
+		event.FromStatus,
+		event.ToStatus,
+		event.TriggerRecordID,
+		event.ObservedAt,
+		event.CreatedAt,
+		event.Meta,
+	).Scan(&event.ID)
+
+	if err != nil {
+		// ON CONFLICT DO NOTHING 不返回行，这是幂等处理
+		if err.Error() == "no rows in result set" {
+			return nil // 重复事件，视为成功
+		}
+		return fmt.Errorf("保存状态事件失败 (PostgreSQL): %w", err)
+	}
+
+	return nil
+}
+
+// GetStatusEvents 查询状态变更事件列表
+func (s *PostgresStorage) GetStatusEvents(sinceID int64, limit int, filters *EventFilters) ([]*StatusEvent, error) {
+	ctx := s.effectiveCtx()
+
+	var conditions []string
+	var args []any
+	argIndex := 1
+
+	// 游标条件
+	conditions = append(conditions, fmt.Sprintf("id > $%d", argIndex))
+	args = append(args, sinceID)
+	argIndex++
+
+	// 可选过滤条件
+	if filters != nil {
+		if filters.Provider != "" {
+			conditions = append(conditions, fmt.Sprintf("provider = $%d", argIndex))
+			args = append(args, filters.Provider)
+			argIndex++
+		}
+		if filters.Service != "" {
+			conditions = append(conditions, fmt.Sprintf("service = $%d", argIndex))
+			args = append(args, filters.Service)
+			argIndex++
+		}
+		if filters.Channel != "" {
+			conditions = append(conditions, fmt.Sprintf("channel = $%d", argIndex))
+			args = append(args, filters.Channel)
+			argIndex++
+		}
+		if len(filters.Types) > 0 {
+			placeholders := make([]string, len(filters.Types))
+			for i, t := range filters.Types {
+				placeholders[i] = fmt.Sprintf("$%d", argIndex)
+				args = append(args, string(t))
+				argIndex++
+			}
+			conditions = append(conditions, "event_type IN ("+strings.Join(placeholders, ",")+")")
+		}
+	}
+
+	// 限制条数
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		limit = 500
+	}
+
+	query := fmt.Sprintf(`
+		SELECT id, provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta
+		FROM status_events
+		WHERE %s
+		ORDER BY id ASC
+		LIMIT $%d
+	`, strings.Join(conditions, " AND "), argIndex)
+	args = append(args, limit)
+
+	rows, err := s.pool.Query(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询状态事件失败 (PostgreSQL): %w", err)
+	}
+	defer rows.Close()
+
+	var events []*StatusEvent
+	for rows.Next() {
+		var event StatusEvent
+		var eventTypeStr string
+		var meta map[string]any
+
+		err := rows.Scan(
+			&event.ID,
+			&event.Provider,
+			&event.Service,
+			&event.Channel,
+			&eventTypeStr,
+			&event.FromStatus,
+			&event.ToStatus,
+			&event.TriggerRecordID,
+			&event.ObservedAt,
+			&event.CreatedAt,
+			&meta,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描状态事件失败 (PostgreSQL): %w", err)
+		}
+
+		event.EventType = EventType(eventTypeStr)
+		event.Meta = meta
+
+		events = append(events, &event)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代状态事件失败 (PostgreSQL): %w", err)
+	}
+
+	return events, nil
+}
+
+// GetLatestEventID 获取最新事件 ID
+func (s *PostgresStorage) GetLatestEventID() (int64, error) {
+	ctx := s.effectiveCtx()
+	query := `SELECT COALESCE(MAX(id), 0) FROM status_events`
+
+	var latestID int64
+	err := s.pool.QueryRow(ctx, query).Scan(&latestID)
+	if err != nil {
+		return 0, fmt.Errorf("查询最新事件 ID 失败 (PostgreSQL): %w", err)
+	}
+
+	return latestID, nil
 }

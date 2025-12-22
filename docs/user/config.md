@@ -161,6 +161,201 @@ sponsor_pin:
   - `true`: 将监测项均匀分散在整个巡检周期内执行（推荐）
   - `false`: 所有监测项同时执行（仅用于调试或压测）
 
+### 事件通知配置
+
+用于订阅服务状态变更事件，支持外部系统（如 Cloudflare Worker）轮询获取事件并触发通知（如 Telegram 消息）。
+
+```yaml
+events:
+  enabled: true           # 是否启用事件功能（默认 false）
+  down_threshold: 2       # 连续 N 次不可用触发 DOWN 事件（默认 2）
+  up_threshold: 1         # 连续 N 次可用触发 UP 事件（默认 1）
+  api_token: ""           # API 访问令牌（空=无鉴权）
+```
+
+#### `events.enabled`
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 是否启用事件检测和 API 端点
+
+#### `events.down_threshold`
+- **类型**: integer
+- **默认值**: `2`
+- **说明**: 连续多少次不可用（红色状态）才触发 DOWN 事件
+- **设计意图**: 避免偶发故障产生误报
+
+#### `events.up_threshold`
+- **类型**: integer
+- **默认值**: `1`
+- **说明**: 连续多少次可用（绿色或黄色状态）才触发 UP 事件
+- **设计意图**: 服务恢复后尽快通知
+
+#### `events.api_token`
+- **类型**: string
+- **默认值**: `""`（空，无鉴权）
+- **说明**: 事件 API 的访问令牌，用于保护 `/api/events` 端点
+- **使用方式**: 请求时需在 Header 中携带 `Authorization: Bearer <token>`
+
+#### 事件 API 端点
+
+**获取事件列表**:
+```bash
+# 无鉴权模式
+curl "http://localhost:8080/api/events?since_id=0&limit=100"
+
+# 有鉴权模式
+curl -H "Authorization: Bearer your-token" \
+     "http://localhost:8080/api/events?since_id=0&limit=100"
+
+# 响应示例
+{
+  "events": [{
+    "id": 123,
+    "provider": "88code",
+    "service": "cc",
+    "channel": "standard",
+    "type": "DOWN",
+    "from_status": 1,
+    "to_status": 0,
+    "trigger_record_id": 45678,
+    "observed_at": 1703232000,
+    "created_at": 1703232001,
+    "meta": { "http_code": 503, "sub_status": "server_error" }
+  }],
+  "meta": { "next_since_id": 123, "has_more": false, "count": 1 }
+}
+```
+
+**获取最新事件 ID**（用于初始化游标）:
+```bash
+curl "http://localhost:8080/api/events/latest"
+
+# 响应
+{ "latest_id": 123 }
+```
+
+**查询参数**:
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `since_id` | integer | `0` | 游标，返回 ID 大于此值的事件 |
+| `limit` | integer | `100` | 返回数量上限（最大 500）|
+| `provider` | string | - | 按服务商过滤 |
+| `service` | string | - | 按服务类型过滤 |
+| `channel` | string | - | 按通道过滤 |
+| `types` | string | - | 按事件类型过滤，逗号分隔（`DOWN,UP`）|
+
+#### 事件类型说明
+
+| 类型 | 说明 | 触发条件 |
+|------|------|----------|
+| `DOWN` | 服务不可用 | 稳定态为"可用"，连续 `down_threshold` 次红色 |
+| `UP` | 服务恢复 | 稳定态为"不可用"，连续 `up_threshold` 次可用（绿色或黄色）|
+
+#### 状态映射规则
+
+- **绿色（status=1）** → 可用
+- **黄色（status=2）** → 可用（视为可用，不触发 DOWN）
+- **红色（status=0）** → 不可用
+
+#### 使用示例：Cloudflare Worker 集成
+
+```javascript
+// Cloudflare Worker 示例 - 轮询事件并发送 Telegram 通知
+// 环境变量：RELAY_PULSE_URL, API_TOKEN, TG_BOT_TOKEN, TG_CHAT_ID
+
+export default {
+  // 定时触发（建议每分钟执行）
+  async scheduled(event, env, ctx) {
+    // 从 KV 获取上次处理的事件 ID
+    const lastEventId = parseInt(await env.KV.get('LAST_EVENT_ID') || '0');
+
+    // 获取新事件
+    const response = await fetch(
+      `${env.RELAY_PULSE_URL}/api/events?since_id=${lastEventId}&limit=100`,
+      {
+        headers: {
+          'Authorization': `Bearer ${env.API_TOKEN}`,
+          'Accept-Encoding': 'gzip'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      console.error('获取事件失败:', response.status);
+      return;
+    }
+
+    const data = await response.json();
+
+    // 处理每个事件
+    for (const event of data.events) {
+      await sendTelegramMessage(env, event);
+    }
+
+    // 更新游标
+    if (data.meta.next_since_id > lastEventId) {
+      await env.KV.put('LAST_EVENT_ID', data.meta.next_since_id.toString());
+    }
+  }
+};
+
+// 发送 Telegram 消息
+async function sendTelegramMessage(env, event) {
+  const emoji = event.type === 'DOWN' ? '🔴' : '🟢';
+  const statusText = event.type === 'DOWN' ? '服务不可用' : '服务已恢复';
+
+  const text = `${emoji} <b>${statusText}</b>
+
+服务商: ${event.provider}
+服务: ${event.service}${event.channel ? `\n通道: ${event.channel}` : ''}
+状态变更: ${event.from_status} → ${event.to_status}
+检测时间: ${new Date(event.observed_at * 1000).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' })}`;
+
+  await fetch(`https://api.telegram.org/bot${env.TG_BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: env.TG_CHAT_ID,
+      text: text,
+      parse_mode: 'HTML'
+    })
+  });
+}
+```
+
+**Cloudflare Worker 配置**：
+
+1. 创建 KV 命名空间用于存储游标：
+   ```bash
+   wrangler kv:namespace create "RELAY_PULSE_KV"
+   ```
+
+2. 配置 `wrangler.toml`：
+   ```toml
+   name = "relay-pulse-notifier"
+   main = "src/index.js"
+
+   [triggers]
+   crons = ["* * * * *"]  # 每分钟执行
+
+   [[kv_namespaces]]
+   binding = "KV"
+   id = "<your-kv-namespace-id>"
+
+   [vars]
+   RELAY_PULSE_URL = "https://your-relay-pulse-domain.com"
+
+   # 敏感信息使用 secrets
+   # wrangler secret put API_TOKEN
+   # wrangler secret put TG_BOT_TOKEN
+   # wrangler secret put TG_CHAT_ID
+   ```
+
+3. 部署：
+   ```bash
+   wrangler deploy
+   ```
+
 #### `public_base_url`
 - **类型**: string
 - **默认值**: `"https://relaypulse.top"`

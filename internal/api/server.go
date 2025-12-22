@@ -63,8 +63,8 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 	corsConfig := cors.Config{
 		AllowOrigins:     allowedOrigins,
 		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type"},
-		ExposeHeaders:    []string{"Content-Length"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID", "Accept-Encoding"},
+		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
 	}
@@ -132,6 +132,10 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 
 	// 注册 API 路由
 	router.GET("/api/status", handler.GetStatus)
+
+	// 事件 API 路由
+	router.GET("/api/events", handler.GetEvents)
+	router.GET("/api/events/latest", handler.GetLatestEventID)
 
 	// 自助测试 API 路由（如果启用）
 	router.POST("/api/selftest", handler.CreateSelfTest)

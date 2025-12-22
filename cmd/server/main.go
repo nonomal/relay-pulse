@@ -11,6 +11,7 @@ import (
 	"monitor/internal/api"
 	"monitor/internal/buildinfo"
 	"monitor/internal/config"
+	"monitor/internal/events"
 	"monitor/internal/logger"
 	"monitor/internal/scheduler"
 	"monitor/internal/selftest"
@@ -114,6 +115,23 @@ func main() {
 		interval = time.Minute
 	}
 	sched := scheduler.NewScheduler(store, interval)
+
+	// 创建事件服务（如果启用）
+	eventSvc, err := events.NewService(events.DetectorConfig{
+		DownThreshold: cfg.Events.DownThreshold,
+		UpThreshold:   cfg.Events.UpThreshold,
+	}, store, cfg.Events.Enabled)
+	if err != nil {
+		logger.Error("main", "创建事件服务失败", "error", err)
+		os.Exit(1)
+	}
+	if eventSvc.IsEnabled() {
+		sched.SetEventService(eventSvc)
+		logger.Info("main", "事件服务已启用",
+			"down_threshold", cfg.Events.DownThreshold,
+			"up_threshold", cfg.Events.UpThreshold)
+	}
+
 	sched.Start(ctx, cfg)
 
 	// 创建API服务器

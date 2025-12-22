@@ -370,7 +370,8 @@ func extractTextFromSSE(body []byte) string {
 }
 
 // SaveResult 保存探测结果到存储
-func (p *Prober) SaveResult(result *ProbeResult) error {
+// 返回保存后的记录（包含生成的 ID）和错误
+func (p *Prober) SaveResult(result *ProbeResult) (*storage.ProbeRecord, error) {
 	record := &storage.ProbeRecord{
 		Provider:  result.Provider,
 		Service:   result.Service,
@@ -382,7 +383,10 @@ func (p *Prober) SaveResult(result *ProbeResult) error {
 		Timestamp: result.Timestamp,
 	}
 
-	return p.storage.SaveRecord(record)
+	if err := p.storage.SaveRecord(record); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 // Close 关闭探测器

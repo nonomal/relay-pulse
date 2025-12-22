@@ -83,6 +83,76 @@ type MonitorKey struct {
 	Channel  string
 }
 
+// ===== 状态订阅通知（事件）相关类型 =====
+
+// EventType 事件类型
+type EventType string
+
+const (
+	EventTypeDown EventType = "DOWN" // 可用 → 不可用
+	EventTypeUp   EventType = "UP"   // 不可用 → 可用
+)
+
+// ServiceState 服务状态机持久化状态
+// 用于追踪每个监测项的"稳定状态"和抖动计数器
+type ServiceState struct {
+	Provider string
+	Service  string
+	Channel  string
+
+	// StableAvailable 稳定态可用性：-1=未初始化, 0=不可用, 1=可用
+	StableAvailable int
+
+	// StreakCount 当前连续次数（累计相同可用性方向的次数）
+	StreakCount int
+
+	// StreakStatus 连续状态方向：0=不可用, 1=可用
+	StreakStatus int
+
+	// LastRecordID 最后处理的探测记录 ID
+	LastRecordID int64
+
+	// LastTimestamp 最后更新时间戳（Unix 秒）
+	LastTimestamp int64
+}
+
+// StatusEvent 状态变更事件
+type StatusEvent struct {
+	ID       int64
+	Provider string
+	Service  string
+	Channel  string
+
+	// EventType 事件类型（DOWN/UP）
+	EventType EventType
+
+	// FromStatus 变更前状态码（0/1/2）
+	FromStatus int
+
+	// ToStatus 变更后状态码（0/1/2）
+	ToStatus int
+
+	// TriggerRecordID 触发该事件的探测记录 ID
+	TriggerRecordID int64
+
+	// ObservedAt 探测时间（来自 ProbeRecord.Timestamp）
+	ObservedAt int64
+
+	// CreatedAt 事件创建时间（Unix 秒）
+	CreatedAt int64
+
+	// Meta 元数据（JSON 格式，包含 http_code, latency, sub_status 等）
+	Meta map[string]any
+}
+
+// EventFilters 事件查询过滤器
+type EventFilters struct {
+	Provider string      // 按 provider 过滤（可选）
+	Service  string      // 按 service 过滤（可选）
+	Channel  string      // 按 channel 过滤（可选）
+	Types    []EventType // 按事件类型过滤（可选，如 ["DOWN", "UP"]）
+}
+
 // Storage 存储接口
 //
 // 索引依赖说明：
@@ -124,4 +194,27 @@ type Storage interface {
 	// MigrateChannelData 将 channel 为空的历史记录迁移到最新配置
 	// 注意：一次性操作，无需索引优化
 	MigrateChannelData(mappings []ChannelMigrationMapping) error
+
+	// ===== 状态订阅通知（事件）相关方法 =====
+
+	// GetServiceState 获取服务状态机持久化状态
+	// 返回 nil, nil 表示该监测项尚未初始化状态
+	GetServiceState(provider, service, channel string) (*ServiceState, error)
+
+	// UpsertServiceState 写入或更新服务状态机持久化状态
+	UpsertServiceState(state *ServiceState) error
+
+	// SaveStatusEvent 保存状态变更事件
+	// 使用唯一约束确保幂等（相同 provider/service/channel/event_type/trigger_record_id 不重复插入）
+	SaveStatusEvent(event *StatusEvent) error
+
+	// GetStatusEvents 查询状态变更事件列表
+	// sinceID: 从该 ID 之后开始（游标分页，不包含该 ID）
+	// limit: 最多返回条数
+	// filters: 可选过滤条件
+	GetStatusEvents(sinceID int64, limit int, filters *EventFilters) ([]*StatusEvent, error)
+
+	// GetLatestEventID 获取最新事件 ID（用于客户端初始化游标）
+	// 返回 0 表示没有任何事件
+	GetLatestEventID() (int64, error)
 }
