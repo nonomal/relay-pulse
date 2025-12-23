@@ -478,8 +478,9 @@ func parseBindTokenFavorites(favoritesJSON string) ([]Favorite, error) {
 
 	var favorites []Favorite
 	for _, id := range ids {
-		// ID 格式: provider_service_channel 或 provider_service
-		parts := strings.SplitN(id, "_", 3)
+		// ID 格式: provider-service-channel 或 provider-service-default
+		// 前端生成格式: `${provider}-${service}-${channel || 'default'}`
+		parts := strings.SplitN(id, "-", 3)
 		if len(parts) < 2 {
 			continue
 		}
@@ -488,7 +489,8 @@ func parseBindTokenFavorites(favoritesJSON string) ([]Favorite, error) {
 			Provider: parts[0],
 			Service:  parts[1],
 		}
-		if len(parts) > 2 {
+		// 第三部分是 channel，"default" 表示无 channel
+		if len(parts) > 2 && parts[2] != "default" {
 			fav.Channel = parts[2]
 		}
 		favorites = append(favorites, fav)
