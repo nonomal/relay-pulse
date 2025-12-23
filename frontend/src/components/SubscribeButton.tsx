@@ -86,7 +86,7 @@ export function SubscribeButton({ favorites, iconOnly = false, inGroup = false, 
           onClick={handleSubscribe}
           disabled={isDisabled}
           className={`
-            ${inGroup ? 'px-3 py-2' : 'p-2 rounded-lg'} transition-all duration-200
+            ${inGroup ? 'px-3 h-full' : 'p-2 rounded-lg h-10'} transition-all duration-200
             focus-visible:ring-2 ${inGroup ? 'focus-visible:ring-inset' : ''} focus-visible:ring-accent/50 focus-visible:outline-none
             ${isDisabled
               ? 'text-muted cursor-not-allowed'

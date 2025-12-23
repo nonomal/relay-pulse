@@ -29,7 +29,7 @@ export function RefreshButton({
   const isSmall = size === 'sm';
   const buttonSize = isSmall ? 'p-1.5' : 'p-2.5';
   const iconSize = isSmall ? 14 : 18;
-  const minSize = isSmall ? '' : 'min-w-[44px] min-h-[44px]';
+  const minSize = isSmall ? '' : 'w-10 h-10';
 
   return (
     <div className="relative inline-flex items-center">

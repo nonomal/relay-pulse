@@ -144,7 +144,7 @@ export function MultiSelect({
         className={`
           flex items-center justify-between gap-2 w-full lg:w-auto
           bg-elevated text-primary text-sm rounded-lg
-          border border-default p-2 outline-none
+          border border-default px-2 h-10 outline-none
           transition-all hover:bg-muted
           focus:ring-2 focus:ring-accent focus:border-transparent
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}

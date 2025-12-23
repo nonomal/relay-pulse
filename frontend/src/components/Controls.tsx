@@ -177,13 +177,13 @@ export function Controls({
           </div>
 
           {/* 收藏 + 订阅按钮组 */}
-          <div className="flex items-center bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
+          <div className="flex items-center h-10 bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
             {/* 收藏筛选按钮 */}
             <button
               type="button"
               onClick={() => onShowFavoritesOnlyChange(!showFavoritesOnly)}
               className={`
-                flex items-center gap-1.5 px-3 py-2 transition-all duration-200
+                flex items-center gap-1.5 px-3 h-full transition-all duration-200
                 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 focus-visible:outline-none
                 ${showFavoritesOnly
                   ? 'bg-accent/10 text-accent'
@@ -222,11 +222,11 @@ export function Controls({
 
           {/* 视图切换（仅桌面端显示） */}
           {!isMobile && (
-            <div className="flex bg-surface rounded-lg p-1 border border-default/50 shadow-sm">
+            <div className="flex h-10 bg-surface rounded-lg p-1 border border-default/50 shadow-sm">
               <button
                 type="button"
                 onClick={() => onViewModeChange('table')}
-                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                className={`p-2 rounded min-w-[38px] flex-1 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                   viewMode === 'table'
                     ? 'bg-muted text-accent shadow'
                     : 'text-secondary hover:text-primary'
@@ -239,7 +239,7 @@ export function Controls({
               <button
                 type="button"
                 onClick={() => onViewModeChange('grid')}
-                className={`p-2.5 rounded min-w-[44px] min-h-[44px] flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                className={`p-2 rounded min-w-[38px] flex-1 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                   viewMode === 'grid'
                     ? 'bg-muted text-accent shadow'
                     : 'text-secondary hover:text-primary'
