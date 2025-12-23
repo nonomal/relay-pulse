@@ -93,7 +93,7 @@
     },
     "multiSelect": {
       "selectedCount": "已选 {{count}} 项",
-      "searchPlaceholder": "搜索服务商...",
+      "searchPlaceholder": "搜索...",
       "noResults": "无匹配结果"
     },
     "favorites": {

@@ -93,7 +93,7 @@
     },
     "multiSelect": {
       "selectedCount": "Выбрано: {{count}}",
-      "searchPlaceholder": "Поиск провайдеров...",
+      "searchPlaceholder": "Поиск...",
       "noResults": "Ничего не найдено"
     },
     "favorites": {

@@ -93,7 +93,7 @@
     },
     "multiSelect": {
       "selectedCount": "{{count}} selected",
-      "searchPlaceholder": "Search providers...",
+      "searchPlaceholder": "Search...",
       "noResults": "No results found"
     },
     "favorites": {
