@@ -86,6 +86,7 @@ interface UseMonitorDataOptions {
   filterCategory: string[];  // 多选分类，空数组表示"全部"
   sortConfig: SortConfig;
   isInitialSort: boolean;    // 是否为初始排序状态（用于赞助商置顶）
+  autoRefresh?: boolean;     // 自动刷新开关，默认开启
 }
 
 export function useMonitorData({
@@ -98,6 +99,7 @@ export function useMonitorData({
   filterCategory,
   sortConfig,
   isInitialSort,
+  autoRefresh = true,
 }: UseMonitorDataOptions) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -290,6 +292,8 @@ export function useMonitorData({
     let intervalId: ReturnType<typeof setInterval> | null = null;
 
     const startPolling = () => {
+      // 自动刷新关闭时不启动轮询
+      if (!autoRefresh) return;
       if (document.visibilityState !== 'visible' || intervalId) return;
       intervalId = setInterval(triggerRefetch, POLL_INTERVAL_MS);
     };
@@ -302,22 +306,27 @@ export function useMonitorData({
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        triggerRefetch(); // 页面重新可见时立即刷新
-        startPolling();
+        // 仅在自动刷新开启时才触发刷新和启动轮询
+        if (autoRefresh) {
+          triggerRefetch(); // 页面重新可见时立即刷新
+          startPolling();
+        }
       } else {
         stopPolling();
       }
     };
 
-    // 初始化：仅在页面可见时启动轮询
-    startPolling();
+    // 初始化：仅在页面可见且自动刷新开启时启动轮询
+    if (autoRefresh) {
+      startPolling();
+    }
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       stopPolling();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [triggerRefetch]);
+  }, [triggerRefetch, autoRefresh]);
 
   // 提取所有通道列表（去重并排序）
   const channels = useMemo(() => {

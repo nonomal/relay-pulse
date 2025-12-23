@@ -1,10 +1,11 @@
 import { useMemo } from 'react';
-import { Filter, RefreshCw, LayoutGrid, List, X, Clock, AlignStartVertical, Star } from 'lucide-react';
+import { Filter, LayoutGrid, List, X, Clock, AlignStartVertical, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
 import { MultiSelect } from './MultiSelect';
 import { TimeFilterPicker } from './TimeFilterPicker';
 import { SubscribeButton } from './SubscribeButton';
+import { RefreshButton } from './RefreshButton';
 import type { MultiSelectOption } from './MultiSelect';
 import type { ViewMode, ProviderOption } from '../types';
 
@@ -27,6 +28,7 @@ interface ControlsProps {
   effectiveCategories: string[];  // 动态分类选项（始终传递数组）
   showCategoryFilter?: boolean; // 是否显示分类筛选器，默认 true（用于服务商专属页面）
   refreshCooldown?: boolean; // 刷新冷却中，显示提示
+  autoRefresh?: boolean; // 自动刷新开关
   isMobile?: boolean; // 是否为移动端，用于隐藏视图切换按钮
   showFilterDrawer?: boolean; // 移动端筛选抽屉是否显示（由 App 层级控制）
   onFilterDrawerClose?: () => void; // 关闭筛选抽屉回调
@@ -40,6 +42,7 @@ interface ControlsProps {
   onTimeFilterChange: (filter: string | null) => void; // 切换每日时段过滤
   onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
+  onToggleAutoRefresh?: () => void; // 切换自动刷新开关
 }
 
 export function Controls({
@@ -61,6 +64,7 @@ export function Controls({
   effectiveCategories,
   showCategoryFilter = true,
   refreshCooldown = false,
+  autoRefresh = true,
   isMobile = false,
   showFilterDrawer = false,
   onFilterDrawerClose,
@@ -74,6 +78,7 @@ export function Controls({
   onTimeFilterChange,
   onViewModeChange,
   onRefresh,
+  onToggleAutoRefresh,
 }: ControlsProps) {
   const { t } = useTranslation();
 
@@ -242,25 +247,15 @@ export function Controls({
           )}
 
           {/* 刷新按钮（桌面端显示，移动端已移到 Header） */}
-          <div className="relative ml-auto hidden lg:block">
-            <button
-              type="button"
-              onClick={onRefresh}
-              className="p-2.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 group min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-              title={t('common.refresh')}
-              aria-label={t('common.refresh')}
-            >
-              <RefreshCw
-                size={18}
-                className={`transition-transform ${loading ? 'animate-spin' : 'group-hover:rotate-180'}`}
-              />
-            </button>
-            {/* 冷却提示 */}
-            {refreshCooldown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 px-3 py-1.5 bg-elevated text-secondary text-xs rounded-lg whitespace-nowrap shadow-lg border border-default z-50">
-                {t('common.refreshCooldown')}
-              </div>
-            )}
+          <div className="ml-auto hidden lg:block">
+            <RefreshButton
+              loading={loading}
+              autoRefresh={autoRefresh}
+              refreshCooldown={refreshCooldown}
+              onRefresh={onRefresh}
+              onToggleAutoRefresh={onToggleAutoRefresh}
+              size="md"
+            />
           </div>
         </div>
 

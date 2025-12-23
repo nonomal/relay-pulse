@@ -109,7 +109,14 @@
       "error": "Notification service unavailable",
       "success": "Redirecting to Telegram..."
     },
-    "sortBy": "Sort by:"
+    "sortBy": "Sort by:",
+    "autoRefresh": {
+      "toggle": "Toggle auto-refresh",
+      "enabled": "Auto-refresh: On",
+      "disabled": "Auto-refresh: Paused",
+      "enabledHint": "Auto-refreshing, click to pause",
+      "disabledHint": "Paused, click to resume"
+    }
   },
   "favorites": {
     "add": "Add to favorites",

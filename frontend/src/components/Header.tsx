@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, CheckCircle, AlertTriangle, Sparkles, Share2, Filter, RefreshCw } from 'lucide-react';
+import { Activity, CheckCircle, AlertTriangle, Sparkles, Share2, Filter } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FEEDBACK_URLS } from '../constants';
@@ -8,6 +8,7 @@ import { FlagIcon } from './FlagIcon';
 import { useToast } from './Toast';
 import { shareCurrentPage } from '../utils/share';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { RefreshButton } from './RefreshButton';
 
 interface HeaderProps {
   stats: {
@@ -20,10 +21,12 @@ interface HeaderProps {
   onRefresh?: () => void;
   loading?: boolean;
   refreshCooldown?: boolean;
+  autoRefresh?: boolean;
+  onToggleAutoRefresh?: () => void;
   activeFiltersCount?: number;
 }
 
-export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldown, activeFiltersCount = 0 }: HeaderProps) {
+export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldown, autoRefresh = true, onToggleAutoRefresh, activeFiltersCount = 0 }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -294,22 +297,16 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           </button>
         )}
 
-        {/* 移动端：刷新按钮 */}
+        {/* 移动端：刷新按钮（合并自动刷新指示器） */}
         {onRefresh && (
-          <div className="relative">
-            <button
-              onClick={onRefresh}
-              className="p-1.5 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-              title={t('common.refresh')}
-            >
-              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            </button>
-            {refreshCooldown && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 px-2 py-1 bg-elevated text-secondary text-[10px] rounded whitespace-nowrap shadow-lg border border-default z-50">
-                {t('common.refreshCooldown')}
-              </div>
-            )}
-          </div>
+          <RefreshButton
+            loading={loading || false}
+            autoRefresh={autoRefresh}
+            refreshCooldown={refreshCooldown || false}
+            onRefresh={onRefresh}
+            onToggleAutoRefresh={onToggleAutoRefresh}
+            size="sm"
+          />
         )}
 
         {/* 分享按钮 - 移动端 */}

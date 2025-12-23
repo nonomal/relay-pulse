@@ -109,7 +109,14 @@
       "error": "通知服务暂时不可用",
       "success": "正在跳转到 Telegram..."
     },
-    "sortBy": "排序:"
+    "sortBy": "排序:",
+    "autoRefresh": {
+      "toggle": "切换自动刷新",
+      "enabled": "自动刷新：开启",
+      "disabled": "自动刷新：已暂停",
+      "enabledHint": "自动刷新中，点击暂停",
+      "disabledHint": "已暂停，点击恢复"
+    }
   },
   "favorites": {
     "add": "添加收藏",

@@ -97,6 +97,29 @@ function App() {
   const lastRefreshRef = useRef<number>(0);
   const [refreshCooldown, setRefreshCooldown] = useState(false);
 
+  // 自动刷新开关（持久化到 localStorage，默认关闭）
+  const AUTO_REFRESH_KEY = 'relay-pulse-auto-refresh';
+  const [autoRefresh, setAutoRefresh] = useState(() => {
+    try {
+      return localStorage.getItem(AUTO_REFRESH_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // 切换自动刷新并持久化
+  const handleToggleAutoRefresh = () => {
+    setAutoRefresh(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(AUTO_REFRESH_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   const { loading, error, data, stats, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
     timeRange,
     timeAlign,
@@ -107,6 +130,7 @@ function App() {
     filterCategory,
     sortConfig,
     isInitialSort,
+    autoRefresh,
   });
 
   // 统计激活的筛选器数量（用于移动端 Header 显示）
@@ -330,6 +354,8 @@ function App() {
             onRefresh={handleRefresh}
             loading={loading}
             refreshCooldown={refreshCooldown}
+            autoRefresh={autoRefresh}
+            onToggleAutoRefresh={handleToggleAutoRefresh}
             activeFiltersCount={activeFiltersCount}
           />
 
@@ -365,6 +391,8 @@ function App() {
             onViewModeChange={setViewMode}
             onRefresh={handleRefresh}
             refreshCooldown={refreshCooldown}
+            autoRefresh={autoRefresh}
+            onToggleAutoRefresh={handleToggleAutoRefresh}
           />
 
           {/* 内容区域 */}

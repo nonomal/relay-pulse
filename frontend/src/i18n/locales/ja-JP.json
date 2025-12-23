@@ -109,7 +109,14 @@
       "error": "通知サービスが利用できません",
       "success": "Telegramに移動中..."
     },
-    "sortBy": "並び替え:"
+    "sortBy": "並び替え:",
+    "autoRefresh": {
+      "toggle": "自動更新の切り替え",
+      "enabled": "自動更新：オン",
+      "disabled": "自動更新：一時停止中",
+      "enabledHint": "自動更新中、クリックで一時停止",
+      "disabledHint": "一時停止中、クリックで再開"
+    }
   },
   "favorites": {
     "add": "お気に入りに追加",
