@@ -297,7 +297,7 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           </button>
         )}
 
-        {/* 移动端：刷新按钮（合并自动刷新指示器） */}
+        {/* 移动端：刷新按钮（状态通过颜色表示，点击=切换+刷新） */}
         {onRefresh && (
           <RefreshButton
             loading={loading || false}
@@ -306,6 +306,7 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             onRefresh={onRefresh}
             onToggleAutoRefresh={onToggleAutoRefresh}
             size="sm"
+            showToggle={false}
           />
         )}
 

@@ -9,6 +9,8 @@ interface RefreshButtonProps {
   onToggleAutoRefresh?: () => void;
   /** 按钮尺寸：'sm' 用于移动端，'md' 用于桌面端 */
   size?: 'sm' | 'md';
+  /** 是否显示右上角 toggle 圆点，默认 true。false 时状态通过颜色表示，点击=切换+刷新 */
+  showToggle?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function RefreshButton({
   onRefresh,
   onToggleAutoRefresh,
   size = 'md',
+  showToggle = true,
 }: RefreshButtonProps) {
   const { t } = useTranslation();
 
@@ -31,15 +34,35 @@ export function RefreshButton({
   const iconSize = isSmall ? 14 : 18;
   const minSize = isSmall ? '' : 'w-10 h-10';
 
+  // 点击处理：showToggle=false 时，切换状态 + 刷新（冷却期内不切换，只显示冷却提示）
+  const handleClick = () => {
+    if (!showToggle && onToggleAutoRefresh && !refreshCooldown) {
+      onToggleAutoRefresh();
+    }
+    onRefresh();
+  };
+
+  // 按钮样式：showToggle=false 且有 onToggleAutoRefresh 时根据 autoRefresh 状态决定颜色
+  const buttonStyles = !showToggle && onToggleAutoRefresh
+    ? autoRefresh
+      ? 'bg-success/10 text-success border-success/50 hover:bg-success/20'
+      : 'bg-elevated/50 text-muted border-muted hover:bg-muted/30'
+    : 'bg-accent/10 text-accent border-accent/20 hover:bg-accent/20';
+
+  // 提示文案：showToggle=false 且有 onToggleAutoRefresh 时说明点击会切换状态
+  const buttonTitle = !showToggle && onToggleAutoRefresh
+    ? (autoRefresh ? t('controls.autoRefresh.enabledHint') : t('controls.autoRefresh.disabledHint'))
+    : t('common.refresh');
+
   return (
     <div className="relative inline-flex items-center">
       {/* 刷新按钮 */}
       <button
         type="button"
-        onClick={onRefresh}
-        className={`${buttonSize} rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors border border-accent/20 group ${minSize} flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none`}
-        title={t('common.refresh')}
-        aria-label={t('common.refresh')}
+        onClick={handleClick}
+        className={`${buttonSize} rounded-lg ${buttonStyles} transition-colors border group ${minSize} flex items-center justify-center cursor-pointer focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none`}
+        title={buttonTitle}
+        aria-label={buttonTitle}
       >
         <RefreshCw
           size={iconSize}
@@ -47,8 +70,8 @@ export function RefreshButton({
         />
       </button>
 
-      {/* 自动刷新状态圆点（仅在 onToggleAutoRefresh 存在时显示） */}
-      {onToggleAutoRefresh && (
+      {/* 自动刷新状态圆点（仅在 showToggle=true 且 onToggleAutoRefresh 存在时显示） */}
+      {showToggle && onToggleAutoRefresh && (
         <button
           type="button"
           onClick={(e) => {
