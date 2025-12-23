@@ -27,6 +27,7 @@ cat > .env << 'EOF'
 TELEGRAM_BOT_TOKEN=your_bot_token_here
 RELAY_PULSE_API_TOKEN=your_api_token_here
 RELAY_PULSE_EVENTS_URL=https://your-relay-pulse.com/api/events
+TZ=Asia/Shanghai
 EOF
 ```
 
@@ -85,6 +86,7 @@ limits:
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token | 是 |
 | `RELAY_PULSE_API_TOKEN` | RelayPulse Events API Token | 是 |
 | `RELAY_PULSE_EVENTS_URL` | RelayPulse Events API URL | 否 |
+| `TZ` | 时区（影响日志时间戳等），建议 `Asia/Shanghai` | 否 |
 
 ## Bot 命令
 

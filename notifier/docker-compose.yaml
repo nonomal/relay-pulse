@@ -12,6 +12,7 @@ services:
     ports:
       - "${API_PORT:-8081}:8081"
     environment:
+      - TZ=${TZ:-Asia/Shanghai}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - RELAY_PULSE_API_TOKEN=${RELAY_PULSE_API_TOKEN:-}
       - RELAY_PULSE_EVENTS_URL=${RELAY_PULSE_EVENTS_URL:-https://your-relay-pulse.com/api/events}
