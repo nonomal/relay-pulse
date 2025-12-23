@@ -341,6 +341,7 @@ export default function ProviderPage() {
           filterChannel={filterChannel}
           filterCategory={[]}
           showFavoritesOnly={showFavoritesOnly}
+          favorites={favorites}
           favoritesCount={favoritesCount}
           viewMode={viewMode}
           loading={loading}

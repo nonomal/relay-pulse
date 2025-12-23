@@ -1,5 +1,5 @@
 #!/bin/bash
-# 一键启动前后端开发环境（热重载）
+# 一键启动前后端 + Notifier 开发环境（热重载）
 # 使用方式: ./scripts/dev-all.sh 或 make dev-all
 
 set -e
@@ -9,14 +9,17 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # PID 文件目录
 PID_DIR=".dev"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
+NOTIFIER_PID_FILE="$PID_DIR/notifier.pid"
 BACKEND_FIFO="$PID_DIR/backend.fifo"
 FRONTEND_FIFO="$PID_DIR/frontend.fifo"
+NOTIFIER_FIFO="$PID_DIR/notifier.fifo"
 
 # 确保目录存在
 mkdir -p "$PID_DIR"
@@ -69,11 +72,30 @@ cleanup() {
         rm -f "$FRONTEND_PID_FILE"
     fi
 
+    # 停止 Notifier
+    if [ -f "$NOTIFIER_PID_FILE" ]; then
+        PID=$(cat "$NOTIFIER_PID_FILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            kill -TERM "$PID" 2>/dev/null || true
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+                if ! kill -0 "$PID" 2>/dev/null; then
+                    break
+                fi
+                sleep 0.3
+            done
+            if kill -0 "$PID" 2>/dev/null; then
+                kill -KILL "$PID" 2>/dev/null || true
+            fi
+            printf "${MAGENTA}[ntf]${NC} 已停止 (PID: $PID)\n"
+        fi
+        rm -f "$NOTIFIER_PID_FILE"
+    fi
+
     # 清理 FIFO 文件
-    rm -f "$BACKEND_FIFO" "$FRONTEND_FIFO" 2>/dev/null || true
+    rm -f "$BACKEND_FIFO" "$FRONTEND_FIFO" "$NOTIFIER_FIFO" 2>/dev/null || true
 
     # 兜底：通过端口清理
-    for port in 8080 5173 5174; do
+    for port in 8080 8081 5173 5174; do
         if command -v lsof &>/dev/null; then
             pids=$(lsof -ti ":$port" 2>/dev/null || true)
             if [ -n "$pids" ]; then
@@ -119,6 +141,16 @@ check_existing() {
         fi
     fi
 
+    if [ -f "$NOTIFIER_PID_FILE" ]; then
+        PID=$(cat "$NOTIFIER_PID_FILE")
+        if kill -0 "$PID" 2>/dev/null; then
+            printf "${YELLOW}警告: Notifier 服务已在运行 (PID: $PID)${NC}\n"
+            has_existing=true
+        else
+            rm -f "$NOTIFIER_PID_FILE"
+        fi
+    fi
+
     if [ "$has_existing" = true ]; then
         printf "${YELLOW}请先运行 'make stop' 停止现有服务${NC}\n"
         exit 1
@@ -144,6 +176,15 @@ check_dependencies() {
         printf "${YELLOW}前端依赖未安装，正在安装...${NC}\n"
         npm --prefix frontend install
     fi
+
+    # 检查 notifier 目录
+    if [ ! -d "notifier" ]; then
+        printf "${RED}错误: notifier 目录不存在${NC}\n"
+        exit 1
+    fi
+
+    # 确保 notifier 数据目录存在
+    mkdir -p notifier/data
 }
 
 # 日志前缀输出函数
@@ -176,22 +217,28 @@ main() {
     # 设置 CORS
     export MONITOR_CORS_ORIGINS="${MONITOR_CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174,http://localhost:5175,http://127.0.0.1:5175,http://localhost:3000}"
 
+    # 设置前端开发环境的 Notifier URL
+    export VITE_NOTIFIER_API_URL="${VITE_NOTIFIER_API_URL:-http://localhost:8081}"
+
     echo ""
     printf "${GREEN}[api]${NC} 启动后端 (http://localhost:8080)...\n"
     printf "${CYAN}[web]${NC} 启动前端 (http://localhost:5173)...\n"
+    printf "${MAGENTA}[ntf]${NC} 启动 Notifier (http://localhost:8081)...\n"
     echo ""
     printf "${YELLOW}按 Ctrl+C 停止所有服务${NC}\n"
     echo ""
 
     # 创建 tmp 目录
     mkdir -p tmp/air
+    mkdir -p notifier/tmp/air
 
     # 清理旧的 FIFO
-    rm -f "$BACKEND_FIFO" "$FRONTEND_FIFO"
+    rm -f "$BACKEND_FIFO" "$FRONTEND_FIFO" "$NOTIFIER_FIFO"
 
     # 创建 FIFO
     mkfifo "$BACKEND_FIFO"
     mkfifo "$FRONTEND_FIFO"
+    mkfifo "$NOTIFIER_FIFO"
 
     # 启动后端（使用 exec 确保 $! 是真实进程 PID）
     (cd . && exec $AIR_CMD -c .air.toml) > "$BACKEND_FIFO" 2>&1 &
@@ -209,6 +256,14 @@ main() {
     # 异步读取前端日志
     prefix_output "[web]" "$CYAN" < "$FRONTEND_FIFO" &
 
+    # 启动 Notifier（使用 exec 确保 $! 是真实进程 PID）
+    (cd notifier && exec $AIR_CMD -c .air.toml) > "$NOTIFIER_FIFO" 2>&1 &
+    NOTIFIER_PID=$!
+    echo "$NOTIFIER_PID" > "$NOTIFIER_PID_FILE"
+
+    # 异步读取 Notifier 日志
+    prefix_output "[ntf]" "$MAGENTA" < "$NOTIFIER_FIFO" &
+
     # 轮询检查进程状态（兼容 macOS bash 3.2，不使用 wait -n）
     while true; do
         # 检查后端进程
@@ -220,6 +275,12 @@ main() {
         # 检查前端进程
         if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
             printf "${RED}[web]${NC} 前端进程异常退出\n"
+            break
+        fi
+
+        # 检查 Notifier 进程
+        if ! kill -0 "$NOTIFIER_PID" 2>/dev/null; then
+            printf "${RED}[ntf]${NC} Notifier 进程异常退出\n"
             break
         fi
 

@@ -1,0 +1,31 @@
+# relay-pulse-notifier 开发环境配置
+# 用于本地 make dev-all 开发
+
+relay_pulse:
+  # 本地 relay-pulse 事件 API 地址
+  events_url: "http://localhost:8080/api/events"
+  # API Token（从 .env 环境变量 RELAY_PULSE_API_TOKEN 读取）
+  api_token: ""
+  # 轮询间隔（开发环境可以短一些）
+  poll_interval: "10s"
+
+telegram:
+  # Bot Token（从 .env 环境变量 TELEGRAM_BOT_TOKEN 读取）
+  bot_token: ""
+  # Bot 用户名（用于生成 deeplink）
+  bot_username: "RelayPulseDevBot"
+
+database:
+  driver: "sqlite"
+  # 开发环境数据库（与生产隔离）
+  dsn: "file:data/notifier-dev.db?_journal_mode=WAL"
+
+api:
+  # HTTP API 监听地址
+  addr: ":8081"
+
+limits:
+  max_subscriptions_per_user: 20
+  rate_limit_per_second: 25
+  max_retries: 3
+  bind_token_ttl: "10m"

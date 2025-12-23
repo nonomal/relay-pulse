@@ -101,6 +101,14 @@
       "exitMode": "お気に入りモードを終了",
       "noFavorites": "お気に入りなし"
     },
+    "subscribe": {
+      "button": "通知を購読",
+      "tooltip": "Telegramでステータス変更通知を購読",
+      "loading": "準備中...",
+      "noFavorites": "先にお気に入りを追加してください",
+      "error": "通知サービスが利用できません",
+      "success": "Telegramに移動中..."
+    },
     "sortBy": "並び替え:"
   },
   "favorites": {

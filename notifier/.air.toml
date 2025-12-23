@@ -1,0 +1,48 @@
+# Air 热重载配置 (Development Only)
+# 文档: https://github.com/cosmtrek/air
+
+root = "."
+tmp_dir = "tmp/air"
+
+[build]
+  # 构建命令
+  cmd = "go build -o ./tmp/air/notifier ./cmd/notifier"
+
+  # 二进制文件路径
+  bin = "tmp/air/notifier"
+
+  # 完整启动命令（使用开发配置）
+  full_bin = "./tmp/air/notifier -config config.dev.yaml"
+
+  # 监听的文件扩展名
+  include_ext = ["go", "yaml"]
+
+  # 排除的目录
+  exclude_dir = ["tmp", "vendor", ".git", "data"]
+
+  # 排除的文件正则
+  exclude_regex = ["_test\\.go$"]
+
+  # 文件变更后延迟重启（毫秒）
+  delay = 1000
+
+  # 停止旧进程的信号
+  kill_delay = 500
+
+  # 日志文件
+  log = "tmp/air/errors.log"
+
+[log]
+  # 显示时间戳
+  time = true
+
+[color]
+  # 终端输出颜色
+  main = "magenta"
+  watcher = "green"
+  build = "yellow"
+  runner = "cyan"
+
+[misc]
+  # 启动时清屏
+  clean_on_exit = true

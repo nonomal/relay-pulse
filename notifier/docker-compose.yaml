@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  notifier:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    container_name: relay-pulse-notifier
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8081}:8081"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - RELAY_PULSE_API_TOKEN=${RELAY_PULSE_API_TOKEN:-}
+      - RELAY_PULSE_EVENTS_URL=${RELAY_PULSE_EVENTS_URL:-https://your-relay-pulse.com/api/events}
+    volumes:
+      - ./data:/app/data                    # SQLite 数据持久化
+      - ./config.yaml:/app/config.yaml:ro   # 配置文件（只读）
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - notifier-net
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  notifier-net:
+    driver: bridge

@@ -340,6 +340,7 @@ function App() {
             filterChannel={filterChannel}
             filterCategory={filterCategory}
             showFavoritesOnly={showFavoritesOnly}
+            favorites={favorites}
             favoritesCount={favoritesCount}
             timeRange={timeRange}
             timeAlign={timeAlign}

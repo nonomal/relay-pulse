@@ -1117,6 +1117,21 @@ MONITOR_POSTGRES_SSLMODE=require
 MONITOR_CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
+### Events API 配置
+
+Events API 用于向外部服务（如 Notifier）提供状态变更事件流。
+
+```bash
+# Events API 访问令牌（必需，启用 /api/events 端点鉴权）
+# 外部服务需要在请求头中携带 Authorization: Bearer <token>
+EVENTS_API_TOKEN=your-secure-token-here
+```
+
+**安全建议**：
+- 生成高熵随机 token：`openssl rand -hex 32`
+- 仅通过 HTTPS 传输
+- 定期轮换 token
+
 ### 前端环境变量
 
 前端支持以下环境变量（需在构建时设置）：
@@ -1130,6 +1145,19 @@ VITE_API_BASE_URL=http://localhost:8080
 # 是否使用 Mock 数据（开发调试用）
 VITE_USE_MOCK_DATA=false
 ```
+
+#### Notifier 配置（订阅通知功能）
+
+```bash
+# Notifier 服务 URL（可选，不设置则隐藏订阅按钮）
+# 用于启用 Telegram 订阅通知功能
+VITE_NOTIFIER_API_URL=https://notifier.example.com
+```
+
+**说明**：
+- 此变量为**构建时变量**，需在 `npm run build` 前设置
+- 如果未设置或为空，订阅按钮将自动隐藏
+- Notifier 是独立的通知服务，详见 `notifier/README.md`
 
 #### Google Analytics（可选）
 

@@ -162,17 +162,20 @@ func (h *Handler) GetLatestEventID(c *gin.Context) {
 	})
 }
 
-// checkEventsAPIToken 检查事件 API Token
-// 如果配置了 api_token，验证请求中的 Authorization header
+// checkEventsAPIToken 检查事件 API Token（强制鉴权）
+// 如果未配置 api_token，返回 503 拒绝所有请求
 // 返回 true 表示验证通过，false 表示验证失败（已返回错误响应）
 func (h *Handler) checkEventsAPIToken(c *gin.Context) bool {
 	h.cfgMu.RLock()
 	apiToken := h.config.Events.APIToken
 	h.cfgMu.RUnlock()
 
-	// 未配置 token，跳过验证
+	// 未配置 token 时拒绝所有请求
 	if apiToken == "" {
-		return true
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"error": "events API 未配置，请设置 EVENTS_API_TOKEN 环境变量",
+		})
+		return false
 	}
 
 	// 验证 Authorization header

@@ -101,6 +101,14 @@
       "exitMode": "Exit favorites mode",
       "noFavorites": "No favorites"
     },
+    "subscribe": {
+      "button": "Subscribe",
+      "tooltip": "Subscribe to status change notifications via Telegram",
+      "loading": "Preparing...",
+      "noFavorites": "Please add favorites first",
+      "error": "Notification service unavailable",
+      "success": "Redirecting to Telegram..."
+    },
     "sortBy": "Sort by:"
   },
   "favorites": {

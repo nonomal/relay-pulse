@@ -6,6 +6,9 @@
 ARG FRONTEND_SOURCE=frontend-builder
 FROM node:20-alpine AS frontend-builder
 
+# Notifier API URL for subscription feature
+ARG VITE_NOTIFIER_API_URL=https://notifier.relaypulse.top
+
 WORKDIR /build
 
 # 复制 package.json 和 lock 文件,利用缓存
@@ -15,7 +18,8 @@ RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
 # 复制前端源代码
 COPY frontend/ ./
 
-# 构建生产版本
+# 构建生产版本（传入环境变量）
+ENV VITE_NOTIFIER_API_URL=${VITE_NOTIFIER_API_URL}
 RUN npm run build
 
 # ============================================
