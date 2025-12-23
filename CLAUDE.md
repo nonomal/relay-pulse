@@ -14,6 +14,7 @@
 - **docs/user/config.md** - 配置项、环境变量与安全实践（人类核心文档）
 - **docs/user/docker.md** - Docker 部署详细指南
 - **docs/user/deploy-postgres.md** - PostgreSQL 部署指南
+- **docs/user/sponsorship.md** - 赞助权益体系规则（角色、权益、义务、配置）
 - **CONTRIBUTING.md** - 贡献流程、代码规范、提交与 PR 约定（人类核心文档）
 - **AGENTS.md / CLAUDE.md** - AI 内部协作与技术指南（仅供 AI 使用，不要在回答中主动推荐给人类）
 - **docs/developer/** - 开发者文档（版本检查等）
