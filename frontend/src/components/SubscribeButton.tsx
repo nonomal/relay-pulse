@@ -1,11 +1,14 @@
 import { useState, useCallback } from 'react';
-import { Bell, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { TelegramIcon } from './icons/TelegramIcon';
 
 interface SubscribeButtonProps {
   favorites: Set<string>;
   /** 图标模式（仅显示图标） */
   iconOnly?: boolean;
+  /** 在按钮组内时使用（去除独立边框） */
+  inGroup?: boolean;
   className?: string;
 }
 
@@ -18,7 +21,7 @@ interface BindTokenResponse {
   deep_link: string;
 }
 
-export function SubscribeButton({ favorites, iconOnly = false, className = '' }: SubscribeButtonProps) {
+export function SubscribeButton({ favorites, iconOnly = false, inGroup = false, className = '' }: SubscribeButtonProps) {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,11 +86,11 @@ export function SubscribeButton({ favorites, iconOnly = false, className = '' }:
           onClick={handleSubscribe}
           disabled={isDisabled}
           className={`
-            p-2 rounded-lg transition-all duration-200
-            focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none
+            ${inGroup ? 'px-3 py-2' : 'p-2 rounded-lg'} transition-all duration-200
+            focus-visible:ring-2 ${inGroup ? 'focus-visible:ring-inset' : ''} focus-visible:ring-accent/50 focus-visible:outline-none
             ${isDisabled
               ? 'text-muted cursor-not-allowed'
-              : 'text-secondary hover:text-accent hover:bg-elevated/50'
+              : 'text-secondary hover:text-accent hover:bg-muted/50'
             }
             ${className}
           `}
@@ -100,7 +103,7 @@ export function SubscribeButton({ favorites, iconOnly = false, className = '' }:
           {loading ? (
             <Loader2 size={16} className="animate-spin" />
           ) : (
-            <Bell size={16} />
+            <TelegramIcon size={16} />
           )}
         </button>
 
@@ -138,7 +141,7 @@ export function SubscribeButton({ favorites, iconOnly = false, className = '' }:
         {loading ? (
           <Loader2 size={14} className="animate-spin" />
         ) : (
-          <Bell size={14} />
+          <TelegramIcon size={14} />
         )}
         <span className="text-sm font-medium">
           {loading ? t('controls.subscribe.loading') : t('controls.subscribe.button')}

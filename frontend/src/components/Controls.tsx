@@ -176,41 +176,47 @@ export function Controls({
             {FilterSelects()}
           </div>
 
-          {/* 收藏筛选按钮 */}
-          <button
-            type="button"
-            onClick={() => onShowFavoritesOnlyChange(!showFavoritesOnly)}
-            className={`
-              flex items-center gap-1.5 px-3 py-2 rounded-lg transition-all duration-200
-              focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none
-              ${showFavoritesOnly
-                ? 'bg-accent/10 text-accent border border-accent/30'
-                : 'bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 border border-transparent'
+          {/* 收藏 + 订阅按钮组 */}
+          <div className="flex items-center bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
+            {/* 收藏筛选按钮 */}
+            <button
+              type="button"
+              onClick={() => onShowFavoritesOnlyChange(!showFavoritesOnly)}
+              className={`
+                flex items-center gap-1.5 px-3 py-2 transition-all duration-200
+                focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/50 focus-visible:outline-none
+                ${showFavoritesOnly
+                  ? 'bg-accent/10 text-accent'
+                  : 'text-secondary hover:text-primary hover:bg-muted/50'
+                }
+                ${!showFavoritesOnly && favoritesCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}
+              `}
+              disabled={!showFavoritesOnly && favoritesCount === 0}
+              title={showFavoritesOnly
+                ? t('controls.favorites.exitMode')
+                : (favoritesCount > 0
+                  ? t('controls.favorites.showOnly')
+                  : t('controls.favorites.noFavorites'))
               }
-              ${!showFavoritesOnly && favoritesCount === 0 ? 'opacity-50 cursor-not-allowed' : ''}
-            `}
-            disabled={!showFavoritesOnly && favoritesCount === 0}
-            title={showFavoritesOnly
-              ? t('controls.favorites.exitMode')
-              : (favoritesCount > 0
-                ? t('controls.favorites.showOnly')
-                : t('controls.favorites.noFavorites'))
-            }
-            aria-pressed={showFavoritesOnly}
-          >
-            <Star
-              size={14}
-              className={showFavoritesOnly ? 'text-warning' : ''}
-              fill={showFavoritesOnly ? 'currentColor' : 'none'}
-              strokeWidth={showFavoritesOnly ? 0 : 2}
-            />
-            {favoritesCount > 0 && (
-              <span className="text-xs font-medium">{favoritesCount}</span>
-            )}
-          </button>
+              aria-pressed={showFavoritesOnly}
+            >
+              <Star
+                size={14}
+                className={showFavoritesOnly ? 'text-warning' : ''}
+                fill={showFavoritesOnly ? 'currentColor' : 'none'}
+                strokeWidth={showFavoritesOnly ? 0 : 2}
+              />
+              {favoritesCount > 0 && (
+                <span className="text-xs font-medium">{favoritesCount}</span>
+              )}
+            </button>
 
-          {/* 订阅通知按钮（图标模式） */}
-          <SubscribeButton favorites={favorites} iconOnly />
+            {/* 按钮组内分隔线 */}
+            <div className="w-px h-5 bg-muted/50"></div>
+
+            {/* 订阅通知按钮（图标模式，融入按钮组） */}
+            <SubscribeButton favorites={favorites} iconOnly inGroup />
+          </div>
 
           <div className="w-px h-6 bg-muted mx-1"></div>
 
