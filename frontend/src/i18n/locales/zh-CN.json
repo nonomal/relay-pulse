@@ -101,6 +101,14 @@
       "exitMode": "退出收藏模式",
       "noFavorites": "暂无收藏项"
     },
+    "subscribe": {
+      "button": "订阅通知",
+      "tooltip": "订阅收藏项的状态变更通知到 Telegram",
+      "loading": "正在准备...",
+      "noFavorites": "请先添加收藏",
+      "error": "通知服务暂时不可用",
+      "success": "正在跳转到 Telegram..."
+    },
     "sortBy": "排序:"
   },
   "favorites": {

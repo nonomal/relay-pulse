@@ -1085,6 +1085,11 @@ func (c *AppConfig) ApplyEnvOverrides() {
 		c.Storage.SQLite.Path = envPath
 	}
 
+	// Events API Token 环境变量覆盖
+	if envToken := os.Getenv("EVENTS_API_TOKEN"); envToken != "" {
+		c.Events.APIToken = envToken
+	}
+
 	// API Key 覆盖
 	for i := range c.Monitors {
 		m := &c.Monitors[i]

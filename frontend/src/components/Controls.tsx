@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
 import { MultiSelect } from './MultiSelect';
 import { TimeFilterPicker } from './TimeFilterPicker';
+import { SubscribeButton } from './SubscribeButton';
 import type { MultiSelectOption } from './MultiSelect';
 import type { ViewMode, ProviderOption } from '../types';
 
@@ -13,6 +14,7 @@ interface ControlsProps {
   filterChannel: string[];   // 多选通道，空数组表示"全部"
   filterCategory: string[];  // 多选分类，空数组表示"全部"
   showFavoritesOnly: boolean; // 仅显示收藏
+  favorites: Set<string>;     // 收藏项集合
   favoritesCount: number;     // 收藏数量
   timeRange: string;
   timeAlign: string;         // 时间对齐模式：空=动态窗口, "hour"=整点对齐
@@ -46,6 +48,7 @@ export function Controls({
   filterChannel,
   filterCategory,
   showFavoritesOnly,
+  favorites,
   favoritesCount,
   timeRange,
   timeAlign,
@@ -200,6 +203,9 @@ export function Controls({
               <span className="text-xs font-medium">{favoritesCount}</span>
             )}
           </button>
+
+          {/* 订阅通知按钮（图标模式） */}
+          <SubscribeButton favorites={favorites} iconOnly />
 
           <div className="w-px h-6 bg-muted mx-1"></div>
 
@@ -366,6 +372,9 @@ export function Controls({
                   {favoritesCount > 0 && ` (${favoritesCount})`}
                 </span>
               </button>
+
+              {/* 订阅通知按钮（移动端） */}
+              <SubscribeButton favorites={favorites} className="w-full justify-center py-3" />
 
               {/* 清空按钮 - 只清空可见的筛选器 */}
               {activeFiltersCount > 0 && (

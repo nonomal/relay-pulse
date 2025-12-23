@@ -41,7 +41,7 @@ help:
 	@echo "  make docker-build  - 构建 Docker 镜像"
 	@echo "  make run           - 直接运行（无热重载）"
 	@echo "  make dev           - 后端开发模式（热重载，需要air）"
-	@echo "  make dev-all       - 一键启动前后端开发环境（热重载）"
+	@echo "  make dev-all       - 一键启动前后端 + Notifier 开发环境（热重载）"
 	@echo "  make stop          - 停止所有开发服务"
 	@echo "  make test          - 运行测试"
 	@echo "  make ci            - 本地模拟 CI 检查（lint + test）"

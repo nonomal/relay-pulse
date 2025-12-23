@@ -53,6 +53,8 @@ jobs:
       # 前端构建
       - name: Build frontend
         working-directory: frontend
+        env:
+          VITE_NOTIFIER_API_URL: https://notifier.relaypulse.top
         run: |
           npm ci
           npm run build

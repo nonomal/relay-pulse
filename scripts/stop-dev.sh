@@ -7,12 +7,14 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 CYAN='\033[0;36m'
+MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
 # PID 文件目录
 PID_DIR=".dev"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 FRONTEND_PID_FILE="$PID_DIR/frontend.pid"
+NOTIFIER_PID_FILE="$PID_DIR/notifier.pid"
 
 # 停止进程的函数
 stop_process() {
@@ -81,7 +83,7 @@ stop_by_port() {
 
 # 清理 FIFO 文件
 cleanup_fifos() {
-    rm -f "$PID_DIR/backend.fifo" "$PID_DIR/frontend.fifo" 2>/dev/null || true
+    rm -f "$PID_DIR/backend.fifo" "$PID_DIR/frontend.fifo" "$PID_DIR/notifier.fifo" 2>/dev/null || true
 }
 
 main() {
@@ -107,8 +109,18 @@ main() {
         fi
     fi
 
+    if [ -f "$NOTIFIER_PID_FILE" ]; then
+        result=$(stop_process "$NOTIFIER_PID_FILE" "ntf" "$MAGENTA")
+        if [ "$result" = "true" ]; then
+            stopped_any=true
+        fi
+    fi
+
     # 2. 兜底：通过端口清理残留进程
     if stop_by_port 8080 "后端"; then
+        stopped_any=true
+    fi
+    if stop_by_port 8081 "Notifier"; then
         stopped_any=true
     fi
     if stop_by_port 5173 "前端"; then
@@ -121,6 +133,9 @@ main() {
     # 3. 清理 air 的临时文件和 FIFO
     if [ -d "tmp/air" ]; then
         rm -rf tmp/air
+    fi
+    if [ -d "notifier/tmp/air" ]; then
+        rm -rf notifier/tmp/air
     fi
     cleanup_fifos
 

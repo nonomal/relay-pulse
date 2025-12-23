@@ -56,6 +56,12 @@ deploy/*.env  # 所有环境变量文件（包含真实 API Key）
 monitor/
 !monitor/.gitkeep
 
+# Notifier development files
+notifier/data/
+notifier/tmp/
+notifier/config.local.yaml
+notifier/notifier
+
 # Tools
 .playwright-mcp/
 config.yaml.backup-*
