@@ -1,0 +1,101 @@
+name: 数据纠错 / 申诉（Data Correction / Appeal）
+description: "针对 RelayPulse 展示的监测数据、状态或标记提出纠错或申诉（Target response: 48 hours）"
+title: "[纠错/申诉] <服务名称/域名> - <简要说明>"
+labels: ["appeal", "data-correction", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 处理目标 / Response Target
+        我们的目标是在 **48 小时内**对本申诉进行响应（确认受理、补充材料请求或初步结论）。节假日或高峰期可能延迟。
+        We aim to respond within **48 hours** (acknowledgement / request for more info / preliminary result). May be delayed during holidays or peak periods.
+
+        ## 重要说明
+        - RelayPulse 为自动化技术监测与信息展示工具；展示结果可能存在误差或延迟，不构成任何法律结论或官方认定。
+        - 请勿在此提交任何敏感信息（如 API Key、密码、未公开的个人信息）。
+
+        RelayPulse provides automated technical monitoring and information display. Results may be delayed or inaccurate and do not constitute legal conclusions.
+
+  - type: input
+    id: service_name
+    attributes:
+      label: 服务商/项目名称（Service/Project Name）
+      placeholder: "例如：ExampleCloud / example.com"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: 申诉类型（Request Type）
+      options:
+        - 数据错误（Incorrect data）
+        - 状态误判（Incorrect status）
+        - 标记/分类不准确（Incorrect tag/classification）
+        - 需要下架/隐藏展示（Removal / De-list request）
+        - 其他（Other）
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected_pages
+    attributes:
+      label: 受影响页面/条目（Affected pages/items）
+      description: |
+        请提供 RelayPulse 内的链接、截图或条目标识（ID/名称/URL）。
+        Provide links, screenshots, or identifiers in RelayPulse.
+      placeholder: |
+        - 链接/Link:
+        - 条目 ID/Item ID:
+    validations:
+      required: true
+
+  - type: textarea
+    id: claim
+    attributes:
+      label: 具体问题描述（What is incorrect?）
+      description: |
+        请说明"当前展示是什么""你认为正确的应该是什么"，并给出理由。
+        Describe current display vs expected correct information.
+      placeholder: |
+        当前展示/Current:
+        期望更正/Expected:
+        理由/Reason:
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 证明材料（Evidence）
+      description: |
+        请提供可公开验证的证据（如官方公告链接、公开文档、可验证的 DNS/HTTP 响应等）。
+        Provide publicly verifiable evidence (official announcements, public docs, verifiable DNS/HTTP responses).
+      placeholder: |
+        - 官方链接/Official link:
+        - 公开文档/Public doc:
+        - 其他/Other:
+    validations:
+      required: false
+
+  - type: input
+    id: contact
+    attributes:
+      label: 联系方式（Contact, optional）
+      description: |
+        可选。建议使用工作邮箱；不要填写 API Key/密码。
+        Optional. Use a business email. Do not include secrets.
+      placeholder: "name@company.com"
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认（Confirmations）
+      options:
+        - label: 我确认提交内容不包含任何 API Key、密码或其他敏感信息（No secrets included）
+          required: true
+        - label: 我理解 RelayPulse 的展示为自动化监测结果，不构成法律结论或官方认定（No legal determination）
+          required: true

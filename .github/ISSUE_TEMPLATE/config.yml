@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 🔒 安全问题（Security）
+    url: https://github.com/prehisle/relay-pulse/security/policy
+    about: 安全漏洞请走 Security Policy，不要公开披露
   - name: 💬 讨论区
     url: https://github.com/prehisle/relay-pulse/discussions
     about: 一般性问题、使用疑问请前往讨论区
