@@ -15,25 +15,29 @@ import (
 	"notifier/internal/storage"
 )
 
-// Event 状态变更事件（来自 relay-pulse API）
+// Event 状态变更事件（来自 relay-pulse /api/events）
+// 字段与 internal/api/events_handler.go EventItem 保持一致
 type Event struct {
-	ID         int64  `json:"id"`
-	Provider   string `json:"provider"`
-	Service    string `json:"service"`
-	Channel    string `json:"channel"`
-	OldStatus  int    `json:"old_status"`
-	NewStatus  int    `json:"new_status"`
-	OldLatency int64  `json:"old_latency"`
-	NewLatency int64  `json:"new_latency"`
-	Timestamp  int64  `json:"timestamp"`
+	ID              int64          `json:"id"`
+	Provider        string         `json:"provider"`
+	Service         string         `json:"service"`
+	Channel         string         `json:"channel,omitempty"`
+	Type            string         `json:"type"`              // DOWN 或 UP
+	FromStatus      int            `json:"from_status"`       // 变更前状态
+	ToStatus        int            `json:"to_status"`         // 变更后状态
+	TriggerRecordID int64          `json:"trigger_record_id"` // 触发记录ID
+	ObservedAt      int64          `json:"observed_at"`       // 事件发生时间（Unix秒）
+	CreatedAt       int64          `json:"created_at"`        // 记录创建时间
+	Meta            map[string]any `json:"meta,omitempty"`    // 附加信息
 }
 
 // EventsResponse /api/events 响应
 type EventsResponse struct {
 	Events []Event `json:"events"`
 	Meta   struct {
-		Count   int   `json:"count"`
-		SinceID int64 `json:"since_id"`
+		NextSinceID int64 `json:"next_since_id"` // 下一次轮询的游标
+		HasMore     bool  `json:"has_more"`      // 是否还有更多事件
+		Count       int   `json:"count"`         // 本次返回的事件数
 	} `json:"meta"`
 }
 

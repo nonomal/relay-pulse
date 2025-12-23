@@ -169,19 +169,30 @@ func (s *Sender) formatMessage(event *poller.Event) string {
 	var emoji string
 	var statusText string
 
-	switch event.NewStatus {
-	case 1:
+	// 使用 Type 字段判断事件类型（更可靠）
+	switch event.Type {
+	case "UP":
 		emoji = "🟢"
 		statusText = "服务已恢复"
-	case 2:
-		emoji = "🟡"
-		statusText = "服务波动"
-	case 0:
+	case "DOWN":
 		emoji = "🔴"
 		statusText = "服务不可用"
 	default:
-		emoji = "⚪"
-		statusText = "状态未知"
+		// fallback 到 ToStatus
+		switch event.ToStatus {
+		case 1:
+			emoji = "🟢"
+			statusText = "服务已恢复"
+		case 2:
+			emoji = "🟡"
+			statusText = "服务波动"
+		case 0:
+			emoji = "🔴"
+			statusText = "服务不可用"
+		default:
+			emoji = "⚪"
+			statusText = "状态变更"
+		}
 	}
 
 	// 转义 HTML 防止注入
@@ -194,16 +205,28 @@ func (s *Sender) formatMessage(event *poller.Event) string {
 		location += fmt.Sprintf(" / <b>%s</b>", channel)
 	}
 
+	// 从 Meta 中提取附加信息（转义防止 HTML 注入）
+	var details string
+	if subStatus, ok := event.Meta["sub_status"]; ok {
+		details = fmt.Sprintf("\n原因: %s", html.EscapeString(fmt.Sprintf("%v", subStatus)))
+	}
+
+	// 格式化时间（ObservedAt 为 0 时使用 CreatedAt 作为 fallback）
+	eventTs := event.ObservedAt
+	if eventTs == 0 {
+		eventTs = event.CreatedAt
+	}
+	eventTime := time.Unix(eventTs, 0).UTC().Format("2006-01-02 15:04:05 UTC")
+
 	msg := fmt.Sprintf(`%s <b>%s</b>
 
-%s
+%s%s
 
-延迟: %dms → %dms
 时间: %s`,
 		emoji, statusText,
 		location,
-		event.OldLatency, event.NewLatency,
-		time.Unix(event.Timestamp, 0).Format("2006-01-02 15:04:05 MST"),
+		details,
+		eventTime,
 	)
 
 	return msg

@@ -29,8 +29,8 @@ WORKDIR /app
 # Copy binary
 COPY --from=builder /build/notifier .
 
-# Copy default config
-COPY config.yaml .
+# Copy default config template
+COPY config.yaml.example config.yaml
 
 # Create data directory
 RUN mkdir -p /app/data

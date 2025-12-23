@@ -1,0 +1,56 @@
+# RelayPulse Notifier 配置模板
+# 复制此文件为 config.yaml 并填写实际值
+# 大部分配置项可通过环境变量覆盖
+
+# relay-pulse 事件 API 配置
+relay_pulse:
+  # 事件 API 地址（必需）
+  # 环境变量: RELAY_PULSE_EVENTS_URL
+  events_url: "https://your-relay-pulse.com/api/events"
+
+  # API Token（必需）
+  # 环境变量: RELAY_PULSE_API_TOKEN
+  api_token: ""
+
+  # 轮询间隔（默认: 5s）
+  poll_interval: "5s"
+
+# Telegram Bot 配置
+telegram:
+  # Bot Token（从 @BotFather 获取）
+  # 环境变量: TELEGRAM_BOT_TOKEN
+  bot_token: ""
+
+  # Bot 用户名（用于生成 deeplink）
+  bot_username: "RelayPulseBot"
+
+# 数据库配置
+database:
+  # 驱动类型: sqlite 或 postgres（默认: sqlite）
+  driver: "sqlite"
+
+  # 数据库连接字符串
+  # SQLite: file:/app/data/notifier.db?_journal_mode=WAL
+  # PostgreSQL: postgres://user:pass@host:5432/dbname?sslmode=disable
+  # 环境变量: DATABASE_DSN
+  dsn: "file:/app/data/notifier.db?_journal_mode=WAL"
+
+# HTTP API 配置
+api:
+  # 监听地址（默认: :8081）
+  # 环境变量: API_ADDR
+  addr: ":8081"
+
+# 限制配置
+limits:
+  # 每用户最大订阅数（默认: 20）
+  max_subscriptions_per_user: 20
+
+  # Telegram 发送限流（每秒消息数，默认: 25）
+  rate_limit_per_second: 25
+
+  # 投递失败最大重试次数（默认: 3）
+  max_retries: 3
+
+  # 绑定 Token 有效期（默认: 5m）
+  bind_token_ttl: "5m"
