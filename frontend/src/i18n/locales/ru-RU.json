@@ -62,8 +62,9 @@
       "promoted": "Коммерческий"
     },
     "services": {
-      "cc": "Claude Code (cc)",
-      "cx": "Codex (cx)"
+      "cc": "Claude Code (CC)",
+      "cx": "Codex (CX)",
+      "gm": "Gemini (GM)"
     },
     "timeRanges": {
       "90m": "Последние 90 минут",

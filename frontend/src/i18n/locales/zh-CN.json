@@ -62,8 +62,9 @@
       "promoted": "商业站"
     },
     "services": {
-      "cc": "Claude Code (cc)",
-      "cx": "Codex (cx)"
+      "cc": "Claude Code (CC)",
+      "cx": "Codex (CX)",
+      "gm": "Gemini (GM)"
     },
     "timeRanges": {
       "90m": "近90分钟",

@@ -1,0 +1,17 @@
+{
+	"contents": [{
+		"role": "user",
+		"parts": [{
+			"text": "ping\n\nOnly respond with JSON: {\"text\":\"pong\"}"
+		}]
+	}],
+	"generationConfig": {
+		"temperature": 0,
+		"topP": 1,
+		"maxOutputTokens": 8,
+		"responseMimeType": "text/plain",
+		"thinkingConfig": {
+			"thinkingBudget": 0
+		}
+	}
+}

@@ -106,6 +106,7 @@ const SERVICE_ICON_MAP: Record<string, ServiceIconComponent> = {
   cc: ClaudeIcon,
   cx: OpenAIIcon,
   gemini: GeminiIcon,
+  gm: GeminiIcon,
 };
 
 /**

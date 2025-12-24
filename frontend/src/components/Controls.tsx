@@ -87,6 +87,7 @@ export function Controls({
     const allOptions = [
       { value: 'cc', label: t('controls.services.cc') },
       { value: 'cx', label: t('controls.services.cx') },
+      { value: 'gm', label: t('controls.services.gm') },
     ];
     // 空数组表示无数据，显示全部选项作为回退
     if (effectiveServices.length === 0) return allOptions;
