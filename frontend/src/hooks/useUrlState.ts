@@ -45,7 +45,7 @@ interface UrlStateActions {
 
 // 默认值
 const DEFAULTS = {
-  timeRange: '24h',
+  timeRange: '90m',
   timeFilter: null as string | null, // 全天（无过滤）
   filterProvider: [] as string[],  // 空数组表示"全部"
   filterService: [] as string[],   // 空数组表示"全部"

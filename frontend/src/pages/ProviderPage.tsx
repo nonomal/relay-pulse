@@ -51,7 +51,7 @@ export default function ProviderPage() {
   const normalizedProvider = canonicalize(provider);
 
   // 状态管理
-  const [timeRange, setTimeRange] = useState('24h');
+  const [timeRange, setTimeRange] = useState('90m');
   const [timeFilter, setTimeFilter] = useState<string | null>(null);
   const [filterService, setFilterService] = useState<string[]>([]);
   const [filterChannel, setFilterChannel] = useState<string[]>([]);

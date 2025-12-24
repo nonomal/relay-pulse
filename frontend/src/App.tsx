@@ -97,13 +97,15 @@ function App() {
   const lastRefreshRef = useRef<number>(0);
   const [refreshCooldown, setRefreshCooldown] = useState(false);
 
-  // 自动刷新开关（持久化到 localStorage，默认关闭）
+  // 自动刷新开关（持久化到 localStorage，默认开启）
   const AUTO_REFRESH_KEY = 'relay-pulse-auto-refresh';
   const [autoRefresh, setAutoRefresh] = useState(() => {
     try {
-      return localStorage.getItem(AUTO_REFRESH_KEY) === 'true';
+      const stored = localStorage.getItem(AUTO_REFRESH_KEY);
+      if (stored === null) return true; // 无值时默认开启
+      return stored === 'true'; // 有值则尊重用户选择
     } catch {
-      return false;
+      return true; // 异常也默认开启
     }
   });
 
