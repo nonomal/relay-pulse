@@ -127,6 +127,8 @@ function StatusCardComponent({
                 className={`px-2 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 ${
                   item.serviceType === 'cc'
                     ? 'border-service-cc text-service-cc bg-service-cc'
+                    : item.serviceType === 'gm'
+                    ? 'border-service-gm text-service-gm bg-service-gm'
                     : 'border-service-cx text-service-cx bg-service-cx'
                 }`}
               >

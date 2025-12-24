@@ -40,8 +40,9 @@
   --chart-gray: 215 20% 65%;        /* #94a3b8 slate-400 */
 
   /* 服务类型色 */
-  --service-cc: 270 60% 70%;        /* purple-400 */
-  --service-cx: 217 91% 60%;        /* blue-400 */
+  --service-cc: 15 63% 60%;           /* Claude 橙色 #D97757 */
+  --service-cx: 210 40% 90%;          /* 跟随主文字色 */
+  --service-gm: 215 100% 60%;         /* Gemini 蓝色 #3186FF */
 
   /* 辅助色 */
   --blue: 217 91% 60%;              /* blue-500 */

@@ -206,6 +206,8 @@ function MobileListItem({
                 className={`px-1.5 py-0.5 rounded text-[10px] font-mono border flex-shrink-0 ${
                   item.serviceType === 'cc'
                     ? 'border-service-cc text-service-cc bg-service-cc'
+                    : item.serviceType === 'gm'
+                    ? 'border-service-gm text-service-gm bg-service-gm'
                     : 'border-service-cx text-service-cx bg-service-cx'
                 }`}
               >
@@ -626,6 +628,8 @@ function StatusTableComponent({
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-mono border ${
                     item.serviceType === 'cc'
                       ? 'border-service-cc text-service-cc bg-service-cc'
+                      : item.serviceType === 'gm'
+                      ? 'border-service-gm text-service-gm bg-service-gm'
                       : 'border-service-cx text-service-cx bg-service-cx'
                   }`}
                 >
