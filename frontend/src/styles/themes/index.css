@@ -51,6 +51,7 @@
   .bg-accent-strong { background-color: hsl(var(--accent-strong)); }
   .bg-accent\/10 { background-color: hsl(var(--accent) / 0.1); }
   .bg-accent\/20 { background-color: hsl(var(--accent) / 0.2); }
+  .bg-accent\/70 { background-color: hsl(var(--accent) / 0.7); }
   .text-accent { color: hsl(var(--accent)); }
   .text-accent-strong { color: hsl(var(--accent-strong)); }
   .border-accent { border-color: hsl(var(--accent)); }

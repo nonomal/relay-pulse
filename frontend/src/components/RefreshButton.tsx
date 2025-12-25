@@ -83,13 +83,13 @@ export function RefreshButton({
           aria-label={t('controls.autoRefresh.toggle')}
           aria-pressed={autoRefresh}
         >
-          {/* 状态圆点：开启=实心绿，关闭=底色灰 */}
+          {/* 状态圆点：开启=青色，关闭=灰色，无边框 */}
           <span
             aria-hidden="true"
             className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
               autoRefresh
-                ? 'bg-success border border-success/60 shadow-[0_0_6px_hsl(var(--success)_/_0.25)]'
-                : 'bg-elevated border border-default/50'
+                ? 'bg-accent/70'
+                : 'bg-muted/50'
             }`}
           />
         </button>
