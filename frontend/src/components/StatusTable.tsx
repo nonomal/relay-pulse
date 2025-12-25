@@ -586,7 +586,7 @@ function StatusTableComponent({
                   <div className="flex items-center h-8 group/provider">
                     <div className="flex flex-col gap-0 flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-medium text-primary text-sm leading-none truncate">
+                        <span className="font-medium text-primary text-sm leading-tight truncate">
                           <ExternalLink href={item.providerUrl} inline requireConfirm>{item.providerName}</ExternalLink>
                         </span>
                         {/* 收藏按钮：始终显示，未收藏时弱化 */}
