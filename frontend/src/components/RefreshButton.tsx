@@ -89,7 +89,7 @@ export function RefreshButton({
             className={`w-2.5 h-2.5 rounded-full transition-all duration-200 ${
               autoRefresh
                 ? 'bg-accent/70'
-                : 'bg-muted/50'
+                : 'bg-secondary/40'
             }`}
           />
         </button>
