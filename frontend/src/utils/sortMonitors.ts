@@ -274,7 +274,7 @@ export function sortMonitorsWithPinning(
   const pinnedCandidates = items.filter(item => meetsPinCriteria(item, pinConfig));
 
   // 2. 按 provider + service 去重，避免同一服务商的同类服务重复置顶
-  //    每组保留赞助级别最高、可用率最高的一个
+  //    每组保留赞助级别最高、可用率最高、延迟最低的一个
   const bestByProviderService = new Map<string, ProcessedMonitorData>();
   for (const item of pinnedCandidates) {
     const key = `${item.providerId}|${item.serviceType}`;
@@ -283,22 +283,31 @@ export function sortMonitorsWithPinning(
       bestByProviderService.set(key, item);
       continue;
     }
-    // 比较：赞助级别优先，同级别按可用率
+    // 比较：赞助级别优先，同级别按可用率，同可用率按延迟（低延迟优先）
     const itemWeight = SPONSOR_WEIGHTS[item.sponsorLevel!] || 0;
     const existingWeight = SPONSOR_WEIGHTS[existing.sponsorLevel!] || 0;
-    if (itemWeight > existingWeight || (itemWeight === existingWeight && item.uptime > existing.uptime)) {
+    if (
+      itemWeight > existingWeight ||
+      (itemWeight === existingWeight &&
+        (item.uptime > existing.uptime ||
+          (item.uptime === existing.uptime &&
+            compareLatency(item.lastCheckLatency, existing.lastCheckLatency) < 0)))
+    ) {
       bestByProviderService.set(key, item);
     }
   }
   const dedupedCandidates = Array.from(bestByProviderService.values());
 
-  // 3. 按赞助级别降序排序（同级别按可用率降序）
+  // 3. 按赞助级别降序排序（同级别按可用率降序，同可用率按延迟升序）
   dedupedCandidates.sort((a, b) => {
     const aWeight = SPONSOR_WEIGHTS[a.sponsorLevel!] || 0;
     const bWeight = SPONSOR_WEIGHTS[b.sponsorLevel!] || 0;
     if (aWeight !== bWeight) return bWeight - aWeight;
     // 同级别按可用率降序
-    return b.uptime - a.uptime;
+    const uptimeDiff = b.uptime - a.uptime;
+    if (uptimeDiff !== 0) return uptimeDiff;
+    // 同级别 + 同可用率：按延迟升序（低延迟优先）
+    return compareLatency(a.lastCheckLatency, b.lastCheckLatency);
   });
 
   // 4. 取前 N 个
