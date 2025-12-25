@@ -66,3 +66,4 @@ notifier/notifier
 .playwright-mcp/
 config.yaml.backup-*
 verify
+notes.txt

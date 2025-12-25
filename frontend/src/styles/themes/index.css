@@ -159,6 +159,7 @@
   /* 次要背景/文字色（用于无数据状态） */
   .bg-secondary { background-color: hsl(var(--text-secondary)); }
   .bg-secondary\/40 { background-color: hsl(var(--text-secondary) / 0.4); }
+  .bg-secondary\/50 { background-color: hsl(var(--text-secondary) / 0.5); }
   .bg-secondary\/60 { background-color: hsl(var(--text-secondary) / 0.6); }
   .text-bg-secondary { color: hsl(var(--text-secondary)); }
 
