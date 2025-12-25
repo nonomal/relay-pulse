@@ -122,7 +122,7 @@ function App() {
     });
   };
 
-  const { loading, error, data, stats, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
+  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -150,100 +150,188 @@ function App() {
     return data.filter(item => favorites.has(item.id));
   }, [data, showFavoritesOnly, favorites]);
 
+  // 选项基础数据：基于 rawData（未被筛选器过滤），用于计算 effectiveXxx
+  // 这避免了循环依赖：选择一个 provider 后，其他 provider 仍然可见
+  const optionsBaseData = useMemo(() => {
+    if (!showFavoritesOnly) return rawData;
+    return rawData.filter(item => favorites.has(item.id));
+  }, [rawData, showFavoritesOnly, favorites]);
+
   // 最终过滤后的数据（应用所有筛选器）
   const filteredData = useMemo(() => {
-    let filtered = baseData;
-    if (filterProvider.length > 0) {
-      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
-    }
-    if (filterService.length > 0) {
-      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
-    }
-    if (filterChannel.length > 0) {
-      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
-    }
-    if (filterCategory.length > 0) {
-      filtered = filtered.filter(item => filterCategory.includes(item.category));
-    }
-    return filtered;
+    // 预构建 Set 优化 O(n) includes → O(1) has
+    const providerSet = filterProvider.length > 0 ? new Set(filterProvider) : null;
+    const serviceSet = filterService.length > 0 ? new Set(filterService) : null;
+    const channelSet = filterChannel.length > 0 ? new Set(filterChannel) : null;
+    const categorySet = filterCategory.length > 0 ? new Set(filterCategory) : null;
+
+    return baseData.filter(item => {
+      if (providerSet && !providerSet.has(item.providerId)) return false;
+      if (serviceSet && !serviceSet.has(item.serviceType.toLowerCase())) return false;
+      if (channelSet && !(item.channel && channelSet.has(item.channel))) return false;
+      if (categorySet && !categorySet.has(item.category)) return false;
+      return true;
+    });
   }, [baseData, filterProvider, filterService, filterChannel, filterCategory]);
 
-  // 动态 Provider 选项：基于 service + channel + category 筛选后的数据
-  // 不包含 provider 筛选，避免选项自我消失
+  // 动态 Provider 选项：联动筛选 + 保留已选项
   const effectiveProviders = useMemo(() => {
-    let filtered = baseData;
-    if (filterService.length > 0) {
-      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
-    }
-    if (filterChannel.length > 0) {
-      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
-    }
-    if (filterCategory.length > 0) {
-      filtered = filtered.filter(item => filterCategory.includes(item.category));
-    }
-    const map = new Map<string, string>();
+    // 预构建 Set 优化查询性能
+    const serviceSet = filterService.length > 0 ? new Set(filterService) : null;
+    const channelSet = filterChannel.length > 0 ? new Set(filterChannel) : null;
+    const categorySet = filterCategory.length > 0 ? new Set(filterCategory) : null;
+    const providerSet = new Set(filterProvider);
+
+    // 1. 应用其他筛选条件（不包括 provider 自身）
+    const filtered = optionsBaseData.filter(item => {
+      if (serviceSet && !serviceSet.has(item.serviceType.toLowerCase())) return false;
+      if (channelSet && !(item.channel && channelSet.has(item.channel))) return false;
+      if (categorySet && !categorySet.has(item.category)) return false;
+      return true;
+    });
+
+    // 2. 收集当前可用的 provider（带计数）
+    const availableMap = new Map<string, { label: string; count: number }>();
     filtered.forEach(item => {
-      if (!map.has(item.providerId)) {
-        map.set(item.providerId, item.providerName);
+      if (!availableMap.has(item.providerId)) {
+        availableMap.set(item.providerId, { label: item.providerName, count: 1 });
+      } else {
+        availableMap.get(item.providerId)!.count++;
       }
     });
-    return Array.from(map.entries())
-      .sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'))
-      .map(([value, label]) => ({ value, label }));
-  }, [baseData, filterService, filterChannel, filterCategory]);
 
-  // 动态 Service 选项：基于 provider + channel + category 筛选后的数据
-  const effectiveServices = useMemo(() => {
-    let filtered = baseData;
-    if (filterProvider.length > 0) {
-      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
-    }
-    if (filterChannel.length > 0) {
-      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
-    }
-    if (filterCategory.length > 0) {
-      filtered = filtered.filter(item => filterCategory.includes(item.category));
-    }
-    const set = new Set<string>();
-    filtered.forEach(item => set.add(item.serviceType.toLowerCase()));
-    return Array.from(set).sort();
-  }, [baseData, filterProvider, filterChannel, filterCategory]);
-
-  // 动态 Channel 选项：基于 provider + service + category 筛选后的数据
-  const effectiveChannels = useMemo(() => {
-    let filtered = baseData;
-    if (filterProvider.length > 0) {
-      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
-    }
-    if (filterService.length > 0) {
-      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
-    }
-    if (filterCategory.length > 0) {
-      filtered = filtered.filter(item => filterCategory.includes(item.category));
-    }
-    const set = new Set<string>();
-    filtered.forEach(item => {
-      if (item.channel) set.add(item.channel);
+    // 3. 确保已选的 provider 始终可见（从全量数据中补充 label）
+    filterProvider.forEach(providerId => {
+      if (!availableMap.has(providerId)) {
+        const item = optionsBaseData.find(d => d.providerId === providerId);
+        if (item) {
+          availableMap.set(providerId, { label: item.providerName, count: 0 });
+        }
+      }
     });
-    return Array.from(set).sort();
-  }, [baseData, filterProvider, filterService, filterCategory]);
 
-  // 动态 Category 选项：基于 provider + service + channel 筛选后的数据
+    // 4. 转换为选项数组，标记无数据的已选项
+    return Array.from(availableMap.entries())
+      .sort((a, b) => a[1].label.localeCompare(b[1].label, 'zh-CN'))
+      .map(([value, { label, count }]) => ({
+        value,
+        label: count === 0 && providerSet.has(value) ? `${label} (0)` : label,
+      }));
+  }, [optionsBaseData, filterService, filterChannel, filterCategory, filterProvider]);
+
+  // 动态 Service 选项：联动筛选 + 保留已选项
+  const effectiveServices = useMemo(() => {
+    // 预构建 Set 优化查询性能
+    const providerSet = filterProvider.length > 0 ? new Set(filterProvider) : null;
+    const channelSet = filterChannel.length > 0 ? new Set(filterChannel) : null;
+    const categorySet = filterCategory.length > 0 ? new Set(filterCategory) : null;
+    const serviceSet = new Set(filterService);
+
+    // 1. 应用其他筛选条件（不包括 service 自身）
+    const filtered = optionsBaseData.filter(item => {
+      if (providerSet && !providerSet.has(item.providerId)) return false;
+      if (channelSet && !(item.channel && channelSet.has(item.channel))) return false;
+      if (categorySet && !categorySet.has(item.category)) return false;
+      return true;
+    });
+
+    // 2. 收集当前可用的 service（带计数）
+    const availableMap = new Map<string, number>();
+    filtered.forEach(item => {
+      const service = item.serviceType.toLowerCase();
+      availableMap.set(service, (availableMap.get(service) || 0) + 1);
+    });
+
+    // 3. 确保已选的 service 始终可见
+    filterService.forEach(service => {
+      if (!availableMap.has(service)) {
+        availableMap.set(service, 0);
+      }
+    });
+
+    // 4. 转换为数组，标记无数据的已选项
+    return Array.from(availableMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([value, count]) =>
+        count === 0 && serviceSet.has(value) ? `${value} (0)` : value
+      );
+  }, [optionsBaseData, filterProvider, filterChannel, filterCategory, filterService]);
+
+  // 动态 Channel 选项：联动筛选 + 保留已选项
+  const effectiveChannels = useMemo(() => {
+    // 预构建 Set 优化查询性能
+    const providerSet = filterProvider.length > 0 ? new Set(filterProvider) : null;
+    const serviceSet = filterService.length > 0 ? new Set(filterService) : null;
+    const categorySet = filterCategory.length > 0 ? new Set(filterCategory) : null;
+    const channelSet = new Set(filterChannel);
+
+    // 1. 应用其他筛选条件（不包括 channel 自身）
+    const filtered = optionsBaseData.filter(item => {
+      if (providerSet && !providerSet.has(item.providerId)) return false;
+      if (serviceSet && !serviceSet.has(item.serviceType.toLowerCase())) return false;
+      if (categorySet && !categorySet.has(item.category)) return false;
+      return true;
+    });
+
+    // 2. 收集当前可用的 channel（带计数）
+    const availableMap = new Map<string, number>();
+    filtered.forEach(item => {
+      if (item.channel) {
+        availableMap.set(item.channel, (availableMap.get(item.channel) || 0) + 1);
+      }
+    });
+
+    // 3. 确保已选的 channel 始终可见
+    filterChannel.forEach(channel => {
+      if (!availableMap.has(channel)) {
+        availableMap.set(channel, 0);
+      }
+    });
+
+    // 4. 转换为数组，标记无数据的已选项
+    return Array.from(availableMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([value, count]) =>
+        count === 0 && channelSet.has(value) ? `${value} (0)` : value
+      );
+  }, [optionsBaseData, filterProvider, filterService, filterCategory, filterChannel]);
+
+  // 动态 Category 选项：联动筛选 + 保留已选项
   const effectiveCategories = useMemo(() => {
-    let filtered = baseData;
-    if (filterProvider.length > 0) {
-      filtered = filtered.filter(item => filterProvider.includes(item.providerId));
-    }
-    if (filterService.length > 0) {
-      filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
-    }
-    if (filterChannel.length > 0) {
-      filtered = filtered.filter(item => item.channel && filterChannel.includes(item.channel));
-    }
-    const set = new Set<string>();
-    filtered.forEach(item => set.add(item.category));
-    return Array.from(set).sort();
-  }, [baseData, filterProvider, filterService, filterChannel]);
+    // 预构建 Set 优化查询性能
+    const providerSet = filterProvider.length > 0 ? new Set(filterProvider) : null;
+    const serviceSet = filterService.length > 0 ? new Set(filterService) : null;
+    const channelSet = filterChannel.length > 0 ? new Set(filterChannel) : null;
+    const categorySet = new Set(filterCategory);
+
+    // 1. 应用其他筛选条件（不包括 category 自身）
+    const filtered = optionsBaseData.filter(item => {
+      if (providerSet && !providerSet.has(item.providerId)) return false;
+      if (serviceSet && !serviceSet.has(item.serviceType.toLowerCase())) return false;
+      if (channelSet && !(item.channel && channelSet.has(item.channel))) return false;
+      return true;
+    });
+
+    // 2. 收集当前可用的 category（带计数）
+    const availableMap = new Map<string, number>();
+    filtered.forEach(item => {
+      availableMap.set(item.category, (availableMap.get(item.category) || 0) + 1);
+    });
+
+    // 3. 确保已选的 category 始终可见
+    filterCategory.forEach(category => {
+      if (!availableMap.has(category)) {
+        availableMap.set(category, 0);
+      }
+    });
+
+    // 4. 转换为数组，标记无数据的已选项
+    return Array.from(availableMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([value, count]) =>
+        count === 0 && categorySet.has(value) ? `${value} (0)` : value
+      );
+  }, [optionsBaseData, filterProvider, filterService, filterChannel, filterCategory]);
 
   // 收藏模式切换（使用事务性方法，保存/恢复筛选状态快照）
   const handleFavoritesModeChange = useCallback((enabled: boolean) => {

@@ -365,7 +365,7 @@ export function useMonitorData({
     const categorySet = filterCategory.length > 0 ? new Set(filterCategory) : null;
 
     const filtered = rawData.filter((item) => {
-      const matchService = serviceSet === null || serviceSet.has(item.serviceType);
+      const matchService = serviceSet === null || serviceSet.has(item.serviceType.toLowerCase());
       const matchProvider = providerSet === null || providerSet.has(item.providerId);
       const matchChannel = channelSet === null || (item.channel && channelSet.has(item.channel));
       const matchCategory = categorySet === null || (item.category && categorySet.has(item.category));
@@ -388,6 +388,7 @@ export function useMonitorData({
     loading,
     error,
     data: processedData,
+    rawData,  // 未过滤的原始数据，供 App.tsx 计算 effectiveXxx 使用
     stats,
     channels,
     providers,
