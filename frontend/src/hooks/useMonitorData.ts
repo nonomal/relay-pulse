@@ -7,6 +7,7 @@ import type {
   StatusKey,
   StatusCounts,
   ProviderOption,
+  ChannelOption,
   SponsorLevel,
   SponsorPinConfig,
 } from '../types';
@@ -335,14 +336,20 @@ export function useMonitorData({
   }, [triggerRefetch, autoRefresh]);
 
   // 提取所有通道列表（去重并排序）
-  const channels = useMemo(() => {
-    const set = new Set<string>();
+  // 返回 ChannelOption[] 格式，支持 label/value 分离
+  const channels = useMemo<ChannelOption[]>(() => {
+    const map = new Map<string, string>();  // value (channel) -> label (channelName)
     rawData.forEach((item) => {
       if (item.channel) {
-        set.add(item.channel);
+        // 如果同一个 channel 有多个 channelName，保留第一个
+        if (!map.has(item.channel)) {
+          map.set(item.channel, item.channelName || item.channel);
+        }
       }
     });
-    return Array.from(set).sort();
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'))  // 按 label 排序
+      .map(([value, label]) => ({ value, label }));
   }, [rawData]);
 
   // 提取所有服务商列表（去重并排序）

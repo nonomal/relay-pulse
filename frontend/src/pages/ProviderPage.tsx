@@ -13,7 +13,7 @@ import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
 import { EmptyFavorites } from '../components/EmptyFavorites';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
-import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData } from '../types';
+import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData, ChannelOption } from '../types';
 
 // localStorage key for time align preference (shared with App.tsx)
 const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
@@ -169,16 +169,22 @@ export default function ProviderPage() {
   }, [baseData, filterChannel]);
 
   // 动态 Channel 选项：基于 service 筛选后的数据
-  const effectiveChannels = useMemo(() => {
+  const effectiveChannels = useMemo<ChannelOption[]>(() => {
     let filtered = baseData;
     if (filterService.length > 0) {
       filtered = filtered.filter(item => filterService.includes(item.serviceType.toLowerCase()));
     }
-    const set = new Set<string>();
+    // 收集 channel -> channelName 映射
+    const map = new Map<string, string>();
     filtered.forEach(item => {
-      if (item.channel) set.add(item.channel);
+      if (item.channel && !map.has(item.channel)) {
+        map.set(item.channel, item.channelName || item.channel);
+      }
     });
-    return Array.from(set).sort();
+    // 转换为 ChannelOption[]，按 label 排序
+    return Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1], 'zh-CN'))
+      .map(([value, label]) => ({ value, label }));
   }, [baseData, filterService]);
 
   // 收藏模式切换（ProviderPage 独立快照管理）

@@ -7,7 +7,7 @@ import { TimeFilterPicker } from './TimeFilterPicker';
 import { SubscribeButton } from './SubscribeButton';
 import { RefreshButton } from './RefreshButton';
 import type { MultiSelectOption } from './MultiSelect';
-import type { ViewMode, ProviderOption } from '../types';
+import type { ViewMode, ProviderOption, ChannelOption } from '../types';
 
 interface ControlsProps {
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
@@ -22,8 +22,8 @@ interface ControlsProps {
   timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
   viewMode: ViewMode;
   loading: boolean;
-  channels: string[];
-  providers: ProviderOption[];  // 改为 ProviderOption[]
+  channels: ChannelOption[];  // 通道选项列表
+  providers: ProviderOption[];  // 服务商选项列表
   effectiveServices: string[];    // 动态服务选项（始终传递数组）
   effectiveCategories: string[];  // 动态分类选项（始终传递数组）
   showCategoryFilter?: boolean; // 是否显示分类筛选器，默认 true（用于服务商专属页面）
@@ -105,10 +105,8 @@ export function Controls({
     return allOptions.filter(opt => effectiveCategories.includes(opt.value));
   }, [t, effectiveCategories]);
 
-  // 通道选项（动态值）
-  const channelOptions = useMemo<MultiSelectOption[]>(() =>
-    channels.map(channel => ({ value: channel, label: channel })),
-  [channels]);
+  // 通道选项（已经是 ChannelOption[] 格式，直接转换为 MultiSelectOption[]）
+  const channelOptions = useMemo<MultiSelectOption[]>(() => channels, [channels]);
 
   // 统计激活的筛选器数量（仅计入可见的筛选器）
   const activeFiltersCount = [

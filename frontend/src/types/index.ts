@@ -209,6 +209,12 @@ export interface ProviderOption {
   label: string;  // 显示标签（保留原始大小写）
 }
 
+// 通道选项（用于筛选器）
+export interface ChannelOption {
+  value: string;  // 通道标识符，用于筛选
+  label: string;  // 显示名称（channelName 或 channel）
+}
+
 // 时段筛选预设
 export interface TimeFilterPreset {
   id: string;           // 预设 ID（如 'all', 'work', 'morning'）

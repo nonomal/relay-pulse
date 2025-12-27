@@ -14,7 +14,7 @@ import { useUrlState } from './hooks/useUrlState';
 import { useFavorites } from './hooks/useFavorites';
 import { createMediaQueryEffect } from './utils/mediaQuery';
 import { trackPeriodChange, trackServiceFilter, trackEvent } from './utils/analytics';
-import type { TooltipState, ProcessedMonitorData } from './types';
+import type { TooltipState, ProcessedMonitorData, ChannelOption } from './types';
 
 // localStorage key for time align preference
 const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
@@ -258,7 +258,7 @@ function App() {
   }, [optionsBaseData, filterProvider, filterChannel, filterCategory, filterService]);
 
   // 动态 Channel 选项：联动筛选 + 保留已选项
-  const effectiveChannels = useMemo(() => {
+  const effectiveChannels = useMemo<ChannelOption[]>(() => {
     // 预构建 Set 优化查询性能
     const providerSet = filterProvider.length > 0 ? new Set(filterProvider) : null;
     const serviceSet = filterService.length > 0 ? new Set(filterService) : null;
@@ -273,27 +273,41 @@ function App() {
       return true;
     });
 
-    // 2. 收集当前可用的 channel（带计数）
-    const availableMap = new Map<string, number>();
+    // 2. 收集当前可用的 channel（带计数）+ channelName 映射
+    const availableMap = new Map<string, { count: number; label: string }>();
     filtered.forEach(item => {
       if (item.channel) {
-        availableMap.set(item.channel, (availableMap.get(item.channel) || 0) + 1);
+        const existing = availableMap.get(item.channel);
+        if (existing) {
+          existing.count++;
+        } else {
+          availableMap.set(item.channel, {
+            count: 1,
+            label: item.channelName || item.channel,
+          });
+        }
       }
     });
 
-    // 3. 确保已选的 channel 始终可见
+    // 3. 确保已选的 channel 始终可见（从全量数据中查找 channelName）
     filterChannel.forEach(channel => {
       if (!availableMap.has(channel)) {
-        availableMap.set(channel, 0);
+        // 从全量数据中查找 channelName
+        const found = optionsBaseData.find(item => item.channel === channel);
+        availableMap.set(channel, {
+          count: 0,
+          label: found?.channelName || channel,
+        });
       }
     });
 
-    // 4. 转换为数组，标记无数据的已选项
+    // 4. 转换为 ChannelOption[]，按 label 排序，标记无数据的已选项
     return Array.from(availableMap.entries())
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([value, count]) =>
-        count === 0 && channelSet.has(value) ? `${value} (0)` : value
-      );
+      .sort((a, b) => a[1].label.localeCompare(b[1].label, 'zh-CN'))
+      .map(([value, { count, label }]) => ({
+        value,
+        label: count === 0 && channelSet.has(value) ? `${label} (0)` : label,
+      }));
   }, [optionsBaseData, filterProvider, filterService, filterCategory, filterChannel]);
 
   // 动态 Category 选项：联动筛选 + 保留已选项
