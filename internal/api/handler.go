@@ -257,9 +257,11 @@ type CurrentStatus struct {
 // MonitorResult API返回结构
 type MonitorResult struct {
 	Provider     string                 `json:"provider"`
-	ProviderSlug string                 `json:"provider_slug"` // URL slug（用于生成专属页面链接）
-	ProviderURL  string                 `json:"provider_url"`  // 服务商官网链接
+	ProviderName string                 `json:"provider_name,omitempty"` // Provider 显示名称
+	ProviderSlug string                 `json:"provider_slug"`           // URL slug（用于生成专属页面链接）
+	ProviderURL  string                 `json:"provider_url"`            // 服务商官网链接
 	Service      string                 `json:"service"`
+	ServiceName  string                 `json:"service_name,omitempty"`  // Service 显示名称
 	Category     string                 `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
 	Sponsor      string                 `json:"sponsor"`                 // 赞助者
 	SponsorURL   string                 `json:"sponsor_url"`             // 赞助者链接
@@ -270,6 +272,7 @@ type MonitorResult struct {
 	PriceMax     *float64               `json:"price_max,omitempty"`     // 参考倍率
 	ListedDays   *int                   `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
 	Channel      string                 `json:"channel"`                 // 业务通道标识
+	ChannelName  string                 `json:"channel_name,omitempty"`  // Channel 显示名称
 	ProbeURL     string                 `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）
 	TemplateName string                 `json:"template_name,omitempty"` // 请求体模板名称（如有）
 	IntervalMs   int64                  `json:"interval_ms"`             // 监测间隔（毫秒）
@@ -652,9 +655,11 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 
 	return MonitorResult{
 		Provider:     task.Provider,
+		ProviderName: task.ProviderName,
 		ProviderSlug: slug,
 		ProviderURL:  task.ProviderURL,
 		Service:      task.Service,
+		ServiceName:  task.ServiceName,
 		Category:     task.Category,
 		Sponsor:      task.Sponsor,
 		SponsorURL:   task.SponsorURL,
@@ -665,6 +670,7 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		PriceMax:     task.PriceMax,
 		ListedDays:   listedDays,
 		Channel:      task.Channel,
+		ChannelName:  task.ChannelName,
 		ProbeURL:     sanitizeProbeURL(task.URL),
 		TemplateName: task.BodyTemplateName,
 		IntervalMs:   intervalMs,

@@ -71,9 +71,11 @@ export interface GenericBadge {
 
 export interface MonitorResult {
   provider: string;
+  provider_name?: string;              // Provider 显示名称（可选）
   provider_slug: string;               // URL slug（用于生成专属页面链接）
   provider_url?: string;               // 服务商官网链接
   service: string;
+  service_name?: string;               // Service 显示名称（可选）
   category: 'commercial' | 'public';  // 分类：commercial（商业站）或 public（公益站）
   sponsor: string;                     // 赞助者
   sponsor_url?: string;                // 赞助者链接
@@ -84,6 +86,7 @@ export interface MonitorResult {
   price_max?: number;                  // 参考倍率
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
+  channel_name?: string;               // Channel 显示名称（可选）
   probe_url?: string;                  // 探测端点 URL（脱敏后）
   template_name?: string;              // 请求体模板名称（如有）
   interval_ms?: number;                // 监测间隔（毫秒，可选兼容旧版本）
@@ -129,6 +132,7 @@ export interface ProcessedMonitorData {
   providerName: string;
   providerUrl?: string | null;         // 服务商官网链接
   serviceType: string;
+  serviceName: string;                 // Service 显示名称
   category: 'commercial' | 'public';  // 分类
   sponsor: string;                     // 赞助者
   sponsorUrl?: string | null;          // 赞助者链接
@@ -139,6 +143,7 @@ export interface ProcessedMonitorData {
   priceMax?: number | null;            // 参考倍率
   listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
+  channelName?: string;                // Channel 显示名称
   probeUrl?: string;                   // 探测端点 URL（脱敏后）
   templateName?: string;               // 请求体模板名称（如有）
   intervalMs?: number;                 // 监测间隔（毫秒，可选）

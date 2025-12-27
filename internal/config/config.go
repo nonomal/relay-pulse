@@ -153,20 +153,23 @@ type RiskBadge struct {
 // ServiceConfig 单个服务监测配置
 type ServiceConfig struct {
 	Provider       string            `yaml:"provider" json:"provider"`
-	ProviderSlug   string            `yaml:"provider_slug" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
-	ProviderURL    string            `yaml:"provider_url" json:"provider_url"`   // 服务商官网链接（可选）
+	ProviderName   string            `yaml:"provider_name" json:"provider_name,omitempty"` // Provider 显示名称（可选，未配置时回退到 provider）
+	ProviderSlug   string            `yaml:"provider_slug" json:"provider_slug"`           // URL slug（可选，未配置时使用 provider 小写）
+	ProviderURL    string            `yaml:"provider_url" json:"provider_url"`             // 服务商官网链接（可选）
 	Service        string            `yaml:"service" json:"service"`
-	Category       string            `yaml:"category" json:"category"`           // 分类：commercial（商业站）或 public（公益站）
-	Sponsor        string            `yaml:"sponsor" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
-	SponsorURL     string            `yaml:"sponsor_url" json:"sponsor_url"`     // 赞助者链接（可选）
-	SponsorLevel   SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"` // 赞助商等级：basic/advanced/enterprise（可选）
-	PriceMin       *float64          `yaml:"price_min" json:"price_min"`         // 参考倍率下限（可选，如 0.05）
-	PriceMax       *float64          `yaml:"price_max" json:"price_max"`         // 参考倍率（可选，如 0.2）
-	Risks          []RiskBadge       `yaml:"-" json:"risks,omitempty"`           // 风险徽标（由 risk_providers 自动注入，不在此配置）
-	Badges         []BadgeRef        `yaml:"badges" json:"-"`                    // 徽标引用（可选，支持 tooltip 覆盖）
-	ResolvedBadges []ResolvedBadge   `yaml:"-" json:"badges,omitempty"`          // 解析后的徽标（由 badges + badge_providers 注入）
-	Channel        string            `yaml:"channel" json:"channel"`             // 业务通道标识（如 "vip-channel"、"standard-channel"），用于分类和过滤
-	ListedSince    string            `yaml:"listed_since" json:"listed_since"`   // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
+	ServiceName    string            `yaml:"service_name" json:"service_name,omitempty"` // Service 显示名称（可选，未配置时回退到 service）
+	Category       string            `yaml:"category" json:"category"`                   // 分类：commercial（商业站）或 public（公益站）
+	Sponsor        string            `yaml:"sponsor" json:"sponsor"`                     // 赞助者：提供 API Key 的个人或组织
+	SponsorURL     string            `yaml:"sponsor_url" json:"sponsor_url"`             // 赞助者链接（可选）
+	SponsorLevel   SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助商等级：basic/advanced/enterprise（可选）
+	PriceMin       *float64          `yaml:"price_min" json:"price_min"`                 // 参考倍率下限（可选，如 0.05）
+	PriceMax       *float64          `yaml:"price_max" json:"price_max"`                 // 参考倍率（可选，如 0.2）
+	Risks          []RiskBadge       `yaml:"-" json:"risks,omitempty"`                   // 风险徽标（由 risk_providers 自动注入，不在此配置）
+	Badges         []BadgeRef        `yaml:"badges" json:"-"`                            // 徽标引用（可选，支持 tooltip 覆盖）
+	ResolvedBadges []ResolvedBadge   `yaml:"-" json:"badges,omitempty"`                  // 解析后的徽标（由 badges + badge_providers 注入）
+	Channel        string            `yaml:"channel" json:"channel"`                     // 业务通道标识（如 "vip-channel"），用于分类和过滤
+	ChannelName    string            `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
+	ListedSince    string            `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
 	URL            string            `yaml:"url" json:"url"`
 	Method         string            `yaml:"method" json:"method"`
 	Headers        map[string]string `yaml:"headers" json:"headers"`
@@ -927,6 +930,12 @@ func (c *AppConfig) Normalize() error {
 		}
 
 		c.Monitors[i].ProviderSlug = slug
+
+		// 显示名称：仅做 trim 处理，不做回退
+		// 空值表示"未配置"，由前端使用默认格式化逻辑
+		c.Monitors[i].ProviderName = strings.TrimSpace(c.Monitors[i].ProviderName)
+		c.Monitors[i].ServiceName = strings.TrimSpace(c.Monitors[i].ServiceName)
+		c.Monitors[i].ChannelName = strings.TrimSpace(c.Monitors[i].ChannelName)
 
 		// 检测 slug 重复 (同一 slug 可用于不同 service，仅记录不报错)
 		if prevIdx, exists := slugSet[slug]; exists {

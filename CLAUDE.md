@@ -654,7 +654,11 @@ degraded_weight: 0.7   # 黄色状态的可用率权重（0-1，默认 0.7，可
 
 monitors:
   - provider: "88code"
+    provider_name: "88Code 官方"  # 可选：UI 显示名称（未配置时使用 provider）
     service: "cc"
+    service_name: "Claude Code"   # 可选：UI 显示名称（未配置时使用 service）
+    channel: "vip3"
+    channel_name: "VIP 3 通道"    # 可选：UI 显示名称（未配置时使用 channel）
     interval: "30s"    # 可选：覆盖全局 interval（高频付费监测）
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"

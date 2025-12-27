@@ -135,9 +135,11 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
             providerSlug: provider.id, // Mock: 使用 id 作为 slug
             providerName: provider.name,
             serviceType: service,
+            serviceName: service, // Mock: 使用 service 作为显示名称
             category,
             sponsor,
             channel,
+            channelName: channel, // Mock: 使用 channel 作为显示名称
             intervalMs: 60000, // Mock: 默认 60 秒
             history,
             currentStatus,

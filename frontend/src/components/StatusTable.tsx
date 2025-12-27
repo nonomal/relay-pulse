@@ -211,11 +211,11 @@ function MobileListItem({
                     : 'border-service-cx text-service-cx bg-service-cx'
                 }`}
               >
-                {item.serviceType.toUpperCase()}
+                {item.serviceName.toUpperCase()}
               </span>
               {item.channel && (
                 <ChannelCell
-                  channel={item.channel}
+                  channel={item.channelName || item.channel}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                   className="text-muted truncate"
@@ -641,12 +641,12 @@ function StatusTableComponent({
                       {item.serviceType === 'cx' && <Shield size={10} className="mr-1 text-primary" />}
                     </>
                   )}
-                  {item.serviceType.toUpperCase()}
+                  {item.serviceName.toUpperCase()}
                 </span>
               </td>
               <td className="px-2 py-1 text-secondary text-xs">
                 <ChannelCell
-                  channel={item.channel}
+                  channel={item.channelName || item.channel}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                 />

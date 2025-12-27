@@ -214,7 +214,11 @@ export function useMonitorData({
 
             // 标准化 provider 名称
             const providerKey = canonicalize(item.provider);
-            const providerLabel = formatProviderLabel(item.provider);
+            // 优先使用后端提供的显示名称，回退到格式化的 provider
+            const providerLabel = item.provider_name || formatProviderLabel(item.provider);
+            // 服务和通道的显示名称：优先后端配置，否则回退到标识符
+            const serviceName = item.service_name || item.service;
+            const channelName = item.channel_name || item.channel;
 
             return {
               id: `${providerKey || item.provider}-${item.service}-${item.channel || 'default'}`,
@@ -223,6 +227,7 @@ export function useMonitorData({
               providerName: providerLabel,  // 格式化的显示名称
               providerUrl: validateUrl(item.provider_url),
               serviceType: item.service,
+              serviceName,
               category: item.category,
               sponsor: item.sponsor,
               sponsorUrl: validateUrl(item.sponsor_url),
@@ -233,6 +238,7 @@ export function useMonitorData({
               priceMax: item.price_max ?? null,  // 参考倍率
               listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
+              channelName: channelName || undefined,
               probeUrl: item.probe_url,
               templateName: item.template_name,
               intervalMs: item.interval_ms ?? 0,  // 监测间隔（毫秒），兜底 0 兼容旧后端
