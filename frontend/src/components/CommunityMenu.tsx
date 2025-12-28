@@ -80,8 +80,8 @@ export function CommunityMenu() {
       <div
         className={`
           absolute top-full mt-1 z-50
-          right-0 lg:right-0
-          w-[min(85vw,18rem)] lg:w-auto
+          left-1/2 -translate-x-1/2 lg:left-auto lg:translate-x-0 lg:right-0
+          w-60 max-w-[85vw] lg:w-auto
           bg-elevated border border-default rounded-lg shadow-xl
           transition-all duration-200
           ${showMenu ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'}
@@ -117,7 +117,7 @@ export function CommunityMenu() {
                     aria-expanded={isExpanded}
                     aria-controls={`community-panel-${item.id}`}
                   >
-                    <span className="text-sm font-medium truncate">{groupName}</span>
+                    <span className="text-sm font-medium flex-1 min-w-0 truncate">{groupName}</span>
                     {/* 桌面端：右箭头 */}
                     <ChevronRight size={14} className="hidden lg:block text-muted flex-shrink-0" />
                     {/* 移动端：展开/收起箭头 */}
@@ -138,11 +138,11 @@ export function CommunityMenu() {
                     <div className="px-3 pb-3">
                       {/* 二维码 */}
                       {item.qrImageSrc && (
-                        <div className="mt-2 rounded-lg bg-surface/40 border border-default p-3 flex justify-center">
+                        <div className="mt-2 rounded-lg bg-surface/40 border border-default p-3 flex items-center justify-center">
                           <img
                             src={item.qrImageSrc}
                             alt={t('community.qrCodeAlt', { name: groupName })}
-                            className="max-w-full max-h-[50vh] rounded-md bg-white object-contain"
+                            className="block max-w-full max-h-[50vh] rounded-md bg-white object-contain"
                             loading="lazy"
                           />
                         </div>
