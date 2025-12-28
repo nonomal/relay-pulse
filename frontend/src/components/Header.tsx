@@ -8,6 +8,7 @@ import { FlagIcon } from './FlagIcon';
 import { useToast } from './Toast';
 import { shareCurrentPage } from '../utils/share';
 import { ThemeSwitcher } from './ThemeSwitcher';
+import { CommunityMenu } from './CommunityMenu';
 import { RefreshButton } from './RefreshButton';
 
 interface HeaderProps {
@@ -251,6 +252,9 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             <Share2 size={16} />
           </button>
 
+          {/* 加入社群 */}
+          <CommunityMenu />
+
           {/* 推荐按钮 */}
           <a
             href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
@@ -319,6 +323,9 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           <Share2 size={12} />
           {t('share.shareShort')}
         </button>
+
+        {/* 加入社群 - 移动端 */}
+        <CommunityMenu />
 
         {/* 推荐按钮 - 移动端紧凑版 */}
         <a

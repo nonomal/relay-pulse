@@ -1,4 +1,4 @@
-import type { Provider, TimeRange, StatusConfig, TimeFilterPreset } from '../types';
+import type { Provider, TimeRange, StatusConfig, TimeFilterPreset, CommunityItem } from '../types';
 import type { TFunction } from 'i18next';
 
 // 服务商列表
@@ -173,3 +173,15 @@ export const TIME_START_OPTIONS = TIME_OPTIONS.slice(0, -1);
 
 // 时段筛选的结束时间选项（00:30 到 24:00，不包括 00:00）
 export const TIME_END_OPTIONS = TIME_OPTIONS.slice(1);
+
+// 社群列表配置
+export const COMMUNITY_LIST: CommunityItem[] = [
+  {
+    id: 'rp-qq-group',
+    platform: 'qq',
+    nameKey: 'community.items.qqGroup',
+    groupNumber: '784246786',
+    qrImageSrc: '/qqun.jpg',
+    joinUrl: 'https://qm.qq.com/q/oPN0J85hIs',
+  },
+];

@@ -235,3 +235,16 @@ export interface TimeFilterPreset {
   labelKey: string;     // i18n 翻译 key
   value: string | null; // 时段值：null=全天, "09:00-17:00"=自定义
 }
+
+// 社群平台类型
+export type CommunityPlatform = 'qq' | 'wechat' | 'telegram' | 'discord';
+
+// 社群配置项
+export interface CommunityItem {
+  id: string;                    // 唯一标识
+  platform: CommunityPlatform;   // 平台类型
+  nameKey: string;               // i18n 翻译 key（群名）
+  groupNumber?: string;          // 群号（可选，用于展示）
+  qrImageSrc?: string;           // 二维码图片路径
+  joinUrl?: string;              // 加入链接
+}

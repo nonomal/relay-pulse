@@ -1,15 +1,6 @@
-<svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="pulse" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#22d3ee"/>
-      <stop offset="50%" stop-color="#60a5fa"/>
-      <stop offset="100%" stop-color="#c084fc"/>
-    </linearGradient>
-  </defs>
-  <!-- 深色背景 + 亮色边框（留出缓冲避免裁剪） -->
-  <rect x="3" y="3" width="58" height="58" rx="13" fill="#0f172a" stroke="#38bdf8" stroke-width="2.5"/>
-  <!-- 加粗的脉搏线 -->
-  <path d="M10 32h9l5-12 8 26 6-18 5 10h11" fill="none" stroke="url(#pulse)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
-  <!-- 醒目的终点圆点 -->
-  <circle cx="54" cy="32" r="4" fill="#22d3ee"/>
+<svg width="120" height="120" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="50" cy="50" r="48" fill="#1e293b" stroke="#475569" stroke-width="1"/>
+    <text x="50" y="68" font-family="Arial Black, sans-serif" font-weight="900" font-size="55" fill="white" text-anchor="middle" letter-spacing="-2">RP</text>
+    <!-- Pulse Line -->
+    <path d="M15 52 H35 L42 38 L50 66 L58 52 H85" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
 </svg>

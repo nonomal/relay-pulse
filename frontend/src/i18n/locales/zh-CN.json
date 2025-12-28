@@ -366,5 +366,14 @@
       "rateLimit": "每个 IP 每分钟最多 10 次测试",
       "privacy": "API 密钥仅用于测试，不会被存储或记录"
     }
+  },
+  "community": {
+    "title": "加入社群",
+    "items": {
+      "qqGroup": "QQ 群"
+    },
+    "groupNumber": "群号",
+    "joinLink": "点击加入",
+    "qrCodeAlt": "{{name}} 二维码"
   }
 }

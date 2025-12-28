@@ -366,5 +366,14 @@
       "rateLimit": "Maximum 10 tests per minute per IP",
       "privacy": "API keys are only used for testing and will not be stored or logged"
     }
+  },
+  "community": {
+    "title": "Join Community",
+    "items": {
+      "qqGroup": "QQ Group"
+    },
+    "groupNumber": "Group ID",
+    "joinLink": "Click to join",
+    "qrCodeAlt": "{{name}} QR Code"
   }
 }

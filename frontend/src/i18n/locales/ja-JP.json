@@ -366,5 +366,14 @@
       "rateLimit": "IP あたり毎分最大 10 回のテスト",
       "privacy": "API キーはテスト用途のみで、保存やログ記録されません"
     }
+  },
+  "community": {
+    "title": "コミュニティ",
+    "items": {
+      "qqGroup": "QQ グループ"
+    },
+    "groupNumber": "グループID",
+    "joinLink": "参加する",
+    "qrCodeAlt": "{{name}} QRコード"
   }
 }
