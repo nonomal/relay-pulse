@@ -58,7 +58,7 @@ function ChannelCell({ channel, probeUrl, templateName, className = '' }: Channe
       {/* CSS tooltip - 悬停后显示，支持鼠标移入复制内容 */}
       {/* pointer-events-none 防止不可见时拦截鼠标事件，hover 时启用 */}
       <span
-        className={`absolute ${tooltipPositionClass} px-2 py-1.5 bg-elevated border border-default text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover/channel:opacity-100 group-hover/channel:pointer-events-auto transition-opacity delay-150 z-50 select-text cursor-text max-w-[90vw] sm:max-w-md`}
+        className={`absolute ${tooltipPositionClass} px-2 py-1.5 bg-elevated border border-default text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover/channel:opacity-100 group-hover/channel:pointer-events-auto transition-opacity delay-150 z-50 select-text cursor-text md:min-w-[20rem] max-w-[90vw] md:max-w-2xl`}
       >
         <span className="flex flex-col gap-1">
           {probeUrl && (

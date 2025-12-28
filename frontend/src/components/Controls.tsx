@@ -170,17 +170,21 @@ export function Controls({
 
   return (
     <>
-      <div className="flex flex-col lg:flex-row gap-2 mb-2 lg:mb-3 overflow-visible">
-        {/* 筛选和视图控制（移动端隐藏，筛选/刷新已移到 Header） */}
-        <div className="hidden lg:flex flex-1 gap-1.5 items-center bg-surface/60 p-1.5 rounded-2xl overflow-visible">
-          {/* 桌面端：直接显示筛选器 */}
-          <div className="flex items-center gap-2 text-secondary text-sm font-medium px-1">
+      <div className="flex flex-wrap items-center gap-2 mb-2 lg:mb-3 overflow-visible">
+        {/* 筛选器区块（移动端隐藏，内部可滚动） */}
+        <div className="hidden min-[960px]:flex items-center gap-1.5 bg-surface/60 p-1.5 rounded-2xl min-w-0 max-w-full">
+          <div className="flex items-center gap-2 text-secondary text-sm font-medium px-1 flex-shrink-0">
             <Filter size={16} />
           </div>
-          <div className="flex gap-1.5 flex-1 overflow-visible">
+          <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto scrollbar-hide">
             {FilterSelects()}
           </div>
+        </div>
 
+        {/* 第二组：操作按钮 + 时间范围（作为整体参与换行，min-w-max 让宽度随内容自适应） */}
+        <div className="flex flex-1 min-w-0 min-[960px]:min-w-max items-center gap-2">
+          {/* 操作按钮组（移动端隐藏） */}
+          <div className="hidden min-[960px]:flex items-center gap-1.5 bg-surface/60 p-1.5 rounded-2xl overflow-visible flex-shrink-0">
           {/* 收藏 + 订阅按钮组 */}
           <div className="flex items-center h-8 bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
             {/* 收藏筛选按钮 */}
@@ -279,21 +283,19 @@ export function Controls({
             </div>
           )}
 
-          {/* 刷新按钮（桌面端显示，移动端已移到 Header） */}
-          <div className="ml-auto hidden lg:block">
-            <RefreshButton
-              loading={loading}
-              autoRefresh={autoRefresh}
-              refreshCooldown={refreshCooldown}
-              onRefresh={onRefresh}
-              onToggleAutoRefresh={onToggleAutoRefresh}
-              size="md"
-            />
-          </div>
+          {/* 刷新按钮 */}
+          <RefreshButton
+            loading={loading}
+            autoRefresh={autoRefresh}
+            refreshCooldown={refreshCooldown}
+            onRefresh={onRefresh}
+            onToggleAutoRefresh={onToggleAutoRefresh}
+            size="md"
+          />
         </div>
 
-        {/* 时间范围选择 */}
-        <div className="relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md flex items-center gap-1 overflow-x-auto scrollbar-hide">
+        {/* 时间范围选择（换行后仍可滚动查看全部按钮） */}
+        <div className="flex-1 min-w-0 relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md flex items-center gap-1">
           {/* 时间对齐切换图标（附属于 24h，放在前面） */}
           <button
             type="button"
@@ -315,34 +317,38 @@ export function Controls({
             {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
           </button>
 
-          {getTimeRanges(t).map((range) => (
-            <button
-              type="button"
-              key={range.id}
-              onClick={() => onTimeRangeChange(range.id)}
-              className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
-                timeRange === range.id
-                  ? 'bg-gradient-button text-inverse shadow-lg shadow-accent/25'
-                  : 'text-secondary hover:text-primary hover:bg-elevated'
-              }`}
-            >
-              {range.label}
-            </button>
-          ))}
+          {/* 时间范围按钮（可滚动，min-w-0 确保 flex 子项可压缩） */}
+          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            {getTimeRanges(t).map((range) => (
+              <button
+                type="button"
+                key={range.id}
+                onClick={() => onTimeRangeChange(range.id)}
+                className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                  timeRange === range.id
+                    ? 'bg-gradient-button text-inverse shadow-lg shadow-accent/25'
+                    : 'text-secondary hover:text-primary hover:bg-elevated'
+                }`}
+              >
+                {range.label}
+              </button>
+            ))}
+          </div>
 
-          {/* 时段筛选（仅 7d/30d 有效） */}
+          {/* 时段筛选（仅 7d/30d 有效，放在滚动区域外避免被裁剪） */}
           <TimeFilterPicker
             value={timeFilter}
             disabled={timeRange === '24h' || timeRange === '90m'}
             onChange={onTimeFilterChange}
           />
         </div>
+        </div>
       </div>
 
-      {/* 移动端筛选抽屉 */}
+      {/* 移动端筛选抽屉（960px 以下显示） */}
       {showFilterDrawer && (
         <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm min-[960px]:hidden"
           onClick={() => onFilterDrawerClose?.()}
         >
           <div

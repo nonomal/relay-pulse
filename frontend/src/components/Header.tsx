@@ -282,8 +282,8 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
         </div>
       </div>
 
-      {/* 移动端：筛选/刷新 + 推荐按钮 */}
-      <div className="flex items-center gap-1.5 lg:hidden">
+      {/* 移动端：筛选/刷新 + 推荐按钮（960px 以下显示） */}
+      <div className="flex items-center gap-1.5 min-[960px]:hidden">
         {/* 移动端：筛选按钮 */}
         {onFilterClick && (
           <button
