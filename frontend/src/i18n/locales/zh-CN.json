@@ -102,6 +102,13 @@
       "exitMode": "退出收藏模式",
       "noFavorites": "暂无收藏项"
     },
+    "boards": {
+      "hot": "热板",
+      "cold": "冷板",
+      "switchToHot": "切换到热板",
+      "switchToCold": "切换到冷板",
+      "coldNotice": "冷板监测项已暂停探测"
+    },
     "subscribe": {
       "button": "订阅通知",
       "tooltip": "订阅收藏项的状态变更通知到 Telegram",

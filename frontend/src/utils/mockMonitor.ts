@@ -140,6 +140,7 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
             sponsor,
             channel,
             channelName: channel, // Mock: 使用 channel 作为显示名称
+            board: 'hot' as const, // Mock: 默认热板
             intervalMs: 60000, // Mock: 默认 60 秒
             history,
             currentStatus,

@@ -102,6 +102,13 @@
       "exitMode": "お気に入りモードを終了",
       "noFavorites": "お気に入りなし"
     },
+    "boards": {
+      "hot": "ホット",
+      "cold": "コールド",
+      "switchToHot": "ホットボードに切り替え",
+      "switchToCold": "コールドボードに切り替え",
+      "coldNotice": "コールドボードの監視項目は一時停止中です"
+    },
     "subscribe": {
       "button": "通知を購読",
       "tooltip": "Telegramでステータス変更通知を購読",

@@ -102,6 +102,13 @@
       "exitMode": "Exit favorites mode",
       "noFavorites": "No favorites"
     },
+    "boards": {
+      "hot": "Hot",
+      "cold": "Cold",
+      "switchToHot": "Switch to hot board",
+      "switchToCold": "Switch to cold board",
+      "coldNotice": "Cold board monitors are paused"
+    },
     "subscribe": {
       "button": "Subscribe",
       "tooltip": "Subscribe to status change notifications via Telegram",

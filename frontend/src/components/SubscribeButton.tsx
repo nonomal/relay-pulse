@@ -80,13 +80,13 @@ export function SubscribeButton({ favorites, iconOnly = false, inGroup = false, 
   // 图标模式
   if (iconOnly) {
     return (
-      <div className="relative">
+      <div className={`relative ${inGroup ? 'h-full' : ''}`}>
         <button
           type="button"
           onClick={handleSubscribe}
           disabled={isDisabled}
           className={`
-            ${inGroup ? 'px-3 h-full' : 'p-2 rounded-lg h-10'} transition-all duration-200
+            ${inGroup ? 'px-2 h-full flex items-center justify-center' : 'p-2 rounded-lg h-8'} transition-all duration-200
             focus-visible:ring-2 ${inGroup ? 'focus-visible:ring-inset' : ''} focus-visible:ring-accent/50 focus-visible:outline-none
             ${isDisabled
               ? 'text-muted cursor-not-allowed'

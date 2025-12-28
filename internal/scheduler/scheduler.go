@@ -188,22 +188,28 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		return
 	}
 
-	// 统计禁用的监测项数量
+	// 统计禁用和冷板的监测项数量
 	disabledCount := 0
+	coldCount := 0
 	for _, m := range cfg.Monitors {
 		if m.Disabled {
 			disabledCount++
+			continue
+		}
+		// 冷板项：启用 boards 后不创建探测任务，仅展示历史数据
+		if cfg.Boards.Enabled && m.Board == "cold" {
+			coldCount++
 		}
 	}
-	activeCount := monitorCount - disabledCount
+	activeCount := monitorCount - disabledCount - coldCount
 
-	// 如果所有监测项都被禁用，清空任务
+	// 如果所有监测项都被禁用或冷板，清空任务
 	if activeCount == 0 {
 		s.tasks = s.tasks[:0]
 		s.resetTimerLocked()
 		s.notifyWakeLocked()
-		logger.Info("scheduler", "所有监测项已禁用，调度器无任务",
-			"total", monitorCount, "disabled", disabledCount)
+		logger.Info("scheduler", "所有监测项已禁用/冷板，调度器无任务",
+			"total", monitorCount, "disabled", disabledCount, "cold", coldCount)
 		return
 	}
 
@@ -257,6 +263,11 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 			continue
 		}
 
+		// 跳过冷板项：启用 boards 后不探测（仅展示历史数据）
+		if cfg.Boards.Enabled && m.Board == "cold" {
+			continue
+		}
+
 		// 使用监测项自己的 interval，为空则使用全局 fallback
 		interval := m.IntervalDuration
 		if interval == 0 {
@@ -282,12 +293,16 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	s.notifyWakeLocked()
 }
 
-// findMinInterval 找到所有活跃监测项中最小的 interval（跳过已禁用的）
+// findMinInterval 找到所有活跃监测项中最小的 interval（跳过已禁用和冷板的）
 func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
 	minInterval := cfg.IntervalDuration
 	for _, m := range cfg.Monitors {
 		// 跳过已禁用的监测项
 		if m.Disabled {
+			continue
+		}
+		// 跳过冷板项：启用 boards 后不参与调度
+		if cfg.Boards.Enabled && m.Board == "cold" {
 			continue
 		}
 		if m.IntervalDuration > 0 && (minInterval == 0 || m.IntervalDuration < minInterval) {

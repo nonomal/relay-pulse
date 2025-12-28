@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { ViewMode, SortConfig } from '../types';
+import type { ViewMode, SortConfig, Board } from '../types';
 
 /**
  * URL 查询参数与状态同步的配置
@@ -19,6 +19,7 @@ import type { ViewMode, SortConfig } from '../types';
 interface UrlState {
   timeRange: string;
   timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
+  board: Board;              // 板块：hot/cold（默认 hot）
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
   filterService: string[];   // 多选服务，空数组表示"全部"
   filterChannel: string[];   // 多选通道，空数组表示"全部"
@@ -32,6 +33,7 @@ interface UrlState {
 interface UrlStateActions {
   setTimeRange: (value: string) => void;
   setTimeFilter: (value: string | null) => void; // 每日时段过滤
+  setBoard: (value: Board) => void;              // 切换板块
   setFilterProvider: (value: string[]) => void;  // 多选服务商
   setFilterService: (value: string[]) => void;   // 多选服务
   setFilterChannel: (value: string[]) => void;   // 多选通道
@@ -47,6 +49,7 @@ interface UrlStateActions {
 const DEFAULTS = {
   timeRange: '90m',
   timeFilter: null as string | null, // 全天（无过滤）
+  board: 'hot' as Board,             // 默认热板
   filterProvider: [] as string[],  // 空数组表示"全部"
   filterService: [] as string[],   // 空数组表示"全部"
   filterChannel: [] as string[],   // 空数组表示"全部"
@@ -64,6 +67,7 @@ const DEFAULT_SORT_PARAM = `${DEFAULTS.sortKey}_${DEFAULTS.sortDirection}`;
 const PARAM_KEYS = {
   timeRange: 'period',
   timeFilter: 'tf',  // 时段过滤：简短 key 保持 URL 简洁
+  board: 'board',    // 板块：hot/cold
   filterProvider: 'provider',
   filterService: 'service',
   filterChannel: 'channel',
@@ -177,9 +181,17 @@ export function useUrlState(): [UrlState, UrlStateActions] {
     // 解析仅显示收藏参数：'1' 表示启用
     const showFavoritesOnly = searchParams.get(PARAM_KEYS.showFavoritesOnly) === '1';
 
+    // 解析板块参数：仅允许 hot/cold，其他值（包括 'all'、空值）回退为 hot
+    // 后端支持 board=all 用于调试，但前端归一为 hot（不暴露调试功能）
+    const rawBoard = searchParams.get(PARAM_KEYS.board);
+    const board: Board = (rawBoard === 'hot' || rawBoard === 'cold')
+      ? rawBoard
+      : DEFAULTS.board;
+
     return {
       timeRange: searchParams.get(PARAM_KEYS.timeRange) || DEFAULTS.timeRange,
       timeFilter,
+      board,
       filterProvider: parseArrayParam(PARAM_KEYS.filterProvider, normalizeLower),
       filterService: parseArrayParam(PARAM_KEYS.filterService, normalizeLower),
       filterChannel: parseArrayParam(PARAM_KEYS.filterChannel, normalizePreserveCase),
@@ -221,6 +233,11 @@ export function useUrlState(): [UrlState, UrlStateActions] {
       return next;
     }, { replace: true });
   }, [setSearchParams]);
+
+  // 板块 setter（默认 hot 时移除参数，保持 URL 简洁）
+  const setBoard = useCallback((value: Board) => {
+    updateParam(PARAM_KEYS.board, value, DEFAULTS.board);
+  }, [updateParam]);
 
   // 多选数组参数的通用 setter
   const setArrayParam = useCallback((
@@ -390,6 +407,7 @@ export function useUrlState(): [UrlState, UrlStateActions] {
   const actions: UrlStateActions = {
     setTimeRange,
     setTimeFilter,
+    setBoard,
     setFilterProvider,
     setFilterService,
     setFilterChannel,

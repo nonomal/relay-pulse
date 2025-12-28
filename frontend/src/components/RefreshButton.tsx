@@ -30,9 +30,9 @@ export function RefreshButton({
   const { t } = useTranslation();
 
   const isSmall = size === 'sm';
-  const buttonSize = isSmall ? 'p-1.5' : 'p-2.5';
-  const iconSize = isSmall ? 14 : 18;
-  const minSize = isSmall ? '' : 'w-10 h-10';
+  const buttonSize = isSmall ? 'p-1.5' : 'p-2';
+  const iconSize = isSmall ? 14 : 16;
+  const minSize = isSmall ? '' : 'w-8 h-8';
 
   // 点击处理：showToggle=false 时，切换状态 + 刷新（冷却期内不切换，只显示冷却提示）
   const handleClick = () => {

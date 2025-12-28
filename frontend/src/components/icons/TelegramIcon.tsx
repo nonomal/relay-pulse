@@ -33,10 +33,10 @@ export const TelegramIcon = React.forwardRef<SVGSVGElement, TelegramIconProps>(
         strokeWidth={strokeWidth}
         className={className}
       >
-        {/* 纸飞机外形 */}
-        <path d="M22 2L2 9l9 4 4 9 7-20Z" />
+        {/* 纸飞机外形（居中优化） */}
+        <path d="M21 3L3 10l7 3 3 7 8-17Z" />
         {/* 内部折线 */}
-        <path d="M22 2L11 13" />
+        <path d="M21 3L10 13" />
       </svg>
     );
   }

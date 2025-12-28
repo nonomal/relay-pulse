@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { Filter, LayoutGrid, List, X, Clock, AlignStartVertical, Star } from 'lucide-react';
+import { Filter, LayoutGrid, List, X, Clock, AlignStartVertical, Star, Flame, Snowflake } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
 import { MultiSelect } from './MultiSelect';
@@ -7,7 +7,7 @@ import { TimeFilterPicker } from './TimeFilterPicker';
 import { SubscribeButton } from './SubscribeButton';
 import { RefreshButton } from './RefreshButton';
 import type { MultiSelectOption } from './MultiSelect';
-import type { ViewMode, ProviderOption, ChannelOption } from '../types';
+import type { ViewMode, ProviderOption, ChannelOption, Board } from '../types';
 
 interface ControlsProps {
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
@@ -20,6 +20,8 @@ interface ControlsProps {
   timeRange: string;
   timeAlign: string;         // 时间对齐模式：空=动态窗口, "hour"=整点对齐
   timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
+  board: Board;              // 当前板块：hot/cold
+  boardsEnabled: boolean;    // 板块功能是否启用
   viewMode: ViewMode;
   loading: boolean;
   channels: ChannelOption[];  // 通道选项列表
@@ -40,6 +42,7 @@ interface ControlsProps {
   onTimeRangeChange: (range: string) => void;
   onTimeAlignChange: (align: string) => void;       // 切换时间对齐模式
   onTimeFilterChange: (filter: string | null) => void; // 切换每日时段过滤
+  onBoardChange: (board: Board) => void;            // 切换板块
   onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
   onToggleAutoRefresh?: () => void; // 切换自动刷新开关
@@ -56,6 +59,8 @@ export function Controls({
   timeRange,
   timeAlign,
   timeFilter,
+  board,
+  boardsEnabled,
   viewMode,
   loading,
   channels,
@@ -76,6 +81,7 @@ export function Controls({
   onTimeRangeChange,
   onTimeAlignChange,
   onTimeFilterChange,
+  onBoardChange,
   onViewModeChange,
   onRefresh,
   onToggleAutoRefresh,
@@ -166,17 +172,17 @@ export function Controls({
     <>
       <div className="flex flex-col lg:flex-row gap-2 mb-2 lg:mb-3 overflow-visible">
         {/* 筛选和视图控制（移动端隐藏，筛选/刷新已移到 Header） */}
-        <div className="hidden lg:flex flex-1 flex-wrap gap-2 items-center bg-surface/60 p-2 rounded-2xl overflow-visible">
+        <div className="hidden lg:flex flex-1 gap-1.5 items-center bg-surface/60 p-1.5 rounded-2xl overflow-visible">
           {/* 桌面端：直接显示筛选器 */}
           <div className="flex items-center gap-2 text-secondary text-sm font-medium px-1">
             <Filter size={16} />
           </div>
-          <div className="flex flex-wrap gap-2 flex-1 overflow-visible">
+          <div className="flex gap-1.5 flex-1 overflow-visible">
             {FilterSelects()}
           </div>
 
           {/* 收藏 + 订阅按钮组 */}
-          <div className="flex items-center h-10 bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
+          <div className="flex items-center h-8 bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
             {/* 收藏筛选按钮 */}
             <button
               type="button"
@@ -192,6 +198,12 @@ export function Controls({
               `}
               disabled={!showFavoritesOnly && favoritesCount === 0}
               title={showFavoritesOnly
+                ? t('controls.favorites.exitMode')
+                : (favoritesCount > 0
+                  ? t('controls.favorites.showOnly')
+                  : t('controls.favorites.noFavorites'))
+              }
+              aria-label={showFavoritesOnly
                 ? t('controls.favorites.exitMode')
                 : (favoritesCount > 0
                   ? t('controls.favorites.showOnly')
@@ -217,15 +229,31 @@ export function Controls({
             <SubscribeButton favorites={favorites} iconOnly inGroup />
           </div>
 
-          <div className="w-px h-6 bg-muted mx-1"></div>
+          <div className="w-px h-5 bg-muted mx-1"></div>
+
+          {/* 板块切换（单按钮模式，点击切换热板/冷板） */}
+          {boardsEnabled && (
+            <>
+              <button
+                type="button"
+                onClick={() => onBoardChange(board === 'hot' ? 'cold' : 'hot')}
+                className="p-2 h-8 rounded-lg border border-default/50 shadow-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none text-secondary hover:text-primary hover:bg-muted/50"
+                title={board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
+                aria-label={board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
+              >
+                {board === 'hot' ? <Flame size={16} aria-hidden="true" /> : <Snowflake size={16} aria-hidden="true" />}
+              </button>
+              <div className="w-px h-5 bg-muted mx-1"></div>
+            </>
+          )}
 
           {/* 视图切换（仅桌面端显示） */}
           {!isMobile && (
-            <div className="flex h-10 bg-surface rounded-lg p-1 border border-default/50 shadow-sm">
+            <div className="flex h-8 bg-surface rounded-lg p-0.5 border border-default/50 shadow-sm">
               <button
                 type="button"
                 onClick={() => onViewModeChange('table')}
-                className={`p-2 rounded min-w-[38px] flex-1 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                className={`p-1.5 rounded min-w-[32px] flex-1 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                   viewMode === 'table'
                     ? 'bg-muted text-accent shadow'
                     : 'text-secondary hover:text-primary'
@@ -233,12 +261,12 @@ export function Controls({
                 title={t('controls.views.table')}
                 aria-label={t('controls.views.switchToTable')}
               >
-                <List size={18} />
+                <List size={16} />
               </button>
               <button
                 type="button"
                 onClick={() => onViewModeChange('grid')}
-                className={`p-2 rounded min-w-[38px] flex-1 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                className={`p-1.5 rounded min-w-[32px] flex-1 flex items-center justify-center focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
                   viewMode === 'grid'
                     ? 'bg-muted text-accent shadow'
                     : 'text-secondary hover:text-primary'
@@ -246,7 +274,7 @@ export function Controls({
                 title={t('controls.views.card')}
                 aria-label={t('controls.views.switchToCard')}
               >
-                <LayoutGrid size={18} />
+                <LayoutGrid size={16} />
               </button>
             </div>
           )}
@@ -372,6 +400,21 @@ export function Controls({
                   {favoritesCount > 0 && ` (${favoritesCount})`}
                 </span>
               </button>
+
+              {/* 板块切换（移动端） */}
+              {boardsEnabled && (
+                <button
+                  type="button"
+                  onClick={() => onBoardChange(board === 'hot' ? 'cold' : 'hot')}
+                  className="flex items-center justify-center gap-2 w-full py-3 rounded-lg transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none bg-elevated text-secondary hover:text-primary hover:bg-muted/50 border border-default/50"
+                  title={board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
+                >
+                  {board === 'hot' ? <Flame size={16} aria-hidden="true" /> : <Snowflake size={16} aria-hidden="true" />}
+                  <span className="font-medium">
+                    {board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
+                  </span>
+                </button>
+              )}
 
               {/* 订阅通知按钮（移动端） */}
               <SubscribeButton favorites={favorites} className="w-full justify-center py-3" />

@@ -124,7 +124,7 @@ export function MultiSelect({
   return (
     <div
       ref={containerRef}
-      className={`relative overflow-visible ${className}`}
+      className={`relative overflow-visible min-w-0 ${className}`}
       onKeyDown={handleKeyDown}
     >
       {/* 触发按钮 */}
@@ -142,16 +142,16 @@ export function MultiSelect({
         aria-expanded={isOpen}
         aria-disabled={disabled}
         className={`
-          flex items-center justify-between gap-2 w-full lg:w-auto
+          flex items-center justify-between gap-1.5 w-full lg:w-auto min-w-0
           bg-elevated text-primary text-sm rounded-lg
-          border border-default px-2 h-10 outline-none
+          border border-default px-2 h-8 outline-none
           transition-all hover:bg-muted
           focus:ring-2 focus:ring-accent focus:border-transparent
           ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
           ${!isAllSelected ? 'border-accent/50' : ''}
         `}
       >
-        <span className={`truncate ${isAllSelected ? 'text-secondary' : 'text-primary'}`}>
+        <span className={`truncate min-w-0 ${isAllSelected ? 'text-secondary' : 'text-primary'}`}>
           {displayText}
         </span>
         <div className="flex items-center gap-1 flex-shrink-0">
