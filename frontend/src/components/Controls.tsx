@@ -171,12 +171,12 @@ export function Controls({
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 mb-2 lg:mb-3 overflow-visible">
-        {/* 筛选器区块（移动端隐藏，内部可滚动） */}
-        <div className="hidden min-[960px]:flex items-center gap-1.5 bg-surface/60 p-1.5 rounded-2xl min-w-0 max-w-full">
+        {/* 筛选器区块（移动端隐藏） */}
+        <div className="hidden min-[960px]:flex items-center gap-1.5 bg-surface/60 p-1.5 rounded-2xl min-w-0 max-w-full overflow-visible">
           <div className="flex items-center gap-2 text-secondary text-sm font-medium px-1 flex-shrink-0">
             <Filter size={16} />
           </div>
-          <div className="flex items-center gap-1.5 min-w-0 overflow-x-auto scrollbar-hide">
+          <div className="flex items-center gap-1.5 min-w-0 overflow-visible">
             {FilterSelects()}
           </div>
         </div>
