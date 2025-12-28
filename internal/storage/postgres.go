@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -477,6 +478,275 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
 	// DESC 取数利用索引，返回前对每个 key 翻转为时间升序
 	for k := range result {
 		reverseRecords(result[k])
+	}
+
+	return result, nil
+}
+
+// GetTimelineAggBatch 批量获取多个监测项的时间轴 bucket 聚合结果（时间范围）
+//
+// 设计目标：
+// - 将 7d/30d 场景的聚合下推到 PostgreSQL，避免应用层拉取百万级原始记录
+// - 输出语义与 api.buildTimeline 完全一致（bucket 归属、边界排除、时段过滤、统计口径）
+func (s *PostgresStorage) GetTimelineAggBatch(keys []MonitorKey, since, endTime time.Time, bucketCount int, bucketWindow time.Duration, timeFilter *DailyTimeFilter) (map[MonitorKey][]AggBucketRow, error) {
+	ctx := s.effectiveCtx()
+	result := make(map[MonitorKey][]AggBucketRow, len(keys))
+	if len(keys) == 0 {
+		return result, nil
+	}
+	if bucketCount <= 0 {
+		return result, nil
+	}
+
+	windowSec := int64(bucketWindow / time.Second)
+	if windowSec <= 0 {
+		return nil, fmt.Errorf("无效的 bucketWindow: %s", bucketWindow)
+	}
+
+	sinceUnix := since.Unix()
+	endUnix := endTime.Unix()
+
+	var b strings.Builder
+	args := make([]any, 0, len(keys)*3+8)
+
+	// keys CTE
+	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteString(",")
+		}
+		base := i*3 + 1
+		fmt.Fprintf(&b, "($%d,$%d,$%d)", base, base+1, base+2)
+		args = append(args, k.Provider, k.Service, k.Channel)
+	}
+	b.WriteString(")\n")
+
+	// 额外参数（紧跟 keys 之后）
+	sinceArg := len(args) + 1
+	args = append(args, sinceUnix)
+	endArg := len(args) + 1
+	args = append(args, endUnix)
+	windowSecArg := len(args) + 1
+	args = append(args, windowSec)
+	bucketCountArg := len(args) + 1
+	args = append(args, bucketCount)
+
+	// 时段过滤条件（UTC，左闭右开）
+	timeFilterCond := ""
+	if timeFilter != nil {
+		startMinArg := len(args) + 1
+		args = append(args, timeFilter.StartMinutes)
+		endMinArg := len(args) + 1
+		args = append(args, timeFilter.EndMinutes)
+
+		minutesExpr := "(EXTRACT(HOUR FROM timezone('UTC', to_timestamp(p.timestamp)))::int * 60 + EXTRACT(MINUTE FROM timezone('UTC', to_timestamp(p.timestamp)))::int)"
+		if timeFilter.CrossMidnight {
+			// 跨午夜： [start, 24:00) ∪ [00:00, end)
+			timeFilterCond = fmt.Sprintf(" AND (%s >= $%d OR %s < $%d)", minutesExpr, startMinArg, minutesExpr, endMinArg)
+		} else {
+			// 正常： [start, end)
+			timeFilterCond = fmt.Sprintf(" AND (%s >= $%d AND %s < $%d)", minutesExpr, startMinArg, minutesExpr, endMinArg)
+		}
+	}
+
+	// filtered：先计算 bucket_idx，再做聚合
+	//
+	// bucket_idx 的计算需与 api.buildTimeline 完全一致：
+	//   timeDiffSec := endUnix - ts
+	//   bucketIndexFromLast := timeDiffSec / windowSec
+	//   bucket_idx := bucketCount - 1 - bucketIndexFromLast
+	//
+	// 边界一致性：
+	// - 排除 timestamp<=since 的边界数据（buildTimeline 会跳过 timeDiff>=bucketCount*window）
+	// - 排除 timestamp>endTime 的数据（对齐模式下未来窗口）
+	fmt.Fprintf(&b, `
+, filtered AS (
+	SELECT
+		p.id,
+		p.provider,
+		p.service,
+		p.channel,
+		p.status,
+		p.sub_status,
+		p.http_code,
+		p.latency,
+		p.timestamp,
+		($%d::int - 1 - (($%d::bigint - p.timestamp) / $%d::bigint))::int AS bucket_idx
+	FROM probe_history p
+	JOIN keys k
+		ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+	WHERE p.timestamp > $%d
+	  AND p.timestamp <= $%d
+	  AND (($%d::bigint - p.timestamp) / $%d::bigint) < $%d::bigint
+%s
+)
+`, bucketCountArg, endArg, windowSecArg, sinceArg, endArg, endArg, windowSecArg, bucketCountArg, timeFilterCond)
+
+	// http_code_breakdown：仅统计红色(status==0)且有有效 http_code 的记录
+	// sub_status 范围需与 api.incrementStatusCount 完全一致
+	b.WriteString(`
+, http_code_counts AS (
+	SELECT
+		provider, service, channel, bucket_idx, sub_status, http_code, COUNT(*)::int AS cnt
+	FROM filtered
+	WHERE status = 0
+	  AND http_code > 0
+	  AND sub_status IN ('server_error','client_error','auth_error','invalid_request','rate_limit')
+	GROUP BY provider, service, channel, bucket_idx, sub_status, http_code
+)
+, http_code_sub_agg AS (
+	SELECT
+		provider, service, channel, bucket_idx, sub_status,
+		jsonb_object_agg(http_code::text, cnt) AS codes
+	FROM http_code_counts
+	GROUP BY provider, service, channel, bucket_idx, sub_status
+)
+, http_code_bucket_agg AS (
+	SELECT
+		provider, service, channel, bucket_idx,
+		COALESCE(jsonb_object_agg(sub_status, codes), '{}'::jsonb) AS breakdown
+	FROM http_code_sub_agg
+	GROUP BY provider, service, channel, bucket_idx
+)
+SELECT
+	f.provider,
+	f.service,
+	f.channel,
+	f.bucket_idx,
+	COUNT(*)::int AS total,
+	(ARRAY_AGG(f.status ORDER BY f.timestamp DESC, f.id DESC))[1]::int AS last_status,
+	COALESCE(SUM(CASE WHEN f.status > 0 THEN f.latency ELSE 0 END), 0)::bigint AS latency_sum,
+	COALESCE(SUM(CASE WHEN f.status > 0 THEN 1 ELSE 0 END), 0)::int AS latency_count,
+	COALESCE(SUM(CASE WHEN f.latency > 0 THEN f.latency ELSE 0 END), 0)::bigint AS all_latency_sum,
+	COALESCE(SUM(CASE WHEN f.latency > 0 THEN 1 ELSE 0 END), 0)::int AS all_latency_count,
+
+	COALESCE(SUM(CASE WHEN f.status = 1 THEN 1 ELSE 0 END), 0)::int AS available,
+	COALESCE(SUM(CASE WHEN f.status = 2 THEN 1 ELSE 0 END), 0)::int AS degraded,
+	COALESCE(SUM(CASE WHEN f.status = 0 THEN 1 ELSE 0 END), 0)::int AS unavailable,
+	COALESCE(SUM(CASE WHEN f.status NOT IN (0,1,2) THEN 1 ELSE 0 END), 0)::int AS missing,
+
+	COALESCE(SUM(CASE WHEN f.status = 2 AND f.sub_status = 'slow_latency' THEN 1 ELSE 0 END), 0)::int AS slow_latency,
+	COALESCE(SUM(CASE WHEN f.sub_status = 'rate_limit' AND f.status IN (0,2) THEN 1 ELSE 0 END), 0)::int AS rate_limit,
+
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'server_error' THEN 1 ELSE 0 END), 0)::int AS server_error,
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'client_error' THEN 1 ELSE 0 END), 0)::int AS client_error,
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'auth_error' THEN 1 ELSE 0 END), 0)::int AS auth_error,
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'invalid_request' THEN 1 ELSE 0 END), 0)::int AS invalid_request,
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'network_error' THEN 1 ELSE 0 END), 0)::int AS network_error,
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'content_mismatch' THEN 1 ELSE 0 END), 0)::int AS content_mismatch,
+
+	COALESCE(h.breakdown, '{}'::jsonb) AS http_code_breakdown
+FROM filtered f
+LEFT JOIN http_code_bucket_agg h
+	ON h.provider = f.provider AND h.service = f.service AND h.channel = f.channel AND h.bucket_idx = f.bucket_idx
+GROUP BY
+	f.provider, f.service, f.channel, f.bucket_idx, h.breakdown
+ORDER BY
+	f.provider, f.service, f.channel, f.bucket_idx
+`)
+
+	rows, err := s.pool.Query(ctx, b.String(), args...)
+	if err != nil {
+		return nil, fmt.Errorf("批量查询 PostgreSQL 时间轴聚合失败: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var (
+			provider, service, channel string
+			bucketIdx                  int
+			total                      int
+			lastStatus                 int
+			latencySum                 int64
+			latencyCount               int
+			allLatencySum              int64
+			allLatencyCount            int
+
+			available       int
+			degraded        int
+			unavailable     int
+			missing         int
+			slowLatency     int
+			rateLimit       int
+			serverError     int
+			clientError     int
+			authError       int
+			invalidRequest  int
+			networkError    int
+			contentMismatch int
+
+			breakdownRaw []byte
+		)
+
+		if err := rows.Scan(
+			&provider,
+			&service,
+			&channel,
+			&bucketIdx,
+			&total,
+			&lastStatus,
+			&latencySum,
+			&latencyCount,
+			&allLatencySum,
+			&allLatencyCount,
+			&available,
+			&degraded,
+			&unavailable,
+			&missing,
+			&slowLatency,
+			&rateLimit,
+			&serverError,
+			&clientError,
+			&authError,
+			&invalidRequest,
+			&networkError,
+			&contentMismatch,
+			&breakdownRaw,
+		); err != nil {
+			return nil, fmt.Errorf("扫描 PostgreSQL 时间轴聚合结果失败: %w", err)
+		}
+
+		var httpCodeBreakdown map[string]map[int]int
+		// breakdownRaw 可能为 "{}" 或其他 jsonb
+		if len(breakdownRaw) > 0 && string(breakdownRaw) != "null" {
+			if err := json.Unmarshal(breakdownRaw, &httpCodeBreakdown); err != nil {
+				return nil, fmt.Errorf("解析 PostgreSQL http_code_breakdown 失败: %w", err)
+			}
+			// 兼容：如果为空对象，保持空 map（omitempty 会省略）
+			if len(httpCodeBreakdown) == 0 {
+				httpCodeBreakdown = nil
+			}
+		}
+
+		key := MonitorKey{Provider: provider, Service: service, Channel: channel}
+		result[key] = append(result[key], AggBucketRow{
+			BucketIndex:     bucketIdx,
+			Total:           total,
+			LastStatus:      lastStatus,
+			LatencySum:      latencySum,
+			LatencyCount:    latencyCount,
+			AllLatencySum:   allLatencySum,
+			AllLatencyCount: allLatencyCount,
+			StatusCounts: StatusCounts{
+				Available:         available,
+				Degraded:          degraded,
+				Unavailable:       unavailable,
+				Missing:           missing,
+				SlowLatency:       slowLatency,
+				RateLimit:         rateLimit,
+				ServerError:       serverError,
+				ClientError:       clientError,
+				AuthError:         authError,
+				InvalidRequest:    invalidRequest,
+				NetworkError:      networkError,
+				ContentMismatch:   contentMismatch,
+				HttpCodeBreakdown: httpCodeBreakdown,
+			},
+		})
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代 PostgreSQL 时间轴聚合结果失败: %w", err)
 	}
 
 	return result, nil

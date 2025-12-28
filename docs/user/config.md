@@ -403,6 +403,106 @@ enable_concurrent_query: true
 concurrent_query_limit: 10  # 根据数据库连接池大小调整
 ```
 
+#### `enable_batch_query`
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 启用批量查询优化，将 N 个监测项的查询从 2N 次往返降为 2 次
+- **适用场景**:
+  - ✅ 7d/30d 长周期查询（数据量大，效果明显）
+  - ❌ 90m/24h 短周期查询（数据量小，自动回退到并发模式）
+- **性能影响**:
+  - 减少数据库往返次数，但会一次性加载大量数据到内存
+  - 对于大规模部署（>50 监测项），建议配合 `enable_db_timeline_agg` 使用
+- **注意事项**:
+  - 启用后，7d/30d 查询会自动使用批量模式
+  - 如果批量查询失败，会自动回退到并发/串行模式
+
+**示例配置：**
+```yaml
+enable_batch_query: true
+```
+
+#### `enable_db_timeline_agg`
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 启用 DB 侧时间轴聚合优化，将 bucket 聚合下推到 PostgreSQL
+- **仅支持**: PostgreSQL（SQLite 会自动回退到应用层聚合）
+- **依赖**: 需要同时启用 `enable_batch_query: true` 才能生效
+- **性能提升**:
+  - 7d 查询：数据传输从 ~50 万行降至 7 行（per 监测项）
+  - 30d 查询：数据传输从 ~216 万行降至 30 行（per 监测项）
+  - 显著减少网络传输和应用层内存占用
+- **适用场景**:
+  - ✅ PostgreSQL 存储 + 大规模监测（>50 项）
+  - ✅ 7d/30d 长周期查询
+  - ❌ SQLite 存储（自动回退）
+  - ❌ 90m/24h 短周期查询（不触发）
+
+**示例配置（PostgreSQL 高性能部署）：**
+```yaml
+# 启用所有查询优化
+enable_concurrent_query: true
+concurrent_query_limit: 20
+enable_batch_query: true
+enable_db_timeline_agg: true  # 仅 PostgreSQL 生效
+
+# PostgreSQL 连接池
+storage:
+  type: "postgres"
+  postgres:
+    max_open_conns: 100
+    max_idle_conns: 20
+```
+
+### API 响应缓存配置
+
+用于控制 `/api/status` 接口的响应缓存时间，不同的查询周期可以配置不同的 TTL。
+
+```yaml
+cache_ttl:
+  90m: "10s"    # 近 90 分钟查询的缓存 TTL（默认 10s）
+  24h: "10s"    # 近 24 小时查询的缓存 TTL（默认 10s）
+  7d: "60s"     # 近 7 天查询的缓存 TTL（默认 60s）
+  30d: "60s"    # 近 30 天查询的缓存 TTL（默认 60s）
+```
+
+#### `cache_ttl.90m`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"10s"`
+- **说明**: 近 90 分钟（`period=90m`）查询的缓存有效期
+
+#### `cache_ttl.24h`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"10s"`
+- **说明**: 近 24 小时（`period=24h` 或 `period=1d`）查询的缓存有效期
+
+#### `cache_ttl.7d`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"60s"`
+- **说明**: 近 7 天（`period=7d`）查询的缓存有效期
+- **建议**: 7d 数据量较大，建议保持 60s 以上以减少数据库压力
+
+#### `cache_ttl.30d`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"60s"`
+- **说明**: 近 30 天（`period=30d`）查询的缓存有效期
+- **建议**: 30d 数据量最大，可适当增加到 120s 以优化性能
+
+**设计考量**：
+- **短周期（90m/24h）**：数据变化频繁，用户期望实时性，默认 10s
+- **长周期（7d/30d）**：数据量大、计算开销高，默认 60s 平衡性能与时效性
+- 所有周期的 TTL 也会通过 HTTP `Cache-Control` 头传递给 CDN（如 Cloudflare）
+
+**示例配置**：
+```yaml
+# 高性能场景：增加长周期缓存
+cache_ttl:
+  90m: "10s"
+  24h: "10s"
+  7d: "120s"   # 2 分钟，减少 DB 压力
+  30d: "180s"  # 3 分钟
+```
+
 ### 存储配置
 
 #### SQLite（默认）

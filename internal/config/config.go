@@ -315,6 +315,98 @@ type EventsConfig struct {
 	APIToken string `yaml:"api_token" json:"-"`
 }
 
+// Cache TTL 默认值常量（集中定义，避免多处重复）
+const (
+	DefaultCacheTTLShort = 10 * time.Second // 90m, 24h 默认 TTL
+	DefaultCacheTTLLong  = 60 * time.Second // 7d, 30d 默认 TTL
+)
+
+// CacheTTLConfig API 响应缓存 TTL 配置（按 period 区分）
+type CacheTTLConfig struct {
+	// 近 90 分钟（90m）的缓存 TTL（默认 10s）
+	TTL90m string `yaml:"90m" json:"90m"`
+
+	// 近 24 小时（24h/1d）的缓存 TTL（默认 10s）
+	TTL24h string `yaml:"24h" json:"24h"`
+
+	// 近 7 天（7d）的缓存 TTL（默认 60s）
+	TTL7d string `yaml:"7d" json:"7d"`
+
+	// 近 30 天（30d）的缓存 TTL（默认 60s）
+	TTL30d string `yaml:"30d" json:"30d"`
+
+	// 解析后的缓存 TTL（内部使用，不序列化）
+	TTL90mDuration time.Duration `yaml:"-" json:"-"`
+	TTL24hDuration time.Duration `yaml:"-" json:"-"`
+	TTL7dDuration  time.Duration `yaml:"-" json:"-"`
+	TTL30dDuration time.Duration `yaml:"-" json:"-"`
+}
+
+// Normalize 规范化 cache_ttl 配置（填充默认值并解析 duration）
+func (c *CacheTTLConfig) Normalize() error {
+	parseOrDefault := func(period, raw string, defaultDur time.Duration) (time.Duration, error) {
+		if strings.TrimSpace(raw) == "" {
+			return defaultDur, nil
+		}
+		d, err := time.ParseDuration(strings.TrimSpace(raw))
+		if err != nil {
+			return 0, fmt.Errorf("cache_ttl.%s 解析失败: %w", period, err)
+		}
+		if d <= 0 {
+			return 0, fmt.Errorf("cache_ttl.%s 必须 > 0", period)
+		}
+		return d, nil
+	}
+
+	var err error
+	c.TTL90mDuration, err = parseOrDefault("90m", c.TTL90m, DefaultCacheTTLShort)
+	if err != nil {
+		return err
+	}
+	c.TTL24hDuration, err = parseOrDefault("24h", c.TTL24h, DefaultCacheTTLShort)
+	if err != nil {
+		return err
+	}
+	c.TTL7dDuration, err = parseOrDefault("7d", c.TTL7d, DefaultCacheTTLLong)
+	if err != nil {
+		return err
+	}
+	c.TTL30dDuration, err = parseOrDefault("30d", c.TTL30d, DefaultCacheTTLLong)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// TTLForPeriod 根据 period 获取缓存 TTL（未配置/无效时回退默认值）
+func (c *CacheTTLConfig) TTLForPeriod(period string) time.Duration {
+	switch period {
+	case "90m":
+		if c.TTL90mDuration > 0 {
+			return c.TTL90mDuration
+		}
+		return DefaultCacheTTLShort
+	case "24h", "1d":
+		if c.TTL24hDuration > 0 {
+			return c.TTL24hDuration
+		}
+		return DefaultCacheTTLShort
+	case "7d":
+		if c.TTL7dDuration > 0 {
+			return c.TTL7dDuration
+		}
+		return DefaultCacheTTLLong
+	case "30d":
+		if c.TTL30dDuration > 0 {
+			return c.TTL30dDuration
+		}
+		return DefaultCacheTTLLong
+	default:
+		return DefaultCacheTTLShort
+	}
+}
+
 // AppConfig 应用配置
 type AppConfig struct {
 	// 巡检间隔（支持 Go duration 格式，例如 "30s"、"1m", "5m"）
@@ -356,9 +448,18 @@ type AppConfig struct {
 	// 开启后 /api/status 在 7d/30d 场景会优先使用批量查询，将 N 个监测项的 GetLatest+GetHistory 从 2N 次往返降为 2 次
 	EnableBatchQuery bool `yaml:"enable_batch_query" json:"enable_batch_query"`
 
+	// 是否启用 DB 侧时间轴聚合（默认 false）
+	// 仅对 PostgreSQL 生效：将 7d/30d 的 timeline bucket 聚合下推到数据库，减少数据传输与应用层计算
+	// 需要同时启用 enable_batch_query=true 才能生效
+	EnableDBTimelineAgg bool `yaml:"enable_db_timeline_agg" json:"enable_db_timeline_agg"`
+
 	// 批量查询最大 key 数（默认 300）
 	// SQLite 单条 SQL 参数上限通常为 999（每个 key 需要 3 个参数），因此默认 300 比较安全
 	BatchQueryMaxKeys int `yaml:"batch_query_max_keys" json:"batch_query_max_keys"`
+
+	// API 响应缓存 TTL 配置（按 period 区分）
+	// 默认值：90m/24h = 10s，7d/30d = 60s
+	CacheTTL CacheTTLConfig `yaml:"cache_ttl" json:"cache_ttl"`
 
 	// 存储配置
 	Storage StorageConfig `yaml:"storage" json:"storage"`
@@ -676,6 +777,11 @@ func (c *AppConfig) Normalize() error {
 		return fmt.Errorf("batch_query_max_keys 必须 >= 1，当前值: %d", c.BatchQueryMaxKeys)
 	}
 
+	// 缓存 TTL 配置
+	if err := c.CacheTTL.Normalize(); err != nil {
+		return err
+	}
+
 	// 赞助商置顶配置默认值
 	if c.SponsorPin.MaxPinned == 0 {
 		c.SponsorPin.MaxPinned = 3
@@ -771,6 +877,17 @@ func (c *AppConfig) Normalize() error {
 			c.BatchQueryMaxKeys = maxKeys
 		}
 	}
+
+	// DB 侧 timeline 聚合相关验证
+	if c.EnableDBTimelineAgg {
+		if c.Storage.Type != "postgres" {
+			log.Printf("[Config] 警告: enable_db_timeline_agg 仅支持 PostgreSQL，当前 storage.type=%s，将自动回退到应用层聚合", c.Storage.Type)
+		}
+		if !c.EnableBatchQuery {
+			log.Printf("[Config] 提示: enable_db_timeline_agg 依赖批量查询路径（enable_batch_query=true）才会生效")
+		}
+	}
+
 	if c.Storage.Type == "postgres" {
 		if c.Storage.Postgres.Port == 0 {
 			c.Storage.Postgres.Port = 5432
@@ -1225,7 +1342,9 @@ func (c *AppConfig) Clone() *AppConfig {
 		EnableConcurrentQuery: c.EnableConcurrentQuery,
 		ConcurrentQueryLimit:  c.ConcurrentQueryLimit,
 		EnableBatchQuery:      c.EnableBatchQuery,
+		EnableDBTimelineAgg:   c.EnableDBTimelineAgg,
 		BatchQueryMaxKeys:     c.BatchQueryMaxKeys,
+		CacheTTL:              c.CacheTTL, // CacheTTL 是值类型，直接复制
 		Storage:               c.Storage,
 		PublicBaseURL:         c.PublicBaseURL,
 		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),

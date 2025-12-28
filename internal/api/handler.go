@@ -161,6 +161,15 @@ func (c *statusCache) get(key string) ([]byte, bool) {
 
 // set 存入缓存（拷贝数据，防止 buffer 复用问题）
 func (c *statusCache) set(key string, data []byte) {
+	c.setWithTTL(key, data, c.ttl)
+}
+
+// setWithTTL 存入缓存（支持自定义 TTL）
+func (c *statusCache) setWithTTL(key string, data []byte, ttl time.Duration) {
+	if ttl <= 0 {
+		ttl = c.ttl
+	}
+
 	buf := make([]byte, len(data))
 	copy(buf, data)
 
@@ -184,7 +193,7 @@ func (c *statusCache) set(key string, data []byte) {
 
 	c.entries[key] = &cacheEntry{
 		data:     buf,
-		expireAt: now.Add(c.ttl),
+		expireAt: now.Add(ttl),
 	}
 }
 
@@ -197,6 +206,11 @@ func (c *statusCache) clear() {
 
 // load 获取缓存，未命中时用 singleflight 合并并发请求
 func (c *statusCache) load(key string, loader func() ([]byte, error)) ([]byte, error) {
+	return c.loadWithTTL(key, c.ttl, loader)
+}
+
+// loadWithTTL 获取缓存（支持自定义 TTL），未命中时用 singleflight 合并并发请求
+func (c *statusCache) loadWithTTL(key string, ttl time.Duration, loader func() ([]byte, error)) ([]byte, error) {
 	// 先检查缓存
 	if data, ok := c.get(key); ok {
 		return data, nil
@@ -214,7 +228,7 @@ func (c *statusCache) load(key string, loader func() ([]byte, error)) ([]byte, e
 			return nil, err // 错误不缓存
 		}
 
-		c.set(key, fresh)
+		c.setWithTTL(key, fresh, ttl)
 		return fresh, nil
 	})
 
@@ -331,9 +345,14 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	// 构建缓存 key（使用明确的分隔符避免碰撞）
 	cacheKey := fmt.Sprintf("p=%s|align=%s|tf=%s|prov=%s|svc=%s|hidden=%t", period, align, timeFilterParam, qProvider, qService, includeHidden)
 
+	// 从配置获取缓存 TTL（线程安全）
+	h.cfgMu.RLock()
+	cacheTTL := h.config.CacheTTL.TTLForPeriod(period)
+	h.cfgMu.RUnlock()
+
 	// 使用缓存（singleflight 防止缓存击穿）
 	// 注意：使用独立 context，避免单个请求取消影响其他等待的请求
-	data, err := h.cache.load(cacheKey, func() ([]byte, error) {
+	data, err := h.cache.loadWithTTL(cacheKey, cacheTTL, func() ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 		return h.queryAndSerialize(ctx, period, align, timeFilter, qProvider, qService, includeHidden)
@@ -348,7 +367,8 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	}
 
 	// CDN 缓存头：Cloudflare 遵守 s-maxage，浏览器遵守 max-age
-	c.Header("Cache-Control", "public, max-age=10, s-maxage=10")
+	ttlSeconds := int(cacheTTL.Seconds())
+	c.Header("Cache-Control", fmt.Sprintf("public, max-age=%d, s-maxage=%d", ttlSeconds, ttlSeconds))
 	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.Writer.Write(data)
 }
@@ -365,6 +385,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	enableConcurrent := h.config.EnableConcurrentQuery
 	concurrentLimit := h.config.ConcurrentQueryLimit
 	enableBatchQuery := h.config.EnableBatchQuery
+	enableDBTimelineAgg := h.config.EnableDBTimelineAgg
 	batchQueryMaxKeys := h.config.BatchQueryMaxKeys
 	slowLatencyMs := int(h.config.SlowLatencyDuration / time.Millisecond)
 	sponsorPin := h.config.SponsorPin
@@ -396,7 +417,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	tryBatch := enableBatchQuery && (period == "7d" || period == "30d") && len(filtered) <= batchQueryMaxKeys
 	if tryBatch {
 		mode = "batch"
-		response, err = h.getStatusBatch(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
+		response, err = h.getStatusBatch(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg)
 		if err != nil {
 			logger.Warn("api", "批量查询失败，回退到并发/串行模式", "error", err, "monitors", len(filtered), "period", period)
 		}
@@ -498,9 +519,9 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 	return filtered
 }
 
-// getStatusBatch 批量查询（GetLatestBatch + GetHistoryBatch）
+// getStatusBatch 批量查询（GetLatestBatch + GetHistoryBatch/GetTimelineAggBatch）
 // 将 N 个监测项的查询从 2N 次 SQL 往返降为 2 次，显著优化 7d/30d 场景性能
-func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool) ([]MonitorResult, error) {
+func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool, enableDBTimelineAgg bool) ([]MonitorResult, error) {
 	store := h.storage.WithContext(ctx)
 
 	// 构建查询 key 列表
@@ -519,10 +540,43 @@ func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceC
 		return nil, fmt.Errorf("批量查询最新记录失败: %w", err)
 	}
 
-	// 批量获取历史记录
-	historyMap, err := store.GetHistoryBatch(keys, since)
-	if err != nil {
-		return nil, fmt.Errorf("批量查询历史记录失败: %w", err)
+	// 可选：将 timeline 聚合下推到 PostgreSQL（仅 7d/30d）
+	//
+	// 保守策略：
+	// - 仅当 enable_db_timeline_agg=true 且存储实现支持 TimelineAggStorage 时启用
+	// - 任意错误都回退到原有 GetHistoryBatch + buildTimeline 逻辑，确保不影响功能
+	useDBAgg := enableDBTimelineAgg && (period == "7d" || period == "30d")
+	var aggMap map[storage.MonitorKey][]storage.AggBucketRow
+	if useDBAgg {
+		if aggStore, ok := store.(storage.TimelineAggStorage); ok {
+			bucketCount, bucketWindow, _ := h.determineBucketStrategy(period)
+			if bucketCount > 0 {
+				var tf *storage.DailyTimeFilter
+				if timeFilter != nil {
+					tf = &storage.DailyTimeFilter{
+						StartMinutes:  timeFilter.StartHour*60 + timeFilter.StartMinute,
+						EndMinutes:    timeFilter.EndHour*60 + timeFilter.EndMinute,
+						CrossMidnight: timeFilter.CrossMidnight,
+					}
+				}
+				aggMap, err = aggStore.GetTimelineAggBatch(keys, since, endTime, bucketCount, bucketWindow, tf)
+				if err != nil {
+					logger.Warn("api", "DB 时间轴聚合失败，回退到应用层聚合", "error", err, "period", period, "monitors", len(monitors))
+					aggMap = nil
+				} else {
+					logger.Info("api", "使用 DB 时间轴聚合", "period", period, "monitors", len(monitors), "buckets", bucketCount)
+				}
+			}
+		}
+	}
+
+	// 回退路径：批量获取历史记录（原有逻辑）
+	var historyMap map[storage.MonitorKey][]*storage.ProbeRecord
+	if aggMap == nil {
+		historyMap, err = store.GetHistoryBatch(keys, since)
+		if err != nil {
+			return nil, fmt.Errorf("批量查询历史记录失败: %w", err)
+		}
 	}
 
 	// 组装结果（保持原有顺序）
@@ -533,7 +587,14 @@ func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceC
 			Service:  task.Service,
 			Channel:  task.Channel,
 		}
-		results[i] = h.buildMonitorResult(task, latestMap[key], historyMap[key], endTime, period, degradedWeight, timeFilter, enableBadges)
+		if aggMap != nil {
+			// timeline 由 DB 聚合结果生成（与 buildTimeline 输出格式一致）
+			res := h.buildMonitorResult(task, latestMap[key], nil, endTime, period, degradedWeight, timeFilter, enableBadges)
+			res.Timeline = h.buildTimelineFromAgg(aggMap[key], endTime, period, degradedWeight)
+			results[i] = res
+		} else {
+			results[i] = h.buildMonitorResult(task, latestMap[key], historyMap[key], endTime, period, degradedWeight, timeFilter, enableBadges)
+		}
 	}
 
 	return results, nil
@@ -893,6 +954,73 @@ func (h *Handler) buildTimeline(records []*storage.ProbeRecord, endTime time.Tim
 			// 注意：Timestamp 保持为 bucket 起始时间，不覆盖
 			// 这样前端可以准确显示时间段（如 03:00-04:00）
 		}
+	}
+
+	return buckets
+}
+
+// buildTimelineFromAgg 使用 DB 返回的 bucket 聚合结果构建时间轴
+//
+// 约束：
+// - 输出必须与 buildTimeline 完全一致（bucket 初始化、默认值、统计口径、取整规则）
+// - rows 已在 DB 侧应用 timeFilter，本方法不再重复过滤
+func (h *Handler) buildTimelineFromAgg(rows []storage.AggBucketRow, endTime time.Time, period string, degradedWeight float64) []storage.TimePoint {
+	bucketCount, bucketWindow, format := h.determineBucketStrategy(period)
+
+	// 90m 模式不走聚合（调用方应避免进入）
+	if bucketCount == 0 {
+		return make([]storage.TimePoint, 0)
+	}
+
+	baseTime := endTime
+
+	// 初始化 buckets（与 buildTimeline 一致）
+	buckets := make([]storage.TimePoint, bucketCount)
+	for i := 0; i < bucketCount; i++ {
+		bucketTime := baseTime.Add(-time.Duration(bucketCount-i) * bucketWindow)
+		buckets[i] = storage.TimePoint{
+			Time:         bucketTime.Format(format),
+			Timestamp:    bucketTime.Unix(),
+			Status:       -1,
+			Latency:      0,
+			Availability: -1,
+		}
+	}
+
+	rowByIndex := make(map[int]storage.AggBucketRow, len(rows))
+	for _, r := range rows {
+		if r.BucketIndex < 0 || r.BucketIndex >= bucketCount {
+			continue
+		}
+		rowByIndex[r.BucketIndex] = r
+	}
+
+	for i := 0; i < bucketCount; i++ {
+		r, ok := rowByIndex[i]
+		if !ok {
+			continue
+		}
+
+		buckets[i].StatusCounts = r.StatusCounts
+		if r.Total == 0 {
+			continue
+		}
+
+		// 可用率：与 buildTimeline 的 availabilityWeight 累加等价（按计数计算）
+		weightedSuccess := float64(r.StatusCounts.Available) + float64(r.StatusCounts.Degraded)*degradedWeight
+		buckets[i].Availability = (weightedSuccess / float64(r.Total)) * 100
+
+		// 平均延迟：取整规则与 buildTimeline 一致（+0.5 四舍五入）
+		if r.LatencyCount > 0 {
+			avgLatency := float64(r.LatencySum) / float64(r.LatencyCount)
+			buckets[i].Latency = int(avgLatency + 0.5)
+		} else if r.AllLatencyCount > 0 {
+			avgLatency := float64(r.AllLatencySum) / float64(r.AllLatencyCount)
+			buckets[i].Latency = int(avgLatency + 0.5)
+		}
+
+		// bucket 状态取"最后一条记录"的状态（Timestamp 仍保持 bucket 起始时间）
+		buckets[i].Status = r.LastStatus
 	}
 
 	return buckets

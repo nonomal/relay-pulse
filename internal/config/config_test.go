@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
@@ -343,7 +344,7 @@ func TestBadgesValidation(t *testing.T) {
 			if tt.shouldErr {
 				if err == nil {
 					t.Errorf("Validate() should return error")
-				} else if tt.errMsg != "" && !containsSubstring(err.Error(), tt.errMsg) {
+				} else if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
 					t.Errorf("Validate() error = %q, should contain %q", err.Error(), tt.errMsg)
 				}
 			} else {
@@ -552,17 +553,238 @@ func TestBadgesClone(t *testing.T) {
 	}
 }
 
-// containsSubstring checks if s contains substr
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
-		(len(s) > 0 && len(substr) > 0 && findSubstring(s, substr)))
+// TestCacheTTLNormalize tests CacheTTLConfig.Normalize() parsing and defaults
+func TestCacheTTLNormalize(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		config      CacheTTLConfig
+		expected90m string
+		expected24h string
+		expected7d  string
+		expected30d string
+		shouldErr   bool
+	}{
+		{
+			name:        "全部使用默认值",
+			config:      CacheTTLConfig{},
+			expected90m: "10s",
+			expected24h: "10s",
+			expected7d:  "1m0s", // Go duration format: 60s -> 1m0s
+			expected30d: "1m0s", // Go duration format: 60s -> 1m0s
+			shouldErr:   false,
+		},
+		{
+			name: "自定义所有周期",
+			config: CacheTTLConfig{
+				TTL90m: "5s",
+				TTL24h: "15s",
+				TTL7d:  "120s",
+				TTL30d: "300s",
+			},
+			expected90m: "5s",
+			expected24h: "15s",
+			expected7d:  "2m0s", // Go duration format: 120s -> 2m0s
+			expected30d: "5m0s", // Go duration format: 300s -> 5m0s
+			shouldErr:   false,
+		},
+		{
+			name: "部分自定义",
+			config: CacheTTLConfig{
+				TTL90m: "8s",
+				// TTL24h 使用默认值
+				TTL7d: "90s",
+				// TTL30d 使用默认值
+			},
+			expected90m: "8s",
+			expected24h: "10s",
+			expected7d:  "1m30s", // Go duration format: 90s -> 1m30s
+			expected30d: "1m0s",  // Go duration format: 60s -> 1m0s
+			shouldErr:   false,
+		},
+		{
+			name: "无效的 duration 格式",
+			config: CacheTTLConfig{
+				TTL90m: "invalid",
+			},
+			shouldErr: true,
+		},
+		{
+			name: "负数 duration",
+			config: CacheTTLConfig{
+				TTL7d: "-10s",
+			},
+			shouldErr: true,
+		},
+		{
+			name: "零值 duration",
+			config: CacheTTLConfig{
+				TTL30d: "0s",
+			},
+			shouldErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := tt.config
+			err := cfg.Normalize()
+
+			if tt.shouldErr {
+				if err == nil {
+					t.Errorf("Normalize() should return error")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("Normalize() should not return error, got: %v", err)
+			}
+
+			// 验证解析后的 duration
+			if cfg.TTL90mDuration.String() != tt.expected90m {
+				t.Errorf("TTL90mDuration = %v, want %s", cfg.TTL90mDuration, tt.expected90m)
+			}
+			if cfg.TTL24hDuration.String() != tt.expected24h {
+				t.Errorf("TTL24hDuration = %v, want %s", cfg.TTL24hDuration, tt.expected24h)
+			}
+			if cfg.TTL7dDuration.String() != tt.expected7d {
+				t.Errorf("TTL7dDuration = %v, want %s", cfg.TTL7dDuration, tt.expected7d)
+			}
+			if cfg.TTL30dDuration.String() != tt.expected30d {
+				t.Errorf("TTL30dDuration = %v, want %s", cfg.TTL30dDuration, tt.expected30d)
+			}
+		})
+	}
 }
 
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+// TestCacheTTLForPeriod tests CacheTTLConfig.TTLForPeriod() returns correct TTL
+func TestCacheTTLForPeriod(t *testing.T) {
+	t.Parallel()
+
+	cfg := CacheTTLConfig{
+		TTL90m: "5s",
+		TTL24h: "15s",
+		TTL7d:  "120s",
+		TTL30d: "300s",
 	}
-	return false
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	tests := []struct {
+		period   string
+		expected string
+	}{
+		{"90m", "5s"},
+		{"24h", "15s"},
+		{"1d", "15s"}, // 1d 和 24h 相同
+		{"7d", "2m0s"},
+		{"30d", "5m0s"},
+		{"unknown", "10s"}, // 未知周期使用默认值
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.period, func(t *testing.T) {
+			got := cfg.TTLForPeriod(tt.period)
+			if got.String() != tt.expected {
+				t.Errorf("TTLForPeriod(%q) = %v, want %s", tt.period, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCacheTTLForPeriodDefaults tests TTLForPeriod with zero durations falls back to defaults
+func TestCacheTTLForPeriodDefaults(t *testing.T) {
+	t.Parallel()
+
+	// 未调用 Normalize() 的配置，Duration 都是零值
+	cfg := CacheTTLConfig{}
+
+	tests := []struct {
+		period   string
+		expected string
+	}{
+		{"90m", "10s"},
+		{"24h", "10s"},
+		{"1d", "10s"},
+		{"7d", "1m0s"},
+		{"30d", "1m0s"},
+		{"unknown", "10s"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.period, func(t *testing.T) {
+			got := cfg.TTLForPeriod(tt.period)
+			if got.String() != tt.expected {
+				t.Errorf("TTLForPeriod(%q) with zero config = %v, want %s", tt.period, got, tt.expected)
+			}
+		})
+	}
+}
+
+// TestAppConfigNormalizeWithCacheTTL tests that AppConfig.Normalize() properly integrates CacheTTL
+func TestAppConfigNormalizeWithCacheTTL(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		CacheTTL: CacheTTLConfig{
+			TTL90m: "8s",
+			TTL24h: "12s",
+			TTL7d:  "90s",
+			TTL30d: "180s",
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider: "demo",
+				Service:  "cc",
+				Category: "commercial",
+				Sponsor:  "test",
+				URL:      "https://example.com",
+				Method:   "POST",
+			},
+		},
+	}
+
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	// 验证 CacheTTL 被正确解析
+	if cfg.CacheTTL.TTL90mDuration.String() != "8s" {
+		t.Errorf("CacheTTL.TTL90mDuration = %v, want 8s", cfg.CacheTTL.TTL90mDuration)
+	}
+	if cfg.CacheTTL.TTL7dDuration.String() != "1m30s" {
+		t.Errorf("CacheTTL.TTL7dDuration = %v, want 1m30s", cfg.CacheTTL.TTL7dDuration)
+	}
+}
+
+// TestAppConfigNormalizeWithInvalidCacheTTL tests that invalid CacheTTL causes Normalize() to fail
+func TestAppConfigNormalizeWithInvalidCacheTTL(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		CacheTTL: CacheTTLConfig{
+			TTL90m: "invalid-duration",
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider: "demo",
+				Service:  "cc",
+				Category: "commercial",
+				Sponsor:  "test",
+				URL:      "https://example.com",
+				Method:   "POST",
+			},
+		},
+	}
+
+	err := cfg.Normalize()
+	if err == nil {
+		t.Errorf("Normalize() should return error for invalid cache_ttl")
+	}
+	if !strings.Contains(err.Error(), "cache_ttl") {
+		t.Errorf("error should mention cache_ttl, got: %v", err)
+	}
 }

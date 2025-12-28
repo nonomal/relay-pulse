@@ -218,3 +218,49 @@ type Storage interface {
 	// 返回 0 表示没有任何事件
 	GetLatestEventID() (int64, error)
 }
+
+// ===== DB 侧时间轴聚合相关类型 =====
+
+// DailyTimeFilter 每日时段过滤器（UTC 时区）
+//
+// 说明：
+// - StartMinutes/EndMinutes 的取值范围为 [0, 1440]（1440 表示 24:00）
+// - CrossMidnight 为 true 表示跨午夜：如 22:00-04:00
+// - 语义为左闭右开区间：[start, end)
+type DailyTimeFilter struct {
+	StartMinutes  int
+	EndMinutes    int
+	CrossMidnight bool
+}
+
+// AggBucketRow 表示单个监测项在某个 bucket 内的聚合结果（由数据库返回）
+//
+// 注意：
+//   - BucketIndex 使用与 api.buildTimeline 完全一致的"从前往后"索引：
+//     0 表示最旧 bucket，bucketCount-1 表示最新 bucket
+//   - Total 为 bucket 内记录总数（已应用 timeFilter 过滤）
+//   - LastStatus 为 bucket 内最新一条记录的状态（用于 TimePoint.Status）
+//   - LatencySum/LatencyCount 为 status > 0 的延迟聚合（与 buildTimeline 一致）
+//   - AllLatencySum/AllLatencyCount 为 latency > 0 的延迟聚合（用于"全不可用时"参考）
+type AggBucketRow struct {
+	BucketIndex     int
+	Total           int
+	LastStatus      int
+	LatencySum      int64
+	LatencyCount    int
+	AllLatencySum   int64
+	AllLatencyCount int
+	StatusCounts    StatusCounts
+}
+
+// TimelineAggStorage 为"时间轴聚合下推到数据库"提供的可选能力接口
+//
+// 仅 PostgreSQL 实现；SQLite 不实现该接口，API 层会自动回退到原有逻辑。
+type TimelineAggStorage interface {
+	// GetTimelineAggBatch 批量获取多个监测项的时间轴 bucket 聚合结果（时间范围）
+	//
+	// since/endTime 由 API 的 parseTimeRange 计算得到：
+	// - 仅聚合 (since, endTime] 的数据，严格排除 timestamp==since 的边界数据
+	// - 聚合窗口由 bucketCount + bucketWindow 决定（与 api.determineBucketStrategy 一致）
+	GetTimelineAggBatch(keys []MonitorKey, since, endTime time.Time, bucketCount int, bucketWindow time.Duration, timeFilter *DailyTimeFilter) (map[MonitorKey][]AggBucketRow, error)
+}
