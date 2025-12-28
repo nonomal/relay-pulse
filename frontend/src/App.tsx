@@ -478,7 +478,7 @@ function App() {
         <meta name="description" content={t('meta.description')} />
       </Helmet>
 
-      <div className="min-h-screen bg-page text-primary font-sans selection-accent">
+      <div className="min-h-screen bg-page text-primary font-sans selection-accent overflow-x-hidden">
         {/* 全局 Tooltip */}
         <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
 

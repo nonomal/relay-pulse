@@ -79,8 +79,9 @@ export function CommunityMenu() {
       {/* 下拉菜单 */}
       <div
         className={`
-          absolute top-full right-0 mt-1 z-50
-          w-[min(92vw,20rem)] lg:w-auto
+          absolute top-full mt-1 z-50
+          right-0 lg:right-0
+          w-[min(85vw,18rem)] lg:w-auto
           bg-elevated border border-default rounded-lg shadow-xl
           transition-all duration-200
           ${showMenu ? 'opacity-100 visible translate-y-0' : 'opacity-0 invisible -translate-y-2'}
@@ -137,11 +138,11 @@ export function CommunityMenu() {
                     <div className="px-3 pb-3">
                       {/* 二维码 */}
                       {item.qrImageSrc && (
-                        <div className="mt-2 rounded-lg bg-surface/40 border border-default p-2">
+                        <div className="mt-2 rounded-lg bg-surface/40 border border-default p-3 flex justify-center">
                           <img
                             src={item.qrImageSrc}
                             alt={t('community.qrCodeAlt', { name: groupName })}
-                            className="w-full rounded-md bg-white"
+                            className="max-w-full max-h-[50vh] rounded-md bg-white object-contain"
                             loading="lazy"
                           />
                         </div>

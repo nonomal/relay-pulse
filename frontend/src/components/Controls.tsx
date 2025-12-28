@@ -293,7 +293,7 @@ export function Controls({
         </div>
 
         {/* 时间范围选择 */}
-        <div className="relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md flex items-center gap-1 overflow-visible">
+        <div className="relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md flex items-center gap-1 overflow-x-auto scrollbar-hide">
           {/* 时间对齐切换图标（附属于 24h，放在前面） */}
           <button
             type="button"
