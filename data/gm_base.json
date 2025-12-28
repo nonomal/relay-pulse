@@ -2,16 +2,11 @@
 	"contents": [{
 		"role": "user",
 		"parts": [{
-			"text": "ping\n\nOnly respond with JSON: {\"text\":\"pong\"}"
+			"text": "ping\n\nOnly respond: pong"
 		}]
 	}],
 	"generationConfig": {
 		"temperature": 0,
-		"topP": 1,
-		"maxOutputTokens": 8,
-		"responseMimeType": "text/plain",
-		"thinkingConfig": {
-			"thinkingBudget": 0
-		}
+		"maxOutputTokens": 5
 	}
 }
