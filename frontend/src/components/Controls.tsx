@@ -294,31 +294,31 @@ export function Controls({
           />
         </div>
 
-        {/* 时间范围选择（换行后仍可滚动查看全部按钮） */}
-        <div className="flex-1 min-w-0 relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md flex items-center gap-1">
-          {/* 时间对齐切换图标（附属于 24h，放在前面） */}
-          <button
-            type="button"
-            onClick={() => {
-              if (timeRange === '24h') {
-                onTimeAlignChange(timeAlign === 'hour' ? '' : 'hour');
-              }
-            }}
-            disabled={timeRange !== '24h'}
-            title={timeRange === '24h'
-              ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
-              : undefined}
-            className={`p-2 rounded-xl transition-all duration-200 flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
-              timeRange === '24h'
-                ? 'text-accent hover:bg-elevated cursor-pointer'
-                : 'text-muted cursor-not-allowed'
-            }`}
-          >
-            {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
-          </button>
+        {/* 时间范围选择（整体可滚动，包含整点对齐、时间范围按钮、时段筛选） */}
+        <div className="flex-1 min-w-0 relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md">
+          <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            {/* 时间对齐切换图标（附属于 24h） */}
+            <button
+              type="button"
+              onClick={() => {
+                if (timeRange === '24h') {
+                  onTimeAlignChange(timeAlign === 'hour' ? '' : 'hour');
+                }
+              }}
+              disabled={timeRange !== '24h'}
+              title={timeRange === '24h'
+                ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
+                : undefined}
+              className={`p-2 rounded-xl transition-all duration-200 flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                timeRange === '24h'
+                  ? 'text-accent hover:bg-elevated cursor-pointer'
+                  : 'text-muted cursor-not-allowed'
+              }`}
+            >
+              {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
+            </button>
 
-          {/* 时间范围按钮（可滚动，min-w-0 确保 flex 子项可压缩） */}
-          <div className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            {/* 时间范围按钮 */}
             {getTimeRanges(t).map((range) => (
               <button
                 type="button"
@@ -333,14 +333,14 @@ export function Controls({
                 {range.label}
               </button>
             ))}
-          </div>
 
-          {/* 时段筛选（仅 7d/30d 有效，放在滚动区域外避免被裁剪） */}
-          <TimeFilterPicker
-            value={timeFilter}
-            disabled={timeRange === '24h' || timeRange === '90m'}
-            onChange={onTimeFilterChange}
-          />
+            {/* 时段筛选（仅 7d/30d 有效） */}
+            <TimeFilterPicker
+              value={timeFilter}
+              disabled={timeRange === '24h' || timeRange === '90m'}
+              onChange={onTimeFilterChange}
+            />
+          </div>
         </div>
         </div>
       </div>
