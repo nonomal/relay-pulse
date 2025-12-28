@@ -287,6 +287,8 @@ type MonitorResult struct {
 	ListedDays   *int                   `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
 	Channel      string                 `json:"channel"`                 // 业务通道标识
 	ChannelName  string                 `json:"channel_name,omitempty"`  // Channel 显示名称
+	Board        string                 `json:"board"`                   // 板块：hot/cold
+	ColdReason   string                 `json:"cold_reason,omitempty"`   // 冷板原因（仅 cold 有值）
 	ProbeURL     string                 `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）
 	TemplateName string                 `json:"template_name,omitempty"` // 请求体模板名称（如有）
 	IntervalMs   int64                  `json:"interval_ms"`             // 监测间隔（毫秒）
@@ -302,6 +304,12 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	timeFilterParam := c.DefaultQuery("time_filter", "") // 每日时段过滤：HH:MM-HH:MM（UTC）
 	qProvider := strings.ToLower(strings.TrimSpace(c.DefaultQuery("provider", "all")))
 	qService := c.DefaultQuery("service", "all")
+	// board 参数：hot/cold/all（默认 hot）
+	// 注意：gin 的 DefaultQuery 在参数存在但值为空时返回空字符串，需要额外处理
+	qBoard := strings.ToLower(strings.TrimSpace(c.DefaultQuery("board", "hot")))
+	if qBoard == "" {
+		qBoard = "hot" // 空值归一为默认值
+	}
 	// include_hidden 参数：用于内部调试，默认不包含隐藏的监测项
 	includeHidden := strings.EqualFold(strings.TrimSpace(c.DefaultQuery("include_hidden", "false")), "true")
 
@@ -317,6 +325,14 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	if align != "" && align != "hour" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": fmt.Sprintf("无效的对齐模式: %s (支持: hour)", align),
+		})
+		return
+	}
+
+	// 验证 board 参数
+	if qBoard != "hot" && qBoard != "cold" && qBoard != "all" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("无效的 board 参数: %s (支持: hot/cold/all)", qBoard),
 		})
 		return
 	}
@@ -343,7 +359,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	}
 
 	// 构建缓存 key（使用明确的分隔符避免碰撞）
-	cacheKey := fmt.Sprintf("p=%s|align=%s|tf=%s|prov=%s|svc=%s|hidden=%t", period, align, timeFilterParam, qProvider, qService, includeHidden)
+	cacheKey := fmt.Sprintf("p=%s|align=%s|tf=%s|prov=%s|svc=%s|board=%s|hidden=%t", period, align, timeFilterParam, qProvider, qService, qBoard, includeHidden)
 
 	// 从配置获取缓存 TTL（线程安全）
 	h.cfgMu.RLock()
@@ -355,7 +371,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	data, err := h.cache.loadWithTTL(cacheKey, cacheTTL, func() ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-		return h.queryAndSerialize(ctx, period, align, timeFilter, qProvider, qService, includeHidden)
+		return h.queryAndSerialize(ctx, period, align, timeFilter, qProvider, qService, qBoard, includeHidden)
 	})
 
 	if err != nil {
@@ -374,7 +390,7 @@ func (h *Handler) GetStatus(c *gin.Context) {
 }
 
 // queryAndSerialize 查询数据库并序列化为 JSON（缓存 miss 时调用）
-func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, timeFilter *TimeFilter, qProvider, qService string, includeHidden bool) ([]byte, error) {
+func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, timeFilter *TimeFilter, qProvider, qService, qBoard string, includeHidden bool) ([]byte, error) {
 	// 解析时间范围（支持对齐模式）
 	startTime, endTime := h.parseTimeRange(period, align)
 
@@ -390,6 +406,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	slowLatencyMs := int(h.config.SlowLatencyDuration / time.Millisecond)
 	sponsorPin := h.config.SponsorPin
 	enableBadges := h.config.EnableBadges
+	boardsEnabled := h.config.Boards.Enabled
 	h.cfgMu.RUnlock()
 
 	// 构建 slug -> provider 映射（slug作为provider的路由别名）
@@ -406,7 +423,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	}
 
 	// 过滤并去重监测项
-	filtered := h.filterMonitors(monitors, realProvider, qService, includeHidden)
+	filtered := h.filterMonitors(monitors, realProvider, qService, qBoard, boardsEnabled, includeHidden)
 
 	// 根据配置选择批量/并发/串行查询（支持回退：batch → concurrent → serial）
 	var response []MonitorResult
@@ -446,6 +463,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		timelineMode = "raw"
 	}
 
+	// 构建全量监控项 ID 列表（用于前端清理无效收藏）
+	// 排除 disabled 和 hidden，但不受 board 过滤影响
+	allMonitorIDs := h.buildAllMonitorIDs(monitors)
+
 	// 序列化为 JSON
 	meta := gin.H{
 		"period":          period,
@@ -459,6 +480,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 			"min_uptime": sponsorPin.MinUptime,
 			"min_level":  sponsorPin.MinLevel,
 		},
+		"boards": gin.H{
+			"enabled": boardsEnabled,
+		},
+		"all_monitor_ids": allMonitorIDs,
 	}
 	// 仅在使用对齐模式时返回额外的时间范围信息
 	if align != "" {
@@ -481,7 +506,8 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 }
 
 // filterMonitors 过滤并去重监测项
-func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, service string, includeHidden bool) []config.ServiceConfig {
+// board 参数：hot/cold/all，boardsEnabled 控制是否启用板块过滤
+func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, service, board string, boardsEnabled, includeHidden bool) []config.ServiceConfig {
 	var filtered []config.ServiceConfig
 	seen := make(map[string]bool)
 
@@ -494,6 +520,13 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 		// 过滤隐藏的监测项（除非显式要求包含）
 		if !includeHidden && task.Hidden {
 			continue
+		}
+
+		// 板块过滤（仅当 boards 功能启用时生效）
+		if boardsEnabled && board != "all" {
+			if board != task.Board {
+				continue
+			}
 		}
 
 		normalizedTaskProvider := strings.ToLower(strings.TrimSpace(task.Provider))
@@ -517,6 +550,43 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 	}
 
 	return filtered
+}
+
+// buildAllMonitorIDs 构建全量监控项 ID 列表（用于前端清理无效收藏）
+// 排除 disabled 和 hidden，但不受 board 过滤影响
+// ID 格式与前端保持一致：{provider}-{service}-{channel}
+func (h *Handler) buildAllMonitorIDs(monitors []config.ServiceConfig) []string {
+	seen := make(map[string]bool)
+	var ids []string
+
+	for _, task := range monitors {
+		// 排除已禁用的监测项
+		if task.Disabled {
+			continue
+		}
+		// 排除隐藏的监测项
+		if task.Hidden {
+			continue
+		}
+
+		// 生成 ID（与前端 useMonitorData.ts 保持一致）
+		// 前端格式：`${providerKey || item.provider}-${item.service}-${item.channel || 'default'}`
+		providerKey := strings.ToLower(strings.TrimSpace(task.Provider))
+		channel := task.Channel
+		if channel == "" {
+			channel = "default"
+		}
+		id := providerKey + "-" + task.Service + "-" + channel
+
+		// 去重
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		ids = append(ids, id)
+	}
+
+	return ids
 }
 
 // getStatusBatch 批量查询（GetLatestBatch + GetHistoryBatch/GetTimelineAggBatch）
@@ -732,6 +802,8 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		ListedDays:   listedDays,
 		Channel:      task.Channel,
 		ChannelName:  task.ChannelName,
+		Board:        task.Board,
+		ColdReason:   task.ColdReason,
 		ProbeURL:     sanitizeProbeURL(task.URL),
 		TemplateName: task.BodyTemplateName,
 		IntervalMs:   intervalMs,

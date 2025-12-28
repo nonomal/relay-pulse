@@ -10,6 +10,7 @@ import type {
   ChannelOption,
   SponsorLevel,
   SponsorPinConfig,
+  Board,
 } from '../types';
 import { API_BASE_URL, USE_MOCK_DATA } from '../constants';
 import { fetchMockMonitorData } from '../utils/mockMonitor';
@@ -81,6 +82,7 @@ interface UseMonitorDataOptions {
   timeRange: string;
   timeAlign?: string;        // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
   timeFilter?: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
+  board?: Board;             // 板块过滤：hot/cold（默认 hot）
   filterService: string[];   // 多选服务，空数组表示"全部"
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
   filterChannel: string[];   // 多选通道，空数组表示"全部"
@@ -94,6 +96,7 @@ export function useMonitorData({
   timeRange,
   timeAlign = '',
   timeFilter = null,
+  board = 'hot',
   filterService,
   filterProvider,
   filterChannel,
@@ -109,7 +112,10 @@ export function useMonitorData({
   const [forceRefresh, setForceRefresh] = useState(false); // 手动刷新时绕过缓存
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
   const [enableBadges, setEnableBadges] = useState<boolean>(true); // 徽标系统总开关（默认启用）
+  const [boardsEnabled, setBoardsEnabled] = useState<boolean>(false); // 板块功能开关（默认禁用）
   const [sponsorPinConfig, setSponsorPinConfig] = useState<SponsorPinConfig | null>(null); // 赞助商置顶配置
+  const [allMonitorIds, setAllMonitorIds] = useState<Set<string>>(new Set()); // 全量监控项 ID（用于清理无效收藏）
+  const [allMonitorIdsSupported, setAllMonitorIdsSupported] = useState<boolean>(false); // 后端是否支持 all_monitor_ids
 
   // 统一的刷新触发器，供手动刷新与自动轮询复用
   // skipCache: 是否绕过浏览器缓存（手动刷新时应为 true）
@@ -149,7 +155,9 @@ export function useMonitorData({
             (timeFilter && timeRange !== '24h' && timeRange !== '90m')
               ? `&time_filter=${encodeURIComponent(timeFilter)}`
               : '';
-          const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}${timeFilterParam}`;
+          // board 参数：默认 hot
+          const boardParam = `&board=${encodeURIComponent(board)}`;
+          const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}${timeFilterParam}${boardParam}`;
 
           // 手动刷新时绕过浏览器缓存
           const fetchOptions: RequestInit = forceRefresh ? { cache: 'no-store' } : {};
@@ -184,6 +192,24 @@ export function useMonitorData({
           // 提取赞助商置顶配置
           if (json.meta.sponsor_pin) {
             setSponsorPinConfig(json.meta.sponsor_pin);
+          }
+
+          // 提取板块功能开关（默认禁用，兼容旧后端）
+          setBoardsEnabled(json.meta.boards?.enabled === true);
+
+          // 提取全量监控项 ID（用于清理无效收藏，兼容旧后端）
+          // 字段缺失时重置为空集，避免保留旧值导致误删
+          if (Array.isArray(json.meta.all_monitor_ids)) {
+            // 过滤非字符串元素并 trim，确保数据干净
+            const validIds = json.meta.all_monitor_ids
+              .filter((id): id is string => typeof id === 'string')
+              .map((id) => id.trim())
+              .filter((id) => id !== '');
+            setAllMonitorIds(new Set(validIds));
+            setAllMonitorIdsSupported(true); // 后端支持该字段
+          } else {
+            setAllMonitorIds(new Set());
+            setAllMonitorIdsSupported(false); // 旧后端不支持
           }
 
           // 转换为前端数据格式
@@ -240,6 +266,8 @@ export function useMonitorData({
               listedDays: item.listed_days ?? null,       // 收录天数
               channel: item.channel || undefined,
               channelName: channelName || undefined,
+              board: item.board || 'hot',  // 板块：hot/cold（默认 hot）
+              coldReason: item.cold_reason || undefined,  // 冷板原因
               probeUrl: item.probe_url,
               templateName: item.template_name,
               intervalMs: item.interval_ms ?? 0,  // 监测间隔（毫秒），兜底 0 兼容旧后端
@@ -289,7 +317,7 @@ export function useMonitorData({
         clearTimeout(debounceTimer);
       }
     };
-  }, [timeRange, timeAlign, timeFilter, reloadToken, forceRefresh]);
+  }, [timeRange, timeAlign, timeFilter, board, reloadToken, forceRefresh]);
 
   // 页面可见性驱动的自动轮询
   useEffect(() => {
@@ -407,6 +435,9 @@ export function useMonitorData({
     providers,
     slowLatencyMs,
     enableBadges,
+    boardsEnabled,  // 板块功能开关
+    allMonitorIds,  // 全量监控项 ID（用于清理无效收藏）
+    allMonitorIdsSupported, // 后端是否支持 all_monitor_ids（用于区分"空列表"和"不支持"）
     refetch: triggerRefetch,
   };
 }

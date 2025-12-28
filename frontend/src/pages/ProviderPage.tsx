@@ -13,7 +13,7 @@ import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
 import { EmptyFavorites } from '../components/EmptyFavorites';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
-import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData, ChannelOption } from '../types';
+import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData, ChannelOption, Board } from '../types';
 
 // localStorage key for time align preference (shared with App.tsx)
 const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
@@ -41,7 +41,7 @@ function canonicalize(value?: string): string {
  */
 export default function ProviderPage() {
   const { provider } = useParams<{ provider: string }>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { t, i18n } = useTranslation();
 
   // 嵌入模式检测
@@ -49,6 +49,22 @@ export default function ProviderPage() {
 
   // 规范化 provider slug
   const normalizedProvider = canonicalize(provider);
+
+  // 板块状态（从 URL 读取，支持冷板查看）
+  const rawBoard = searchParams.get('board');
+  const board: Board = (rawBoard === 'hot' || rawBoard === 'cold') ? rawBoard : 'hot';
+
+  const setBoard = useCallback((value: Board) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value === 'hot') {
+        next.delete('board');
+      } else {
+        next.set('board', value);
+      }
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
 
   // 状态管理
   const [timeRange, setTimeRange] = useState('90m');
@@ -95,7 +111,7 @@ export default function ProviderPage() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
 
   // 收藏管理 Hook
-  const { favorites, isFavorite, toggleFavorite, count: favoritesCount } = useFavorites();
+  const { favorites, isFavorite, toggleFavorite, cleanupMissingFavorites, count: favoritesCount } = useFavorites();
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   // 移动端检测（< 960px）
@@ -107,17 +123,54 @@ export default function ProviderPage() {
 
   // 数据获取 - 先获取全部数据用于构建映射
   // Provider 页面不启用置顶功能（isInitialSort=false）
-  const { data: allData, loading, error, stats, slowLatencyMs, enableBadges, refetch } = useMonitorData({
+  const { data: allData, loading, error, stats, slowLatencyMs, enableBadges, boardsEnabled, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
+    board,
     filterService,
     filterProvider: [], // 空数组表示全部
     filterChannel,
     filterCategory: [], // Provider页面不筛选分类，空数组表示全部
     sortConfig,
     isInitialSort: false, // Provider页面禁用置顶
+    // 冷板数据不更新，禁用自动刷新以节省资源
+    autoRefresh: board !== 'cold',
   });
+
+  // 板块功能禁用时，自动归一 board 到 hot
+  // 解决：用户手动输入 ?board=cold 但功能未启用时的 URL 混乱问题
+  useEffect(() => {
+    if (!boardsEnabled && board !== 'hot') {
+      setBoard('hot');
+    }
+  }, [boardsEnabled, board, setBoard]);
+
+  // 有效收藏计数：favorites ∩ allMonitorIds
+  // - loading/error 时回退到本地数量，避免短暂显示 0
+  // - 旧后端不支持 all_monitor_ids 时也回退
+  const effectiveFavoritesCount = useMemo(() => {
+    if (loading || error) return favoritesCount;
+    if (!allMonitorIdsSupported) return favoritesCount; // 旧后端不支持
+    if (favoritesCount === 0) return 0;
+
+    let count = 0;
+    favorites.forEach((id) => {
+      if (allMonitorIds.has(id)) count++;
+    });
+    return count;
+  }, [loading, error, favorites, favoritesCount, allMonitorIds, allMonitorIdsSupported]);
+
+  // 静默清理无效收藏：移除已从配置中删除的监控项
+  // - 仅在 API 成功返回且后端支持 all_monitor_ids 时执行
+  // - allMonitorIds 是跨板块的全量列表，不会误删移动板块的收藏
+  useEffect(() => {
+    if (loading || error) return;
+    if (!allMonitorIdsSupported) return; // 旧后端不支持，跳过
+    if (favorites.size === 0) return;
+
+    cleanupMissingFavorites(allMonitorIds);
+  }, [loading, error, allMonitorIds, allMonitorIdsSupported, favorites.size, cleanupMissingFavorites]);
 
   // 构建 slug -> providerId 映射
   const slugToProviderId = new Map<string, string>();
@@ -342,13 +395,15 @@ export default function ProviderPage() {
           timeRange={timeRange}
           timeAlign={timeAlign}
           timeFilter={timeFilter}
+          board={board}
+          boardsEnabled={boardsEnabled}
           filterService={filterService}
           filterProvider={[]}
           filterChannel={filterChannel}
           filterCategory={[]}
           showFavoritesOnly={showFavoritesOnly}
           favorites={favorites}
-          favoritesCount={favoritesCount}
+          favoritesCount={effectiveFavoritesCount}
           viewMode={viewMode}
           loading={loading}
           providers={[]} // 空数组 → 隐藏 provider 筛选器
@@ -362,6 +417,7 @@ export default function ProviderPage() {
           onTimeRangeChange={setTimeRange}
           onTimeAlignChange={setTimeAlign}
           onTimeFilterChange={setTimeFilter}
+          onBoardChange={setBoard}
           onServiceChange={setFilterService}
           onProviderChange={() => {}} // 无操作
           onChannelChange={setFilterChannel}
@@ -374,6 +430,15 @@ export default function ProviderPage() {
 
         {/* 主内容区域 - 移除 py-6 以减小与控制面板的间距 */}
         <main>
+          {/* 冷板提示条 */}
+          {boardsEnabled && board === 'cold' && (
+            <div className="mb-4 px-4 py-3 bg-info/10 border border-info/30 rounded-lg text-info text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{t('controls.boards.coldNotice')}</span>
+            </div>
+          )}
           {error ? (
             <div className="flex flex-col items-center justify-center py-20 text-danger">
               <Server size={64} className="mb-4 opacity-20" />

@@ -197,6 +197,11 @@ type ServiceConfig struct {
 	Hidden       bool   `yaml:"hidden" json:"hidden"`
 	HiddenReason string `yaml:"hidden_reason" json:"hidden_reason"` // 下架原因（可选）
 
+	// 热板/冷板配置：冷板项停止探测，仅展示历史数据（需 boards.enabled=true）
+	// Board 可选值：空/"hot"（默认热板）、"cold"（冷板）
+	Board      string `yaml:"board" json:"board"`
+	ColdReason string `yaml:"cold_reason" json:"cold_reason,omitempty"` // 冷板原因（可选）
+
 	// 解析后的"慢请求"阈值（来自全局配置），用于黄灯判定
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
 
@@ -245,6 +250,13 @@ type SponsorPinConfig struct {
 
 	// 最低赞助级别（默认 "basic"，可选 basic/advanced/enterprise）
 	MinLevel SponsorLevel `yaml:"min_level" json:"min_level"`
+}
+
+// BoardsConfig 热板/冷板功能配置
+// 用于将监测项分为热板（正常监测）和冷板（停止监测，仅展示历史）
+type BoardsConfig struct {
+	// 是否启用热板/冷板功能（默认 false，保持向后兼容）
+	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
 // IsEnabled 返回是否启用置顶功能
@@ -483,6 +495,10 @@ type AppConfig struct {
 	// 用于标记存在风险的服务商（如跑路风险）
 	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
 
+	// 热板/冷板功能配置（默认禁用，保持向后兼容）
+	// 启用后可通过 monitor.board 字段控制监测项归属
+	Boards BoardsConfig `yaml:"boards" json:"boards"`
+
 	// 是否启用徽标系统（默认 false）
 	// 开启后会显示 API Key 来源、监测频率等徽标
 	// 未配置任何徽标时，默认显示"官方 API Key"徽标
@@ -550,6 +566,16 @@ func (c *AppConfig) Validate() error {
 		if !m.SponsorLevel.IsValid() {
 			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 basic/advanced/enterprise 之一（或留空）", i, m.SponsorLevel)
 		}
+
+		// Board 枚举检查（可选字段，空值视为 hot）
+		normalizedBoard := strings.ToLower(strings.TrimSpace(m.Board))
+		switch normalizedBoard {
+		case "", "hot", "cold":
+			// 有效值
+		default:
+			return fmt.Errorf("monitor[%d]: board '%s' 无效，必须是 hot/cold（或留空）", i, m.Board)
+		}
+		// 注意：cold_reason 的有效性检查在 Normalize() 中进行（非致命，仅警告并清空）
 
 		// PriceMin/PriceMax 验证（可选字段）
 		if m.PriceMin != nil && *m.PriceMin < 0 {
@@ -1023,6 +1049,20 @@ func (c *AppConfig) Normalize() error {
 			c.Monitors[i].IntervalDuration = c.IntervalDuration
 		}
 
+		// 规范化 board：空值视为 hot
+		c.Monitors[i].Board = strings.ToLower(strings.TrimSpace(c.Monitors[i].Board))
+		if c.Monitors[i].Board == "" {
+			c.Monitors[i].Board = "hot"
+		}
+		c.Monitors[i].ColdReason = strings.TrimSpace(c.Monitors[i].ColdReason)
+
+		// cold_reason 仅在 board=cold 时有意义，其他情况清空并警告
+		if c.Monitors[i].ColdReason != "" && c.Monitors[i].Board != "cold" {
+			log.Printf("[Config] 警告: monitor[%d] (provider=%s, service=%s): cold_reason 仅在 board=cold 时有效，已忽略",
+				i, c.Monitors[i].Provider, c.Monitors[i].Service)
+			c.Monitors[i].ColdReason = ""
+		}
+
 		// 标准化 category 为小写
 		c.Monitors[i].Category = strings.ToLower(c.Monitors[i].Category)
 
@@ -1350,6 +1390,7 @@ func (c *AppConfig) Clone() *AppConfig {
 		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:       make([]HiddenProviderConfig, len(c.HiddenProviders)),
 		RiskProviders:         make([]RiskProviderConfig, len(c.RiskProviders)),
+		Boards:                c.Boards, // Boards 是值类型，直接复制
 		EnableBadges:          c.EnableBadges,
 		BadgeDefs:             make(map[string]BadgeDef, len(c.BadgeDefs)),
 		BadgeProviders:        make([]BadgeProviderConfig, len(c.BadgeProviders)),

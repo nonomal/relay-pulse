@@ -27,6 +27,7 @@ function App() {
   const {
     timeRange,
     timeFilter,      // 每日时段过滤
+    board,           // 板块：hot/cold
     filterProvider,
     filterService,
     filterChannel,
@@ -42,6 +43,7 @@ function App() {
   const {
     setTimeRange,
     setTimeFilter,   // 每日时段过滤
+    setBoard,        // 切换板块
     setFilterProvider,
     setFilterService,
     setFilterChannel,
@@ -53,7 +55,7 @@ function App() {
   } = urlActions;
 
   // 收藏管理 Hook
-  const { favorites, isFavorite, toggleFavorite, count: favoritesCount } = useFavorites();
+  const { favorites, isFavorite, toggleFavorite, cleanupMissingFavorites, count: favoritesCount } = useFavorites();
 
   // 时间对齐模式（使用 localStorage 持久化，不影响分享链接）
   const [timeAlign, setTimeAlignState] = useState<string>(() => {
@@ -122,18 +124,54 @@ function App() {
     });
   };
 
-  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, refetch } = useMonitorData({
+  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, boardsEnabled, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
+    board,
     filterService,
     filterProvider,
     filterChannel,
     filterCategory,
     sortConfig,
     isInitialSort,
-    autoRefresh,
+    // 冷板数据不更新，禁用自动刷新以节省资源
+    autoRefresh: autoRefresh && board !== 'cold',
   });
+
+  // 板块功能禁用时，自动归一 board 到 hot
+  // 解决：用户手动输入 ?board=cold 但功能未启用时的 URL 混乱问题
+  useEffect(() => {
+    if (!boardsEnabled && board !== 'hot') {
+      setBoard('hot');
+    }
+  }, [boardsEnabled, board, setBoard]);
+
+  // 有效收藏计数：favorites ∩ allMonitorIds
+  // - loading/error 时回退到本地数量，避免短暂显示 0
+  // - 旧后端不支持 all_monitor_ids 时也回退
+  const effectiveFavoritesCount = useMemo(() => {
+    if (loading || error) return favoritesCount;
+    if (!allMonitorIdsSupported) return favoritesCount; // 旧后端不支持
+    if (favoritesCount === 0) return 0;
+
+    let count = 0;
+    favorites.forEach((id) => {
+      if (allMonitorIds.has(id)) count++;
+    });
+    return count;
+  }, [loading, error, favorites, favoritesCount, allMonitorIds, allMonitorIdsSupported]);
+
+  // 静默清理无效收藏：移除已从配置中删除的监控项
+  // - 仅在 API 成功返回且后端支持 all_monitor_ids 时执行
+  // - allMonitorIds 是跨板块的全量列表，不会误删移动板块的收藏
+  useEffect(() => {
+    if (loading || error) return;
+    if (!allMonitorIdsSupported) return; // 旧后端不支持，跳过
+    if (favorites.size === 0) return;
+
+    cleanupMissingFavorites(allMonitorIds);
+  }, [loading, error, allMonitorIds, allMonitorIdsSupported, favorites.size, cleanupMissingFavorites]);
 
   // 统计激活的筛选器数量（用于移动端 Header 显示）
   const activeFiltersCount = [
@@ -471,10 +509,12 @@ function App() {
             filterCategory={filterCategory}
             showFavoritesOnly={showFavoritesOnly}
             favorites={favorites}
-            favoritesCount={favoritesCount}
+            favoritesCount={effectiveFavoritesCount}
             timeRange={timeRange}
             timeAlign={timeAlign}
             timeFilter={timeFilter}
+            board={board}
+            boardsEnabled={boardsEnabled}
             viewMode={viewMode}
             loading={loading}
             channels={effectiveChannels}
@@ -492,6 +532,7 @@ function App() {
             onTimeRangeChange={setTimeRange}
             onTimeAlignChange={setTimeAlign}
             onTimeFilterChange={setTimeFilter}
+            onBoardChange={setBoard}
             onViewModeChange={setViewMode}
             onRefresh={handleRefresh}
             refreshCooldown={refreshCooldown}
@@ -500,6 +541,15 @@ function App() {
           />
 
           {/* 内容区域 */}
+          {/* 冷板提示条 */}
+          {boardsEnabled && board === 'cold' && (
+            <div className="mb-4 px-4 py-3 bg-info/10 border border-info/30 rounded-lg text-info text-sm flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>{t('controls.boards.coldNotice')}</span>
+            </div>
+          )}
           {error ? (
             <div className="flex flex-col items-center justify-center py-20 text-danger">
               <Server size={64} className="mb-4 opacity-20" />

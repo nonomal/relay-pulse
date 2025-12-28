@@ -26,6 +26,8 @@ export interface UseFavoritesReturn {
   isFavorite: (id: string) => boolean;
   /** 切换收藏状态 */
   toggleFavorite: (id: string) => void;
+  /** 清理无效收藏：移除不在 validIds 中的项 */
+  cleanupMissingFavorites: (validIds: Set<string>) => void;
   /** 清空所有收藏 */
   clearFavorites: () => void;
   /** 收藏数量 */
@@ -250,6 +252,29 @@ export function useFavorites(): UseFavoritesReturn {
     });
   }, []);
 
+  // 清理无效收藏：移除不在 validIds 中的项
+  // 用于清理已删除的监控项对应的收藏
+  const cleanupMissingFavorites = useCallback((validIds: Set<string>): void => {
+    setFavorites((prev) => {
+      // 无收藏，无需清理
+      if (prev.size === 0) return prev;
+
+      let changed = false;
+      const next = new Set<string>();
+
+      for (const id of prev) {
+        if (validIds.has(id)) {
+          next.add(id);
+        } else {
+          changed = true;
+        }
+      }
+
+      // 只有真正发生变化时才返回新 Set
+      return changed ? next : prev;
+    });
+  }, []);
+
   const clearFavorites = useCallback((): void => {
     setFavorites(new Set<string>());
     if (storageAvailableRef.current) {
@@ -261,6 +286,7 @@ export function useFavorites(): UseFavoritesReturn {
     favorites,
     isFavorite,
     toggleFavorite,
+    cleanupMissingFavorites,
     clearFavorites,
     count: favorites.size,
   };

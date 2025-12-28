@@ -41,6 +41,14 @@ export interface CurrentStatus {
 // 赞助商等级类型
 export type SponsorLevel = 'basic' | 'advanced' | 'enterprise';
 
+// 板块类型
+export type Board = 'hot' | 'cold';
+
+// 板块配置（来自 API meta）
+export interface BoardsConfig {
+  enabled: boolean;
+}
+
 // 赞助商置顶配置（来自 API meta）
 export interface SponsorPinConfig {
   enabled: boolean;
@@ -87,6 +95,8 @@ export interface MonitorResult {
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
   channel_name?: string;               // Channel 显示名称（可选）
+  board: Board;                        // 板块：hot/cold
+  cold_reason?: string;                // 冷板原因（仅 cold 有值）
   probe_url?: string;                  // 探测端点 URL（脱敏后）
   template_name?: string;              // 请求体模板名称（如有）
   interval_ms?: number;                // 监测间隔（毫秒，可选兼容旧版本）
@@ -102,6 +112,8 @@ export interface ApiResponse {
     slow_latency_ms?: number;  // 慢延迟阈值（毫秒），用于延迟颜色渐变
     enable_badges?: boolean;   // 徽标系统总开关（默认 true）
     sponsor_pin?: SponsorPinConfig;  // 赞助商置顶配置
+    boards?: BoardsConfig;     // 板块配置
+    all_monitor_ids?: string[]; // 全量监控项 ID 列表（用于清理无效收藏）
   };
   data: MonitorResult[];
 }
@@ -144,6 +156,8 @@ export interface ProcessedMonitorData {
   listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
   channelName?: string;                // Channel 显示名称
+  board: Board;                        // 板块：hot/cold
+  coldReason?: string;                 // 冷板原因（仅 cold 有值）
   probeUrl?: string;                   // 探测端点 URL（脱敏后）
   templateName?: string;               // 请求体模板名称（如有）
   intervalMs?: number;                 // 监测间隔（毫秒，可选）
