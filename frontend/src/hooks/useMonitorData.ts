@@ -113,6 +113,7 @@ export function useMonitorData({
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
   const [enableBadges, setEnableBadges] = useState<boolean>(true); // 徽标系统总开关（默认启用）
   const [boardsEnabled, setBoardsEnabled] = useState<boolean>(false); // 板块功能开关（默认禁用）
+  const [boardsEnabledLoaded, setBoardsEnabledLoaded] = useState<boolean>(false); // 是否已从 API 获取板块开关状态
   const [sponsorPinConfig, setSponsorPinConfig] = useState<SponsorPinConfig | null>(null); // 赞助商置顶配置
   const [allMonitorIds, setAllMonitorIds] = useState<Set<string>>(new Set()); // 全量监控项 ID（用于清理无效收藏）
   const [allMonitorIdsSupported, setAllMonitorIdsSupported] = useState<boolean>(false); // 后端是否支持 all_monitor_ids
@@ -146,6 +147,9 @@ export function useMonitorData({
         if (USE_MOCK_DATA) {
           // 使用模拟数据 - 完全复刻 docs/front.jsx
           processed = await fetchMockMonitorData(timeRange);
+          // Mock 数据模式：视为板块功能可用（便于本地调试）
+          setBoardsEnabled(true);
+          setBoardsEnabledLoaded(true);
         } else {
           // 使用真实 API
           // align 参数仅在 24h 模式下有效
@@ -196,6 +200,7 @@ export function useMonitorData({
 
           // 提取板块功能开关（默认禁用，兼容旧后端）
           setBoardsEnabled(json.meta.boards?.enabled === true);
+          setBoardsEnabledLoaded(true);
 
           // 提取全量监控项 ID（用于清理无效收藏，兼容旧后端）
           // 字段缺失时重置为空集，避免保留旧值导致误删
@@ -436,6 +441,7 @@ export function useMonitorData({
     slowLatencyMs,
     enableBadges,
     boardsEnabled,  // 板块功能开关
+    boardsEnabledLoaded,  // 是否已从 API 获取板块开关状态
     allMonitorIds,  // 全量监控项 ID（用于清理无效收藏）
     allMonitorIdsSupported, // 后端是否支持 all_monitor_ids（用于区分"空列表"和"不支持"）
     refetch: triggerRefetch,

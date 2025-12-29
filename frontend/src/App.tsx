@@ -128,7 +128,7 @@ function App() {
     });
   };
 
-  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, boardsEnabled, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
+  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, boardsEnabled, boardsEnabledLoaded, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -145,11 +145,13 @@ function App() {
 
   // 板块功能禁用时，自动归一 board 到 hot
   // 解决：用户手动输入 ?board=cold 但功能未启用时的 URL 混乱问题
+  // 注意：仅当 API 已返回板块配置后才执行，避免在初始加载时覆盖 URL 参数
   useEffect(() => {
+    if (!boardsEnabledLoaded) return;  // API 未返回前不执行，尊重 URL 参数
     if (!boardsEnabled && board !== 'hot') {
       setBoard('hot');
     }
-  }, [boardsEnabled, board, setBoard]);
+  }, [boardsEnabledLoaded, boardsEnabled, board, setBoard]);
 
   // 有效收藏计数：favorites ∩ allMonitorIds
   // - loading/error 时回退到本地数量，避免短暂显示 0
