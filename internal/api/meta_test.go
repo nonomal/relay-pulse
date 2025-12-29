@@ -542,7 +542,7 @@ func TestGeneratePageMetaCanonicalSafety(t *testing.T) {
 			meta: MetaData{
 				Title:          "Test",
 				Description:    "Test",
-				Language:       Language{Code: "zh-CN", PathPrefix: "", HreflangTag: "zh-Hans"},
+				Language:       Language{Code: "zh-CN", PathPrefix: "", HreflangTag: "zh-CN"},
 				Slug:           "foxcode",
 				ProviderName:   "FoxCode",
 				IsProviderPage: true,

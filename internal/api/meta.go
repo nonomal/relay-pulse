@@ -15,12 +15,12 @@ import (
 type Language struct {
 	Code        string // 完整语言码（zh-CN, en-US 等）
 	PathPrefix  string // URL 路径前缀（'', en, ru, ja）
-	HreflangTag string // hreflang 标签（zh-Hans, en, ru, ja）
+	HreflangTag string // hreflang 标签（zh-CN, en, ru, ja）
 }
 
 // 支持的语言列表（与前端 i18n/index.ts 保持一致）
 var supportedLanguages = []Language{
-	{Code: "zh-CN", PathPrefix: "", HreflangTag: "zh-Hans"},
+	{Code: "zh-CN", PathPrefix: "", HreflangTag: "zh-CN"},
 	{Code: "en-US", PathPrefix: "en", HreflangTag: "en"},
 	{Code: "ru-RU", PathPrefix: "ru", HreflangTag: "ru"},
 	{Code: "ja-JP", PathPrefix: "ja", HreflangTag: "ja"},

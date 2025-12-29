@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Server } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Helmet } from 'react-helmet-async';
@@ -10,6 +11,7 @@ import { Tooltip } from './components/Tooltip';
 import { Footer } from './components/Footer';
 import { EmptyFavorites } from './components/EmptyFavorites';
 import { useMonitorData } from './hooks/useMonitorData';
+import { useSeoMeta } from './hooks/useSeoMeta';
 import { useUrlState } from './hooks/useUrlState';
 import { useFavorites } from './hooks/useFavorites';
 import { createMediaQueryEffect } from './utils/mediaQuery';
@@ -21,6 +23,8 @@ const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
 
 function App() {
   const { t, i18n } = useTranslation();
+  const location = useLocation();
+  const seo = useSeoMeta({ pathname: location.pathname, language: i18n.language });
 
   // 使用 URL 状态同步 Hook，支持收藏和分享
   const [urlState, urlActions] = useUrlState();
@@ -471,9 +475,9 @@ function App() {
 
   return (
     <>
-      {/* 动态更新 HTML meta 标签 */}
+      {/* 动态更新 HTML meta 标签（canonical/hreflang 由后端 SSR 注入，避免重复） */}
       <Helmet>
-        <html lang={i18n.language} />
+        <html lang={seo.htmlLang} />
         <title>{t('meta.title')}</title>
         <meta name="description" content={t('meta.description')} />
       </Helmet>

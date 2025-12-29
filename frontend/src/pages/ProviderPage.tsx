@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useParams, useSearchParams } from 'react-router-dom';
+import { useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { Server } from 'lucide-react';
 import { useMonitorData } from '../hooks/useMonitorData';
 import { useFavorites } from '../hooks/useFavorites';
+import { useSeoMeta } from '../hooks/useSeoMeta';
 import { Header } from '../components/Header';
 import { Controls } from '../components/Controls';
 import { StatusTable } from '../components/StatusTable';
@@ -43,6 +44,8 @@ export default function ProviderPage() {
   const { provider } = useParams<{ provider: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { t, i18n } = useTranslation();
+  const location = useLocation();
+  const seo = useSeoMeta({ pathname: location.pathname, language: i18n.language });
 
   // 嵌入模式检测
   const isEmbedMode = searchParams.get('embed') === '1';
@@ -360,7 +363,7 @@ export default function ProviderPage() {
   return (
     <>
       <Helmet>
-        <html lang={i18n.language} />
+        <html lang={seo.htmlLang} />
         <title>{t('provider.pageTitle', { name: providerDisplayName })}</title>
         <meta name="description" content={t('provider.pageDescription', { name: providerDisplayName })} />
       </Helmet>

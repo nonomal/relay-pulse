@@ -70,6 +70,24 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 	}
 	router.Use(cors.New(corsConfig))
 
+	// 语言路径尾斜杠规范化中间件（SEO 一致性）
+	// /en → /en/、/ru → /ru/、/ja → /ja/
+	router.Use(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		// 仅处理精确匹配的语言路径（不含尾斜杠）
+		if path == "/en" || path == "/ru" || path == "/ja" {
+			// 308 Permanent Redirect：保留 HTTP 方法，SEO 友好
+			target := path + "/"
+			if c.Request.URL.RawQuery != "" {
+				target += "?" + c.Request.URL.RawQuery
+			}
+			c.Redirect(http.StatusPermanentRedirect, target)
+			c.Abort()
+			return
+		}
+		c.Next()
+	})
+
 	// Request ID 中间件 - 为每个请求生成唯一 ID，便于日志追踪
 	router.Use(func(c *gin.Context) {
 		requestID := c.GetHeader("X-Request-ID")

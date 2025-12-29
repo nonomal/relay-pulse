@@ -1302,10 +1302,10 @@ func (h *Handler) buildSitemapXML(providerSlugs []string) string {
 		code string // hreflang 语言码
 		path string // URL 路径前缀
 	}{
-		{"zh-Hans", ""}, // 中文默认无前缀
-		{"en", "en"},    // 英文
-		{"ru", "ru"},    // 俄文
-		{"ja", "ja"},    // 日文
+		{"zh-CN", ""}, // 中文默认无前缀
+		{"en", "en"},  // 英文
+		{"ru", "ru"},  // 俄文
+		{"ja", "ja"},  // 日文
 	}
 
 	var sb strings.Builder
