@@ -123,16 +123,39 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 	result.SubStatus = subStatus
 	result.Status, result.SubStatus = evaluateStatus(result.Status, result.SubStatus, bodyBytes, cfg.SuccessContains)
 
-	// 当探测结果不可用时，输出一小段响应内容片段，便于排查（避免输出过长/敏感完整内容）
-	if result.Status == 0 && len(bodyBytes) > 0 {
-		snippet := strings.TrimSpace(aggregateResponseText(bodyBytes))
-		if snippet != "" {
-			const maxSnippetLen = 512 // 防止日志过长
-			if len(snippet) > maxSnippetLen {
-				snippet = snippet[:maxSnippetLen] + "... (truncated)"
+	// 当探测结果不可用时，输出诊断信息便于排查
+	if result.Status == 0 {
+		const maxSnippetLen = 512 // 防止日志过长
+
+		// content_mismatch 特殊处理：即便响应体为空/仅空白，也输出诊断信息
+		if result.SubStatus == storage.SubStatusContentMismatch {
+			aggText := aggregateResponseText(bodyBytes)
+			trimmed := strings.TrimSpace(aggText)
+
+			if trimmed == "" {
+				// body_bytes > 0 但 agg_len = 0 说明聚合器未能提取文本（如二进制/不识别格式）
+				logger.Warn("probe", "内容校验失败：响应体为空或无法提取文本",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel,
+					"body_bytes", len(bodyBytes), "agg_len", len(aggText), "keyword_len", len(cfg.SuccessContains))
+			} else {
+				snippet := trimmed
+				if len(snippet) > maxSnippetLen {
+					snippet = snippet[:maxSnippetLen] + "... (truncated)"
+				}
+				logger.Warn("probe", "内容校验失败：未包含预期关键字",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel,
+					"body_bytes", len(bodyBytes), "keyword_len", len(cfg.SuccessContains), "snippet", snippet)
 			}
-			logger.Warn("probe", "响应片段",
-				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "snippet", snippet)
+		} else if len(bodyBytes) > 0 {
+			// 其他红色状态：保持原有行为，在有响应体时输出片段
+			snippet := strings.TrimSpace(aggregateResponseText(bodyBytes))
+			if snippet != "" {
+				if len(snippet) > maxSnippetLen {
+					snippet = snippet[:maxSnippetLen] + "... (truncated)"
+				}
+				logger.Warn("probe", "响应片段",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "snippet", snippet)
+			}
 		}
 	}
 
