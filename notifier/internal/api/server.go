@@ -13,11 +13,17 @@ import (
 	"notifier/internal/storage"
 )
 
+// QQCallbackHandler QQ 回调处理器接口
+type QQCallbackHandler interface {
+	HandleCallback(w http.ResponseWriter, r *http.Request)
+}
+
 // Server HTTP API 服务器
 type Server struct {
 	cfg     *config.Config
 	storage storage.Storage
 	server  *http.Server
+	mux     *http.ServeMux
 }
 
 // NewServer 创建 API 服务器
@@ -25,26 +31,31 @@ func NewServer(cfg *config.Config, store storage.Storage) *Server {
 	s := &Server{
 		cfg:     cfg,
 		storage: store,
+		mux:     http.NewServeMux(),
 	}
 
-	mux := http.NewServeMux()
-
 	// 健康检查
-	mux.HandleFunc("GET /health", s.handleHealth)
+	s.mux.HandleFunc("GET /health", s.handleHealth)
 
 	// 绑定 token API
-	mux.HandleFunc("POST /api/bind-token", s.handleCreateBindToken)
-	mux.HandleFunc("GET /api/bind-token/{token}", s.handleGetBindToken)
+	s.mux.HandleFunc("POST /api/bind-token", s.handleCreateBindToken)
+	s.mux.HandleFunc("GET /api/bind-token/{token}", s.handleGetBindToken)
 
 	s.server = &http.Server{
 		Addr:         cfg.API.Addr,
-		Handler:      corsMiddleware(loggingMiddleware(mux)),
+		Handler:      corsMiddleware(loggingMiddleware(s.mux)),
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
 	return s
+}
+
+// RegisterQQCallback 注册 QQ Bot 回调路由
+func (s *Server) RegisterQQCallback(path string, handler QQCallbackHandler) {
+	s.mux.HandleFunc("POST "+path, handler.HandleCallback)
+	slog.Info("注册 QQ 回调路由", "path", path)
 }
 
 // Start 启动服务器

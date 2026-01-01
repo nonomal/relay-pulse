@@ -15,6 +15,7 @@ import (
 	"notifier/internal/config"
 	"notifier/internal/notifier"
 	"notifier/internal/poller"
+	"notifier/internal/qq"
 	"notifier/internal/storage"
 	"notifier/internal/telegram"
 )
@@ -47,6 +48,7 @@ func main() {
 		"poll_interval", cfg.RelayPulse.PollInterval,
 		"bot_username", cfg.Telegram.BotUsername,
 		"telegram_enabled", cfg.HasTelegramToken(),
+		"qq_enabled", cfg.HasQQ(),
 	)
 
 	// 创建上下文，支持优雅关闭
@@ -83,9 +85,23 @@ func main() {
 	var sender *notifier.Sender
 	var eventPoller *poller.Poller
 
-	// 仅在配置了 Telegram Token 时启动 Bot、Sender 和 Poller
+	// 初始化 QQ Bot（如果启用）
+	// QQ Bot 通过 HTTP 回调工作，不需要主动运行 goroutine
+	if cfg.HasQQ() {
+		qqClient := qq.NewClient(cfg.QQ.OneBotHTTPURL, cfg.QQ.AccessToken)
+		qqBot := qq.NewBot(qqClient, store, qq.Options{
+			MaxSubscriptionsPerUser: cfg.Limits.MaxSubscriptionsPerUser,
+			EventsURL:               cfg.RelayPulse.EventsURL,
+			CallbackSecret:          cfg.QQ.CallbackSecret,
+		})
+
+		// 注册 QQ 回调路由
+		apiServer.RegisterQQCallback(cfg.QQ.CallbackPath, qqBot)
+		slog.Info("QQ Bot 初始化成功", "callback_path", cfg.QQ.CallbackPath)
+	}
+
+	// 仅在配置了 Telegram Token 时启动 Telegram Bot
 	if cfg.HasTelegramToken() {
-		// 初始化并启动 Telegram Bot
 		bot = telegram.NewBot(cfg, store)
 		go func() {
 			if err := bot.Start(ctx); err != nil && ctx.Err() == nil {
@@ -93,8 +109,11 @@ func main() {
 				cancel()
 			}
 		}()
+	}
 
-		// 初始化通知发送器
+	// 当启用任一平台时，启动通知发送器和事件轮询器
+	if cfg.HasTelegramToken() || cfg.HasQQ() {
+		// 初始化通知发送器（多平台）
 		sender = notifier.NewSender(cfg, store)
 		go func() {
 			if err := sender.Start(ctx); err != nil && ctx.Err() == nil {
@@ -112,7 +131,7 @@ func main() {
 			}
 		}()
 	} else {
-		slog.Warn("未配置 TELEGRAM_BOT_TOKEN，Bot/Poller/Sender 功能已禁用",
+		slog.Warn("未配置任何通知平台（Telegram/QQ），Poller/Sender 功能已禁用",
 			"hint", "仅 API 服务器可用（bind-token 接口）")
 	}
 

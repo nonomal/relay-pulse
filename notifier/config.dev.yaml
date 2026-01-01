@@ -15,6 +15,14 @@ telegram:
   # Bot 用户名（用于生成 deeplink）
   bot_username: "RelayPulseDevBot"
 
+qq:
+  # 开发环境默认禁用 QQ
+  enabled: false
+  onebot_http_url: ""
+  access_token: ""
+  callback_path: "/qq/callback"
+  callback_secret: ""
+
 database:
   driver: "sqlite"
   # 开发环境数据库（与生产隔离）

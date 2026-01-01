@@ -148,7 +148,7 @@ func (b *Bot) handleMessage(ctx context.Context, msg *Message) {
 	}
 
 	// 更新命令时间
-	if err := b.storage.UpdateChatCommandTime(ctx, msg.Chat.ID); err != nil {
+	if err := b.storage.UpdateChatCommandTime(ctx, storage.PlatformTelegram, msg.Chat.ID); err != nil {
 		slog.Warn("更新命令时间失败", "error", err)
 	}
 
@@ -161,7 +161,8 @@ func (b *Bot) handleMessage(ctx context.Context, msg *Message) {
 
 // ensureUser 确保用户存在
 func (b *Bot) ensureUser(ctx context.Context, msg *Message) error {
-	chat := &storage.TelegramChat{
+	chat := &storage.Chat{
+		Platform:  storage.PlatformTelegram,
 		ChatID:    msg.Chat.ID,
 		Username:  msg.Chat.Username,
 		FirstName: msg.Chat.FirstName,
@@ -176,7 +177,7 @@ func (b *Bot) sendReply(ctx context.Context, chatID int64, text string) {
 
 		// 检查是否被封禁
 		if IsForbiddenError(err) {
-			if err := b.storage.UpdateChatStatus(ctx, chatID, storage.ChatStatusBlocked); err != nil {
+			if err := b.storage.UpdateChatStatus(ctx, storage.PlatformTelegram, chatID, storage.ChatStatusBlocked); err != nil {
 				slog.Error("更新用户状态失败", "error", err)
 			}
 		}
@@ -231,7 +232,7 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 	}
 
 	// 检查订阅数量限制
-	currentCount, err := b.storage.CountSubscriptions(ctx, msg.Chat.ID)
+	currentCount, err := b.storage.CountSubscriptions(ctx, storage.PlatformTelegram, msg.Chat.ID)
 	if err != nil {
 		return err
 	}
@@ -254,6 +255,7 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 		}
 
 		sub := &storage.Subscription{
+			Platform: storage.PlatformTelegram,
 			ChatID:   msg.Chat.ID,
 			Provider: fav.Provider,
 			Service:  fav.Service,
@@ -282,7 +284,7 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 
 // handleList 处理 /list 命令
 func (b *Bot) handleList(ctx context.Context, msg *Message, args string) error {
-	subs, err := b.storage.GetSubscriptionsByChatID(ctx, msg.Chat.ID)
+	subs, err := b.storage.GetSubscriptionsByChatID(ctx, storage.PlatformTelegram, msg.Chat.ID)
 	if err != nil {
 		return err
 	}
@@ -330,7 +332,7 @@ func (b *Bot) handleAdd(ctx context.Context, msg *Message, args string) error {
 	}
 
 	// 检查订阅数量
-	count, err := b.storage.CountSubscriptions(ctx, msg.Chat.ID)
+	count, err := b.storage.CountSubscriptions(ctx, storage.PlatformTelegram, msg.Chat.ID)
 	if err != nil {
 		return err
 	}
@@ -344,6 +346,7 @@ func (b *Bot) handleAdd(ctx context.Context, msg *Message, args string) error {
 	}
 
 	sub := &storage.Subscription{
+		Platform: storage.PlatformTelegram,
 		ChatID:   msg.Chat.ID,
 		Provider: provider,
 		Service:  service,
@@ -382,7 +385,7 @@ func (b *Bot) handleRemove(ctx context.Context, msg *Message, args string) error
 		channel = parts[2]
 	}
 
-	if err := b.storage.RemoveSubscription(ctx, msg.Chat.ID, provider, service, channel); err != nil {
+	if err := b.storage.RemoveSubscription(ctx, storage.PlatformTelegram, msg.Chat.ID, provider, service, channel); err != nil {
 		return err
 	}
 
@@ -401,7 +404,7 @@ func (b *Bot) handleRemove(ctx context.Context, msg *Message, args string) error
 
 // handleClear 处理 /clear 命令
 func (b *Bot) handleClear(ctx context.Context, msg *Message, args string) error {
-	if err := b.storage.ClearSubscriptions(ctx, msg.Chat.ID); err != nil {
+	if err := b.storage.ClearSubscriptions(ctx, storage.PlatformTelegram, msg.Chat.ID); err != nil {
 		return err
 	}
 
@@ -411,7 +414,7 @@ func (b *Bot) handleClear(ctx context.Context, msg *Message, args string) error 
 
 // handleStatus 处理 /status 命令
 func (b *Bot) handleStatus(ctx context.Context, msg *Message, args string) error {
-	count, err := b.storage.CountSubscriptions(ctx, msg.Chat.ID)
+	count, err := b.storage.CountSubscriptions(ctx, storage.PlatformTelegram, msg.Chat.ID)
 	if err != nil {
 		return err
 	}

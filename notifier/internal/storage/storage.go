@@ -5,6 +5,18 @@ import (
 	"time"
 )
 
+// 平台常量
+const (
+	PlatformTelegram = "telegram"
+	PlatformQQ       = "qq"
+)
+
+// ChatRef 投递目标引用（平台 + ChatID）
+type ChatRef struct {
+	Platform string
+	ChatID   int64
+}
+
 // Storage 存储接口
 type Storage interface {
 	// Init 初始化存储（创建表）
@@ -21,19 +33,19 @@ type Storage interface {
 	// UpdateCursor 更新轮询游标
 	UpdateCursor(ctx context.Context, lastEventID int64) error
 
-	// ===== Telegram 用户管理 =====
+	// ===== Chat 管理（多平台） =====
 
-	// UpsertChat 创建或更新 Telegram 用户
-	UpsertChat(ctx context.Context, chat *TelegramChat) error
+	// UpsertChat 创建或更新 Chat
+	UpsertChat(ctx context.Context, chat *Chat) error
 
-	// GetChat 获取 Telegram 用户
-	GetChat(ctx context.Context, chatID int64) (*TelegramChat, error)
+	// GetChat 获取 Chat
+	GetChat(ctx context.Context, platform string, chatID int64) (*Chat, error)
 
 	// UpdateChatStatus 更新用户状态（active/blocked）
-	UpdateChatStatus(ctx context.Context, chatID int64, status string) error
+	UpdateChatStatus(ctx context.Context, platform string, chatID int64, status string) error
 
 	// UpdateChatCommandTime 更新用户命令时间（防滥用）
-	UpdateChatCommandTime(ctx context.Context, chatID int64) error
+	UpdateChatCommandTime(ctx context.Context, platform string, chatID int64) error
 
 	// ===== 订阅管理 =====
 
@@ -41,19 +53,19 @@ type Storage interface {
 	AddSubscription(ctx context.Context, sub *Subscription) error
 
 	// RemoveSubscription 移除订阅
-	RemoveSubscription(ctx context.Context, chatID int64, provider, service, channel string) error
+	RemoveSubscription(ctx context.Context, platform string, chatID int64, provider, service, channel string) error
 
 	// GetSubscriptionsByChatID 获取用户的所有订阅
-	GetSubscriptionsByChatID(ctx context.Context, chatID int64) ([]*Subscription, error)
+	GetSubscriptionsByChatID(ctx context.Context, platform string, chatID int64) ([]*Subscription, error)
 
-	// GetSubscribersByMonitor 获取监测项的所有订阅者
-	GetSubscribersByMonitor(ctx context.Context, provider, service, channel string) ([]int64, error)
+	// GetSubscribersByMonitor 获取监测项的所有订阅者（返回平台+ChatID）
+	GetSubscribersByMonitor(ctx context.Context, provider, service, channel string) ([]*ChatRef, error)
 
 	// CountSubscriptions 统计用户订阅数
-	CountSubscriptions(ctx context.Context, chatID int64) (int, error)
+	CountSubscriptions(ctx context.Context, platform string, chatID int64) (int, error)
 
 	// ClearSubscriptions 清空用户所有订阅
-	ClearSubscriptions(ctx context.Context, chatID int64) error
+	ClearSubscriptions(ctx context.Context, platform string, chatID int64) error
 
 	// ===== 绑定 Token 管理 =====
 
@@ -87,8 +99,9 @@ type Storage interface {
 	CleanupOldDeliveries(ctx context.Context, before time.Time) (int64, error)
 }
 
-// TelegramChat Telegram 用户
-type TelegramChat struct {
+// Chat 多平台用户/群
+type Chat struct {
+	Platform      string
 	ChatID        int64
 	Username      string
 	FirstName     string
@@ -102,6 +115,7 @@ type TelegramChat struct {
 // Subscription 订阅关系
 type Subscription struct {
 	ID        int64
+	Platform  string
 	ChatID    int64
 	Provider  string
 	Service   string
@@ -122,6 +136,7 @@ type BindToken struct {
 type Delivery struct {
 	ID           int64
 	EventID      int64
+	Platform     string
 	ChatID       int64
 	Status       string // pending/sent/failed
 	MessageID    string

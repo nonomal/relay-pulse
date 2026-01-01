@@ -12,6 +12,7 @@ import (
 type Config struct {
 	RelayPulse RelayPulseConfig `yaml:"relay_pulse"`
 	Telegram   TelegramConfig   `yaml:"telegram"`
+	QQ         QQConfig         `yaml:"qq"`
 	Database   DatabaseConfig   `yaml:"database"`
 	API        APIConfig        `yaml:"api"`
 	Limits     LimitsConfig     `yaml:"limits"`
@@ -28,6 +29,15 @@ type RelayPulseConfig struct {
 type TelegramConfig struct {
 	BotToken    string `yaml:"bot_token"`
 	BotUsername string `yaml:"bot_username"`
+}
+
+// QQConfig QQ Bot 配置（OneBot v11 / NapCatQQ）
+type QQConfig struct {
+	Enabled        bool   `yaml:"enabled"`         // 是否启用 QQ 通知
+	OneBotHTTPURL  string `yaml:"onebot_http_url"` // OneBot HTTP API 地址
+	AccessToken    string `yaml:"access_token"`    // OneBot API Token（可选）
+	CallbackPath   string `yaml:"callback_path"`   // 接收上报的路径，默认 /qq/callback
+	CallbackSecret string `yaml:"callback_secret"` // Webhook 签名密钥（可选）
 }
 
 // DatabaseConfig 数据库配置
@@ -92,6 +102,17 @@ func (c *Config) applyEnvOverrides() {
 	if v := os.Getenv("API_ADDR"); v != "" {
 		c.API.Addr = v
 	}
+	// QQ 相关环境变量
+	if v := os.Getenv("QQ_ONEBOT_HTTP_URL"); v != "" {
+		c.QQ.OneBotHTTPURL = v
+		c.QQ.Enabled = true
+	}
+	if v := os.Getenv("QQ_ACCESS_TOKEN"); v != "" {
+		c.QQ.AccessToken = v
+	}
+	if v := os.Getenv("QQ_CALLBACK_SECRET"); v != "" {
+		c.QQ.CallbackSecret = v
+	}
 }
 
 // setDefaults 设置默认值
@@ -120,6 +141,10 @@ func (c *Config) setDefaults() {
 	if c.Limits.BindTokenTTL == 0 {
 		c.Limits.BindTokenTTL = 5 * time.Minute
 	}
+	// QQ 默认值
+	if c.QQ.CallbackPath == "" {
+		c.QQ.CallbackPath = "/qq/callback"
+	}
 }
 
 // validate 验证配置
@@ -138,4 +163,9 @@ func (c *Config) validate() error {
 // HasTelegramToken 检查是否配置了 Telegram Bot Token
 func (c *Config) HasTelegramToken() bool {
 	return c.Telegram.BotToken != ""
+}
+
+// HasQQ 检查是否启用了 QQ 通知
+func (c *Config) HasQQ() bool {
+	return c.QQ.Enabled && c.QQ.OneBotHTTPURL != ""
 }
