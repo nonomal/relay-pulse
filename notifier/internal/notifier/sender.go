@@ -216,7 +216,9 @@ func (s *Sender) formatMessage(event *poller.Event) string {
 	if eventTs == 0 {
 		eventTs = event.CreatedAt
 	}
-	eventTime := time.Unix(eventTs, 0).UTC().Format("2006-01-02 15:04:05 UTC")
+	// 使用北京时间 (UTC+8)
+	cst := time.FixedZone("CST", 8*60*60)
+	eventTime := time.Unix(eventTs, 0).In(cst).Format("2006-01-02 15:04:05")
 
 	msg := fmt.Sprintf(`%s <b>%s</b>
 
