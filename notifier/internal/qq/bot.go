@@ -661,14 +661,20 @@ func (b *Bot) handleSnap(ctx context.Context, e *OneBotEvent, args string) error
 	// 提取 provider 列表（去重）
 	providers := extractUniqueProviders(subs)
 
+	// 提取 service 列表（去重）
+	services := extractUniqueServices(subs)
+
+	// 构建专属标识（群名/昵称）
+	ownerLabel := b.getOwnerLabel(ctx, e)
+
 	// 发送提示
-	b.sendReply(ctx, e, fmt.Sprintf("正在生成 %d 个服务商的状态截图...", len(providers)))
+	b.sendReply(ctx, e, fmt.Sprintf("正在生成 [%s专属] 的状态截图...", ownerLabel))
 
 	// 截图（使用独立的超时 ctx）
 	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pngData, err := b.screenshotService.Capture(snapCtx, providers)
+	pngData, err := b.screenshotService.Capture(snapCtx, providers, services)
 	if err != nil {
 		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)
 		// 区分错误类型
@@ -705,6 +711,59 @@ func extractUniqueProviders(subs []*storage.Subscription) []string {
 	return providers
 }
 
+// extractUniqueServices 从订阅列表中提取去重的 service 列表
+func extractUniqueServices(subs []*storage.Subscription) []string {
+	seen := make(map[string]struct{})
+	var services []string
+	for _, sub := range subs {
+		if _, ok := seen[sub.Service]; !ok {
+			seen[sub.Service] = struct{}{}
+			services = append(services, sub.Service)
+		}
+	}
+	return services
+}
+
+// getOwnerLabel 获取截图专属标识（群名或用户昵称）
+func (b *Bot) getOwnerLabel(ctx context.Context, e *OneBotEvent) string {
+	if e == nil {
+		return "你"
+	}
+
+	switch e.MessageType {
+	case "group":
+		// 群聊：尝试获取群名称
+		if e.GroupID != 0 {
+			info, err := b.client.GetGroupInfo(ctx, e.GroupID)
+			if err != nil {
+				slog.Warn("获取群信息失败，回退到群号", "group_id", e.GroupID, "error", err)
+				return fmt.Sprintf("群%d", e.GroupID)
+			}
+			if info.GroupName != "" {
+				// 截断过长的群名（最多 20 字符）
+				name := info.GroupName
+				if len([]rune(name)) > 20 {
+					name = string([]rune(name)[:20]) + "…"
+				}
+				return name
+			}
+			return fmt.Sprintf("群%d", e.GroupID)
+		}
+	case "private":
+		// 私聊：使用发送者昵称
+		if e.Sender != nil && e.Sender.Nickname != "" {
+			// 截断过长的昵称（最多 20 字符）
+			name := e.Sender.Nickname
+			if len([]rune(name)) > 20 {
+				name = string([]rune(name)[:20]) + "…"
+			}
+			return name
+		}
+	}
+
+	return "你"
+}
+
 // sendImage 发送图片消息
 func (b *Bot) sendImage(ctx context.Context, e *OneBotEvent, imageData []byte) error {
 	if e == nil || len(imageData) == 0 {
@@ -713,9 +772,6 @@ func (b *Bot) sendImage(ctx context.Context, e *OneBotEvent, imageData []byte) e
 
 	// Base64 编码图片数据
 	base64Data := base64.StdEncoding.EncodeToString(imageData)
-	// 构建 CQ 码格式的图片消息
-	// 格式: [CQ:image,file=base64://...]
-	imageMsg := fmt.Sprintf("[CQ:image,file=base64://%s]", base64Data)
 
 	var err error
 	switch e.MessageType {
@@ -723,12 +779,12 @@ func (b *Bot) sendImage(ctx context.Context, e *OneBotEvent, imageData []byte) e
 		if e.GroupID == 0 {
 			return nil
 		}
-		_, err = b.client.SendGroupMessage(ctx, e.GroupID, imageMsg)
+		_, err = b.client.SendGroupImageMessage(ctx, e.GroupID, base64Data)
 	case "private":
 		if e.UserID == 0 {
 			return nil
 		}
-		_, err = b.client.SendPrivateMessage(ctx, e.UserID, imageMsg)
+		_, err = b.client.SendPrivateImageMessage(ctx, e.UserID, base64Data)
 	}
 	return err
 }

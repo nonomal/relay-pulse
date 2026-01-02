@@ -16,6 +16,7 @@ import (
 	"notifier/internal/notifier"
 	"notifier/internal/poller"
 	"notifier/internal/qq"
+	"notifier/internal/screenshot"
 	"notifier/internal/storage"
 	"notifier/internal/telegram"
 )
@@ -49,6 +50,7 @@ func main() {
 		"bot_username", cfg.Telegram.BotUsername,
 		"telegram_enabled", cfg.HasTelegramToken(),
 		"qq_enabled", cfg.HasQQ(),
+		"screenshot_enabled", cfg.HasScreenshot(),
 	)
 
 	// 创建上下文，支持优雅关闭
@@ -68,6 +70,22 @@ func main() {
 		os.Exit(1)
 	}
 	slog.Info("存储层初始化成功")
+
+	// 初始化截图服务（如果启用）
+	var screenshotSvc *screenshot.Service
+	if cfg.HasScreenshot() {
+		screenshotSvc = screenshot.NewService(
+			cfg.Screenshot.BaseURL,
+			cfg.Screenshot.Timeout,
+			cfg.Screenshot.MaxConcurrent,
+		)
+		defer screenshotSvc.Close()
+		slog.Info("截图服务已启用",
+			"base_url", cfg.Screenshot.BaseURL,
+			"timeout", cfg.Screenshot.Timeout,
+			"max_concurrent", cfg.Screenshot.MaxConcurrent,
+		)
+	}
 
 	// 初始化 HTTP API 服务器
 	apiServer := api.NewServer(cfg, store)
@@ -93,6 +111,7 @@ func main() {
 			MaxSubscriptionsPerUser: cfg.Limits.MaxSubscriptionsPerUser,
 			EventsURL:               cfg.RelayPulse.EventsURL,
 			CallbackSecret:          cfg.QQ.CallbackSecret,
+			ScreenshotService:       screenshotSvc,
 		})
 
 		// 注册 QQ 回调路由
@@ -103,6 +122,9 @@ func main() {
 	// 仅在配置了 Telegram Token 时启动 Telegram Bot
 	if cfg.HasTelegramToken() {
 		bot = telegram.NewBot(cfg, store)
+		if screenshotSvc != nil {
+			bot.SetScreenshotService(screenshotSvc)
+		}
 		go func() {
 			if err := bot.Start(ctx); err != nil && ctx.Err() == nil {
 				slog.Error("Telegram Bot 错误", "error", err)

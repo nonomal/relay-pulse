@@ -57,6 +57,14 @@ type GroupMember struct {
 	Level    string `json:"level,omitempty"`
 }
 
+// GroupInfo 群信息
+type GroupInfo struct {
+	GroupID        int64  `json:"group_id"`
+	GroupName      string `json:"group_name"`
+	MemberCount    int    `json:"member_count,omitempty"`
+	MaxMemberCount int    `json:"max_member_count,omitempty"`
+}
+
 // APIResponse OneBot HTTP API 响应
 type APIResponse struct {
 	Status  string          `json:"status"`  // ok / failed

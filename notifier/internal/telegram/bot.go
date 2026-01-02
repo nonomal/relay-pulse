@@ -501,6 +501,9 @@ func (b *Bot) handleSnap(ctx context.Context, msg *Message, args string) error {
 	// 提取 provider 列表（去重）
 	providers := extractUniqueProviders(subs)
 
+	// 提取 service 列表（去重）
+	services := extractUniqueServices(subs)
+
 	// 发送提示
 	b.sendReply(ctx, chatID, fmt.Sprintf("正在生成 %d 个服务商的状态截图...", len(providers)))
 
@@ -508,7 +511,7 @@ func (b *Bot) handleSnap(ctx context.Context, msg *Message, args string) error {
 	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pngData, err := b.screenshotService.Capture(snapCtx, providers)
+	pngData, err := b.screenshotService.Capture(snapCtx, providers, services)
 	if err != nil {
 		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)
 		// 区分错误类型
@@ -541,6 +544,19 @@ func extractUniqueProviders(subs []*storage.Subscription) []string {
 		}
 	}
 	return providers
+}
+
+// extractUniqueServices 从订阅列表中提取去重的 service 列表
+func extractUniqueServices(subs []*storage.Subscription) []string {
+	seen := make(map[string]struct{})
+	var services []string
+	for _, sub := range subs {
+		if _, ok := seen[sub.Service]; !ok {
+			seen[sub.Service] = struct{}{}
+			services = append(services, sub.Service)
+		}
+	}
+	return services
 }
 
 // Favorite 收藏项

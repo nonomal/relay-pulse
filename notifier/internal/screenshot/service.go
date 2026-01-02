@@ -82,8 +82,8 @@ func (s *Service) ensureInitialized() error {
 }
 
 // buildURL 构建截图 URL
-// 格式: {baseURL}/?provider=p1,p2&period=90m&screenshot=1
-func (s *Service) buildURL(providers []string) (string, error) {
+// 格式: {baseURL}/?provider=p1,p2&service=s1,s2&period=90m&screenshot=1
+func (s *Service) buildURL(providers, services []string) (string, error) {
 	u, err := url.Parse(s.baseURL)
 	if err != nil {
 		return "", fmt.Errorf("解析 baseURL 失败: %w", err)
@@ -93,6 +93,9 @@ func (s *Service) buildURL(providers []string) (string, error) {
 	if len(providers) > 0 {
 		q.Set("provider", strings.Join(providers, ","))
 	}
+	if len(services) > 0 {
+		q.Set("service", strings.Join(services, ","))
+	}
 	q.Set("period", "90m")
 	q.Set("screenshot", "1")
 	u.RawQuery = q.Encode()
@@ -100,8 +103,8 @@ func (s *Service) buildURL(providers []string) (string, error) {
 	return u.String(), nil
 }
 
-// Capture 根据 providers 渲染页面并截图，返回 PNG 图片数据
-func (s *Service) Capture(ctx context.Context, providers []string) ([]byte, error) {
+// Capture 根据 providers 和 services 渲染页面并截图，返回 PNG 图片数据
+func (s *Service) Capture(ctx context.Context, providers, services []string) ([]byte, error) {
 	startTime := time.Now()
 
 	// 尝试获取并发信号量（非阻塞）
@@ -124,19 +127,21 @@ func (s *Service) Capture(ctx context.Context, providers []string) ([]byte, erro
 		return nil, err
 	}
 
-	targetURL, err := s.buildURL(providers)
+	targetURL, err := s.buildURL(providers, services)
 	if err != nil {
 		return nil, err
 	}
 
-	slog.Debug("开始截图", "url", targetURL, "providers", providers)
+	slog.Debug("开始截图", "url", targetURL, "providers", providers, "services", services)
 
-	// 创建浏览器上下文（固定宽度 1200px，与前端截图模式一致）
+	// 创建浏览器上下文（固定宽度 1200px，强制中文语言）
 	browserCtx, err := s.browser.NewContext(playwright.BrowserNewContextOptions{
 		Viewport: &playwright.Size{
 			Width:  1200,
 			Height: 800,
 		},
+		// 强制中文语言
+		Locale: playwright.String("zh-CN"),
 		// 禁用动画
 		ReducedMotion: playwright.ReducedMotionReduce,
 	})
@@ -185,10 +190,14 @@ func (s *Service) Capture(ctx context.Context, providers []string) ([]byte, erro
 		}
 	}
 
-	// 截取整页截图
-	buf, err := page.Screenshot(playwright.PageScreenshotOptions{
-		FullPage: playwright.Bool(true),
-		Type:     playwright.ScreenshotTypePng,
+	// 截取 data-ready 元素（精确匹配内容区域，避免多余空白）
+	readyElement, err := page.QuerySelector(`[data-ready="true"]`)
+	if err != nil || readyElement == nil {
+		return nil, fmt.Errorf("未找到就绪元素: %w", err)
+	}
+
+	buf, err := readyElement.Screenshot(playwright.ElementHandleScreenshotOptions{
+		Type: playwright.ScreenshotTypePng,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("截图失败: %w", err)
