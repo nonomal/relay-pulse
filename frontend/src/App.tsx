@@ -521,7 +521,10 @@ function App() {
       </Helmet>
 
       <div
-        className="min-h-screen bg-page text-primary font-sans selection-accent overflow-x-hidden"
+        className={isScreenshotMode
+          ? "bg-page text-primary font-sans selection-accent overflow-x-hidden"
+          : "min-h-screen bg-page text-primary font-sans selection-accent overflow-x-hidden"
+        }
         data-ready={isScreenshotMode && !loading ? 'true' : undefined}
         data-error={isScreenshotMode && error ? error : undefined}
       >
