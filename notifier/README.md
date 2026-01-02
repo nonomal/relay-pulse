@@ -92,6 +92,12 @@ limits:
   rate_limit_per_second: 25     # 消息发送限速
   max_retries: 3
   bind_token_ttl: "5m"
+
+screenshot:
+  enabled: false                # 是否启用截图功能（/snap 命令）
+  base_url: "https://relaypulse.top"  # 截图目标 URL
+  timeout: "30s"                # 截图超时时间
+  max_concurrent: 3             # 最大并发截图数
 ```
 
 ## 环境变量
@@ -184,6 +190,7 @@ curl http://Windows电脑IP:3000/get_login_info
 | `/add <provider> <service> [channel]` | 添加订阅 |
 | `/remove <provider> <service> [channel]` | 移除订阅 |
 | `/clear` | 清空所有订阅 |
+| `/snap` | 生成订阅服务的状态截图 |
 | `/status` | 查看服务状态 |
 | `/help` | 显示帮助 |
 
@@ -195,12 +202,19 @@ curl http://Windows电脑IP:3000/get_login_info
 | `/add <provider> <service> [channel]` | 群管理员/私聊 | 添加订阅 |
 | `/remove <provider> <service> [channel]` | 群管理员/私聊 | 移除订阅 |
 | `/clear` | 群管理员/私聊 | 清空所有订阅 |
+| `/snap` | 所有人 | 生成订阅服务的状态截图 |
 | `/status` | 所有人 | 查看服务状态 |
 | `/help` | 所有人 | 显示帮助 |
 
 **QQ 权限说明**：
 - 群聊：仅群主/管理员可执行 `/add`、`/remove`、`/clear`
 - 私聊：好友可直接使用所有命令（好友即白名单）
+
+**截图功能说明**（`/snap` 命令）：
+- 需要在配置中启用 `screenshot.enabled: true`
+- 依赖 [Playwright](https://playwright.dev/docs/intro) 进行浏览器截图
+- 首次运行需安装 Chromium：`npx playwright install chromium`
+- 截图内容为当前订阅服务的状态监测图
 
 ## API 端点
 

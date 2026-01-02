@@ -37,3 +37,11 @@ limits:
   rate_limit_per_second: 25
   max_retries: 3
   bind_token_ttl: "10m"
+
+screenshot:
+  # 开发环境默认禁用截图功能
+  enabled: false
+  # 截图目标 URL（开发环境用本地前端）
+  base_url: "http://localhost:5173"
+  timeout: "30s"
+  max_concurrent: 3
