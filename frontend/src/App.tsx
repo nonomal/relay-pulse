@@ -26,6 +26,33 @@ function App() {
   const location = useLocation();
   const seo = useSeoMeta({ pathname: location.pathname, language: i18n.language });
 
+  // 检测截图模式
+  const isScreenshotMode = useMemo(() => {
+    return new URLSearchParams(location.search).get('screenshot') === '1';
+  }, [location.search]);
+
+  // 截图模式下强制使用 default-dark 主题
+  useEffect(() => {
+    if (!isScreenshotMode) return;
+    const root = document.documentElement;
+    root.setAttribute('data-theme', 'default-dark');
+    root.style.colorScheme = 'dark';
+  }, [isScreenshotMode]);
+
+  // 截图时间戳（组件挂载时记录）
+  const screenshotTimestamp = useMemo(() => {
+    if (!isScreenshotMode) return '';
+    return new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'Asia/Shanghai',
+    });
+  }, [isScreenshotMode]);
+
   // 使用 URL 状态同步 Hook，支持收藏和分享
   const [urlState, urlActions] = useUrlState();
   const {
@@ -88,8 +115,8 @@ function App() {
     return cleanup;
   }, []);
 
-  // 移动端强制使用 table 视图
-  const effectiveViewMode = isMobile ? 'table' : viewMode;
+  // 移动端强制使用 table 视图，截图模式也强制 table
+  const effectiveViewMode = isScreenshotMode ? 'table' : (isMobile ? 'table' : viewMode);
 
   const [tooltip, setTooltip] = useState<TooltipState>({
     show: false,
@@ -482,73 +509,107 @@ function App() {
         <html lang={seo.htmlLang} />
         <title>{t('meta.title')}</title>
         <meta name="description" content={t('meta.description')} />
+        {/* 截图模式禁用所有动画 */}
+        {isScreenshotMode && (
+          <style>{`
+            *, *::before, *::after {
+              animation: none !important;
+              transition: none !important;
+            }
+          `}</style>
+        )}
       </Helmet>
 
-      <div className="min-h-screen bg-page text-primary font-sans selection-accent overflow-x-hidden">
-        {/* 全局 Tooltip */}
-        <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
+      <div
+        className="min-h-screen bg-page text-primary font-sans selection-accent overflow-x-hidden"
+        data-ready={isScreenshotMode && !loading ? 'true' : undefined}
+        data-error={isScreenshotMode && error ? error : undefined}
+      >
+        {/* 全局 Tooltip - 截图模式下隐藏 */}
+        {!isScreenshotMode && (
+          <Tooltip tooltip={tooltip} onClose={handleBlockLeave} slowLatencyMs={slowLatencyMs} timeRange={timeRange} />
+        )}
 
-        {/* 背景装饰 */}
-        <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
-          <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
-        </div>
+        {/* 背景装饰 - 截图模式下隐藏 */}
+        {!isScreenshotMode && (
+          <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+            <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
+            <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-accent/10 rounded-full blur-[120px]" />
+          </div>
+        )}
 
-        <div className="relative z-10 max-w-7xl mx-auto px-4 py-4 sm:py-6 sm:px-6 lg:px-8">
-          {/* 头部 */}
-          <Header
-            stats={stats}
-            onFilterClick={() => setShowFilterDrawer(true)}
-            onRefresh={handleRefresh}
-            loading={loading}
-            refreshCooldown={refreshCooldown}
-            autoRefresh={autoRefresh}
-            onToggleAutoRefresh={handleToggleAutoRefresh}
-            activeFiltersCount={activeFiltersCount}
-          />
+        <div className={isScreenshotMode
+          ? "relative z-10 w-[1200px] mx-auto px-4 py-4"
+          : "relative z-10 max-w-7xl mx-auto px-4 py-4 sm:py-6 sm:px-6 lg:px-8"
+        }>
+          {/* 头部 - 截图模式下隐藏 */}
+          {!isScreenshotMode && (
+            <Header
+              stats={stats}
+              onFilterClick={() => setShowFilterDrawer(true)}
+              onRefresh={handleRefresh}
+              loading={loading}
+              refreshCooldown={refreshCooldown}
+              autoRefresh={autoRefresh}
+              onToggleAutoRefresh={handleToggleAutoRefresh}
+              activeFiltersCount={activeFiltersCount}
+            />
+          )}
 
-          {/* 控制栏 */}
-          <Controls
-            filterProvider={filterProvider}
-            filterService={filterService}
-            filterChannel={filterChannel}
-            filterCategory={filterCategory}
-            showFavoritesOnly={showFavoritesOnly}
-            favorites={favorites}
-            favoritesCount={effectiveFavoritesCount}
-            timeRange={timeRange}
-            timeAlign={timeAlign}
-            timeFilter={timeFilter}
-            board={board}
-            boardsEnabled={boardsEnabled}
-            viewMode={viewMode}
-            loading={loading}
-            channels={effectiveChannels}
-            providers={effectiveProviders}
-            effectiveServices={effectiveServices}
-            effectiveCategories={effectiveCategories}
-            isMobile={isMobile}
-            showFilterDrawer={showFilterDrawer}
-            onFilterDrawerClose={() => setShowFilterDrawer(false)}
-            onProviderChange={setFilterProvider}
-            onServiceChange={setFilterService}
-            onChannelChange={setFilterChannel}
-            onCategoryChange={setFilterCategory}
-            onShowFavoritesOnlyChange={handleFavoritesModeChange}
-            onTimeRangeChange={setTimeRange}
-            onTimeAlignChange={setTimeAlign}
-            onTimeFilterChange={setTimeFilter}
-            onBoardChange={setBoard}
-            onViewModeChange={setViewMode}
-            onRefresh={handleRefresh}
-            refreshCooldown={refreshCooldown}
-            autoRefresh={autoRefresh}
-            onToggleAutoRefresh={handleToggleAutoRefresh}
-          />
+          {/* 控制栏 - 截图模式下隐藏 */}
+          {!isScreenshotMode && (
+            <Controls
+              filterProvider={filterProvider}
+              filterService={filterService}
+              filterChannel={filterChannel}
+              filterCategory={filterCategory}
+              showFavoritesOnly={showFavoritesOnly}
+              favorites={favorites}
+              favoritesCount={effectiveFavoritesCount}
+              timeRange={timeRange}
+              timeAlign={timeAlign}
+              timeFilter={timeFilter}
+              board={board}
+              boardsEnabled={boardsEnabled}
+              viewMode={viewMode}
+              loading={loading}
+              channels={effectiveChannels}
+              providers={effectiveProviders}
+              effectiveServices={effectiveServices}
+              effectiveCategories={effectiveCategories}
+              isMobile={isMobile}
+              showFilterDrawer={showFilterDrawer}
+              onFilterDrawerClose={() => setShowFilterDrawer(false)}
+              onProviderChange={setFilterProvider}
+              onServiceChange={setFilterService}
+              onChannelChange={setFilterChannel}
+              onCategoryChange={setFilterCategory}
+              onShowFavoritesOnlyChange={handleFavoritesModeChange}
+              onTimeRangeChange={setTimeRange}
+              onTimeAlignChange={setTimeAlign}
+              onTimeFilterChange={setTimeFilter}
+              onBoardChange={setBoard}
+              onViewModeChange={setViewMode}
+              onRefresh={handleRefresh}
+              refreshCooldown={refreshCooldown}
+              autoRefresh={autoRefresh}
+              onToggleAutoRefresh={handleToggleAutoRefresh}
+            />
+          )}
+
+          {/* 截图模式标题栏 */}
+          {isScreenshotMode && (
+            <div className="mb-3 px-3 py-2 bg-elevated border border-default rounded-lg text-xs text-secondary flex items-center justify-between">
+              <span className="font-mono">{screenshotTimestamp}</span>
+              <span>
+                {filteredData.length} 个服务 | {timeRange}
+              </span>
+            </div>
+          )}
 
           {/* 内容区域 */}
-          {/* 冷板提示条 */}
-          {boardsEnabled && board === 'cold' && (
+          {/* 冷板提示条 - 截图模式下隐藏 */}
+          {!isScreenshotMode && boardsEnabled && board === 'cold' && (
             <div className="mb-4 px-4 py-3 bg-info/10 border border-info/30 rounded-lg text-info text-sm flex items-center gap-2">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -583,7 +644,9 @@ function App() {
                   isInitialSort={isInitialSort}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
-                  enableBadges={enableBadges}
+                  enableBadges={isScreenshotMode ? false : enableBadges}
+                  showCategoryTag={!isScreenshotMode}
+                  showSponsor={!isScreenshotMode}
                   isFavorite={isFavorite}
                   onToggleFavorite={toggleFavorite}
                   onSort={handleSort}
@@ -613,8 +676,8 @@ function App() {
             </>
           )}
 
-          {/* 免责声明 */}
-          <Footer />
+          {/* 免责声明 - 截图模式下隐藏 */}
+          {!isScreenshotMode && <Footer />}
         </div>
       </div>
     </>

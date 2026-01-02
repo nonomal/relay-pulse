@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,13 +17,15 @@ import (
 	"sync"
 	"time"
 
+	"notifier/internal/screenshot"
 	"notifier/internal/storage"
 )
 
 // Bot QQ 命令处理器（OneBot v11 / NapCatQQ）
 type Bot struct {
-	client  *Client
-	storage storage.Storage
+	client            *Client
+	storage           storage.Storage
+	screenshotService *screenshot.Service
 
 	maxSubscriptionsPerUser int
 	eventsURL               string
@@ -40,7 +44,8 @@ type commandHandler func(ctx context.Context, e *OneBotEvent, args string) error
 type Options struct {
 	MaxSubscriptionsPerUser int
 	EventsURL               string
-	CallbackSecret          string // Webhook 签名密钥（可选）
+	CallbackSecret          string              // Webhook 签名密钥（可选）
+	ScreenshotService       *screenshot.Service // 截图服务（可选）
 }
 
 // NewBot 创建 QQ Bot
@@ -48,6 +53,7 @@ func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
 	b := &Bot{
 		client:                  client,
 		storage:                 store,
+		screenshotService:       opts.ScreenshotService,
 		maxSubscriptionsPerUser: opts.MaxSubscriptionsPerUser,
 		eventsURL:               opts.EventsURL,
 		callbackSecret:          opts.CallbackSecret,
@@ -61,6 +67,7 @@ func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
 	b.handlers["clear"] = b.handleClear
 	b.handlers["status"] = b.handleStatus
 	b.handlers["help"] = b.handleHelp
+	b.handlers["snap"] = b.handleSnap
 
 	return b
 }
@@ -539,6 +546,7 @@ func (b *Bot) handleHelp(ctx context.Context, e *OneBotEvent, args string) error
 /add <provider> <service> [channel] - 添加订阅
 /remove <provider> <service> [channel] - 移除订阅
 /clear - 清空所有订阅
+/snap - 截图订阅服务状态
 /status - 查看服务状态
 /help - 显示此帮助
 
@@ -623,4 +631,104 @@ func extractPlainText(e *OneBotEvent) string {
 	}
 
 	return ""
+}
+
+// handleSnap 处理 /snap 命令（截图订阅服务状态）
+func (b *Bot) handleSnap(ctx context.Context, e *OneBotEvent, args string) error {
+	chatID, ok := chatKey(e)
+	if !ok {
+		return nil
+	}
+
+	// 检查截图服务是否启用
+	if b.screenshotService == nil {
+		b.sendReply(ctx, e, "截图功能未启用。")
+		return nil
+	}
+
+	// 获取订阅列表
+	subs, err := b.storage.GetSubscriptionsByChatID(ctx, storage.PlatformQQ, chatID)
+	if err != nil {
+		slog.Error("获取订阅失败", "chat_id", chatID, "error", err)
+		b.sendReply(ctx, e, "获取订阅信息失败，请稍后重试。")
+		return nil
+	}
+	if len(subs) == 0 {
+		b.sendReply(ctx, e, "你还没有订阅任何服务。\n\n使用 /add <provider> <service> 添加订阅后再试。")
+		return nil
+	}
+
+	// 提取 provider 列表（去重）
+	providers := extractUniqueProviders(subs)
+
+	// 发送提示
+	b.sendReply(ctx, e, fmt.Sprintf("正在生成 %d 个服务商的状态截图...", len(providers)))
+
+	// 截图（使用独立的超时 ctx）
+	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pngData, err := b.screenshotService.Capture(snapCtx, providers)
+	if err != nil {
+		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)
+		// 区分错误类型
+		if errors.Is(err, context.DeadlineExceeded) {
+			b.sendReply(ctx, e, "截图超时，请稍后重试。")
+		} else if errors.Is(err, screenshot.ErrConcurrencyLimit) {
+			b.sendReply(ctx, e, "系统繁忙，请稍后重试。")
+		} else {
+			b.sendReply(ctx, e, "截图生成失败，请稍后重试。")
+		}
+		return nil
+	}
+
+	// 发送图片（使用独立的超时 ctx，因为回调 ctx 只有 10s）
+	sendCtx, sendCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer sendCancel()
+	if err := b.sendImage(sendCtx, e, pngData); err != nil {
+		slog.Error("发送图片失败", "chat_id", chatID, "error", err)
+		b.sendReply(ctx, e, "截图生成成功，但发送失败。请稍后重试。")
+	}
+	return nil
+}
+
+// extractUniqueProviders 从订阅列表中提取去重的 provider 列表
+func extractUniqueProviders(subs []*storage.Subscription) []string {
+	seen := make(map[string]struct{})
+	var providers []string
+	for _, sub := range subs {
+		if _, ok := seen[sub.Provider]; !ok {
+			seen[sub.Provider] = struct{}{}
+			providers = append(providers, sub.Provider)
+		}
+	}
+	return providers
+}
+
+// sendImage 发送图片消息
+func (b *Bot) sendImage(ctx context.Context, e *OneBotEvent, imageData []byte) error {
+	if e == nil || len(imageData) == 0 {
+		return nil
+	}
+
+	// Base64 编码图片数据
+	base64Data := base64.StdEncoding.EncodeToString(imageData)
+	// 构建 CQ 码格式的图片消息
+	// 格式: [CQ:image,file=base64://...]
+	imageMsg := fmt.Sprintf("[CQ:image,file=base64://%s]", base64Data)
+
+	var err error
+	switch e.MessageType {
+	case "group":
+		if e.GroupID == 0 {
+			return nil
+		}
+		_, err = b.client.SendGroupMessage(ctx, e.GroupID, imageMsg)
+	case "private":
+		if e.UserID == 0 {
+			return nil
+		}
+		_, err = b.client.SendPrivateMessage(ctx, e.UserID, imageMsg)
+	}
+	return err
 }

@@ -3,6 +3,7 @@ package telegram
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"log/slog"
@@ -11,15 +12,17 @@ import (
 	"time"
 
 	"notifier/internal/config"
+	"notifier/internal/screenshot"
 	"notifier/internal/storage"
 )
 
 // Bot Telegram Bot
 type Bot struct {
-	client   *Client
-	cfg      *config.Config
-	storage  storage.Storage
-	handlers map[string]CommandHandler
+	client            *Client
+	cfg               *config.Config
+	storage           storage.Storage
+	screenshotService *screenshot.Service
+	handlers          map[string]CommandHandler
 
 	mu       sync.Mutex
 	running  bool
@@ -49,8 +52,14 @@ func NewBot(cfg *config.Config, store storage.Storage) *Bot {
 	b.handlers["clear"] = b.handleClear
 	b.handlers["status"] = b.handleStatus
 	b.handlers["help"] = b.handleHelp
+	b.handlers["snap"] = b.handleSnap
 
 	return b
+}
+
+// SetScreenshotService 设置截图服务（可选）
+func (b *Bot) SetScreenshotService(svc *screenshot.Service) {
+	b.screenshotService = svc
 }
 
 // Start 启动 Bot（Long Polling）
@@ -197,6 +206,7 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 /add &lt;provider&gt; &lt;service&gt; - 添加订阅
 /remove &lt;provider&gt; &lt;service&gt; - 移除订阅
 /clear - 清空所有订阅
+/snap - 截图订阅服务状态
 /status - 查看服务状态
 /help - 显示帮助
 
@@ -445,6 +455,7 @@ func (b *Bot) handleHelp(ctx context.Context, msg *Message, args string) error {
 /add &lt;provider&gt; &lt;service&gt; [channel] - 添加订阅
 /remove &lt;provider&gt; &lt;service&gt; [channel] - 移除订阅
 /clear - 清空所有订阅
+/snap - 截图订阅服务状态
 /status - 查看服务状态
 /help - 显示此帮助
 
@@ -463,6 +474,73 @@ func (b *Bot) handleHelp(ctx context.Context, msg *Message, args string) error {
 
 	b.sendReply(ctx, msg.Chat.ID, help)
 	return nil
+}
+
+// handleSnap 处理 /snap 命令（截图订阅服务状态）
+func (b *Bot) handleSnap(ctx context.Context, msg *Message, args string) error {
+	chatID := msg.Chat.ID
+
+	// 检查截图服务是否启用
+	if b.screenshotService == nil {
+		b.sendReply(ctx, chatID, "截图功能未启用。")
+		return nil
+	}
+
+	// 获取订阅列表
+	subs, err := b.storage.GetSubscriptionsByChatID(ctx, storage.PlatformTelegram, chatID)
+	if err != nil {
+		slog.Error("获取订阅失败", "chat_id", chatID, "error", err)
+		b.sendReply(ctx, chatID, "获取订阅信息失败，请稍后重试。")
+		return nil
+	}
+	if len(subs) == 0 {
+		b.sendReply(ctx, chatID, "你还没有订阅任何服务。\n\n使用 /add 添加订阅后再试。")
+		return nil
+	}
+
+	// 提取 provider 列表（去重）
+	providers := extractUniqueProviders(subs)
+
+	// 发送提示
+	b.sendReply(ctx, chatID, fmt.Sprintf("正在生成 %d 个服务商的状态截图...", len(providers)))
+
+	// 截图（使用独立的超时 ctx）
+	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	pngData, err := b.screenshotService.Capture(snapCtx, providers)
+	if err != nil {
+		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)
+		// 区分错误类型
+		if errors.Is(err, context.DeadlineExceeded) {
+			b.sendReply(ctx, chatID, "截图超时，请稍后重试。")
+		} else if errors.Is(err, screenshot.ErrConcurrencyLimit) {
+			b.sendReply(ctx, chatID, "系统繁忙，请稍后重试。")
+		} else {
+			b.sendReply(ctx, chatID, "截图生成失败，请稍后重试。")
+		}
+		return nil
+	}
+
+	// 发送图片
+	if _, err := b.client.SendPhoto(ctx, chatID, pngData, ""); err != nil {
+		slog.Error("发送图片失败", "chat_id", chatID, "error", err)
+		b.sendReply(ctx, chatID, "截图生成成功，但发送失败。请稍后重试。")
+	}
+	return nil
+}
+
+// extractUniqueProviders 从订阅列表中提取去重的 provider 列表
+func extractUniqueProviders(subs []*storage.Subscription) []string {
+	seen := make(map[string]struct{})
+	var providers []string
+	for _, sub := range subs {
+		if _, ok := seen[sub.Provider]; !ok {
+			seen[sub.Provider] = struct{}{}
+			providers = append(providers, sub.Provider)
+		}
+	}
+	return providers
 }
 
 // Favorite 收藏项

@@ -16,6 +16,7 @@ type Config struct {
 	Database   DatabaseConfig   `yaml:"database"`
 	API        APIConfig        `yaml:"api"`
 	Limits     LimitsConfig     `yaml:"limits"`
+	Screenshot ScreenshotConfig `yaml:"screenshot"`
 }
 
 // RelayPulseConfig relay-pulse 事件 API 配置
@@ -57,6 +58,14 @@ type LimitsConfig struct {
 	RateLimitPerSecond      int           `yaml:"rate_limit_per_second"`
 	MaxRetries              int           `yaml:"max_retries"`
 	BindTokenTTL            time.Duration `yaml:"bind_token_ttl"`
+}
+
+// ScreenshotConfig 截图功能配置
+type ScreenshotConfig struct {
+	Enabled       bool          `yaml:"enabled"`        // 是否启用截图功能
+	BaseURL       string        `yaml:"base_url"`       // 截图目标 URL，默认 https://relaypulse.top
+	Timeout       time.Duration `yaml:"timeout"`        // 截图超时时间，默认 30s
+	MaxConcurrent int           `yaml:"max_concurrent"` // 最大并发数，默认 3
 }
 
 // Load 从文件加载配置，并应用环境变量覆盖
@@ -145,6 +154,16 @@ func (c *Config) setDefaults() {
 	if c.QQ.CallbackPath == "" {
 		c.QQ.CallbackPath = "/qq/callback"
 	}
+	// Screenshot 默认值
+	if c.Screenshot.BaseURL == "" {
+		c.Screenshot.BaseURL = "https://relaypulse.top"
+	}
+	if c.Screenshot.Timeout == 0 {
+		c.Screenshot.Timeout = 30 * time.Second
+	}
+	if c.Screenshot.MaxConcurrent == 0 {
+		c.Screenshot.MaxConcurrent = 3
+	}
 }
 
 // validate 验证配置
@@ -168,4 +187,9 @@ func (c *Config) HasTelegramToken() bool {
 // HasQQ 检查是否启用了 QQ 通知
 func (c *Config) HasQQ() bool {
 	return c.QQ.Enabled && c.QQ.OneBotHTTPURL != ""
+}
+
+// HasScreenshot 检查是否启用了截图功能
+func (c *Config) HasScreenshot() bool {
+	return c.Screenshot.Enabled
 }

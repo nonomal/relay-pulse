@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"time"
 )
@@ -143,6 +144,73 @@ func (c *Client) SendMessage(ctx context.Context, chatID int64, text string, par
 // SendMessageHTML 发送 HTML 格式消息
 func (c *Client) SendMessageHTML(ctx context.Context, chatID int64, text string) (*Message, error) {
 	return c.SendMessage(ctx, chatID, text, "HTML")
+}
+
+// SendPhoto 发送图片消息（上传图片数据）
+func (c *Client) SendPhoto(ctx context.Context, chatID int64, photoData []byte, caption string) (*Message, error) {
+	url := c.baseURL + "/sendPhoto"
+
+	// 使用 multipart/form-data 上传图片
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+
+	// 添加 chat_id 字段
+	if err := w.WriteField("chat_id", fmt.Sprintf("%d", chatID)); err != nil {
+		return nil, fmt.Errorf("写入 chat_id 失败: %w", err)
+	}
+
+	// 添加 caption 字段（可选）
+	if caption != "" {
+		if err := w.WriteField("caption", caption); err != nil {
+			return nil, fmt.Errorf("写入 caption 失败: %w", err)
+		}
+	}
+
+	// 添加图片文件
+	fw, err := w.CreateFormFile("photo", "screenshot.png")
+	if err != nil {
+		return nil, fmt.Errorf("创建 form file 失败: %w", err)
+	}
+	if _, err := fw.Write(photoData); err != nil {
+		return nil, fmt.Errorf("写入图片数据失败: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return nil, fmt.Errorf("关闭 multipart writer 失败: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, &buf)
+	if err != nil {
+		return nil, fmt.Errorf("创建请求失败: %w", err)
+	}
+	req.Header.Set("Content-Type", w.FormDataContentType())
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("请求失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("读取响应失败: %w", err)
+	}
+
+	var apiResp APIResponse
+	if err := json.Unmarshal(respBody, &apiResp); err != nil {
+		return nil, fmt.Errorf("解析响应失败: %w", err)
+	}
+
+	if !apiResp.OK {
+		return nil, fmt.Errorf("API 错误 [%d]: %s", apiResp.ErrorCode, apiResp.Description)
+	}
+
+	var msg Message
+	if err := json.Unmarshal(apiResp.Result, &msg); err != nil {
+		return nil, fmt.Errorf("解析消息失败: %w", err)
+	}
+
+	return &msg, nil
 }
 
 // doRequest 执行 API 请求
