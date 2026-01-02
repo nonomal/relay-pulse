@@ -55,6 +55,13 @@ func (s *Service) ensureInitialized() error {
 
 	slog.Info("初始化 Playwright...")
 
+	// 确保 Playwright driver 和浏览器已安装
+	if err := playwright.Install(&playwright.RunOptions{
+		Browsers: []string{"chromium"},
+	}); err != nil {
+		return fmt.Errorf("安装 Playwright 失败: %w", err)
+	}
+
 	pw, err := playwright.Run()
 	if err != nil {
 		return fmt.Errorf("启动 Playwright 失败: %w", err)

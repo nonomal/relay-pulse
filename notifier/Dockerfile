@@ -1,76 +1,47 @@
-# Build stage
-FROM golang:1.24-bookworm AS builder
-
-WORKDIR /build
-
-# Copy go mod files first (for better caching)
-COPY go.mod go.sum ./
+# Stage 1: Modules caching
+FROM golang:1.24-bookworm AS modules
+COPY go.mod go.sum /modules/
+WORKDIR /modules
 RUN go mod download
 
-# Install Playwright driver and Chromium (before copying source for cache optimization)
-# Pin to specific version matching go.mod playwright-go dependency
-RUN go run github.com/playwright-community/playwright-go/cmd/playwright@v0.5200.1 install --with-deps chromium
+# Stage 2: Build
+FROM golang:1.24-bookworm AS builder
+COPY --from=modules /go/pkg /go/pkg
+COPY . /workdir
+WORKDIR /workdir
 
-# Copy source and build
-COPY . .
+# Install playwright CLI (version from go.mod)
+RUN PWGO_VER=$(grep -oE "playwright-go v\S+" /workdir/go.mod | sed 's/playwright-go //g') \
+    && go install github.com/playwright-community/playwright-go/cmd/playwright@${PWGO_VER}
 
+# Build binary
 ARG VERSION=dev
 RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags="-s -w -X main.version=${VERSION}" \
-    -o notifier ./cmd/notifier
+    -o /bin/notifier ./cmd/notifier
 
-# Runtime stage - use Debian for Playwright/Chromium compatibility
-FROM debian:bookworm-slim
+# Stage 3: Runtime
+FROM ubuntu:24.04
 
-# Prevent tzdata interactive prompts
+# Prevent interactive prompts
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Shanghai
 
-# Install runtime dependencies for Chromium
+WORKDIR /app
+
+# Copy binaries from builder
+COPY --from=builder /go/bin/playwright /bin/playwright
+COPY --from=builder /bin/notifier .
+
+# Install dependencies and Chromium browser
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     tzdata \
     wget \
-    # Core libraries
-    libglib2.0-0 \
-    libfontconfig1 \
-    # Playwright/Chromium dependencies
-    libnss3 \
-    libnspr4 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libdrm2 \
-    libdbus-1-3 \
-    libxkbcommon0 \
-    libatspi2.0-0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
-    libpango-1.0-0 \
-    libcairo2 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxext6 \
-    libxi6 \
-    libxrender1 \
-    libxss1 \
-    libxtst6 \
     # Chinese font support
     fonts-noto-cjk \
+    && /bin/playwright install --with-deps chromium \
     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
-
-# Copy binary
-COPY --from=builder /build/notifier .
-
-# Copy Playwright driver and browsers from builder
-COPY --from=builder /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Copy default config template
 COPY config.yaml.example config.yaml
