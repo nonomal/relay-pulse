@@ -21,6 +21,9 @@ import (
 	"notifier/internal/storage"
 )
 
+// 全局指令关键词
+const statusCheckKeyword = "状态检查"
+
 // Bot QQ 命令处理器（OneBot v11 / NapCatQQ）
 type Bot struct {
 	client            *Client
@@ -32,6 +35,11 @@ type Bot struct {
 	callbackSecret          string // Webhook 签名密钥
 
 	handlers map[string]commandHandler
+
+	// 群聊"状态检查"防刷（同一群短时间内不重复响应）
+	statusCheckCooldown    time.Duration
+	lastStatusCheckByGroup map[int64]time.Time
+	statusCheckMu          sync.Mutex
 
 	// selfID 机器人 QQ 号（从消息事件中获取）
 	selfID   int64
@@ -58,6 +66,8 @@ func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
 		eventsURL:               opts.EventsURL,
 		callbackSecret:          opts.CallbackSecret,
 		handlers:                make(map[string]commandHandler),
+		statusCheckCooldown:     30 * time.Second,
+		lastStatusCheckByGroup:  make(map[int64]time.Time),
 	}
 
 	// 注册命令处理器
@@ -211,6 +221,24 @@ func (b *Bot) isMessageToBot(e *OneBotEvent) bool {
 	return false
 }
 
+// allowGroupStatusCheck 检查群聊状态检查是否允许（防刷）
+func (b *Bot) allowGroupStatusCheck(groupID int64) bool {
+	if groupID == 0 {
+		return true
+	}
+
+	b.statusCheckMu.Lock()
+	defer b.statusCheckMu.Unlock()
+
+	now := time.Now()
+	last, ok := b.lastStatusCheckByGroup[groupID]
+	if ok && now.Sub(last) < b.statusCheckCooldown {
+		return false
+	}
+	b.lastStatusCheckByGroup[groupID] = now
+	return true
+}
+
 // handleMessage 处理消息
 func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 	if e == nil || e.PostType != "message" {
@@ -233,13 +261,41 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 		return
 	}
 
-	// 群聊必须 @机器人 才响应
+	// 提取纯文本
+	text := extractPlainText(e)
+
+	// 群聊"状态检查"关键词：无需 @、无需 /，直接触发截图
+	if e.MessageType == "group" && strings.TrimSpace(text) == statusCheckKeyword {
+		if !b.allowGroupStatusCheck(e.GroupID) {
+			slog.Debug("群聊状态检查触发过于频繁，已忽略", "group_id", e.GroupID)
+			return
+		}
+
+		chatID, ok := chatKey(e)
+		if !ok {
+			return
+		}
+
+		if err := b.ensureChat(ctx, e, chatID); err != nil {
+			slog.Warn("确保用户记录失败", "chat_id", chatID, "error", err)
+		}
+		if err := b.storage.UpdateChatCommandTime(ctx, storage.PlatformQQ, chatID); err != nil {
+			slog.Warn("更新命令时间失败", "chat_id", chatID, "error", err)
+		}
+
+		slog.Info("群聊触发状态检查", "group_id", e.GroupID, "user_id", e.UserID)
+		if err := b.handleSnap(ctx, e, ""); err != nil {
+			slog.Error("状态检查截图失败", "chat_id", chatID, "error", err)
+			b.sendReply(ctx, e, "状态检查失败，请稍后重试。")
+		}
+		return
+	}
+
+	// 其他群聊命令必须 @机器人 才响应
 	if e.MessageType == "group" && !b.isMessageToBot(e) {
 		return
 	}
 
-	// 提取纯文本
-	text := extractPlainText(e)
 	if text == "" || !strings.HasPrefix(text, "/") {
 		return
 	}
@@ -549,6 +605,9 @@ func (b *Bot) handleHelp(ctx context.Context, e *OneBotEvent, args string) error
 /snap - 截图订阅服务状态
 /status - 查看服务状态
 /help - 显示此帮助
+
+全局指令（群聊无需@）：
+状态检查 - 快速截图订阅服务状态
 
 权限说明：
 1) 群聊：仅管理员可执行 /add /remove /clear
