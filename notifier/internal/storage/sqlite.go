@@ -524,11 +524,12 @@ func (s *SQLiteStorage) GetSubscriptionsByChatID(ctx context.Context, platform s
 }
 
 // GetSubscribersByMonitor 获取监测项的所有订阅者（返回平台+ChatID）
+// 匹配规则：订阅 channel 为空时匹配所有 channel，否则精确匹配
 func (s *SQLiteStorage) GetSubscribersByMonitor(ctx context.Context, provider, service, channel string) ([]*ChatRef, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT s.platform, s.chat_id FROM subscriptions s
 		JOIN chats c ON s.platform = c.platform AND s.chat_id = c.chat_id
-		WHERE s.provider = ? AND s.service = ? AND s.channel = ? AND c.status = 'active'
+		WHERE s.provider = ? AND s.service = ? AND (s.channel = '' OR s.channel = ?) AND c.status = 'active'
 	`, provider, service, channel)
 	if err != nil {
 		return nil, fmt.Errorf("查询订阅者失败: %w", err)
