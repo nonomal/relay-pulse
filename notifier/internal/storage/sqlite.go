@@ -130,6 +130,21 @@ func (s *SQLiteStorage) tableExists(ctx context.Context, name string) (bool, err
 	return got == name, nil
 }
 
+// tableExistsTx 在事务内检查表是否存在（避免死锁）
+func tableExistsTx(ctx context.Context, tx *sql.Tx, name string) (bool, error) {
+	var got string
+	err := tx.QueryRowContext(ctx,
+		`SELECT name FROM sqlite_master WHERE type='table' AND name = ?`, name,
+	).Scan(&got)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("查询表信息失败: %w", err)
+	}
+	return got == name, nil
+}
+
 // hasColumn 检查表是否有指定列
 func (s *SQLiteStorage) hasColumn(ctx context.Context, tableName, columnName string) (bool, error) {
 	rows, err := s.db.QueryContext(ctx, fmt.Sprintf(`PRAGMA table_info(%s)`, tableName))
@@ -223,7 +238,7 @@ func (s *SQLiteStorage) migrateLegacyToMultiPlatform(ctx context.Context) error 
 	}
 
 	// 迁移 telegram_chats 数据（旧数据一律视为 Telegram）
-	telegramChatsExists, _ := s.tableExists(ctx, "telegram_chats")
+	telegramChatsExists, _ := tableExistsTx(ctx, tx, "telegram_chats")
 	if telegramChatsExists {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT OR IGNORE INTO chats_new (platform, chat_id, username, first_name, status, last_command_at, command_count, created_at, updated_at)
@@ -235,7 +250,7 @@ func (s *SQLiteStorage) migrateLegacyToMultiPlatform(ctx context.Context) error 
 	}
 
 	// 迁移 subscriptions 数据
-	subsExists, _ := s.tableExists(ctx, "subscriptions")
+	subsExists, _ := tableExistsTx(ctx, tx, "subscriptions")
 	if subsExists {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT OR IGNORE INTO subscriptions_new (id, platform, chat_id, provider, service, channel, created_at)
@@ -247,7 +262,7 @@ func (s *SQLiteStorage) migrateLegacyToMultiPlatform(ctx context.Context) error 
 	}
 
 	// 迁移 deliveries 数据
-	deliveriesExists, _ := s.tableExists(ctx, "deliveries")
+	deliveriesExists, _ := tableExistsTx(ctx, tx, "deliveries")
 	if deliveriesExists {
 		if _, err := tx.ExecContext(ctx, `
 			INSERT OR IGNORE INTO deliveries_new (id, event_id, platform, chat_id, status, message_id, error_message, retry_count, created_at, updated_at)
