@@ -10,7 +10,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"notifier/internal/storage"
@@ -26,6 +28,10 @@ type Bot struct {
 	callbackSecret          string // Webhook 签名密钥
 
 	handlers map[string]commandHandler
+
+	// selfID 机器人 QQ 号（从消息事件中获取）
+	selfID   int64
+	selfIDMu sync.RWMutex
 }
 
 type commandHandler func(ctx context.Context, e *OneBotEvent, args string) error
@@ -129,10 +135,84 @@ func (b *Bot) writeOK(w http.ResponseWriter) {
 	_, _ = w.Write([]byte(`{"status":"ok"}`))
 }
 
+// getSelfID 获取机器人 QQ 号
+func (b *Bot) getSelfID() int64 {
+	b.selfIDMu.RLock()
+	defer b.selfIDMu.RUnlock()
+	return b.selfID
+}
+
+// setSelfID 设置机器人 QQ 号（仅首次设置生效）
+func (b *Bot) setSelfID(id int64) {
+	if id == 0 {
+		return
+	}
+	b.selfIDMu.Lock()
+	defer b.selfIDMu.Unlock()
+	if b.selfID == 0 {
+		b.selfID = id
+		slog.Info("QQ Bot SelfID 已记录", "self_id", id)
+	}
+}
+
+// isMessageToBot 检查消息是否指向机器人
+// 私聊直接返回 true；群聊检查是否 @了机器人
+func (b *Bot) isMessageToBot(e *OneBotEvent) bool {
+	if e == nil {
+		return false
+	}
+
+	// 私聊直接返回 true
+	if e.MessageType == "private" {
+		return true
+	}
+
+	// 群聊需要检查是否 @了机器人
+	selfID := b.getSelfID()
+	if selfID == 0 {
+		// 尚未获取到 SelfID，暂时允许（首次消息可能是群消息）
+		slog.Debug("群消息但尚未获取 SelfID，暂时允许响应", "group_id", e.GroupID)
+		return true
+	}
+
+	// 尝试从消息段数组中检测 @
+	if len(e.Message) > 0 {
+		var segs []MessageSegment
+		if err := json.Unmarshal(e.Message, &segs); err == nil {
+			for _, seg := range segs {
+				if seg.Type == "at" && seg.Data.QQ != "" {
+					if qq, _ := strconv.ParseInt(seg.Data.QQ, 10, 64); qq == selfID {
+						return true
+					}
+				}
+			}
+			// 成功解析消息段但未找到 @机器人
+			return false
+		}
+		// 消息可能是字符串格式，继续尝试 RawMessage
+	}
+
+	// 兜底：检查 RawMessage 中的 CQ 码（格式：[CQ:at,qq=123456]）
+	if e.RawMessage != "" {
+		// 构造目标 CQ 码
+		target := fmt.Sprintf("[CQ:at,qq=%d]", selfID)
+		if strings.Contains(e.RawMessage, target) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // handleMessage 处理消息
 func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 	if e == nil || e.PostType != "message" {
 		return
+	}
+
+	// 记录机器人 QQ 号（从消息事件中获取）
+	if e.SelfID != 0 {
+		b.setSelfID(e.SelfID)
 	}
 
 	// 忽略自己发的消息
@@ -143,6 +223,11 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 	// 私聊权限检查：仅接受好友消息（好友即白名单）
 	if e.MessageType == "private" && e.SubType != "friend" {
 		slog.Debug("忽略非好友私聊消息", "user_id", e.UserID, "sub_type", e.SubType)
+		return
+	}
+
+	// 群聊必须 @机器人 才响应
+	if e.MessageType == "group" && !b.isMessageToBot(e) {
 		return
 	}
 

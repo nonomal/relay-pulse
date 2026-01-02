@@ -46,7 +46,8 @@ type LatestEventResponse struct {
 }
 
 // GetEvents 获取事件列表
-// GET /api/events?since_id=0&limit=100&provider=xxx&service=xxx&channel=xxx&types=DOWN,UP
+// GET /api/events?since_id=0&limit=20&provider=xxx&service=xxx&channel=xxx&types=DOWN,UP
+// limit 默认 20，最大 100
 func (h *Handler) GetEvents(c *gin.Context) {
 	// 检查 API Token（如果配置了）
 	if !h.checkEventsAPIToken(c) {
@@ -55,14 +56,14 @@ func (h *Handler) GetEvents(c *gin.Context) {
 
 	// 解析查询参数
 	sinceID, _ := strconv.ParseInt(c.DefaultQuery("since_id", "0"), 10, 64)
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
 
-	// 限制范围
+	// 限制范围：默认 20，最大 100
 	if limit <= 0 {
-		limit = 100
+		limit = 20
 	}
-	if limit > 500 {
-		limit = 500
+	if limit > 100 {
+		limit = 100
 	}
 
 	// 构建过滤器

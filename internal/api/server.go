@@ -105,11 +105,12 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 
 	// 强制 gzip 中间件（仅针对大响应 API，保护 4Mb 带宽）
 	// /api/status 响应约 300KB，未压缩会瞬间打满带宽
+	// 注意：仅对 /api/status 精确匹配，不影响 /api/status/query 等小响应接口
 	router.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
 
-		// 仅对 /api/status 强制要求 gzip
-		if strings.HasPrefix(path, "/api/status") {
+		// 仅对 /api/status 精确匹配强制要求 gzip
+		if path == "/api/status" {
 			acceptEncoding := c.GetHeader("Accept-Encoding")
 			if !strings.Contains(acceptEncoding, "gzip") {
 				c.AbortWithStatusJSON(http.StatusNotAcceptable, gin.H{
@@ -150,6 +151,8 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 
 	// 注册 API 路由
 	router.GET("/api/status", handler.GetStatus)
+	router.GET("/api/status/query", handler.GetStatusQuery)
+	router.POST("/api/status/batch", handler.PostStatusBatch)
 
 	// 事件 API 路由
 	router.GET("/api/events", handler.GetEvents)

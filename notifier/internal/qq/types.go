@@ -36,10 +36,14 @@ type Sender struct {
 
 // MessageSegment OneBot v11 消息段
 type MessageSegment struct {
-	Type string `json:"type"`
-	Data struct {
-		Text string `json:"text,omitempty"`
-	} `json:"data,omitempty"`
+	Type string             `json:"type"`
+	Data MessageSegmentData `json:"data,omitempty"`
+}
+
+// MessageSegmentData 消息段数据
+type MessageSegmentData struct {
+	Text string `json:"text,omitempty"` // text 类型
+	QQ   string `json:"qq,omitempty"`   // at 类型：被 @ 的 QQ 号
 }
 
 // GroupMember 群成员信息（用于权限判断）
