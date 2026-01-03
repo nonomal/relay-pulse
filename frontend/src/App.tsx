@@ -53,6 +53,17 @@ function App() {
     });
   }, [isScreenshotMode]);
 
+  // 截图标题（群名专属标识）
+  const screenshotTitle = useMemo(() => {
+    if (!isScreenshotMode) return '';
+    const raw = new URLSearchParams(location.search).get('title') || '';
+    // 清理控制字符，限制长度
+    const cleaned = raw.replace(/[\r\n\t]+/g, ' ').trim();
+    const chars = Array.from(cleaned);
+    if (chars.length > 60) return chars.slice(0, 60).join('') + '…';
+    return cleaned;
+  }, [isScreenshotMode, location.search]);
+
   // 使用 URL 状态同步 Hook，支持收藏和分享
   const [urlState, urlActions] = useUrlState();
   const {
@@ -602,11 +613,20 @@ function App() {
 
           {/* 截图模式标题栏 */}
           {isScreenshotMode && (
-            <div className="mb-3 px-3 py-2 bg-elevated border border-default rounded-lg text-xs text-secondary flex items-center justify-between">
-              <span className="font-mono">{screenshotTimestamp}</span>
-              <span>
-                {filteredData.length} 个服务 | {timeRange}
-              </span>
+            <div className="mb-3 px-3 py-2 bg-elevated border border-default rounded-lg text-xs text-secondary">
+              {/* 群专属标题行 - 仅当有 title 时显示 */}
+              {screenshotTitle && (
+                <div className="text-sm text-primary font-medium mb-1 truncate">
+                  {screenshotTitle}
+                </div>
+              )}
+              {/* 时间和服务信息行 */}
+              <div className="flex items-center justify-between">
+                <span className="font-mono">{screenshotTimestamp}</span>
+                <span>
+                  {filteredData.length} 个服务 | {timeRange}
+                </span>
+              </div>
             </div>
           )}
 

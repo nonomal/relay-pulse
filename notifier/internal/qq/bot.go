@@ -927,7 +927,11 @@ func (b *Bot) handleSnap(ctx context.Context, e *OneBotEvent, args string) error
 	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pngData, err := b.screenshotService.Capture(snapCtx, providers, services)
+	// 构建截图标题（群名 + 专属状态）
+	title := ownerLabel + " 专属状态"
+	pngData, err := b.screenshotService.CaptureWithOptions(snapCtx, providers, services, &screenshot.CaptureOptions{
+		Title: title,
+	})
 	if err != nil {
 		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)
 		// 区分错误类型

@@ -689,14 +689,21 @@ func (b *Bot) handleSnap(ctx context.Context, msg *Message, args string) error {
 	// 提取 service 列表（去重）
 	services := extractUniqueServices(subs)
 
-	// 发送提示
-	b.sendReply(ctx, chatID, fmt.Sprintf("正在生成 %d 个服务商的状态截图...", len(providers)))
+	// 构建专属标识（群名/用户名）
+	ownerLabel := getOwnerLabel(msg)
+
+	// 发送提示（HTML 模式需要转义动态文本）
+	b.sendReply(ctx, chatID, fmt.Sprintf("正在生成 [%s专属] 的状态截图...", html.EscapeString(ownerLabel)))
 
 	// 截图（使用独立的超时 ctx）
 	snapCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	pngData, err := b.screenshotService.Capture(snapCtx, providers, services)
+	// 构建截图标题（群名/用户名 + 专属状态）
+	title := ownerLabel + " 专属状态"
+	pngData, err := b.screenshotService.CaptureWithOptions(snapCtx, providers, services, &screenshot.CaptureOptions{
+		Title: title,
+	})
 	if err != nil {
 		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)
 		// 区分错误类型
@@ -742,6 +749,44 @@ func extractUniqueServices(subs []*storage.Subscription) []string {
 		}
 	}
 	return services
+}
+
+// getOwnerLabel 获取截图专属标识（群名或用户名）
+func getOwnerLabel(msg *Message) string {
+	if msg == nil || msg.Chat == nil {
+		return "你"
+	}
+
+	// 辅助函数：截断并清理文本
+	truncate := func(s string) string {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return ""
+		}
+		// 限制长度，与 QQ Bot 保持一致（20 字符）
+		r := []rune(s)
+		if len(r) > 20 {
+			return string(r[:20]) + "…"
+		}
+		return s
+	}
+
+	// 群聊/超级群/频道：优先使用 Title
+	if name := truncate(msg.Chat.Title); name != "" {
+		return name
+	}
+
+	// 私聊：优先使用 FirstName
+	if name := truncate(msg.Chat.FirstName); name != "" {
+		return name
+	}
+
+	// 兜底：使用 Username
+	if name := truncate(msg.Chat.Username); name != "" {
+		return name
+	}
+
+	return "你"
 }
 
 // Favorite 收藏项

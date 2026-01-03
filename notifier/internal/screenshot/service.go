@@ -16,6 +16,11 @@ import (
 // ErrConcurrencyLimit 表示截图并发已达到上限
 var ErrConcurrencyLimit = errors.New("截图并发已达到上限")
 
+// CaptureOptions 截图可选参数
+type CaptureOptions struct {
+	Title string // 截图标题（群名/用户名 + 专属状态）
+}
+
 // Service 提供基于 Playwright 的截图服务
 //
 // 设计要点：
@@ -89,8 +94,8 @@ func (s *Service) ensureInitialized() error {
 }
 
 // buildURL 构建截图 URL
-// 格式: {baseURL}/?provider=p1,p2&service=s1,s2&period=90m&screenshot=1
-func (s *Service) buildURL(providers, services []string) (string, error) {
+// 格式: {baseURL}/?provider=p1,p2&service=s1,s2&period=90m&screenshot=1[&title=xxx]
+func (s *Service) buildURL(providers, services []string, opts *CaptureOptions) (string, error) {
 	u, err := url.Parse(s.baseURL)
 	if err != nil {
 		return "", fmt.Errorf("解析 baseURL 失败: %w", err)
@@ -105,13 +110,30 @@ func (s *Service) buildURL(providers, services []string) (string, error) {
 	}
 	q.Set("period", "90m")
 	q.Set("screenshot", "1")
+	if opts != nil && opts.Title != "" {
+		// 规范化：去除控制字符，限制长度
+		title := strings.TrimSpace(opts.Title)
+		title = strings.NewReplacer("\r", " ", "\n", " ", "\t", " ").Replace(title)
+		if title != "" {
+			r := []rune(title)
+			if len(r) > 60 {
+				title = string(r[:60]) + "…"
+			}
+			q.Set("title", title)
+		}
+	}
 	u.RawQuery = q.Encode()
 
 	return u.String(), nil
 }
 
-// Capture 根据 providers 和 services 渲染页面并截图，返回 PNG 图片数据
+// Capture 根据 providers 和 services 渲染页面并截图，返回 PNG 图片数据（向后兼容）
 func (s *Service) Capture(ctx context.Context, providers, services []string) ([]byte, error) {
+	return s.CaptureWithOptions(ctx, providers, services, nil)
+}
+
+// CaptureWithOptions 根据 providers、services 和可选参数渲染页面并截图
+func (s *Service) CaptureWithOptions(ctx context.Context, providers, services []string, opts *CaptureOptions) ([]byte, error) {
 	startTime := time.Now()
 
 	// 尝试获取并发信号量（非阻塞）
@@ -134,12 +156,13 @@ func (s *Service) Capture(ctx context.Context, providers, services []string) ([]
 		return nil, err
 	}
 
-	targetURL, err := s.buildURL(providers, services)
+	targetURL, err := s.buildURL(providers, services, opts)
 	if err != nil {
 		return nil, err
 	}
 
-	slog.Debug("开始截图", "url", targetURL, "providers", providers, "services", services)
+	// 避免把群名等敏感信息（title）打进日志
+	slog.Debug("开始截图", "providers", providers, "services", services, "has_title", opts != nil && opts.Title != "")
 
 	// 创建浏览器上下文（固定宽度 1200px，强制中文语言）
 	browserCtx, err := s.browser.NewContext(playwright.BrowserNewContextOptions{
