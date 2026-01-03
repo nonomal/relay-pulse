@@ -67,3 +67,6 @@ notifier/notifier
 config.yaml.backup-*
 verify
 notes.txt
+
+# Go cache
+.gocache/
