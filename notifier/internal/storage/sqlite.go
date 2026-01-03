@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -15,8 +16,74 @@ type SQLiteStorage struct {
 	db *sql.DB
 }
 
+func normalizeSQLiteDSN(dsn string) string {
+	// 兼容用户仅配置了 _journal_mode=WAL 的情况：追加 busy_timeout，避免启动时并发建表/写入直接 SQLITE_BUSY 失败。
+	// 不覆盖用户已有配置。
+	needJournal := !strings.Contains(dsn, "_journal_mode=")
+	needTimeout := !strings.Contains(dsn, "_timeout=") && !strings.Contains(dsn, "timeout=")
+	needBusyTimeout := !strings.Contains(dsn, "_busy_timeout=") && !strings.Contains(dsn, "busy_timeout=")
+
+	if !needJournal && !needTimeout && !needBusyTimeout {
+		return dsn
+	}
+
+	sep := "?"
+	if strings.Contains(dsn, "?") {
+		sep = "&"
+	}
+
+	var b strings.Builder
+	b.WriteString(dsn)
+	if needJournal {
+		b.WriteString(sep)
+		b.WriteString("_journal_mode=WAL")
+		sep = "&"
+	}
+	if needTimeout {
+		b.WriteString(sep)
+		b.WriteString("_timeout=5000")
+		sep = "&"
+	}
+	if needBusyTimeout {
+		b.WriteString(sep)
+		b.WriteString("_busy_timeout=5000")
+	}
+	return b.String()
+}
+
+func isSQLiteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "SQLITE_BUSY") || strings.Contains(msg, "database is locked")
+}
+
+func execWithRetry(ctx context.Context, db *sql.DB, query string, args ...any) error {
+	backoff := 100 * time.Millisecond
+	for attempt := 0; attempt < 6; attempt++ {
+		_, err := db.ExecContext(ctx, query, args...)
+		if err == nil {
+			return nil
+		}
+		if !isSQLiteBusy(err) || ctx.Err() != nil {
+			return err
+		}
+		time.Sleep(backoff)
+		if backoff < 2*time.Second {
+			backoff *= 2
+		}
+	}
+	_, err := db.ExecContext(ctx, query, args...)
+	if isSQLiteBusy(err) {
+		return fmt.Errorf("SQLite 数据库被占用（可能有另一个 notifier 实例或 SQLite 工具正在使用同一数据库文件）: %w", err)
+	}
+	return err
+}
+
 // NewSQLiteStorage 创建 SQLite 存储
 func NewSQLiteStorage(dsn string) (*SQLiteStorage, error) {
+	dsn = normalizeSQLiteDSN(dsn)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("打开数据库失败: %w", err)
@@ -27,13 +94,18 @@ func NewSQLiteStorage(dsn string) (*SQLiteStorage, error) {
 	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(time.Hour)
 
+	// 额外的 PRAGMA（不依赖 DSN 参数是否支持/是否被覆盖，失败则忽略）
+	_, _ = db.Exec(`PRAGMA journal_mode=WAL`)
+	_, _ = db.Exec(`PRAGMA busy_timeout=5000`)
+	_, _ = db.Exec(`PRAGMA foreign_keys=ON`)
+
 	return &SQLiteStorage{db: db}, nil
 }
 
 // Init 初始化数据库表
 func (s *SQLiteStorage) Init(ctx context.Context) error {
 	// 游标表
-	if _, err := s.db.ExecContext(ctx, `
+	if err := execWithRetry(ctx, s.db, `
 		CREATE TABLE IF NOT EXISTS poll_cursor (
 			id INTEGER PRIMARY KEY CHECK (id = 1),
 			last_event_id INTEGER NOT NULL DEFAULT 0,
@@ -44,7 +116,7 @@ func (s *SQLiteStorage) Init(ctx context.Context) error {
 	}
 
 	// 初始化游标（如果不存在）
-	if _, err := s.db.ExecContext(ctx, `
+	if err := execWithRetry(ctx, s.db, `
 		INSERT OR IGNORE INTO poll_cursor (id, last_event_id, updated_at) VALUES (1, 0, ?)
 	`, time.Now().Unix()); err != nil {
 		return fmt.Errorf("初始化游标失败: %w", err)
@@ -70,7 +142,7 @@ func (s *SQLiteStorage) Init(ctx context.Context) error {
 	}
 
 	// 绑定 token 表
-	if _, err := s.db.ExecContext(ctx, `
+	if err := execWithRetry(ctx, s.db, `
 		CREATE TABLE IF NOT EXISTS bind_tokens (
 			token TEXT PRIMARY KEY,
 			favorites TEXT NOT NULL,
@@ -82,7 +154,7 @@ func (s *SQLiteStorage) Init(ctx context.Context) error {
 		return fmt.Errorf("创建 bind_tokens 表失败: %w", err)
 	}
 
-	if _, err := s.db.ExecContext(ctx, `
+	if err := execWithRetry(ctx, s.db, `
 		CREATE INDEX IF NOT EXISTS idx_bind_tokens_expires ON bind_tokens(expires_at)
 	`); err != nil {
 		return fmt.Errorf("创建 bind_tokens 索引失败: %w", err)

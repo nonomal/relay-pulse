@@ -82,7 +82,7 @@ qq:
 
 database:
   driver: "sqlite"
-  dsn: "file:data/notifier.db?_journal_mode=WAL"
+  dsn: "file:data/notifier.db?_journal_mode=WAL&_timeout=5000&_busy_timeout=5000"
 
 api:
   addr: ":8081"                 # HTTP API 监听地址
@@ -280,6 +280,18 @@ VITE_NOTIFIER_API_URL=https://notifier.example.com
 4. 旧表重命名为 `*_legacy`（保留回滚能力）
 
 **无需手动操作**，直接更新二进制/镜像即可。
+
+## 常见问题
+
+### 启动时报错：`database is locked (SQLITE_BUSY)`
+
+这通常表示**同一个 SQLite 文件**正在被另一个进程占用（例如重复启动了 notifier、容器和本地同时跑、或用 SQLite GUI 打开了数据库）。
+
+处理建议：
+
+- 确保只有一个 notifier 实例在运行（包含 Docker 容器/本地进程）。
+- 如果你配置了相同的 `database.dsn`，给不同环境使用不同的数据库文件路径。
+- 关闭可能打开了该数据库文件的 SQLite 查看/编辑工具后重试。
 
 ## 开发
 

@@ -30,10 +30,10 @@ database:
   driver: "sqlite"
 
   # 数据库连接字符串
-  # SQLite: file:/app/data/notifier.db?_journal_mode=WAL
+  # SQLite: file:/app/data/notifier.db?_journal_mode=WAL&_timeout=5000&_busy_timeout=5000
   # PostgreSQL: postgres://user:pass@host:5432/dbname?sslmode=disable
   # 环境变量: DATABASE_DSN
-  dsn: "file:/app/data/notifier.db?_journal_mode=WAL"
+  dsn: "file:/app/data/notifier.db?_journal_mode=WAL&_timeout=5000&_busy_timeout=5000"
 
 # HTTP API 配置
 api:

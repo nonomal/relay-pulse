@@ -133,7 +133,7 @@ func (c *Config) setDefaults() {
 		c.Database.Driver = "sqlite"
 	}
 	if c.Database.DSN == "" {
-		c.Database.DSN = "file:notifier.db?_journal_mode=WAL"
+		c.Database.DSN = "file:notifier.db?_journal_mode=WAL&_timeout=5000&_busy_timeout=5000"
 	}
 	if c.API.Addr == "" {
 		c.API.Addr = ":8081"

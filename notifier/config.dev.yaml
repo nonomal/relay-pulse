@@ -26,7 +26,7 @@ qq:
 database:
   driver: "sqlite"
   # 开发环境数据库（与生产隔离）
-  dsn: "file:data/notifier-dev.db?_journal_mode=WAL"
+  dsn: "file:data/notifier-dev.db?_journal_mode=WAL&_timeout=5000&_busy_timeout=5000"
 
 api:
   # HTTP API 监听地址
