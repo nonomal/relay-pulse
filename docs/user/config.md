@@ -86,6 +86,18 @@ monitors:
 - **说明**: 超过此阈值的请求被标记为"慢请求"（黄色状态）
 - **示例**: `"3s"`, `"5s"`, `"10s"`
 
+#### `slow_latency_by_service`
+- **类型**: map[string]string (服务类型 → Go duration 格式)
+- **默认值**: 无（使用全局 `slow_latency`）
+- **说明**: 按服务类型覆盖慢请求阈值，key 不区分大小写
+- **示例**:
+  ```yaml
+  slow_latency_by_service:
+    cc: "15s"    # Claude Code 对速度要求较低
+    cx: "10s"    # Codex
+    gm: "3s"     # 模型 API 要求更快
+  ```
+
 #### `degraded_weight`
 - **类型**: float
 - **默认值**: `0.7`

@@ -433,6 +433,13 @@ type AppConfig struct {
 	// 解析后的慢请求阈值（内部使用，不序列化）
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
 
+	// 按服务类型覆盖的慢请求阈值（可选，支持 Go duration 格式）
+	// 例如 cc: "15s", gm: "3s"
+	SlowLatencyByService map[string]string `yaml:"slow_latency_by_service" json:"slow_latency_by_service"`
+
+	// 解析后的按服务慢请求阈值（内部使用，不序列化）
+	SlowLatencyByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
 	// 可用率中黄色状态的权重（0-1，默认 0.7）
 	// 绿色=1.0, 黄色=degraded_weight, 红色=0.0
 	DegradedWeight float64 `yaml:"degraded_weight" json:"degraded_weight"`
@@ -749,6 +756,36 @@ func (c *AppConfig) Normalize() error {
 		c.SlowLatencyDuration = d
 	}
 
+	// 按服务类型覆盖的慢请求阈值
+	if len(c.SlowLatencyByService) > 0 {
+		c.SlowLatencyByServiceDuration = make(map[string]time.Duration, len(c.SlowLatencyByService))
+		for service, raw := range c.SlowLatencyByService {
+			normalizedService := strings.ToLower(strings.TrimSpace(service))
+			if normalizedService == "" {
+				return fmt.Errorf("slow_latency_by_service: service 名称不能为空")
+			}
+			if _, exists := c.SlowLatencyByServiceDuration[normalizedService]; exists {
+				return fmt.Errorf("slow_latency_by_service: service '%s' 重复配置（大小写不敏感）", normalizedService)
+			}
+
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
+				return fmt.Errorf("slow_latency_by_service[%s]: 值不能为空", service)
+			}
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("解析 slow_latency_by_service[%s] 失败: %w", service, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("slow_latency_by_service[%s] 必须大于 0", service)
+			}
+			c.SlowLatencyByServiceDuration[normalizedService] = d
+		}
+	} else {
+		// 热更新场景：清除旧的覆盖配置
+		c.SlowLatencyByServiceDuration = nil
+	}
+
 	// 黄色状态权重（默认 0.7，允许 0.01-1.0）
 	// 注意：0 被视为未配置，将使用默认值 0.7
 	// 如果需要极低权重，请使用 0.01 或更小的正数
@@ -1028,11 +1065,18 @@ func (c *AppConfig) Normalize() error {
 		badgeProviderMap[provider] = bp.Badges
 	}
 
-	// 将全局慢请求阈值下发到每个监测项，并标准化 category、URLs、provider_slug
+	// 将慢请求阈值下发到每个监测项（优先按服务覆盖），并标准化 category、URLs、provider_slug
 	slugSet := make(map[string]int) // slug -> monitor index (用于检测重复)
 	for i := range c.Monitors {
 		if c.Monitors[i].SlowLatencyDuration == 0 {
-			c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
+			// 优先查找按服务类型的覆盖配置
+			serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
+			if d, ok := c.SlowLatencyByServiceDuration[serviceKey]; ok {
+				c.Monitors[i].SlowLatencyDuration = d
+			} else {
+				// 回退到全局默认值
+				c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
+			}
 		}
 
 		// 解析单监测项的 interval，空值回退到全局
@@ -1372,28 +1416,30 @@ func (c *AppConfig) Clone() *AppConfig {
 	}
 
 	clone := &AppConfig{
-		Interval:              c.Interval,
-		IntervalDuration:      c.IntervalDuration,
-		SlowLatency:           c.SlowLatency,
-		SlowLatencyDuration:   c.SlowLatencyDuration,
-		DegradedWeight:        c.DegradedWeight,
-		MaxConcurrency:        c.MaxConcurrency,
-		StaggerProbes:         staggerPtr,
-		EnableConcurrentQuery: c.EnableConcurrentQuery,
-		ConcurrentQueryLimit:  c.ConcurrentQueryLimit,
-		EnableBatchQuery:      c.EnableBatchQuery,
-		EnableDBTimelineAgg:   c.EnableDBTimelineAgg,
-		BatchQueryMaxKeys:     c.BatchQueryMaxKeys,
-		CacheTTL:              c.CacheTTL, // CacheTTL 是值类型，直接复制
-		Storage:               c.Storage,
-		PublicBaseURL:         c.PublicBaseURL,
-		DisabledProviders:     make([]DisabledProviderConfig, len(c.DisabledProviders)),
-		HiddenProviders:       make([]HiddenProviderConfig, len(c.HiddenProviders)),
-		RiskProviders:         make([]RiskProviderConfig, len(c.RiskProviders)),
-		Boards:                c.Boards, // Boards 是值类型，直接复制
-		EnableBadges:          c.EnableBadges,
-		BadgeDefs:             make(map[string]BadgeDef, len(c.BadgeDefs)),
-		BadgeProviders:        make([]BadgeProviderConfig, len(c.BadgeProviders)),
+		Interval:                     c.Interval,
+		IntervalDuration:             c.IntervalDuration,
+		SlowLatency:                  c.SlowLatency,
+		SlowLatencyDuration:          c.SlowLatencyDuration,
+		SlowLatencyByService:         make(map[string]string, len(c.SlowLatencyByService)),
+		SlowLatencyByServiceDuration: make(map[string]time.Duration, len(c.SlowLatencyByServiceDuration)),
+		DegradedWeight:               c.DegradedWeight,
+		MaxConcurrency:               c.MaxConcurrency,
+		StaggerProbes:                staggerPtr,
+		EnableConcurrentQuery:        c.EnableConcurrentQuery,
+		ConcurrentQueryLimit:         c.ConcurrentQueryLimit,
+		EnableBatchQuery:             c.EnableBatchQuery,
+		EnableDBTimelineAgg:          c.EnableDBTimelineAgg,
+		BatchQueryMaxKeys:            c.BatchQueryMaxKeys,
+		CacheTTL:                     c.CacheTTL, // CacheTTL 是值类型，直接复制
+		Storage:                      c.Storage,
+		PublicBaseURL:                c.PublicBaseURL,
+		DisabledProviders:            make([]DisabledProviderConfig, len(c.DisabledProviders)),
+		HiddenProviders:              make([]HiddenProviderConfig, len(c.HiddenProviders)),
+		RiskProviders:                make([]RiskProviderConfig, len(c.RiskProviders)),
+		Boards:                       c.Boards, // Boards 是值类型，直接复制
+		EnableBadges:                 c.EnableBadges,
+		BadgeDefs:                    make(map[string]BadgeDef, len(c.BadgeDefs)),
+		BadgeProviders:               make([]BadgeProviderConfig, len(c.BadgeProviders)),
 		SponsorPin: SponsorPinConfig{
 			Enabled:   sponsorPinEnabledPtr,
 			MaxPinned: c.SponsorPin.MaxPinned,
@@ -1407,6 +1453,12 @@ func (c *AppConfig) Clone() *AppConfig {
 	copy(clone.DisabledProviders, c.DisabledProviders)
 	copy(clone.HiddenProviders, c.HiddenProviders)
 	copy(clone.RiskProviders, c.RiskProviders)
+	for k, v := range c.SlowLatencyByService {
+		clone.SlowLatencyByService[k] = v
+	}
+	for k, v := range c.SlowLatencyByServiceDuration {
+		clone.SlowLatencyByServiceDuration[k] = v
+	}
 	for id, bd := range c.BadgeDefs {
 		clone.BadgeDefs[id] = bd
 	}

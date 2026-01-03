@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -11,6 +12,38 @@ import (
 
 	"monitor/internal/logger"
 )
+
+// SlowLatencyLookupFunc 根据 service 返回 slow_latency 覆盖值
+// 入参 service 应为 strings.ToLower(strings.TrimSpace(service)) 后的值
+type SlowLatencyLookupFunc func(service string) (time.Duration, bool)
+
+// TestJobManagerOption 配置选项函数
+type TestJobManagerOption func(*TestJobManager)
+
+// WithSlowLatencyByService 设置按服务类型的 slow_latency 覆盖
+func WithSlowLatencyByService(m map[string]time.Duration) TestJobManagerOption {
+	return func(mgr *TestJobManager) {
+		if len(m) == 0 {
+			return
+		}
+		// 构建归一化的 lookup 函数
+		normalized := make(map[string]time.Duration, len(m))
+		for service, d := range m {
+			key := strings.ToLower(strings.TrimSpace(service))
+			if key == "" || d <= 0 {
+				continue
+			}
+			normalized[key] = d
+		}
+		if len(normalized) == 0 {
+			return
+		}
+		mgr.slowLatencyLookup = func(service string) (time.Duration, bool) {
+			d, ok := normalized[service]
+			return d, ok
+		}
+	}
+}
 
 // TestJobManager manages the lifecycle of self-test jobs
 type TestJobManager struct {
@@ -28,6 +61,8 @@ type TestJobManager struct {
 	limiter   *IPLimiter      // IP rate limiter
 	ssrfGuard *SSRFGuard      // SSRF protection
 
+	slowLatencyLookup SlowLatencyLookupFunc // 按服务类型的 slow_latency 覆盖
+
 	stopCleanup chan struct{}  // Signal to stop cleanup goroutine
 	stopOnce    sync.Once      // Ensure Stop is called only once
 	wg          sync.WaitGroup // Wait group for graceful shutdown
@@ -40,6 +75,7 @@ func NewTestJobManager(
 	jobTimeout time.Duration,
 	resultTTL time.Duration,
 	rateLimitPerMinute int,
+	opts ...TestJobManagerOption,
 ) *TestJobManager {
 	mgr := &TestJobManager{
 		jobs:          make(map[string]*TestJob),
@@ -55,6 +91,13 @@ func NewTestJobManager(
 	}
 	// 创建自助测试专用探测器（使用安全 HTTP 客户端）
 	mgr.prober = NewSelfTestProber(mgr.ssrfGuard, DefaultMaxResponseBytes)
+
+	// 应用可选配置
+	for _, opt := range opts {
+		if opt != nil {
+			opt(mgr)
+		}
+	}
 
 	// Start cleanup worker
 	mgr.wg.Add(1)
@@ -219,6 +262,17 @@ func (m *TestJobManager) worker(job *TestJob) {
 		job.FinishedAt = &now
 		job.mu.Unlock()
 		return
+	}
+
+	// 按服务类型覆盖 slow_latency（如有配置）
+	// 否则保持 builder 的默认值（向后兼容：默认 5s）
+	if m.slowLatencyLookup != nil {
+		serviceKey := strings.ToLower(strings.TrimSpace(cfg.Service))
+		if serviceKey != "" {
+			if d, ok := m.slowLatencyLookup(serviceKey); ok && d > 0 {
+				cfg.SlowLatencyDuration = d
+			}
+		}
 	}
 
 	// Execute probe with timeout

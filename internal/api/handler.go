@@ -270,30 +270,31 @@ type CurrentStatus struct {
 
 // MonitorResult API返回结构
 type MonitorResult struct {
-	Provider     string                 `json:"provider"`
-	ProviderName string                 `json:"provider_name,omitempty"` // Provider 显示名称
-	ProviderSlug string                 `json:"provider_slug"`           // URL slug（用于生成专属页面链接）
-	ProviderURL  string                 `json:"provider_url"`            // 服务商官网链接
-	Service      string                 `json:"service"`
-	ServiceName  string                 `json:"service_name,omitempty"`  // Service 显示名称
-	Category     string                 `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
-	Sponsor      string                 `json:"sponsor"`                 // 赞助者
-	SponsorURL   string                 `json:"sponsor_url"`             // 赞助者链接
-	SponsorLevel config.SponsorLevel    `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
-	Risks        []config.RiskBadge     `json:"risks,omitempty"`         // 风险徽标数组
-	Badges       []config.ResolvedBadge `json:"badges,omitempty"`        // 通用徽标数组
-	PriceMin     *float64               `json:"price_min,omitempty"`     // 参考倍率下限
-	PriceMax     *float64               `json:"price_max,omitempty"`     // 参考倍率
-	ListedDays   *int                   `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
-	Channel      string                 `json:"channel"`                 // 业务通道标识
-	ChannelName  string                 `json:"channel_name,omitempty"`  // Channel 显示名称
-	Board        string                 `json:"board"`                   // 板块：hot/cold
-	ColdReason   string                 `json:"cold_reason,omitempty"`   // 冷板原因（仅 cold 有值）
-	ProbeURL     string                 `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）
-	TemplateName string                 `json:"template_name,omitempty"` // 请求体模板名称（如有）
-	IntervalMs   int64                  `json:"interval_ms"`             // 监测间隔（毫秒）
-	Current      *CurrentStatus         `json:"current_status"`
-	Timeline     []storage.TimePoint    `json:"timeline"`
+	Provider      string                 `json:"provider"`
+	ProviderName  string                 `json:"provider_name,omitempty"` // Provider 显示名称
+	ProviderSlug  string                 `json:"provider_slug"`           // URL slug（用于生成专属页面链接）
+	ProviderURL   string                 `json:"provider_url"`            // 服务商官网链接
+	Service       string                 `json:"service"`
+	ServiceName   string                 `json:"service_name,omitempty"`  // Service 显示名称
+	Category      string                 `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
+	Sponsor       string                 `json:"sponsor"`                 // 赞助者
+	SponsorURL    string                 `json:"sponsor_url"`             // 赞助者链接
+	SponsorLevel  config.SponsorLevel    `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
+	Risks         []config.RiskBadge     `json:"risks,omitempty"`         // 风险徽标数组
+	Badges        []config.ResolvedBadge `json:"badges,omitempty"`        // 通用徽标数组
+	PriceMin      *float64               `json:"price_min,omitempty"`     // 参考倍率下限
+	PriceMax      *float64               `json:"price_max,omitempty"`     // 参考倍率
+	ListedDays    *int                   `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
+	Channel       string                 `json:"channel"`                 // 业务通道标识
+	ChannelName   string                 `json:"channel_name,omitempty"`  // Channel 显示名称
+	Board         string                 `json:"board"`                   // 板块：hot/cold
+	ColdReason    string                 `json:"cold_reason,omitempty"`   // 冷板原因（仅 cold 有值）
+	ProbeURL      string                 `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）
+	TemplateName  string                 `json:"template_name,omitempty"` // 请求体模板名称（如有）
+	IntervalMs    int64                  `json:"interval_ms"`             // 监测间隔（毫秒）
+	SlowLatencyMs int64                  `json:"slow_latency_ms"`         // 慢请求阈值（毫秒）
+	Current       *CurrentStatus         `json:"current_status"`
+	Timeline      []storage.TimePoint    `json:"timeline"`
 }
 
 // GetStatus 获取监测状态
@@ -785,30 +786,31 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 	}
 
 	return MonitorResult{
-		Provider:     task.Provider,
-		ProviderName: task.ProviderName,
-		ProviderSlug: slug,
-		ProviderURL:  task.ProviderURL,
-		Service:      task.Service,
-		ServiceName:  task.ServiceName,
-		Category:     task.Category,
-		Sponsor:      task.Sponsor,
-		SponsorURL:   task.SponsorURL,
-		SponsorLevel: sponsorLevel,
-		Risks:        risks,
-		Badges:       badges,
-		PriceMin:     task.PriceMin,
-		PriceMax:     task.PriceMax,
-		ListedDays:   listedDays,
-		Channel:      task.Channel,
-		ChannelName:  task.ChannelName,
-		Board:        task.Board,
-		ColdReason:   task.ColdReason,
-		ProbeURL:     sanitizeProbeURL(task.URL),
-		TemplateName: task.BodyTemplateName,
-		IntervalMs:   intervalMs,
-		Current:      current,
-		Timeline:     timeline,
+		Provider:      task.Provider,
+		ProviderName:  task.ProviderName,
+		ProviderSlug:  slug,
+		ProviderURL:   task.ProviderURL,
+		Service:       task.Service,
+		ServiceName:   task.ServiceName,
+		Category:      task.Category,
+		Sponsor:       task.Sponsor,
+		SponsorURL:    task.SponsorURL,
+		SponsorLevel:  sponsorLevel,
+		Risks:         risks,
+		Badges:        badges,
+		PriceMin:      task.PriceMin,
+		PriceMax:      task.PriceMax,
+		ListedDays:    listedDays,
+		Channel:       task.Channel,
+		ChannelName:   task.ChannelName,
+		Board:         task.Board,
+		ColdReason:    task.ColdReason,
+		ProbeURL:      sanitizeProbeURL(task.URL),
+		TemplateName:  task.BodyTemplateName,
+		IntervalMs:    intervalMs,
+		SlowLatencyMs: task.SlowLatencyDuration.Milliseconds(),
+		Current:       current,
+		Timeline:      timeline,
 	}
 }
 

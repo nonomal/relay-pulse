@@ -173,7 +173,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
               {/* 可用状态用颜色渐变，不可用状态用灰色 */}
               <span style={{
                 color: (counts.available > 0 || counts.degraded > 0)
-                  ? latencyToColor(tooltip.data!.latency, slowLatencyMs)
+                  ? latencyToColor(tooltip.data!.latency, tooltip.data?.slowLatencyMs ?? slowLatencyMs)
                   : undefined
               }} className={(counts.available > 0 || counts.degraded > 0) ? '' : 'text-muted'}>
                 {tooltip.data!.latency}ms
@@ -205,7 +205,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
               {/* 有可用记录用颜色渐变，全不可用用灰色 */}
               <span style={{
                 color: tooltip.data!.availability > 0
-                  ? latencyToColor(tooltip.data!.latency, slowLatencyMs)
+                  ? latencyToColor(tooltip.data!.latency, tooltip.data?.slowLatencyMs ?? slowLatencyMs)
                   : undefined
               }} className={tooltip.data!.availability > 0 ? '' : 'text-muted'}>
                 {tooltip.data!.latency}ms

@@ -220,6 +220,9 @@ export function useMonitorData({
           // 转换为前端数据格式
           // 防御性检查：json.data 和 item.timeline 可能为 null（新站点无数据时）
           processed = (json.data || []).map((item) => {
+            // 计算当前监测项的 slowLatencyMs（优先 per-monitor，否则用全局值）
+            const itemSlowLatencyMs = item.slow_latency_ms ?? json.meta.slow_latency_ms ?? 5000;
+
             const history = (item.timeline || []).map((point, index) => ({
               index,
               status: statusMap[point.status] || 'UNAVAILABLE',
@@ -228,6 +231,7 @@ export function useMonitorData({
               latency: point.latency,
               availability: point.availability,  // 可用率百分比
               statusCounts: mapStatusCounts(point.status_counts), // 映射状态计数
+              slowLatencyMs: itemSlowLatencyMs, // 用于 tooltip 显示延迟颜色
             }));
 
             const currentStatus = item.current_status
@@ -276,6 +280,7 @@ export function useMonitorData({
               probeUrl: item.probe_url,
               templateName: item.template_name,
               intervalMs: item.interval_ms ?? 0,  // 监测间隔（毫秒），兜底 0 兼容旧后端
+              slowLatencyMs: itemSlowLatencyMs,   // 慢请求阈值（已在上面计算）
               history,
               currentStatus,
               uptime,

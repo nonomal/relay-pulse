@@ -100,6 +100,7 @@ export interface MonitorResult {
   probe_url?: string;                  // 探测端点 URL（脱敏后）
   template_name?: string;              // 请求体模板名称（如有）
   interval_ms?: number;                // 监测间隔（毫秒，可选兼容旧版本）
+  slow_latency_ms?: number;            // 慢请求阈值（毫秒，per-monitor）
   current_status: CurrentStatus | null;
   timeline: TimePoint[];
 }
@@ -161,6 +162,7 @@ export interface ProcessedMonitorData {
   probeUrl?: string;                   // 探测端点 URL（脱敏后）
   templateName?: string;               // 请求体模板名称（如有）
   intervalMs?: number;                 // 监测间隔（毫秒，可选）
+  slowLatencyMs?: number;              // 慢请求阈值（毫秒，per-monitor）
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   history: Array<{
     index: number;
@@ -170,6 +172,7 @@ export interface ProcessedMonitorData {
     latency: number;
     availability: number;     // 可用率百分比(0-100)，缺失时为 -1
     statusCounts: StatusCounts; // 各状态计数
+    slowLatencyMs?: number;   // 慢请求阈值（毫秒，per-monitor，用于 tooltip 显示）
   }>;
   currentStatus: StatusKey;
   uptime: number;             // 可用率百分比
@@ -211,6 +214,7 @@ export interface TooltipState {
     latency: number;
     availability: number;  // 可用率百分比(0-100)，缺失时为 -1
     statusCounts: StatusCounts; // 各状态计数
+    slowLatencyMs?: number;     // 慢请求阈值（毫秒，per-monitor）
   } | null;
 }
 

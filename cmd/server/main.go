@@ -183,6 +183,7 @@ func main() {
 			jobTimeout,
 			resultTTL,
 			rateLimitPerMinute,
+			selftest.WithSlowLatencyByService(cfg.SlowLatencyByServiceDuration),
 		)
 
 		// 注入到 handler

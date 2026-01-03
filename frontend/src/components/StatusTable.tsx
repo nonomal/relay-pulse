@@ -258,7 +258,7 @@ function MobileListItem({
               </span>
             )}
             {item.lastCheckLatency !== undefined && (
-              <span style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, slowLatencyMs) }}>
+              <span style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, item.slowLatencyMs ?? slowLatencyMs) }}>
                 {item.lastCheckLatency}ms
               </span>
             )}
@@ -688,7 +688,7 @@ function StatusTableComponent({
                     {item.lastCheckLatency !== undefined && (
                       <span
                         className="text-[10px] font-mono"
-                        style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, slowLatencyMs) }}
+                        style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, item.slowLatencyMs ?? slowLatencyMs) }}
                       >
                         {item.lastCheckLatency}ms
                       </span>
