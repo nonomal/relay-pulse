@@ -577,10 +577,30 @@ func (s *SQLiteStorage) AddSubscription(ctx context.Context, sub *Subscription) 
 }
 
 // RemoveSubscription 移除订阅
+// 支持级联删除：
+// - service=="" && channel=="" → 删除该 provider 下所有订阅
+// - service!="" && channel=="" → 删除该 service 下所有通道（含精确和通配）
+// - service!="" && channel!="" → 精确删除一条
 func (s *SQLiteStorage) RemoveSubscription(ctx context.Context, platform string, chatID int64, provider, service, channel string) error {
-	_, err := s.db.ExecContext(ctx, `
-		DELETE FROM subscriptions WHERE platform = ? AND chat_id = ? AND provider = ? AND service = ? AND channel = ?
-	`, platform, chatID, provider, service, channel)
+	var err error
+
+	if service == "" && channel == "" {
+		// 级联删除：删除该 provider 下所有订阅
+		_, err = s.db.ExecContext(ctx, `
+			DELETE FROM subscriptions WHERE platform = ? AND chat_id = ? AND provider = ?
+		`, platform, chatID, provider)
+	} else if channel == "" {
+		// 删除该 service 下所有通道（含精确和通配）
+		_, err = s.db.ExecContext(ctx, `
+			DELETE FROM subscriptions WHERE platform = ? AND chat_id = ? AND provider = ? AND service = ?
+		`, platform, chatID, provider, service)
+	} else {
+		// 精确删除一条
+		_, err = s.db.ExecContext(ctx, `
+			DELETE FROM subscriptions WHERE platform = ? AND chat_id = ? AND provider = ? AND service = ? AND channel = ?
+		`, platform, chatID, provider, service, channel)
+	}
+
 	if err != nil {
 		return fmt.Errorf("移除订阅失败: %w", err)
 	}
@@ -611,12 +631,18 @@ func (s *SQLiteStorage) GetSubscriptionsByChatID(ctx context.Context, platform s
 }
 
 // GetSubscribersByMonitor 获取监测项的所有订阅者（返回平台+ChatID）
-// 匹配规则：订阅 channel 为空时匹配所有 channel，否则精确匹配
+// 匹配规则：
+// - service 为空时匹配所有 service，否则精确匹配
+// - channel 为空时匹配所有 channel，否则精确匹配
+// 使用 DISTINCT 避免重复（用户可能同时有通配和精确订阅）
 func (s *SQLiteStorage) GetSubscribersByMonitor(ctx context.Context, provider, service, channel string) ([]*ChatRef, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT s.platform, s.chat_id FROM subscriptions s
+		SELECT DISTINCT s.platform, s.chat_id FROM subscriptions s
 		JOIN chats c ON s.platform = c.platform AND s.chat_id = c.chat_id
-		WHERE s.provider = ? AND s.service = ? AND (s.channel = '' OR s.channel = ?) AND c.status = 'active'
+		WHERE s.provider = ?
+		  AND (s.service = '' OR s.service = ?)
+		  AND (s.channel = '' OR s.channel = ?)
+		  AND c.status = 'active'
 	`, provider, service, channel)
 	if err != nil {
 		return nil, fmt.Errorf("查询订阅者失败: %w", err)

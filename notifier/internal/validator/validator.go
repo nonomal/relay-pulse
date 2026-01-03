@@ -145,6 +145,10 @@ func NewRelayPulseValidator(eventsURL string) (*RelayPulseValidator, error) {
 }
 
 // ValidateAdd 验证订阅目标是否存在
+// 支持两种订阅模式：
+// - service 级订阅：service!="" && channel=""，订阅该 service 下所有通道
+// - 精确订阅：service!="" && channel!=""，订阅特定通道
+// 注：provider 级订阅请使用 ValidateAndExpandProvider
 func (v *RelayPulseValidator) ValidateAdd(ctx context.Context, provider, service, channel string) (*CanonicalTarget, error) {
 	provider = strings.TrimSpace(provider)
 	service = strings.TrimSpace(service)
@@ -155,7 +159,17 @@ func (v *RelayPulseValidator) ValidateAdd(ctx context.Context, provider, service
 		channel = ""
 	}
 
-	if provider == "" || service == "" {
+	// provider 和 service 都是必填的
+	if provider == "" {
+		return nil, &NotFoundError{
+			Level:    NotFoundProvider,
+			Provider: provider,
+			Service:  service,
+			Channel:  channel,
+		}
+	}
+
+	if service == "" {
 		return nil, &NotFoundError{
 			Level:    NotFoundService,
 			Provider: provider,
@@ -209,6 +223,105 @@ func (v *RelayPulseValidator) ValidateAdd(ctx context.Context, provider, service
 	}, nil
 }
 
+// ValidateAndExpandProvider 验证 provider 并返回所有 service/channel 组合
+// 用于 /add <provider> 展开订阅
+// 任何 service 获取失败时返回错误（失败即中止）
+func (v *RelayPulseValidator) ValidateAndExpandProvider(ctx context.Context, provider string) ([]CanonicalTarget, error) {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		return nil, &NotFoundError{
+			Level:    NotFoundProvider,
+			Provider: provider,
+		}
+	}
+
+	provEntry, err := v.getProviderEntry(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+
+	var targets []CanonicalTarget
+	for _, svc := range provEntry.services {
+		svcEntry, err := v.getServiceEntry(ctx, provider, svc)
+		if err != nil {
+			return nil, err // 失败即中止
+		}
+		if len(svcEntry.channels) == 0 {
+			// service 无 channel，添加 service 级订阅
+			targets = append(targets, CanonicalTarget{
+				Provider: provEntry.provider,
+				Service:  svcEntry.service,
+				Channel:  "",
+			})
+		} else {
+			// 展开每个 channel
+			for _, ch := range svcEntry.channels {
+				targets = append(targets, CanonicalTarget{
+					Provider: provEntry.provider,
+					Service:  svcEntry.service,
+					Channel:  ch,
+				})
+			}
+		}
+	}
+
+	if len(targets) == 0 {
+		return nil, &NotFoundError{
+			Level:    NotFoundService,
+			Provider: provider,
+		}
+	}
+
+	return targets, nil
+}
+
+// ValidateAndExpandService 验证 service 并返回所有 channel
+// 用于 /add <provider> <service> 展开订阅
+func (v *RelayPulseValidator) ValidateAndExpandService(ctx context.Context, provider, service string) ([]CanonicalTarget, error) {
+	provider = strings.TrimSpace(provider)
+	service = strings.TrimSpace(service)
+
+	if provider == "" {
+		return nil, &NotFoundError{
+			Level:    NotFoundProvider,
+			Provider: provider,
+		}
+	}
+
+	if service == "" {
+		return nil, &NotFoundError{
+			Level:    NotFoundService,
+			Provider: provider,
+		}
+	}
+
+	svcEntry, err := v.getServiceEntry(ctx, provider, service)
+	if err != nil {
+		return nil, err
+	}
+
+	var targets []CanonicalTarget
+	if len(svcEntry.channels) == 0 {
+		// service 无 channel，添加 service 级订阅
+		targets = append(targets, CanonicalTarget{
+			Provider: svcEntry.provider,
+			Service:  svcEntry.service,
+			Channel:  "",
+		})
+	} else {
+		// 展开每个 channel
+		for _, ch := range svcEntry.channels {
+			targets = append(targets, CanonicalTarget{
+				Provider: svcEntry.provider,
+				Service:  svcEntry.service,
+				Channel:  ch,
+			})
+		}
+	}
+
+	return targets, nil
+}
+
 // getServiceEntry 获取 service 缓存条目（带 singleflight）
 func (v *RelayPulseValidator) getServiceEntry(ctx context.Context, provider, service string) (*serviceCacheEntry, error) {
 	key := "svc:" + strings.ToLower(provider) + "/" + strings.ToLower(service)
@@ -232,7 +345,7 @@ func (v *RelayPulseValidator) getServiceEntry(ctx context.Context, provider, ser
 				Level:      entry.level,
 				Provider:   provider,
 				Service:    service,
-				Candidates: candidates,
+				Candidates: limitSlice(candidates, maxCandidates), // 候选列表截断
 			}
 		}
 		return entry, nil
@@ -290,7 +403,17 @@ func (v *RelayPulseValidator) getServiceEntry(ctx context.Context, provider, ser
 }
 
 // getProviderServices 获取 provider 下的 services 列表（用于候选提示）
+// 内部调用 getProviderEntry 以复用缓存和 singleflight 逻辑
 func (v *RelayPulseValidator) getProviderServices(ctx context.Context, provider string) ([]string, error) {
+	entry, err := v.getProviderEntry(ctx, provider)
+	if err != nil {
+		return nil, err
+	}
+	return entry.services, nil
+}
+
+// getProviderEntry 获取 provider 缓存条目（包含 canonicalProvider）
+func (v *RelayPulseValidator) getProviderEntry(ctx context.Context, provider string) (*providerCacheEntry, error) {
 	key := "prov:" + strings.ToLower(provider)
 
 	// 检查缓存
@@ -300,7 +423,7 @@ func (v *RelayPulseValidator) getProviderServices(ctx context.Context, provider 
 		if entry.notFound {
 			return nil, &NotFoundError{Level: NotFoundProvider, Provider: provider}
 		}
-		return entry.services, nil
+		return entry, nil
 	}
 
 	// singleflight
@@ -313,7 +436,7 @@ func (v *RelayPulseValidator) getProviderServices(ctx context.Context, provider 
 			if call.err != nil {
 				return nil, call.err
 			}
-			return call.val.([]string), nil
+			return call.val.(*providerCacheEntry), nil
 		}
 	}
 
@@ -324,15 +447,17 @@ func (v *RelayPulseValidator) getProviderServices(ctx context.Context, provider 
 	// 执行 API 调用
 	services, canonicalProvider, err := v.fetchProviderServices(ctx, provider)
 
+	var entry *providerCacheEntry
 	v.mu.Lock()
 	v.evictExpiredCacheLocked() // 写入前清理过期缓存
 	if err == nil {
-		v.providerCache[key] = &providerCacheEntry{
+		entry = &providerCacheEntry{
 			expireAt: time.Now().Add(v.positiveTTL),
 			provider: canonicalProvider,
 			services: services,
 			notFound: false,
 		}
+		v.providerCache[key] = entry
 	} else {
 		var nf *NotFoundError
 		if errors.As(err, &nf) {
@@ -342,13 +467,16 @@ func (v *RelayPulseValidator) getProviderServices(ctx context.Context, provider 
 			}
 		}
 	}
-	call.val = services
+	call.val = entry
 	call.err = err
 	close(call.done)
 	delete(v.inflight, key)
 	v.mu.Unlock()
 
-	return services, err
+	if err != nil {
+		return nil, err
+	}
+	return entry, nil
 }
 
 // fetchServiceEntry 从 API 获取 service 信息
@@ -374,7 +502,7 @@ func (v *RelayPulseValidator) fetchServiceEntry(ctx context.Context, provider, s
 		// 如果是 service 不存在，尝试获取候选列表
 		if level == NotFoundService {
 			candidates, _ := v.getProviderServices(ctx, provider)
-			nfErr.Candidates = candidates
+			nfErr.Candidates = limitSlice(candidates, maxCandidates) // 候选列表截断
 		}
 
 		return nil, nfErr
@@ -418,7 +546,9 @@ func (v *RelayPulseValidator) fetchProviderServices(ctx context.Context, provide
 		services = append(services, svc.Name)
 	}
 
-	return limitSlice(services, maxCandidates), resp.Provider, nil
+	// 注意：这里返回完整的 services 列表，不做截断
+	// 截断仅用于候选提示（Candidates），不用于实际展开
+	return services, resp.Provider, nil
 }
 
 // ===== API 客户端 =====

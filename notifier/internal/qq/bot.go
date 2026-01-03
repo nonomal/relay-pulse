@@ -457,7 +457,7 @@ func (b *Bot) handleList(ctx context.Context, e *OneBotEvent, args string) error
 	}
 
 	if len(subs) == 0 {
-		b.sendReply(ctx, e, "你还没有订阅任何服务。\n\n使用 /add <provider> <service> [channel] 添加订阅。")
+		b.sendReply(ctx, e, "你还没有订阅任何服务。\n\n使用 /add <provider> [service] 添加订阅。")
 		return nil
 	}
 
@@ -465,20 +465,30 @@ func (b *Bot) handleList(ctx context.Context, e *OneBotEvent, args string) error
 	sb.WriteString(fmt.Sprintf("当前订阅（%d 个）：\n\n", len(subs)))
 
 	for i, sub := range subs {
-		if sub.Channel != "" {
+		// 根据订阅级别显示不同格式
+		if sub.Service == "" {
+			// 旧版通配订阅（provider 级）
+			sb.WriteString(fmt.Sprintf("%d. %s / *（旧版）\n", i+1, sub.Provider))
+		} else if sub.Channel != "" {
+			// 精确订阅（provider / service / channel）
 			sb.WriteString(fmt.Sprintf("%d. %s / %s / %s\n", i+1, sub.Provider, sub.Service, sub.Channel))
 		} else {
+			// service 级订阅（provider / service）
 			sb.WriteString(fmt.Sprintf("%d. %s / %s\n", i+1, sub.Provider, sub.Service))
 		}
 	}
 
-	sb.WriteString("\n使用 /remove <provider> <service> [channel] 移除订阅。")
+	sb.WriteString("\n使用 /remove <provider> [service] [channel] 移除订阅。")
 
 	b.sendReply(ctx, e, sb.String())
 	return nil
 }
 
 // handleAdd 处理 /add 命令
+// 支持三种订阅模式：
+// - /add <provider> → 展开订阅该 provider 下所有 service/channel
+// - /add <provider> <service> → 展开订阅该 service 下所有 channel
+// - /add <provider> <service> <channel> → 精确订阅
 func (b *Bot) handleAdd(ctx context.Context, e *OneBotEvent, args string) error {
 	chatID, ok := chatKey(e)
 	if !ok {
@@ -486,105 +496,197 @@ func (b *Bot) handleAdd(ctx context.Context, e *OneBotEvent, args string) error 
 	}
 
 	parts := strings.Fields(args)
-	if len(parts) < 2 {
-		b.sendReply(ctx, e, "用法: /add <provider> <service> [channel]\n例如: /add 88code cc")
+	if len(parts) < 1 {
+		b.sendReply(ctx, e, "用法: /add <provider> [service] [channel]\n\n例如:\n/add 88code → 订阅 88code 所有服务\n/add 88code cc → 订阅 88code 的 cc 服务")
 		return nil
 	}
 
 	provider := parts[0]
-	service := parts[1]
+	service := ""
+	if len(parts) > 1 {
+		service = parts[1]
+	}
 	channel := ""
 	if len(parts) > 2 {
 		channel = parts[2]
 	}
 
-	// 先检查订阅数量限制（避免已达上限时仍触发外部 API 请求）
-	if b.maxSubscriptionsPerUser > 0 {
-		count, err := b.storage.CountSubscriptions(ctx, storage.PlatformQQ, chatID)
-		if err != nil {
-			return err
-		}
-		if count >= b.maxSubscriptionsPerUser {
-			b.sendReply(ctx, e, fmt.Sprintf("订阅数量已达上限（%d/%d）。请先移除部分订阅。", count, b.maxSubscriptionsPerUser))
-			return nil
-		}
+	// 先检查订阅数量
+	count, err := b.storage.CountSubscriptions(ctx, storage.PlatformQQ, chatID)
+	if err != nil {
+		return err
 	}
+	maxSubs := b.maxSubscriptionsPerUser
 
-	// 验证 provider/service/channel 是否存在
+	// 验证服务是否配置
 	if b.validator == nil {
 		b.sendReply(ctx, e, "当前无法验证订阅（验证服务未配置），为避免订阅无效服务，已拒绝本次订阅。请从网页一键导入收藏。")
 		return nil
 	}
 
-	target, err := b.validator.ValidateAdd(ctx, provider, service, channel)
-	if err != nil {
-		var nf *validator.NotFoundError
-		if errors.As(err, &nf) {
-			switch nf.Level {
-			case validator.NotFoundProvider:
-				b.sendReply(ctx, e, fmt.Sprintf(
-					"未找到服务商 %s。\n\n请到 RelayPulse 网页复制正确的 provider/service/channel，或使用网页一键导入收藏。",
-					provider,
-				))
-			case validator.NotFoundService:
-				cands := validator.FormatCandidates(nf.Candidates, "service")
-				if cands != "" {
-					b.sendReply(ctx, e, fmt.Sprintf(
-						"未找到 %s / %s。\n\n该服务商下可用的 service 例如：%s（仅显示前 %d 个）。",
-						provider, service, cands, 8,
-					))
-				} else {
-					b.sendReply(ctx, e, fmt.Sprintf(
-						"未找到 %s / %s。\n\n请到 RelayPulse 网页确认 service 是否正确，或使用网页一键导入收藏。",
-						provider, service,
-					))
-				}
-			case validator.NotFoundChannel:
-				cands := validator.FormatCandidates(nf.Candidates, "channel")
-				if cands != "" {
-					b.sendReply(ctx, e, fmt.Sprintf(
-						"未找到 %s / %s / %s。\n\n该 service 下可用的 channel 例如：%s（仅显示前 %d 个）。\n提示：不填 channel 表示订阅该 service 的所有 channel。",
-						provider, service, channel, cands, 8,
-					))
-				} else {
-					b.sendReply(ctx, e, fmt.Sprintf(
-						"未找到 %s / %s / %s。\n\n提示：不填 channel 表示订阅该 service 的所有 channel。",
-						provider, service, channel,
-					))
-				}
+	// Provider 级订阅：展开为所有 service/channel
+	if service == "" {
+		targets, err := b.validator.ValidateAndExpandProvider(ctx, provider)
+		if err != nil {
+			return b.handleAddError(ctx, e, err, provider, "", "")
+		}
+
+		// 检查配额
+		if maxSubs > 0 && count+len(targets) > maxSubs {
+			b.sendReply(ctx, e, fmt.Sprintf(
+				"订阅配额不足。%s 有 %d 个订阅项，当前已用 %d/%d。\n\n请先移除部分订阅，或精确指定 service/channel。",
+				provider, len(targets), count, maxSubs,
+			))
+			return nil
+		}
+
+		// 逐一添加
+		added := 0
+		for _, t := range targets {
+			sub := &storage.Subscription{
+				Platform: storage.PlatformQQ,
+				ChatID:   chatID,
+				Provider: t.Provider,
+				Service:  t.Service,
+				Channel:  t.Channel,
 			}
-			return nil
+			if err := b.storage.AddSubscription(ctx, sub); err == nil {
+				added++
+			}
 		}
 
-		var ue *validator.UnavailableError
-		if errors.As(err, &ue) {
-			b.sendReply(ctx, e, "当前无法验证订阅（状态服务暂不可用），为避免订阅无效服务，已拒绝本次订阅。请稍后再试，或从网页一键导入收藏。")
-			return nil
-		}
-
-		return err
+		b.sendReply(ctx, e, fmt.Sprintf(
+			"已添加 %d 个订阅（%s 下所有服务通道）",
+			added, provider,
+		))
+		return nil
 	}
 
-	// 添加订阅
-	if err := b.storage.AddSubscription(ctx, &storage.Subscription{
+	// Service 级订阅：展开为所有 channel
+	if channel == "" {
+		targets, err := b.validator.ValidateAndExpandService(ctx, provider, service)
+		if err != nil {
+			return b.handleAddError(ctx, e, err, provider, service, "")
+		}
+
+		// 检查配额
+		if maxSubs > 0 && count+len(targets) > maxSubs {
+			b.sendReply(ctx, e, fmt.Sprintf(
+				"订阅配额不足。%s / %s 有 %d 个订阅项，当前已用 %d/%d。\n\n请先移除部分订阅，或精确指定 channel。",
+				provider, service, len(targets), count, maxSubs,
+			))
+			return nil
+		}
+
+		// 逐一添加
+		added := 0
+		for _, t := range targets {
+			sub := &storage.Subscription{
+				Platform: storage.PlatformQQ,
+				ChatID:   chatID,
+				Provider: t.Provider,
+				Service:  t.Service,
+				Channel:  t.Channel,
+			}
+			if err := b.storage.AddSubscription(ctx, sub); err == nil {
+				added++
+			}
+		}
+
+		b.sendReply(ctx, e, fmt.Sprintf(
+			"已添加 %d 个订阅（%s / %s 下所有通道）",
+			added, provider, service,
+		))
+		return nil
+	}
+
+	// 精确订阅
+	if maxSubs > 0 && count >= maxSubs {
+		b.sendReply(ctx, e, fmt.Sprintf(
+			"订阅数量已达上限（%d/%d）。请先移除部分订阅。",
+			count, maxSubs,
+		))
+		return nil
+	}
+
+	target, err := b.validator.ValidateAdd(ctx, provider, service, channel)
+	if err != nil {
+		return b.handleAddError(ctx, e, err, provider, service, channel)
+	}
+
+	sub := &storage.Subscription{
 		Platform: storage.PlatformQQ,
 		ChatID:   chatID,
 		Provider: target.Provider,
 		Service:  target.Service,
 		Channel:  target.Channel,
-	}); err != nil {
+	}
+
+	if err := b.storage.AddSubscription(ctx, sub); err != nil {
 		return err
 	}
 
-	if target.Channel != "" {
-		b.sendReply(ctx, e, fmt.Sprintf("已订阅 %s / %s / %s", target.Provider, target.Service, target.Channel))
-	} else {
-		b.sendReply(ctx, e, fmt.Sprintf("已订阅 %s / %s", target.Provider, target.Service))
-	}
+	b.sendReply(ctx, e, fmt.Sprintf(
+		"已订阅 %s / %s / %s",
+		target.Provider, target.Service, target.Channel,
+	))
 	return nil
 }
 
+// handleAddError 处理添加订阅时的错误
+func (b *Bot) handleAddError(ctx context.Context, e *OneBotEvent, err error, provider, service, channel string) error {
+	var nf *validator.NotFoundError
+	if errors.As(err, &nf) {
+		switch nf.Level {
+		case validator.NotFoundProvider:
+			b.sendReply(ctx, e, fmt.Sprintf(
+				"未找到服务商 %s。\n\n请到 RelayPulse 网页复制正确的 provider/service/channel，或使用网页一键导入收藏。",
+				provider,
+			))
+		case validator.NotFoundService:
+			cands := validator.FormatCandidates(nf.Candidates, "service")
+			if cands != "" {
+				b.sendReply(ctx, e, fmt.Sprintf(
+					"未找到 %s / %s。\n\n该服务商下可用的 service 例如：%s（仅显示前 %d 个）。",
+					provider, service, cands, 8,
+				))
+			} else {
+				b.sendReply(ctx, e, fmt.Sprintf(
+					"未找到 %s / %s。\n\n请到 RelayPulse 网页确认 service 是否正确，或使用网页一键导入收藏。",
+					provider, service,
+				))
+			}
+		case validator.NotFoundChannel:
+			cands := validator.FormatCandidates(nf.Candidates, "channel")
+			if cands != "" {
+				b.sendReply(ctx, e, fmt.Sprintf(
+					"未找到 %s / %s / %s。\n\n该 service 下可用的 channel 例如：%s（仅显示前 %d 个）。",
+					provider, service, channel, cands, 8,
+				))
+			} else {
+				b.sendReply(ctx, e, fmt.Sprintf(
+					"未找到 %s / %s / %s。",
+					provider, service, channel,
+				))
+			}
+		}
+		return nil
+	}
+
+	var ue *validator.UnavailableError
+	if errors.As(err, &ue) {
+		b.sendReply(ctx, e, "当前无法验证订阅（状态服务暂不可用），为避免订阅无效服务，已拒绝本次订阅。请稍后再试，或从网页一键导入收藏。")
+		return nil
+	}
+
+	return err
+}
+
 // handleRemove 处理 /remove 命令
+// 支持三种移除模式：
+// - /remove <provider> → 移除该 provider 下所有订阅（级联删除）
+// - /remove <provider> <service> → 移除该 service 下所有通道
+// - /remove <provider> <service> <channel> → 精确移除
 func (b *Bot) handleRemove(ctx context.Context, e *OneBotEvent, args string) error {
 	chatID, ok := chatKey(e)
 	if !ok {
@@ -592,25 +694,39 @@ func (b *Bot) handleRemove(ctx context.Context, e *OneBotEvent, args string) err
 	}
 
 	parts := strings.Fields(args)
-	if len(parts) < 2 {
-		b.sendReply(ctx, e, "用法: /remove <provider> <service> [channel]\n例如: /remove 88code cc")
+	if len(parts) < 1 {
+		b.sendReply(ctx, e, "用法: /remove <provider> [service] [channel]\n\n例如:\n/remove 88code → 移除 88code 所有订阅\n/remove 88code cc → 移除 88code 的 cc 服务订阅")
 		return nil
 	}
 
 	provider := parts[0]
-	service := parts[1]
+	service := ""
+	if len(parts) > 1 {
+		service = parts[1]
+	}
 	channel := ""
 	if len(parts) > 2 {
 		channel = parts[2]
+	}
+
+	// "default" 归一化为空字符串（与 add 对齐）
+	if strings.EqualFold(channel, "default") {
+		channel = ""
 	}
 
 	if err := b.storage.RemoveSubscription(ctx, storage.PlatformQQ, chatID, provider, service, channel); err != nil {
 		return err
 	}
 
-	if channel != "" {
+	// 根据删除级别显示不同消息
+	if service == "" {
+		// provider 级删除（级联）
+		b.sendReply(ctx, e, fmt.Sprintf("已取消订阅 %s / *（包括该服务商下所有订阅）", provider))
+	} else if channel != "" {
+		// 精确删除
 		b.sendReply(ctx, e, fmt.Sprintf("已取消订阅 %s / %s / %s", provider, service, channel))
 	} else {
+		// service 级删除
 		b.sendReply(ctx, e, fmt.Sprintf("已取消订阅 %s / %s", provider, service))
 	}
 	return nil
@@ -668,12 +784,21 @@ func (b *Bot) handleHelp(ctx context.Context, e *OneBotEvent, args string) error
 
 命令列表：
 /list - 查看当前订阅
-/add <provider> <service> [channel] - 添加订阅
-/remove <provider> <service> [channel] - 移除订阅
+/add <provider> [service] [channel] - 添加订阅
+/remove <provider> [service] [channel] - 移除订阅
 /clear - 清空所有订阅
 /snap - 截图订阅服务状态
 /status - 查看服务状态
 /help - 显示此帮助
+
+手动添加订阅：
+/add 88code → 订阅 88code 所有服务
+/add 88code cc → 订阅 88code 的 cc 服务
+/add duckcoding cc v1 → 精确订阅
+
+移除订阅：
+/remove 88code → 移除 88code 所有订阅
+/remove 88code cc → 移除 88code 的 cc 订阅
 
 全局指令（群聊无需@）：
 状态检查 - 快速截图订阅服务状态
