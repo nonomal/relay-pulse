@@ -44,6 +44,12 @@
 
 **重要**: Go 的 `embed` 指令不支持符号链接，因此需要将 `frontend/dist` 复制到 `internal/api/frontend/dist`。setup-dev.sh 脚本会自动处理这个问题。
 
+**⚠️ 前端代码修改规则**:
+- `internal/api/frontend/` 整个目录被 `.gitignore` 忽略，是从 `frontend/` 复制过来的嵌入目录
+- **所有前端源代码修改必须在 `frontend/` 目录进行**，而不是 `internal/api/frontend/`
+- 修改后运行 `./scripts/setup-dev.sh --rebuild-frontend` 同步到嵌入目录
+- 直接修改 `internal/api/frontend/` 的改动不会被 git 追踪，会在下次构建时丢失
+
 ### 后端 (Go)
 
 ```bash
@@ -650,7 +656,15 @@ HTTP 响应
 ```yaml
 interval: "1m"         # 全局探测频率（Go duration 格式）
 slow_latency: "5s"     # 慢请求黄灯阈值
+timeout: "10s"         # 请求超时时间（默认 10s）
 degraded_weight: 0.7   # 黄色状态的可用率权重（0-1，默认 0.7，可选）
+
+# 按服务类型覆盖（可选）
+slow_latency_by_service:
+  cc: "15s"            # Claude Code 服务允许更长延迟
+  gm: "3s"             # Gemini 服务要求更快
+timeout_by_service:
+  cc: "30s"            # Claude Code 服务允许更长超时
 
 monitors:
   - provider: "88code"
@@ -660,6 +674,8 @@ monitors:
     channel: "vip3"
     channel_name: "VIP 3 通道"    # 可选：UI 显示名称（未配置时使用 channel）
     interval: "30s"    # 可选：覆盖全局 interval（高频付费监测）
+    slow_latency: "20s"  # 可选：覆盖 slow_latency_by_service 和全局值
+    timeout: "45s"       # 可选：覆盖 timeout_by_service 和全局值
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
     api_key: "sk-xxx"  # 可通过 MONITOR_88CODE_CC_API_KEY 覆盖
@@ -669,6 +685,8 @@ monitors:
       {"model": "claude-3-opus", "messages": [...]}
     success_contains: "optional_keyword"  # 语义验证（可选）
 ```
+
+**配置优先级**: `monitor` > `by_service` > `global`（适用于 slow_latency 和 timeout）
 
 
 **模板占位符**: `{{API_KEY}}` 在 headers 和 body 中会被替换。

@@ -56,6 +56,16 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		HttpCode:  0, // 默认为 0，表示非 HTTP 错误
 	}
 
+	// 使用配置的超时时间包装 context
+	// 兜底：防止 TimeoutDuration 未下发导致请求无期限挂起
+	timeout := cfg.TimeoutDuration
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	var cancel context.CancelFunc
+	ctx, cancel = context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	// 准备请求体（去除首尾空白，某些 API 对此敏感）
 	reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(cfg.Body)))
 	req, err := http.NewRequestWithContext(ctx, cfg.Method, cfg.URL, reqBody)
@@ -81,6 +91,16 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 	result.Latency = latency
 
 	if err != nil {
+		// 极少数情况下 err != nil 但 resp != nil，需要关闭 body，避免资源泄漏
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
+		// 超时/取消：仍归类为 network_error，但错误信息更明确，便于排查与统计
+		if errors.Is(err, context.DeadlineExceeded) {
+			err = fmt.Errorf("请求超时(%v): %w", timeout, err)
+		} else if errors.Is(err, context.Canceled) {
+			err = fmt.Errorf("请求取消: %w", err)
+		}
 		logger.Error("probe", "请求失败",
 			"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", err)
 		result.Error = err

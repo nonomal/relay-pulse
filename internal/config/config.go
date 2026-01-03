@@ -202,8 +202,21 @@ type ServiceConfig struct {
 	Board      string `yaml:"board" json:"board"`
 	ColdReason string `yaml:"cold_reason" json:"cold_reason,omitempty"` // 冷板原因（可选）
 
-	// 解析后的"慢请求"阈值（来自全局配置），用于黄灯判定
+	// 通道级慢请求阈值（可选，覆盖 slow_latency_by_service 和全局 slow_latency）
+	// 支持 Go duration 格式，例如 "5s"、"15s"
+	SlowLatency string `yaml:"slow_latency" json:"slow_latency"`
+
+	// 解析后的"慢请求"阈值，用于黄灯判定
+	// 优先级：monitor.slow_latency > slow_latency_by_service > 全局 slow_latency
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
+
+	// 通道级超时时间（可选，覆盖 timeout_by_service 和全局 timeout）
+	// 支持 Go duration 格式，例如 "10s"、"30s"
+	Timeout string `yaml:"timeout" json:"timeout"`
+
+	// 解析后的超时时间
+	// 优先级：monitor.timeout > timeout_by_service > 全局 timeout
+	TimeoutDuration time.Duration `yaml:"-" json:"-"`
 
 	// 解析后的巡检间隔（可选，为空时使用全局 interval）
 	IntervalDuration time.Duration `yaml:"-" json:"-"`
@@ -443,6 +456,19 @@ type AppConfig struct {
 
 	// 解析后的按服务慢请求阈值（内部使用，不序列化）
 	SlowLatencyByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// 请求超时时间（支持 Go duration 格式，例如 "10s"、"30s"，默认 "10s"）
+	Timeout string `yaml:"timeout" json:"timeout"`
+
+	// 解析后的超时时间（内部使用，不序列化）
+	TimeoutDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的超时时间（可选，支持 Go duration 格式）
+	// 例如 cc: "30s", gm: "10s"
+	TimeoutByService map[string]string `yaml:"timeout_by_service" json:"timeout_by_service"`
+
+	// 解析后的按服务超时时间（内部使用，不序列化）
+	TimeoutByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
 
 	// 可用率中黄色状态的权重（0-1，默认 0.7）
 	// 绿色=1.0, 黄色=degraded_weight, 红色=0.0
@@ -790,6 +816,50 @@ func (c *AppConfig) Normalize() error {
 		c.SlowLatencyByServiceDuration = nil
 	}
 
+	// 请求超时时间（默认 10 秒）
+	if c.Timeout == "" {
+		c.TimeoutDuration = 10 * time.Second
+	} else {
+		d, err := time.ParseDuration(c.Timeout)
+		if err != nil {
+			return fmt.Errorf("解析 timeout 失败: %w", err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("timeout 必须大于 0")
+		}
+		c.TimeoutDuration = d
+	}
+
+	// 按服务类型覆盖的超时时间
+	if len(c.TimeoutByService) > 0 {
+		c.TimeoutByServiceDuration = make(map[string]time.Duration, len(c.TimeoutByService))
+		for service, raw := range c.TimeoutByService {
+			normalizedService := strings.ToLower(strings.TrimSpace(service))
+			if normalizedService == "" {
+				return fmt.Errorf("timeout_by_service: service 名称不能为空")
+			}
+			if _, exists := c.TimeoutByServiceDuration[normalizedService]; exists {
+				return fmt.Errorf("timeout_by_service: service '%s' 重复配置（大小写不敏感）", normalizedService)
+			}
+
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
+				return fmt.Errorf("timeout_by_service[%s]: 值不能为空", service)
+			}
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("解析 timeout_by_service[%s] 失败: %w", service, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("timeout_by_service[%s] 必须大于 0", service)
+			}
+			c.TimeoutByServiceDuration[normalizedService] = d
+		}
+	} else {
+		// 热更新场景：清除旧的覆盖配置
+		c.TimeoutByServiceDuration = nil
+	}
+
 	// 黄色状态权重（默认 0.7，允许 0.01-1.0）
 	// 注意：0 被视为未配置，将使用默认值 0.7
 	// 如果需要极低权重，请使用 0.01 或更小的正数
@@ -1076,18 +1146,68 @@ func (c *AppConfig) Normalize() error {
 		badgeProviderMap[provider] = bp.Badges
 	}
 
-	// 将慢请求阈值下发到每个监测项（优先按服务覆盖），并标准化 category、URLs、provider_slug
+	// 将慢请求阈值和超时时间下发到每个监测项（优先级：monitor > by_service > global），并标准化 category、URLs、provider_slug
 	slugSet := make(map[string]int) // slug -> monitor index (用于检测重复)
 	for i := range c.Monitors {
+		// 注意：SlowLatencyDuration/TimeoutDuration 为 yaml:"-" 字段。
+		// 在热更新/复用 slice 元素的场景下，旧值可能残留，导致删除 monitor 级配置后无法回退。
+		// 这里每次 Normalize 都从 0 开始重新计算，确保优先级下发逻辑稳定。
+		c.Monitors[i].SlowLatencyDuration = 0
+		c.Monitors[i].TimeoutDuration = 0
+
+		// 解析 monitor 级 slow_latency（如有配置）
+		if trimmed := strings.TrimSpace(c.Monitors[i].SlowLatency); trimmed != "" {
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析 slow_latency 失败: %w",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): slow_latency 必须大于 0",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+			}
+			c.Monitors[i].SlowLatencyDuration = d
+		}
+
+		// slow_latency 下发：monitor > by_service > global
 		if c.Monitors[i].SlowLatencyDuration == 0 {
-			// 优先查找按服务类型的覆盖配置
 			serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
 			if d, ok := c.SlowLatencyByServiceDuration[serviceKey]; ok {
 				c.Monitors[i].SlowLatencyDuration = d
 			} else {
-				// 回退到全局默认值
 				c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
 			}
+		}
+
+		// 解析 monitor 级 timeout（如有配置）
+		if trimmed := strings.TrimSpace(c.Monitors[i].Timeout); trimmed != "" {
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析 timeout 失败: %w",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): timeout 必须大于 0",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+			}
+			c.Monitors[i].TimeoutDuration = d
+		}
+
+		// timeout 下发：monitor > by_service > global
+		if c.Monitors[i].TimeoutDuration == 0 {
+			serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
+			if d, ok := c.TimeoutByServiceDuration[serviceKey]; ok {
+				c.Monitors[i].TimeoutDuration = d
+			} else {
+				c.Monitors[i].TimeoutDuration = c.TimeoutDuration
+			}
+		}
+
+		// 警告：slow_latency >= timeout 时黄灯基本不会触发
+		if c.Monitors[i].SlowLatencyDuration >= c.Monitors[i].TimeoutDuration {
+			log.Printf("[Config] 警告: monitor[%d] (provider=%s, service=%s, channel=%s): slow_latency(%v) >= timeout(%v)，慢响应黄灯可能不会触发",
+				i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel,
+				c.Monitors[i].SlowLatencyDuration, c.Monitors[i].TimeoutDuration)
 		}
 
 		// 解析单监测项的 interval，空值回退到全局

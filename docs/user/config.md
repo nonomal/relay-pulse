@@ -14,6 +14,15 @@ Relay Pulse 使用 YAML 格式的配置文件，默认路径为 `config.yaml`。
 # 全局配置
 interval: "1m"           # 巡检间隔（支持 Go duration 格式）
 slow_latency: "5s"       # 慢请求阈值
+timeout: "10s"           # 请求超时时间
+
+# 按服务类型覆盖（可选）
+slow_latency_by_service:
+  cc: "15s"              # Claude Code 服务允许更长延迟
+  gm: "3s"               # Gemini 服务要求更快
+timeout_by_service:
+  cc: "30s"              # Claude Code 服务允许更长超时
+  gm: "10s"              # Gemini 服务超时较短
 
 # 赞助商置顶配置
 sponsor_pin:
@@ -96,6 +105,24 @@ monitors:
     cc: "15s"    # Claude Code 对速度要求较低
     cx: "10s"    # Codex
     gm: "3s"     # 模型 API 要求更快
+  ```
+
+#### `timeout`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"10s"`
+- **说明**: 请求超时时间，超过此时间未响应则视为失败（红色状态）
+- **示例**: `"10s"`, `"30s"`, `"1m"`
+
+#### `timeout_by_service`
+- **类型**: map[string]string (服务类型 → Go duration 格式)
+- **默认值**: 无（使用全局 `timeout`）
+- **说明**: 按服务类型覆盖超时时间，key 不区分大小写
+- **示例**:
+  ```yaml
+  timeout_by_service:
+    cc: "30s"    # Claude Code 允许更长超时
+    cx: "45s"    # Codex
+    gm: "10s"    # 模型 API 超时较短
   ```
 
 #### `degraded_weight`
@@ -873,6 +900,52 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
     - provider: "普通服务商"
       # 不配置 interval，使用全局 5 分钟
       # ...
+  ```
+
+##### `slow_latency`
+- **类型**: string (Go duration 格式)
+- **说明**: 该监测项的自定义慢请求阈值（可选），覆盖 `slow_latency_by_service` 和全局 `slow_latency`
+- **优先级**: `monitor.slow_latency` > `slow_latency_by_service` > 全局 `slow_latency`
+- **示例**: `"5s"`, `"15s"`, `"30s"`
+- **使用场景**:
+  - 同一服务的不同通道使用不同的测试模型或 payload，响应时间差异大
+  - 特定通道需要更宽松或更严格的延迟阈值
+- **配置示例**:
+  ```yaml
+  slow_latency: "5s"  # 全局默认 5 秒
+  slow_latency_by_service:
+    cc: "15s"  # Claude Code 服务默认 15 秒
+  monitors:
+    - provider: "88code"
+      service: "cc"
+      channel: "vip3"
+      slow_latency: "20s"  # 该通道使用更大模型，允许 20 秒
+    - provider: "88code"
+      service: "cc"
+      channel: "standard"
+      # 不配置，使用 slow_latency_by_service 的 15 秒
+  ```
+
+##### `timeout`
+- **类型**: string (Go duration 格式)
+- **说明**: 该监测项的自定义超时时间（可选），覆盖 `timeout_by_service` 和全局 `timeout`
+- **优先级**: `monitor.timeout` > `timeout_by_service` > 全局 `timeout`
+- **示例**: `"10s"`, `"30s"`, `"1m"`
+- **使用场景**:
+  - 特定通道的 API 响应较慢，需要更长超时
+  - 测试 payload 较大，需要更多处理时间
+- **注意**: 如果 `slow_latency >= timeout`，系统会打印警告，因为慢响应黄灯可能不会触发
+- **配置示例**:
+  ```yaml
+  timeout: "10s"  # 全局默认 10 秒
+  timeout_by_service:
+    cc: "30s"  # Claude Code 服务默认 30 秒
+  monitors:
+    - provider: "88code"
+      service: "cc"
+      channel: "vip3"
+      timeout: "45s"  # 该通道允许 45 秒超时
+      slow_latency: "20s"  # 配套的慢请求阈值
   ```
 
 ##### `hidden`

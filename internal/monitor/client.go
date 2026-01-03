@@ -39,8 +39,8 @@ func (p *ClientPool) GetClient(provider string) *http.Client {
 	}
 
 	// 创建带连接池的HTTP客户端
+	// 注意：不设置 Timeout，由 probe.go 使用 context.WithTimeout 控制每个请求的超时
 	client = &http.Client{
-		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
 			Proxy:               http.ProxyFromEnvironment,
 			MaxIdleConns:        100,
