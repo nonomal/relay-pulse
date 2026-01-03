@@ -260,11 +260,11 @@ function getSponsorQuota(sponsorLevel: SponsorLevel, serviceCount: number): numb
 }
 
 /**
- * 规范化赞助商标识（用于配额分组）
- * 统一处理以确保 Map 构建和选择逻辑一致
+ * 规范化 provider 标识（用于置顶配额分组）
+ * 按 provider 分组计算配额，而非 sponsor 字段
  */
-function normalizeSponsorKey(sponsor: string | undefined): string {
-  return (sponsor || '').trim();
+function normalizeProviderKey(item: ProcessedMonitorData): string {
+  return (item.providerId || '').trim().toLowerCase();
 }
 
 /**
@@ -273,7 +273,7 @@ function normalizeSponsorKey(sponsor: string | undefined): string {
  * 在页面初始加载时，将符合条件的赞助商置顶显示。
  * 用户点击任意排序按钮后，置顶失效，恢复正常排序。
  *
- * 置顶配额规则（按赞助商计算）：
+ * 置顶配额规则（按 provider 计算）：
  * - enterprise（顶级）：最多 service_count 个通道
  * - advanced（高级）：最多 max(1, service_count - 1) 个通道
  * - basic（基础）：最多 1 个通道
@@ -296,7 +296,7 @@ export function sortMonitorsWithPinning(
   // 置顶逻辑：配置存在、功能启用、且处于初始排序状态
   const shouldPin = pinConfig?.enabled && enablePinning && pinConfig.max_pinned > 0;
 
-  // 固定配置值：服务数量（用于按赞助商计算配额；缺失时回退到 3 以兼容旧后端）
+  // 固定配置值：服务数量（用于按 provider 计算配额；缺失时回退到 3 以兼容旧后端）
   const serviceCount = pinConfig?.service_count ?? 3;
 
   if (!shouldPin) {
@@ -310,21 +310,21 @@ export function sortMonitorsWithPinning(
   // 1. 筛选符合置顶条件的项
   const pinnedCandidates = items.filter(item => meetsPinCriteria(item, pinConfig));
 
-  // 2. 构建每个赞助商的最高等级 Map（配额按赞助商最高等级计算，而非通道等级）
-  const sponsorHighestLevel = new Map<string, SponsorLevel>();
+  // 2. 构建每个 provider 的最高等级 Map（配额按 provider 最高等级计算，而非通道等级）
+  const providerHighestLevel = new Map<string, SponsorLevel>();
   for (const item of pinnedCandidates) {
-    const sponsorKey = normalizeSponsorKey(item.sponsor);
-    if (!sponsorKey) continue;
+    const providerKey = normalizeProviderKey(item);
+    if (!providerKey) continue;
 
-    const currentHighest = sponsorHighestLevel.get(sponsorKey);
+    const currentHighest = providerHighestLevel.get(providerKey);
     if (!currentHighest) {
-      sponsorHighestLevel.set(sponsorKey, item.sponsorLevel!);
+      providerHighestLevel.set(providerKey, item.sponsorLevel!);
     } else {
       // 比较权重，保留更高等级
       const currentWeight = SPONSOR_WEIGHTS[currentHighest] || 0;
       const newWeight = SPONSOR_WEIGHTS[item.sponsorLevel!] || 0;
       if (newWeight > currentWeight) {
-        sponsorHighestLevel.set(sponsorKey, item.sponsorLevel!);
+        providerHighestLevel.set(providerKey, item.sponsorLevel!);
       }
     }
   }
@@ -341,28 +341,28 @@ export function sortMonitorsWithPinning(
     return compareLatency(a.lastCheckLatency, b.lastCheckLatency);
   });
 
-  // 4. 按赞助商分组计算配额并选择置顶项
+  // 4. 按 provider 分组计算配额并选择置顶项
   //    同时保留 provider + service 去重规则
   const pinnedItems: ProcessedMonitorData[] = [];
-  const pinnedBySponsor = new Map<string, number>(); // 每个赞助商已置顶数量
+  const pinnedByProvider = new Map<string, number>(); // 每个 provider 已置顶数量
   const pinnedProviderService = new Set<string>(); // provider+service 去重
 
   for (const item of pinnedCandidates) {
     // 全局截断
     if (pinnedItems.length >= pinConfig.max_pinned) break;
 
-    // 必须有 sponsor 字段才能参与配额计算
-    const sponsorKey = normalizeSponsorKey(item.sponsor);
-    if (!sponsorKey) continue;
+    // 获取 provider 标识用于配额计算
+    const providerKey = normalizeProviderKey(item);
+    if (!providerKey) continue;
 
-    // 使用赞助商的最高等级计算配额（而非当前通道等级）
-    const sponsorLevel = sponsorHighestLevel.get(sponsorKey);
-    if (!sponsorLevel) continue; // 防御性检查：Map 中应该有该赞助商
+    // 使用 provider 的最高等级计算配额（而非当前通道等级）
+    const sponsorLevel = providerHighestLevel.get(providerKey);
+    if (!sponsorLevel) continue; // 防御性检查：Map 中应该有该 provider
 
     const quota = getSponsorQuota(sponsorLevel, serviceCount);
 
     // 检查配额限制
-    const used = pinnedBySponsor.get(sponsorKey) || 0;
+    const used = pinnedByProvider.get(providerKey) || 0;
     if (used >= quota) continue;
 
     // 检查 provider + service 去重
@@ -371,7 +371,7 @@ export function sortMonitorsWithPinning(
 
     // 通过所有检查，加入置顶列表
     pinnedItems.push(item);
-    pinnedBySponsor.set(sponsorKey, used + 1);
+    pinnedByProvider.set(providerKey, used + 1);
     pinnedProviderService.add(providerServiceKey);
   }
 

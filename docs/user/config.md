@@ -139,7 +139,7 @@ monitors:
 sponsor_pin:
   enabled: true           # 是否启用置顶功能（默认 true）
   max_pinned: 3           # 最多置顶数量（默认 3）
-  service_count: 3        # 服务数量（用于按赞助商计算置顶配额；默认 3）
+  service_count: 3        # 服务数量（用于按服务商计算置顶配额；默认 3）
   min_uptime: 95.0        # 最低可用率要求（默认 95%）
   min_level: "basic"      # 最低赞助级别（默认 basic）
 ```
@@ -158,7 +158,7 @@ sponsor_pin:
 - **类型**: integer
 - **默认值**: `3`
 - **约束**: 必须 ≥ 1
-- **说明**: 固定配置的"支持的服务数量"，用于按赞助商计算置顶配额
+- **说明**: 固定配置的"支持的服务数量"，用于按服务商计算置顶配额
 - **配额规则**:
   - `enterprise`（顶级）：最多 `service_count` 个通道
   - `advanced`（高级）：最多 `max(1, service_count - 1)` 个通道
@@ -185,7 +185,7 @@ sponsor_pin:
    - 赞助级别 ≥ `min_level`
 
 2. **配额与排序规则**:
-   - 置顶配额按赞助商（`sponsor`）计算：
+   - 置顶配额按服务商（`provider`）计算：
      - `enterprise`（顶级）：最多 `service_count` 个通道
      - `advanced`（高级）：最多 `max(1, service_count - 1)` 个通道
      - `basic`（基础）：最多 `1` 个通道

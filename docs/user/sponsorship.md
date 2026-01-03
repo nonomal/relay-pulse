@@ -194,7 +194,7 @@ RelayPulse 作为平台方承诺：
 4. 同一服务商同一服务类型最多置顶 1 个
 
 **置顶配额与位置限制**：
-- 置顶配额按赞助商（`sponsor`）计算，配额由 `sponsor_pin.service_count` 决定：
+- 置顶配额按服务商（`provider`）计算，配额由 `sponsor_pin.service_count` 决定：
   - 顶级（`enterprise`）：最多 `service_count` 个通道
   - 高级（`advanced`）：最多 `max(1, service_count - 1)` 个通道
   - 基础（`basic`）：最多 `1` 个通道
