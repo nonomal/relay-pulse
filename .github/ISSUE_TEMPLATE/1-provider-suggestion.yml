@@ -15,6 +15,8 @@ body:
 
         📧 **重要**：请勿在此填写真实 API Key，提交后通过邮件单独发送。
 
+        ✅ **提交前建议**：建议先使用 [API 自助测试](/selftest) 验证端点可用性，确认返回结果包含预期关键字（如 "pong"）。
+
   - type: input
     id: provider-name
     attributes:
@@ -51,22 +53,23 @@ body:
         # ----------------------------------------------------------------
         - provider: "[服务商名称]"                  # [必填] 例如：DeepSeek, FoxCode
           provider_url: "[服务商官网]"              # [选填] 用于展示来源
-          
+
           sponsor: "[赞助者名称]"                   # [必填] 你的名字或组织名
           sponsor_url: "[赞助者链接]"               # [选填] 点击名字跳转的地址 (如 linux.do 帖子)
-          
+
           category: "commercial"                   # [必填] commercial(商业/付费) 或 public(公益/免费)
-          
-          service: "cc"                            # [必填] 服务类型: cc (Claude Messages) 或 cx (Codex Responses)
+
+          service: "cc"                            # [必填] 服务类型: cc (Claude Messages), cx (Codex Responses), gm (Gemini)
           channel: "cc-[标识]"                     # [必填] 通道唯一标识，例如: cc-FoxCode-VIP
-          
+
           # [必填] 实际调用的 API Key
           # 此处可使用 sk-xxxx... 掩码示例，真实 Key 请通过邮箱提供
           api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-          
-          # [必填] 接口地址 (注意区分 cc 和 cx 的后缀)
+
+          # [必填] 接口地址 (注意区分 cc/cx/gm 的后缀)
           # cc 通常是 /v1/messages
           # cx 通常是 /v1/responses
+          # gm 通常是 /v1beta/models/{model}:streamGenerateContent?alt=sse
           url: "https://api.example.com/v1/messages"
     validations:
       required: true
@@ -75,12 +78,14 @@ body:
     id: confirm-key
     attributes:
       label: 确认事项
-      description: 请确认以下两点后再提交 Issue
+      description: 请确认以下事项后再提交 Issue
       options:
         - label: 我不会在 Issue 中填写真实 API Key
           required: true
         - label: 我会在提交 Issue 后，通过邮箱 prehisle@gmail.com 单独发送真实 API Key，并在邮件中附上本 Issue 链接
           required: true
+        - label: （可选）我已使用 /selftest 自助测试验证端点可用性，返回结果包含预期关键字
+          required: false
 
   - type: textarea
     id: additional-info

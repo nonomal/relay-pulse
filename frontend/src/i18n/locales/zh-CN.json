@@ -365,6 +365,9 @@
       "domainOnly": "必须使用域名，不支持 IP 地址",
       "rateLimit": "每个 IP 每分钟最多 10 次测试",
       "privacy": "API 密钥仅用于测试，不会被存储或记录"
+    },
+    "testTypeDescriptions": {
+      "gm": "Gemini v1beta streamGenerateContent（SSE）"
     }
   },
   "community": {

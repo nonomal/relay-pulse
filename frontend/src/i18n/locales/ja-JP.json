@@ -365,6 +365,9 @@
       "domainOnly": "ドメイン名が必要、IP アドレス非対応",
       "rateLimit": "IP あたり毎分最大 10 回のテスト",
       "privacy": "API キーはテスト用途のみで、保存やログ記録されません"
+    },
+    "testTypeDescriptions": {
+      "gm": "Gemini v1beta streamGenerateContent（SSE）"
     }
   },
   "community": {

@@ -365,6 +365,9 @@
       "domainOnly": "Domain names required, IP addresses not supported",
       "rateLimit": "Maximum 10 tests per minute per IP",
       "privacy": "API keys are only used for testing and will not be stored or logged"
+    },
+    "testTypeDescriptions": {
+      "gm": "Gemini v1beta streamGenerateContent (SSE)"
     }
   },
   "community": {

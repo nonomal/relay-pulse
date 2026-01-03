@@ -62,11 +62,16 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
             </option>
           ))}
         </select>
-        {testTypes.find((t) => t.id === formData.testType)?.description && (
-          <p className="mt-1 text-sm text-secondary">
-            {testTypes.find((t) => t.id === formData.testType)?.description}
-          </p>
-        )}
+        {/* 显示描述：优先后端返回，其次 i18n fallback */}
+        {(() => {
+          const selectedType = testTypes.find((t) => t.id === formData.testType);
+          const description =
+            selectedType?.description ||
+            t(`selftest.testTypeDescriptions.${formData.testType}`, { defaultValue: '' });
+          return description ? (
+            <p className="mt-1 text-sm text-secondary">{description}</p>
+          ) : null;
+        })()}
       </div>
 
       {/* API URL 输入 */}

@@ -151,6 +151,42 @@ func (b *CXTestBuilder) Build(apiURL, apiKey string) (*config.ServiceConfig, err
 	}, nil
 }
 
+// GMTestBuilder builds configuration for Gemini (v1beta streamGenerateContent)
+// Headers and Body are aligned with gm-template in config.yaml
+type GMTestBuilder struct{}
+
+func (b *GMTestBuilder) Build(apiURL, apiKey string) (*config.ServiceConfig, error) {
+	if apiURL == "" {
+		return nil, fmt.Errorf("api_url is required")
+	}
+	if apiKey == "" {
+		return nil, fmt.Errorf("api_key is required")
+	}
+
+	// 动态读取请求体模板（与主站 data/gm_base.json 保持同步）
+	body, err := loadBodyTemplate("gm_base.json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load GM body template: %w", err)
+	}
+
+	return &config.ServiceConfig{
+		Provider: "selftest",
+		Service:  "gm",
+		URL:      apiURL,
+		Method:   "POST",
+		// Headers 对齐 config.yaml 中的 gm-template
+		Headers: map[string]string{
+			"User-Agent":        "GeminiCLI/0.22.2/gemini-3-pro-preview (darwin; arm64)",
+			"x-goog-api-client": "google-genai-sdk/1.30.0 gl-node/v24.10.0",
+			"Content-Type":      "application/json",
+			"x-goog-api-key":    apiKey,
+		},
+		Body:                body,
+		SuccessContains:     "pong", // 对齐 gm-template
+		SlowLatencyDuration: 5 * time.Second,
+	}, nil
+}
+
 // init registers built-in test types
 func init() {
 	RegisterTestType(&TestType{
@@ -165,6 +201,13 @@ func init() {
 		Name:        "Codex (cx)",
 		Description: "",
 		Builder:     &CXTestBuilder{},
+	})
+
+	RegisterTestType(&TestType{
+		ID:          "gm",
+		Name:        "Gemini (gm)",
+		Description: "", // 由前端 i18n 提供多语言描述
+		Builder:     &GMTestBuilder{},
 	})
 
 	// Future test types can be easily added:
