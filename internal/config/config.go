@@ -245,6 +245,10 @@ type SponsorPinConfig struct {
 	// 最多置顶数量（默认 3，0 表示禁用）
 	MaxPinned int `yaml:"max_pinned" json:"max_pinned"`
 
+	// 服务数量（固定配置值，用于计算赞助商置顶配额；默认 3）
+	// enterprise: service_count 个, advanced: max(1, service_count-1) 个, basic: 1 个
+	ServiceCount int `yaml:"service_count" json:"service_count"`
+
 	// 最低可用率要求（默认 95.0，百分比 0-100）
 	MinUptime float64 `yaml:"min_uptime" json:"min_uptime"`
 
@@ -849,6 +853,9 @@ func (c *AppConfig) Normalize() error {
 	if c.SponsorPin.MaxPinned == 0 {
 		c.SponsorPin.MaxPinned = 3
 	}
+	if c.SponsorPin.ServiceCount == 0 {
+		c.SponsorPin.ServiceCount = 3
+	}
 	if c.SponsorPin.MinUptime == 0 {
 		c.SponsorPin.MinUptime = 95.0
 	}
@@ -859,6 +866,10 @@ func (c *AppConfig) Normalize() error {
 	if c.SponsorPin.MaxPinned < 0 {
 		log.Printf("[Config] 警告: sponsor_pin.max_pinned(%d) 无效，回退默认值 3", c.SponsorPin.MaxPinned)
 		c.SponsorPin.MaxPinned = 3
+	}
+	if c.SponsorPin.ServiceCount < 1 {
+		log.Printf("[Config] 警告: sponsor_pin.service_count(%d) 无效，回退默认值 3", c.SponsorPin.ServiceCount)
+		c.SponsorPin.ServiceCount = 3
 	}
 	if c.SponsorPin.MinUptime < 0 || c.SponsorPin.MinUptime > 100 {
 		log.Printf("[Config] 警告: sponsor_pin.min_uptime(%.2f) 超出范围，回退默认值 95.0", c.SponsorPin.MinUptime)
@@ -1441,10 +1452,11 @@ func (c *AppConfig) Clone() *AppConfig {
 		BadgeDefs:                    make(map[string]BadgeDef, len(c.BadgeDefs)),
 		BadgeProviders:               make([]BadgeProviderConfig, len(c.BadgeProviders)),
 		SponsorPin: SponsorPinConfig{
-			Enabled:   sponsorPinEnabledPtr,
-			MaxPinned: c.SponsorPin.MaxPinned,
-			MinUptime: c.SponsorPin.MinUptime,
-			MinLevel:  c.SponsorPin.MinLevel,
+			Enabled:      sponsorPinEnabledPtr,
+			MaxPinned:    c.SponsorPin.MaxPinned,
+			ServiceCount: c.SponsorPin.ServiceCount,
+			MinUptime:    c.SponsorPin.MinUptime,
+			MinLevel:     c.SponsorPin.MinLevel,
 		},
 		SelfTest: c.SelfTest, // SelfTest 是值类型，直接复制
 		Events:   c.Events,   // Events 是值类型，直接复制

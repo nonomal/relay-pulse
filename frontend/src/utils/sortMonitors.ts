@@ -239,10 +239,44 @@ function meetsPinCriteria(
 }
 
 /**
+ * 计算单个赞助商的置顶配额
+ *
+ * 配额规则：
+ * - enterprise（顶级）：最多 service_count 个通道
+ * - advanced（高级）：最多 max(1, service_count - 1) 个通道
+ * - basic（基础）：最多 1 个通道
+ */
+function getSponsorQuota(sponsorLevel: SponsorLevel, serviceCount: number): number {
+  const safeServiceCount = Math.max(1, serviceCount);
+  switch (sponsorLevel) {
+    case 'enterprise':
+      return safeServiceCount;
+    case 'advanced':
+      return Math.max(1, safeServiceCount - 1);
+    case 'basic':
+    default:
+      return 1;
+  }
+}
+
+/**
+ * 规范化赞助商标识（用于配额分组）
+ * 统一处理以确保 Map 构建和选择逻辑一致
+ */
+function normalizeSponsorKey(sponsor: string | undefined): string {
+  return (sponsor || '').trim();
+}
+
+/**
  * 带置顶逻辑的排序函数
  *
  * 在页面初始加载时，将符合条件的赞助商置顶显示。
  * 用户点击任意排序按钮后，置顶失效，恢复正常排序。
+ *
+ * 置顶配额规则（按赞助商计算）：
+ * - enterprise（顶级）：最多 service_count 个通道
+ * - advanced（高级）：最多 max(1, service_count - 1) 个通道
+ * - basic（基础）：最多 1 个通道
  *
  * @param data 监控数据数组
  * @param sortConfig 用户排序配置
@@ -262,6 +296,9 @@ export function sortMonitorsWithPinning(
   // 置顶逻辑：配置存在、功能启用、且处于初始排序状态
   const shouldPin = pinConfig?.enabled && enablePinning && pinConfig.max_pinned > 0;
 
+  // 固定配置值：服务数量（用于按赞助商计算配额；缺失时回退到 3 以兼容旧后端）
+  const serviceCount = pinConfig?.service_count ?? 3;
+
   if (!shouldPin) {
     // 不启用置顶：使用常规排序，清除所有 pinned 标记
     return sortMonitors(items, sortConfig).map(item => ({
@@ -273,33 +310,27 @@ export function sortMonitorsWithPinning(
   // 1. 筛选符合置顶条件的项
   const pinnedCandidates = items.filter(item => meetsPinCriteria(item, pinConfig));
 
-  // 2. 按 provider + service 去重，避免同一服务商的同类服务重复置顶
-  //    每组保留赞助级别最高、可用率最高、延迟最低的一个
-  const bestByProviderService = new Map<string, ProcessedMonitorData>();
+  // 2. 构建每个赞助商的最高等级 Map（配额按赞助商最高等级计算，而非通道等级）
+  const sponsorHighestLevel = new Map<string, SponsorLevel>();
   for (const item of pinnedCandidates) {
-    const key = `${item.providerId}|${item.serviceType}`;
-    const existing = bestByProviderService.get(key);
-    if (!existing) {
-      bestByProviderService.set(key, item);
-      continue;
-    }
-    // 比较：赞助级别优先，同级别按可用率，同可用率按延迟（低延迟优先）
-    const itemWeight = SPONSOR_WEIGHTS[item.sponsorLevel!] || 0;
-    const existingWeight = SPONSOR_WEIGHTS[existing.sponsorLevel!] || 0;
-    if (
-      itemWeight > existingWeight ||
-      (itemWeight === existingWeight &&
-        (item.uptime > existing.uptime ||
-          (item.uptime === existing.uptime &&
-            compareLatency(item.lastCheckLatency, existing.lastCheckLatency) < 0)))
-    ) {
-      bestByProviderService.set(key, item);
+    const sponsorKey = normalizeSponsorKey(item.sponsor);
+    if (!sponsorKey) continue;
+
+    const currentHighest = sponsorHighestLevel.get(sponsorKey);
+    if (!currentHighest) {
+      sponsorHighestLevel.set(sponsorKey, item.sponsorLevel!);
+    } else {
+      // 比较权重，保留更高等级
+      const currentWeight = SPONSOR_WEIGHTS[currentHighest] || 0;
+      const newWeight = SPONSOR_WEIGHTS[item.sponsorLevel!] || 0;
+      if (newWeight > currentWeight) {
+        sponsorHighestLevel.set(sponsorKey, item.sponsorLevel!);
+      }
     }
   }
-  const dedupedCandidates = Array.from(bestByProviderService.values());
 
-  // 3. 按赞助级别降序排序（同级别按可用率降序，同可用率按延迟升序）
-  dedupedCandidates.sort((a, b) => {
+  // 3. 候选项全局排序：赞助级别 > 可用率 > 延迟
+  pinnedCandidates.sort((a, b) => {
     const aWeight = SPONSOR_WEIGHTS[a.sponsorLevel!] || 0;
     const bWeight = SPONSOR_WEIGHTS[b.sponsorLevel!] || 0;
     if (aWeight !== bWeight) return bWeight - aWeight;
@@ -310,8 +341,40 @@ export function sortMonitorsWithPinning(
     return compareLatency(a.lastCheckLatency, b.lastCheckLatency);
   });
 
-  // 4. 取前 N 个
-  const pinnedItems = dedupedCandidates.slice(0, pinConfig.max_pinned);
+  // 4. 按赞助商分组计算配额并选择置顶项
+  //    同时保留 provider + service 去重规则
+  const pinnedItems: ProcessedMonitorData[] = [];
+  const pinnedBySponsor = new Map<string, number>(); // 每个赞助商已置顶数量
+  const pinnedProviderService = new Set<string>(); // provider+service 去重
+
+  for (const item of pinnedCandidates) {
+    // 全局截断
+    if (pinnedItems.length >= pinConfig.max_pinned) break;
+
+    // 必须有 sponsor 字段才能参与配额计算
+    const sponsorKey = normalizeSponsorKey(item.sponsor);
+    if (!sponsorKey) continue;
+
+    // 使用赞助商的最高等级计算配额（而非当前通道等级）
+    const sponsorLevel = sponsorHighestLevel.get(sponsorKey);
+    if (!sponsorLevel) continue; // 防御性检查：Map 中应该有该赞助商
+
+    const quota = getSponsorQuota(sponsorLevel, serviceCount);
+
+    // 检查配额限制
+    const used = pinnedBySponsor.get(sponsorKey) || 0;
+    if (used >= quota) continue;
+
+    // 检查 provider + service 去重
+    const providerServiceKey = `${item.providerId}|${item.serviceType}`;
+    if (pinnedProviderService.has(providerServiceKey)) continue;
+
+    // 通过所有检查，加入置顶列表
+    pinnedItems.push(item);
+    pinnedBySponsor.set(sponsorKey, used + 1);
+    pinnedProviderService.add(providerServiceKey);
+  }
+
   const pinnedIds = new Set(pinnedItems.map(item => item.id));
 
   // 5. 其余项按可用率降序排序

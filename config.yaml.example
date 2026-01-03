@@ -58,6 +58,8 @@ degraded_weight: 0.7
 sponsor_pin:
   enabled: true           # 是否启用置顶功能（默认 true）
   max_pinned: 3           # 最多置顶数量（默认 3）
+  service_count: 3        # 服务数量（固定配置值，用于按赞助商计算置顶配额；默认 3）
+                          # 配额规则：enterprise=service_count, advanced=max(1,service_count-1), basic=1
   min_uptime: 95.0        # 最低可用率要求（默认 95%）
   min_level: "basic"      # 最低赞助级别：basic/advanced/enterprise（默认 basic）
 

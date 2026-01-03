@@ -53,6 +53,7 @@ export interface BoardsConfig {
 export interface SponsorPinConfig {
   enabled: boolean;
   max_pinned: number;
+  service_count?: number; // 固定配置值：服务数量（用于配额计算；可选以兼容旧后端）
   min_uptime: number;
   min_level: SponsorLevel;
 }

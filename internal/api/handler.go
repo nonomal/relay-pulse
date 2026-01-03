@@ -476,10 +476,11 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		"slow_latency_ms": slowLatencyMs,
 		"enable_badges":   enableBadges,
 		"sponsor_pin": gin.H{
-			"enabled":    sponsorPin.IsEnabled(),
-			"max_pinned": sponsorPin.MaxPinned,
-			"min_uptime": sponsorPin.MinUptime,
-			"min_level":  sponsorPin.MinLevel,
+			"enabled":       sponsorPin.IsEnabled(),
+			"max_pinned":    sponsorPin.MaxPinned,
+			"service_count": sponsorPin.ServiceCount,
+			"min_uptime":    sponsorPin.MinUptime,
+			"min_level":     sponsorPin.MinLevel,
 		},
 		"boards": gin.H{
 			"enabled": boardsEnabled,
