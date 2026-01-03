@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { Clock, ChevronDown, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getTimeFilterPresets, TIME_START_OPTIONS, TIME_END_OPTIONS } from '../constants';
@@ -13,7 +14,9 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
   const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [customMode, setCustomMode] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
 
   // 获取用户时区偏移（分钟），正值表示 UTC 以西，负值表示 UTC 以东
   // 例如 UTC+8 的 offset 是 -480
@@ -111,13 +114,39 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
     setCustomMode(true);
   };
 
+  // 更新菜单位置（基于触发按钮的位置）
+  const updateMenuPosition = useCallback(() => {
+    if (buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 8,  // mt-2 = 8px
+        left: rect.left,
+      });
+    }
+  }, []);
+
+  // 打开时监听滚动/resize 更新位置
+  useEffect(() => {
+    if (!isOpen || disabled) return;
+    updateMenuPosition();
+    window.addEventListener('resize', updateMenuPosition);
+    // capture=true 捕获任意可滚动容器的 scroll 事件
+    window.addEventListener('scroll', updateMenuPosition, true);
+    return () => {
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
+    };
+  }, [isOpen, disabled, updateMenuPosition]);
+
   // 点击外部关闭下拉菜单
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-        setCustomMode(false);
-      }
+      const target = event.target as Node;
+      // 检查是否点击在按钮或菜单内
+      if (buttonRef.current?.contains(target)) return;
+      if (menuRef.current?.contains(target)) return;
+      setIsOpen(false);
+      setCustomMode(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -165,12 +194,30 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
   }, [timezoneOffset]);
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       {/* 触发按钮 */}
       <button
+        ref={buttonRef}
         type="button"
         disabled={disabled}
-        onClick={() => !disabled && setIsOpen(!isOpen)}
+        onClick={() => {
+          if (disabled) return;
+          if (!isOpen) {
+            // 打开前先更新位置，避免初始 (0,0) 闪烁
+            if (buttonRef.current) {
+              const rect = buttonRef.current.getBoundingClientRect();
+              setMenuPosition({
+                top: rect.bottom + 8,
+                left: rect.left,
+              });
+            }
+            setIsOpen(true);
+          } else {
+            // 关闭时重置 customMode
+            setIsOpen(false);
+            setCustomMode(false);
+          }
+        }}
         className={`
           flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium
           transition-all duration-200 whitespace-nowrap
@@ -188,9 +235,13 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
         <ChevronDown className={`w-3.5 h-3.5 transition-transform ${disabled ? 'opacity-0' : ''} ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* 下拉菜单 */}
-      {isOpen && !disabled && (
-        <div className="absolute top-full left-0 mt-2 z-[9999] min-w-[200px] bg-elevated rounded-xl border border-default shadow-xl overflow-hidden">
+      {/* 下拉菜单 - 使用 Portal 渲染到 body，避免被 overflow 裁剪 */}
+      {isOpen && !disabled && createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-[9999] min-w-[200px] bg-elevated rounded-xl border border-default shadow-xl overflow-hidden"
+          style={{ top: menuPosition.top, left: menuPosition.left }}
+        >
           {/* 预设选项 */}
           {!customMode && (
             <div className="py-1">
@@ -302,7 +353,8 @@ export function TimeFilterPicker({ value, disabled = false, onChange }: TimeFilt
               </div>
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

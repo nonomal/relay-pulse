@@ -184,7 +184,7 @@ export function Controls({
         {/* 第二组：操作按钮 + 时间范围（作为整体参与换行，min-w-max 让宽度随内容自适应） */}
         <div className="flex flex-1 min-w-0 min-[960px]:min-w-max items-center gap-2">
           {/* 操作按钮组（移动端隐藏） */}
-          <div className="hidden min-[960px]:flex items-center gap-1.5 bg-surface/60 p-1.5 rounded-2xl overflow-visible flex-shrink-0">
+          <div className="hidden min-[960px]:flex min-[960px]:order-2 min-[960px]:ml-auto items-center gap-1.5 bg-surface/60 p-1.5 rounded-2xl overflow-visible flex-shrink-0">
           {/* 收藏 + 订阅按钮组 */}
           <div className="flex items-center h-8 bg-elevated/50 rounded-lg border border-default/50 overflow-hidden">
             {/* 收藏筛选按钮 */}
@@ -294,8 +294,8 @@ export function Controls({
           />
         </div>
 
-        {/* 时间范围选择（时段筛选移出滚动区域，避免 overflow 裁剪下拉菜单） */}
-        <div className="flex-1 min-w-0 relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md">
+        {/* 时间范围选择 */}
+        <div className="flex-1 min-w-0 min-[960px]:order-1 relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md">
           <div className="flex items-center gap-1">
             {/* 可滚动区域：时间对齐 + 时间范围按钮 */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide min-w-0">
@@ -335,15 +335,15 @@ export function Controls({
                   {range.label}
                 </button>
               ))}
-            </div>
 
-            {/* 时段筛选（仅 7d/30d 有效）- 移出滚动容器避免下拉菜单被 overflow 裁剪 */}
-            <div className="flex-shrink-0">
-              <TimeFilterPicker
-                value={timeFilter}
-                disabled={timeRange === '24h' || timeRange === '90m'}
-                onChange={onTimeFilterChange}
-              />
+              {/* 时段筛选（仅 7d/30d 有效）- 现在在滚动容器内，Portal 确保下拉菜单不被裁剪 */}
+              <div className="flex-shrink-0">
+                <TimeFilterPicker
+                  value={timeFilter}
+                  disabled={timeRange === '24h' || timeRange === '90m'}
+                  onChange={onTimeFilterChange}
+                />
+              </div>
             </div>
           </div>
         </div>
