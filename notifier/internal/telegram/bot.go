@@ -14,6 +14,7 @@ import (
 	"notifier/internal/config"
 	"notifier/internal/screenshot"
 	"notifier/internal/storage"
+	"notifier/internal/validator"
 )
 
 // Bot Telegram Bot
@@ -22,6 +23,7 @@ type Bot struct {
 	cfg               *config.Config
 	storage           storage.Storage
 	screenshotService *screenshot.Service
+	validator         *validator.RelayPulseValidator
 	handlers          map[string]CommandHandler
 
 	mu       sync.Mutex
@@ -36,12 +38,24 @@ type CommandHandler func(ctx context.Context, msg *Message, args string) error
 func NewBot(cfg *config.Config, store storage.Storage) *Bot {
 	client := NewClient(cfg.Telegram.BotToken)
 
+	// 初始化订阅验证器
+	var v *validator.RelayPulseValidator
+	if cfg.RelayPulse.EventsURL != "" {
+		var err error
+		v, err = validator.NewRelayPulseValidator(cfg.RelayPulse.EventsURL)
+		if err != nil {
+			slog.Warn("订阅验证器初始化失败", "error", err)
+			v = nil
+		}
+	}
+
 	b := &Bot{
-		client:   client,
-		cfg:      cfg,
-		storage:  store,
-		handlers: make(map[string]CommandHandler),
-		stopChan: make(chan struct{}),
+		client:    client,
+		cfg:       cfg,
+		storage:   store,
+		validator: v,
+		handlers:  make(map[string]CommandHandler),
+		stopChan:  make(chan struct{}),
 	}
 
 	// 注册命令处理器
@@ -341,7 +355,7 @@ func (b *Bot) handleAdd(ctx context.Context, msg *Message, args string) error {
 		channel = parts[2]
 	}
 
-	// 检查订阅数量
+	// 先检查订阅数量（避免已达上限时仍触发外部 API 请求）
 	count, err := b.storage.CountSubscriptions(ctx, storage.PlatformTelegram, msg.Chat.ID)
 	if err != nil {
 		return err
@@ -355,12 +369,72 @@ func (b *Bot) handleAdd(ctx context.Context, msg *Message, args string) error {
 		return nil
 	}
 
+	// 验证 provider/service/channel 是否存在
+	if b.validator == nil {
+		b.sendReply(ctx, msg.Chat.ID, "当前无法验证订阅（验证服务未配置），为避免订阅无效服务，已拒绝本次订阅。请从网页一键导入收藏。")
+		return nil
+	}
+
+	target, err := b.validator.ValidateAdd(ctx, provider, service, channel)
+	if err != nil {
+		// 转义 HTML 防止注入
+		providerEsc := html.EscapeString(provider)
+		serviceEsc := html.EscapeString(service)
+		channelEsc := html.EscapeString(channel)
+
+		var nf *validator.NotFoundError
+		if errors.As(err, &nf) {
+			switch nf.Level {
+			case validator.NotFoundProvider:
+				b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf(
+					"未找到服务商 <b>%s</b>。\n\n请到 RelayPulse 网页复制正确的 provider/service/channel，或使用网页一键导入收藏。",
+					providerEsc,
+				))
+			case validator.NotFoundService:
+				cands := validator.FormatCandidates(nf.Candidates, "service")
+				if cands != "" {
+					b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf(
+						"未找到 <b>%s / %s</b>。\n\n该服务商下可用的 service 例如：<b>%s</b>（仅显示前 %d 个）。",
+						providerEsc, serviceEsc, html.EscapeString(cands), 8,
+					))
+				} else {
+					b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf(
+						"未找到 <b>%s / %s</b>。\n\n请到 RelayPulse 网页确认 service 是否正确，或使用网页一键导入收藏。",
+						providerEsc, serviceEsc,
+					))
+				}
+			case validator.NotFoundChannel:
+				cands := validator.FormatCandidates(nf.Candidates, "channel")
+				if cands != "" {
+					b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf(
+						"未找到 <b>%s / %s / %s</b>。\n\n该 service 下可用的 channel 例如：<b>%s</b>（仅显示前 %d 个）。\n提示：不填 channel 表示订阅该 service 的所有 channel。",
+						providerEsc, serviceEsc, channelEsc, html.EscapeString(cands), 8,
+					))
+				} else {
+					b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf(
+						"未找到 <b>%s / %s / %s</b>。\n\n提示：不填 channel 表示订阅该 service 的所有 channel。",
+						providerEsc, serviceEsc, channelEsc,
+					))
+				}
+			}
+			return nil
+		}
+
+		var ue *validator.UnavailableError
+		if errors.As(err, &ue) {
+			b.sendReply(ctx, msg.Chat.ID, "当前无法验证订阅（状态服务暂不可用），为避免订阅无效服务，已拒绝本次订阅。请稍后再试，或从网页一键导入收藏。")
+			return nil
+		}
+
+		return err
+	}
+
 	sub := &storage.Subscription{
 		Platform: storage.PlatformTelegram,
 		ChatID:   msg.Chat.ID,
-		Provider: provider,
-		Service:  service,
-		Channel:  channel,
+		Provider: target.Provider,
+		Service:  target.Service,
+		Channel:  target.Channel,
 	}
 
 	if err := b.storage.AddSubscription(ctx, sub); err != nil {
@@ -368,11 +442,11 @@ func (b *Bot) handleAdd(ctx context.Context, msg *Message, args string) error {
 	}
 
 	// 转义 HTML 防止注入
-	providerEsc := html.EscapeString(provider)
-	serviceEsc := html.EscapeString(service)
-	channelEsc := html.EscapeString(channel)
+	providerEsc := html.EscapeString(target.Provider)
+	serviceEsc := html.EscapeString(target.Service)
+	channelEsc := html.EscapeString(target.Channel)
 
-	if channel != "" {
+	if target.Channel != "" {
 		b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf("已订阅 <b>%s / %s / %s</b>", providerEsc, serviceEsc, channelEsc))
 	} else {
 		b.sendReply(ctx, msg.Chat.ID, fmt.Sprintf("已订阅 <b>%s / %s</b>", providerEsc, serviceEsc))

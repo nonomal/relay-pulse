@@ -19,6 +19,7 @@ import (
 
 	"notifier/internal/screenshot"
 	"notifier/internal/storage"
+	"notifier/internal/validator"
 )
 
 // 全局指令关键词
@@ -29,6 +30,7 @@ type Bot struct {
 	client            *Client
 	storage           storage.Storage
 	screenshotService *screenshot.Service
+	validator         *validator.RelayPulseValidator
 
 	maxSubscriptionsPerUser int
 	eventsURL               string
@@ -58,10 +60,22 @@ type Options struct {
 
 // NewBot 创建 QQ Bot
 func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
+	// 初始化订阅验证器
+	var v *validator.RelayPulseValidator
+	if opts.EventsURL != "" {
+		var err error
+		v, err = validator.NewRelayPulseValidator(opts.EventsURL)
+		if err != nil {
+			slog.Warn("订阅验证器初始化失败", "error", err)
+			v = nil
+		}
+	}
+
 	b := &Bot{
 		client:                  client,
 		storage:                 store,
 		screenshotService:       opts.ScreenshotService,
+		validator:               v,
 		maxSubscriptionsPerUser: opts.MaxSubscriptionsPerUser,
 		eventsURL:               opts.EventsURL,
 		callbackSecret:          opts.CallbackSecret,
@@ -484,7 +498,7 @@ func (b *Bot) handleAdd(ctx context.Context, e *OneBotEvent, args string) error 
 		channel = parts[2]
 	}
 
-	// 检查订阅数量限制
+	// 先检查订阅数量限制（避免已达上限时仍触发外部 API 请求）
 	if b.maxSubscriptionsPerUser > 0 {
 		count, err := b.storage.CountSubscriptions(ctx, storage.PlatformQQ, chatID)
 		if err != nil {
@@ -496,21 +510,76 @@ func (b *Bot) handleAdd(ctx context.Context, e *OneBotEvent, args string) error 
 		}
 	}
 
+	// 验证 provider/service/channel 是否存在
+	if b.validator == nil {
+		b.sendReply(ctx, e, "当前无法验证订阅（验证服务未配置），为避免订阅无效服务，已拒绝本次订阅。请从网页一键导入收藏。")
+		return nil
+	}
+
+	target, err := b.validator.ValidateAdd(ctx, provider, service, channel)
+	if err != nil {
+		var nf *validator.NotFoundError
+		if errors.As(err, &nf) {
+			switch nf.Level {
+			case validator.NotFoundProvider:
+				b.sendReply(ctx, e, fmt.Sprintf(
+					"未找到服务商 %s。\n\n请到 RelayPulse 网页复制正确的 provider/service/channel，或使用网页一键导入收藏。",
+					provider,
+				))
+			case validator.NotFoundService:
+				cands := validator.FormatCandidates(nf.Candidates, "service")
+				if cands != "" {
+					b.sendReply(ctx, e, fmt.Sprintf(
+						"未找到 %s / %s。\n\n该服务商下可用的 service 例如：%s（仅显示前 %d 个）。",
+						provider, service, cands, 8,
+					))
+				} else {
+					b.sendReply(ctx, e, fmt.Sprintf(
+						"未找到 %s / %s。\n\n请到 RelayPulse 网页确认 service 是否正确，或使用网页一键导入收藏。",
+						provider, service,
+					))
+				}
+			case validator.NotFoundChannel:
+				cands := validator.FormatCandidates(nf.Candidates, "channel")
+				if cands != "" {
+					b.sendReply(ctx, e, fmt.Sprintf(
+						"未找到 %s / %s / %s。\n\n该 service 下可用的 channel 例如：%s（仅显示前 %d 个）。\n提示：不填 channel 表示订阅该 service 的所有 channel。",
+						provider, service, channel, cands, 8,
+					))
+				} else {
+					b.sendReply(ctx, e, fmt.Sprintf(
+						"未找到 %s / %s / %s。\n\n提示：不填 channel 表示订阅该 service 的所有 channel。",
+						provider, service, channel,
+					))
+				}
+			}
+			return nil
+		}
+
+		var ue *validator.UnavailableError
+		if errors.As(err, &ue) {
+			b.sendReply(ctx, e, "当前无法验证订阅（状态服务暂不可用），为避免订阅无效服务，已拒绝本次订阅。请稍后再试，或从网页一键导入收藏。")
+			return nil
+		}
+
+		return err
+	}
+
 	// 添加订阅
 	if err := b.storage.AddSubscription(ctx, &storage.Subscription{
 		Platform: storage.PlatformQQ,
 		ChatID:   chatID,
-		Provider: provider,
-		Service:  service,
-		Channel:  channel,
+		Provider: target.Provider,
+		Service:  target.Service,
+		Channel:  target.Channel,
 	}); err != nil {
 		return err
 	}
 
-	if channel != "" {
-		b.sendReply(ctx, e, fmt.Sprintf("已订阅 %s / %s / %s", provider, service, channel))
+	if target.Channel != "" {
+		b.sendReply(ctx, e, fmt.Sprintf("已订阅 %s / %s / %s", target.Provider, target.Service, target.Channel))
 	} else {
-		b.sendReply(ctx, e, fmt.Sprintf("已订阅 %s / %s", provider, service))
+		b.sendReply(ctx, e, fmt.Sprintf("已订阅 %s / %s", target.Provider, target.Service))
 	}
 	return nil
 }
