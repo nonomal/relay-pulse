@@ -34,11 +34,12 @@ type TelegramConfig struct {
 
 // QQConfig QQ Bot 配置（OneBot v11 / NapCatQQ）
 type QQConfig struct {
-	Enabled        bool   `yaml:"enabled"`         // 是否启用 QQ 通知
-	OneBotHTTPURL  string `yaml:"onebot_http_url"` // OneBot HTTP API 地址
-	AccessToken    string `yaml:"access_token"`    // OneBot API Token（可选）
-	CallbackPath   string `yaml:"callback_path"`   // 接收上报的路径，默认 /qq/callback
-	CallbackSecret string `yaml:"callback_secret"` // Webhook 签名密钥（可选）
+	Enabled        bool    `yaml:"enabled"`         // 是否启用 QQ 通知
+	OneBotHTTPURL  string  `yaml:"onebot_http_url"` // OneBot HTTP API 地址
+	AccessToken    string  `yaml:"access_token"`    // OneBot API Token（可选）
+	CallbackPath   string  `yaml:"callback_path"`   // 接收上报的路径，默认 /qq/callback
+	CallbackSecret string  `yaml:"callback_secret"` // Webhook 签名密钥（可选）
+	AdminWhitelist []int64 `yaml:"admin_whitelist"` // 管理员白名单 QQ 号（可越权执行管理命令）
 }
 
 // DatabaseConfig 数据库配置

@@ -34,7 +34,8 @@ type Bot struct {
 
 	maxSubscriptionsPerUser int
 	eventsURL               string
-	callbackSecret          string // Webhook 签名密钥
+	callbackSecret          string             // Webhook 签名密钥
+	adminWhitelist          map[int64]struct{} // 管理员白名单（可越权执行管理命令）
 
 	handlers map[string]commandHandler
 
@@ -56,10 +57,20 @@ type Options struct {
 	EventsURL               string
 	CallbackSecret          string              // Webhook 签名密钥（可选）
 	ScreenshotService       *screenshot.Service // 截图服务（可选）
+	AdminWhitelist          []int64             // 管理员白名单 QQ 号（可越权执行管理命令，可选）
 }
 
 // NewBot 创建 QQ Bot
 func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
+	// 初始化管理员白名单（转换为 map 实现 O(1) 查找）
+	adminWhitelist := make(map[int64]struct{}, len(opts.AdminWhitelist))
+	for _, id := range opts.AdminWhitelist {
+		if id <= 0 {
+			continue
+		}
+		adminWhitelist[id] = struct{}{}
+	}
+
 	// 初始化订阅验证器
 	var v *validator.RelayPulseValidator
 	if opts.EventsURL != "" {
@@ -79,6 +90,7 @@ func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
 		maxSubscriptionsPerUser: opts.MaxSubscriptionsPerUser,
 		eventsURL:               opts.EventsURL,
 		callbackSecret:          opts.CallbackSecret,
+		adminWhitelist:          adminWhitelist,
 		handlers:                make(map[string]commandHandler),
 		statusCheckCooldown:     30 * time.Second,
 		lastStatusCheckByGroup:  make(map[int64]time.Time),
@@ -94,6 +106,15 @@ func NewBot(client *Client, store storage.Storage, opts Options) *Bot {
 	b.handlers["snap"] = b.handleSnap
 
 	return b
+}
+
+// isWhitelisted 检查用户是否在管理员白名单中
+func (b *Bot) isWhitelisted(userID int64) bool {
+	if userID <= 0 {
+		return false
+	}
+	_, ok := b.adminWhitelist[userID]
+	return ok
 }
 
 // HandleCallback HTTP 回调处理（接收 OneBot 上报），快速 ACK，异步处理命令
@@ -343,17 +364,22 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 		return
 	}
 
-	// 群消息权限检查
+	// 群消息权限检查：管理命令需群管理员；白名单可越权
 	if e.MessageType == "group" && isAdminOnlyCommand(cmd) {
-		isAdmin, err := b.isGroupAdmin(ctx, e.GroupID, e.UserID)
-		if err != nil {
-			slog.Warn("群管理员校验失败", "group_id", e.GroupID, "user_id", e.UserID, "error", err)
-			b.sendReply(ctx, e, "权限校验失败，请稍后重试。")
-			return
-		}
-		if !isAdmin {
-			b.sendReply(ctx, e, "权限不足：群聊中仅管理员可执行 /add /remove /clear。")
-			return
+		if b.isWhitelisted(e.UserID) {
+			// 审计日志：白名单越权执行管理命令
+			slog.Info("管理员白名单越权执行管理命令", "command", cmd, "group_id", e.GroupID, "user_id", e.UserID)
+		} else {
+			isAdmin, err := b.isGroupAdmin(ctx, e.GroupID, e.UserID)
+			if err != nil {
+				slog.Warn("群管理员校验失败", "group_id", e.GroupID, "user_id", e.UserID, "error", err)
+				b.sendReply(ctx, e, "权限校验失败，请稍后重试。")
+				return
+			}
+			if !isAdmin {
+				b.sendReply(ctx, e, "权限不足：群聊中仅管理员可执行 /add /remove /clear。")
+				return
+			}
 		}
 	}
 

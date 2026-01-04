@@ -24,6 +24,31 @@ telegram:
   # Bot 用户名（用于生成 deeplink）
   bot_username: "RelayPulseBot"
 
+# QQ Bot 配置（OneBot v11 / NapCatQQ）
+qq:
+  # 是否启用 QQ 通知
+  enabled: false
+
+  # OneBot HTTP API 地址
+  # 环境变量: QQ_ONEBOT_HTTP_URL
+  onebot_http_url: ""
+
+  # OneBot API Token（可选）
+  # 环境变量: QQ_ACCESS_TOKEN
+  access_token: ""
+
+  # 接收上报的路径（默认: /qq/callback）
+  callback_path: "/qq/callback"
+
+  # Webhook 签名密钥（可选，建议配置以防止伪造请求）
+  # 环境变量: QQ_CALLBACK_SECRET
+  callback_secret: ""
+
+  # 管理员白名单 QQ 号（可越权执行 /add /remove /clear 命令）
+  # 注意：请谨慎授权，尤其是 /clear 命令会清空所有订阅
+  admin_whitelist: []
+  # 示例: admin_whitelist: [123456789, 987654321]
+
 # 数据库配置
 database:
   # 驱动类型: sqlite 或 postgres（默认: sqlite）

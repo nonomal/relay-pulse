@@ -112,6 +112,7 @@ func main() {
 			EventsURL:               cfg.RelayPulse.EventsURL,
 			CallbackSecret:          cfg.QQ.CallbackSecret,
 			ScreenshotService:       screenshotSvc,
+			AdminWhitelist:          cfg.QQ.AdminWhitelist,
 		})
 
 		// 注册 QQ 回调路由
