@@ -293,6 +293,28 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 					}
 				case "message_delta":
 					finalDelta = obj
+				case "response.output_text.delta":
+					// OpenAI Responses API: {"delta":"pong",...}
+					if text, ok := obj["delta"].(string); ok {
+						fmt.Print(text) // 实时输出
+						aggregate.WriteString(text)
+						if verbose {
+							fmt.Printf("  → text: %q\n", text)
+						}
+					}
+				case "response.output_text.done":
+					// OpenAI Responses API: {"text":"pong",...}
+					if text, ok := obj["text"].(string); ok {
+						// text 是完整文本，通常已经包含在增量中，这里仅作兜底
+						// 如果 aggregate 为空才追加（避免重复）
+						if aggregate.Len() == 0 {
+							fmt.Print(text)
+							aggregate.WriteString(text)
+							if verbose {
+								fmt.Printf("  → text (fallback): %q\n", text)
+							}
+						}
+					}
 				}
 			} else {
 				// 非 JSON payload，按原始文本处理

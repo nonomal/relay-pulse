@@ -334,7 +334,11 @@ func aggregateResponseText(body []byte) string {
 // extractTextFromSSE 从 text/event-stream 风格的响应体中抽取语义文本。
 // 当前支持的模式：
 // - Anthropic: event: content_block_delta + data: {"delta":{"type":"text_delta","text":"..."}}
-// - OpenAI:   data: {"choices":[{"delta":{"content":"..."}}]}
+// - OpenAI Chat: data: {"choices":[{"delta":{"content":"..."}}]}
+// - OpenAI Responses API:
+//   - event: response.output_text.delta + data: {"delta":"..."}（增量）
+//   - event: response.output_text.done + data: {"text":"..."}（完整，兜底）
+//
 // 解析失败时会尽量回退到原始 data 文本。
 func extractTextFromSSE(body []byte) string {
 	scanner := bufio.NewScanner(bytes.NewReader(body))
@@ -379,7 +383,7 @@ func extractTextFromSSE(body []byte) string {
 			}
 		}
 
-		// OpenAI: {"choices":[{"delta":{"content":"..."}}]}
+		// OpenAI Chat: {"choices":[{"delta":{"content":"..."}}]}
 		if choices, ok := obj["choices"].([]any); ok {
 			for _, ch := range choices {
 				chMap, ok := ch.(map[string]any)
@@ -393,6 +397,19 @@ func extractTextFromSSE(body []byte) string {
 				if text, ok := delta["content"].(string); ok {
 					appendText(text)
 				}
+			}
+		}
+
+		// OpenAI Responses API: {"delta":"pong",...} - 顶层 delta 直接是字符串
+		if delta, ok := obj["delta"].(string); ok {
+			appendText(delta)
+		}
+
+		// OpenAI Responses API: {"text":"pong",...} - response.output_text.done 事件
+		// 完整 text 通常已通过增量累积，这里仅作兜底（当 builder 为空时使用）
+		if text, ok := obj["text"].(string); ok {
+			if b.Len() == 0 {
+				appendText(text)
 			}
 		}
 
