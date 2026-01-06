@@ -3,7 +3,10 @@ package scheduler
 import (
 	"container/heap"
 	"context"
+	"fmt"
 	"math/rand"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +23,15 @@ type task struct {
 	interval time.Duration        // 该任务的巡检间隔
 	nextRun  time.Time            // 下次执行时间
 	index    int                  // 在堆中的索引（heap.Interface 需要）
+}
+
+// monitorGroup 表示一个多模型监测组
+// 同一 provider/service/channel 下的多个 model 属于同一组
+// 用于实现组间错峰、组内紧凑的调度策略
+type monitorGroup struct {
+	psc           string // provider/service/channel 组合键
+	monitorIdxs   []int  // 组内监测项在 cfg.Monitors 中的索引（按 layer_order 排序）
+	firstCfgIndex int    // 组内首个监测项的配置索引（用于组间排序）
 }
 
 // taskHeap 按下一次触发时间排序的最小堆
@@ -226,27 +238,54 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		"max_concurrency", maxConcurrency, "total", monitorCount,
 		"disabled", disabledCount, "active", activeCount)
 
-	// 错峰策略计算（基于活跃监测数）
-	useStagger := cfg.ShouldStaggerProbes() && activeCount > 1
-	var baseDelay, jitterRange time.Duration
+	// 构建多模型监测组（按 provider/service/channel 分组）
+	groups := buildMonitorGroups(cfg)
 
-	if useStagger {
+	// 调度策略计算
+	// 组间错峰：将各组均匀分布在巡检周期内（需 stagger_probes 开启且多于 1 组）
+	// 组内紧凑：同一组的模型在 2s 间隔内顺序探测（始终生效）
+	const intraGroupInterval = 2 * time.Second // 组内模型间隔固定 2 秒
+	const minGroupBaseDelay = 5 * time.Second  // 组间最小间隔 5 秒
+
+	// 组间错峰：仅当配置开启且有多个组时生效
+	useInterGroupStagger := cfg.ShouldStaggerProbes() && len(groups) > 1
+	var groupBaseDelay, groupJitterRange time.Duration
+
+	if useInterGroupStagger {
 		if startup {
-			// 启动模式：固定 2 秒间隔，避免瞬时压力
-			baseDelay = 2 * time.Second
-			jitterRange = 400 * time.Millisecond // ±20%
-			logger.Info("scheduler", "启动模式：探测将以固定间隔错峰执行",
-				"base_delay", baseDelay, "jitter", jitterRange)
+			// 启动模式：组间固定 3 秒间隔，避免瞬时压力
+			groupBaseDelay = 3 * time.Second
+			groupJitterRange = 300 * time.Millisecond // ±10%
+			logger.Info("scheduler", "启动模式：探测将按组错峰执行",
+				"group_count", len(groups), "group_base_delay", groupBaseDelay,
+				"intra_group_interval", intraGroupInterval)
 		} else {
-			// 热更新模式：基于最小 interval 计算错峰
+			// 热更新模式：基于最小 interval 计算组间错峰
 			minInterval := s.findMinInterval(cfg)
 			if minInterval > 0 {
-				baseDelay = minInterval / time.Duration(activeCount)
-				jitterRange = baseDelay / 5 // ±20%
-				logger.Info("scheduler", "探测将错峰执行",
-					"base_delay", baseDelay, "jitter", jitterRange)
+				groupBaseDelay = minInterval / time.Duration(len(groups))
+				// 确保组间最小间隔
+				if groupBaseDelay < minGroupBaseDelay {
+					groupBaseDelay = minGroupBaseDelay
+				}
+				groupJitterRange = groupBaseDelay / 20 // ±5%
+				logger.Info("scheduler", "探测将按组错峰执行",
+					"group_count", len(groups), "group_base_delay", groupBaseDelay,
+					"intra_group_interval", intraGroupInterval)
 			} else {
-				useStagger = false
+				useInterGroupStagger = false
+			}
+		}
+	}
+
+	// 检查组内展开宽度是否超过组间间隔（仅警告，不影响正确性）
+	if useInterGroupStagger {
+		for _, g := range groups {
+			intraGroupWidth := time.Duration(len(g.monitorIdxs)-1) * intraGroupInterval
+			if intraGroupWidth > groupBaseDelay && len(g.monitorIdxs) > 1 {
+				logger.Warn("scheduler", "组内展开宽度超过组间间隔，可能导致组间重叠",
+					"psc", g.psc, "models", len(g.monitorIdxs),
+					"intra_group_width", intraGroupWidth, "group_base_delay", groupBaseDelay)
 			}
 		}
 	}
@@ -256,37 +295,39 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	heap.Init(&s.tasks)
 	now := time.Now()
 
-	activeIdx := 0 // 独立的活跃索引，用于错峰计算
-	for _, m := range cfg.Monitors {
-		// 跳过已禁用的监测项（不探测、不存储）
-		if m.Disabled {
-			continue
+	// 按组遍历，实现组间错峰、组内紧凑
+	for groupIdx, group := range groups {
+		// 计算组的起始延迟（组间错峰 + 组级抖动）
+		var groupDelay time.Duration
+		if useInterGroupStagger {
+			groupDelay = computeStaggerDelay(groupBaseDelay, groupJitterRange, groupIdx)
 		}
 
-		// 跳过冷板项：启用 boards 后不探测（仅展示历史数据）
-		if cfg.Boards.Enabled && m.Board == "cold" {
-			continue
-		}
+		// 遍历组内监测项（按 layer_order 排序：父层优先）
+		for intraIdx, monitorIdx := range group.monitorIdxs {
+			m := cfg.Monitors[monitorIdx]
 
-		// 使用监测项自己的 interval，为空则使用全局 fallback
-		interval := m.IntervalDuration
-		if interval == 0 {
-			interval = s.fallback
-		}
+			// 使用监测项自己的 interval，为空则使用全局 fallback
+			interval := m.IntervalDuration
+			if interval == 0 {
+				interval = s.fallback
+			}
 
-		// 计算首次执行时间（考虑错峰）
-		nextRun := now
-		if useStagger {
-			delay := computeStaggerDelay(baseDelay, jitterRange, activeIdx)
-			nextRun = now.Add(delay)
-		}
+			// 计算首次执行时间
+			// 组内紧凑：始终生效，组内模型按 2s 间隔顺序探测
+			// 组间错峰：仅当开启时应用组级延迟
+			intraDelay := time.Duration(intraIdx) * intraGroupInterval
+			nextRun := now.Add(intraDelay)
+			if useInterGroupStagger {
+				nextRun = now.Add(groupDelay + intraDelay)
+			}
 
-		heap.Push(&s.tasks, &task{
-			monitor:  m,
-			interval: interval,
-			nextRun:  nextRun,
-		})
-		activeIdx++
+			heap.Push(&s.tasks, &task{
+				monitor:  m,
+				interval: interval,
+				nextRun:  nextRun,
+			})
+		}
 	}
 
 	s.resetTimerLocked()
@@ -310,6 +351,96 @@ func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
 		}
 	}
 	return minInterval
+}
+
+// buildMonitorGroups 按 provider/service/channel 分组监测项
+// 返回分组列表，组内按 layer_order 排序（父层优先），组间按首个配置索引排序
+// 仅包含活跃监测项（跳过 disabled 和 cold board）
+func buildMonitorGroups(cfg *config.AppConfig) []monitorGroup {
+	if len(cfg.Monitors) == 0 {
+		return nil
+	}
+
+	// 临时结构：收集每个 PSC 下的监测项索引
+	type pscEntry struct {
+		idxs          []int
+		firstCfgIndex int
+	}
+	pscMap := make(map[string]*pscEntry)
+
+	for i, m := range cfg.Monitors {
+		// 跳过已禁用的监测项
+		if m.Disabled {
+			continue
+		}
+		// 跳过冷板项（启用 boards 功能时）
+		if cfg.Boards.Enabled && m.Board == "cold" {
+			continue
+		}
+
+		// 构建 PSC 键
+		psc := fmt.Sprintf("%s/%s/%s", m.Provider, m.Service, m.Channel)
+
+		entry, exists := pscMap[psc]
+		if !exists {
+			entry = &pscEntry{
+				idxs:          make([]int, 0, 4), // 预分配，大多数组 ≤4 个模型
+				firstCfgIndex: i,
+			}
+			pscMap[psc] = entry
+		}
+		entry.idxs = append(entry.idxs, i)
+	}
+
+	if len(pscMap) == 0 {
+		return nil
+	}
+
+	// 构建分组列表
+	groups := make([]monitorGroup, 0, len(pscMap))
+	for psc, entry := range pscMap {
+		// 组内排序：按 layer_order（父层优先），相同时按配置索引
+		// 父层 (Parent="") 的 layer_order 隐式为 0
+		idxsCopy := make([]int, len(entry.idxs))
+		copy(idxsCopy, entry.idxs)
+
+		sort.SliceStable(idxsCopy, func(a, b int) bool {
+			ma := &cfg.Monitors[idxsCopy[a]]
+			mb := &cfg.Monitors[idxsCopy[b]]
+
+			// 排序优先级：父层(0) < 子层(1)，相同层级按配置索引
+			orderA := computeLayerOrder(ma)
+			orderB := computeLayerOrder(mb)
+
+			if orderA != orderB {
+				return orderA < orderB
+			}
+			return idxsCopy[a] < idxsCopy[b]
+		})
+
+		groups = append(groups, monitorGroup{
+			psc:           psc,
+			monitorIdxs:   idxsCopy,
+			firstCfgIndex: entry.firstCfgIndex,
+		})
+	}
+
+	// 组间排序：按首个配置索引升序（确保确定性顺序）
+	sort.SliceStable(groups, func(i, j int) bool {
+		return groups[i].firstCfgIndex < groups[j].firstCfgIndex
+	})
+
+	return groups
+}
+
+// computeLayerOrder 计算监测项的父/子层优先级
+// 父层（Parent=""）返回 0，子层（有 Parent）返回 1
+// 用于组内排序，确保父层优先调度
+func computeLayerOrder(m *config.ServiceConfig) int {
+	if strings.TrimSpace(m.Parent) == "" {
+		return 0 // 父层
+	}
+	return 1 // 子层
 }
 
 // loop 调度主循环
@@ -480,7 +611,8 @@ func (s *Scheduler) notifyWakeLocked() {
 }
 
 // computeStaggerDelay 计算错峰延迟时间
-// 基准延迟 + 随机抖动（±20%）
+// 基准延迟 = baseDelay * index
+// 抖动范围由调用方指定（通常为启动模式 ±10%，热更新模式 ±5%）
 // 注意：使用全局 rand（Go 1.20+ 并发安全）
 func computeStaggerDelay(baseDelay, jitterRange time.Duration, index int) time.Duration {
 	delay := baseDelay * time.Duration(index)
