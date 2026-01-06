@@ -141,7 +141,62 @@ function mergeStatusCounts(points: Array<{ status_counts?: StatusCounts }>): Sta
   return merged;
 }
 
+type LayerTimelinePoint = NonNullable<MonitorLayer['timeline']>[number];
+
+// 估算时间轴相邻点间隔（秒），用于推导时间戳对齐容差
+function estimateTimelineStepSeconds(timeline: Array<{ timestamp: number }>): number {
+  const deltas: number[] = [];
+  for (let i = 1; i < timeline.length; i += 1) {
+    const delta = Math.abs(timeline[i].timestamp - timeline[i - 1].timestamp);
+    if (delta > 0) deltas.push(delta);
+    if (deltas.length >= 10) break;
+  }
+  if (deltas.length === 0) return 60;
+  deltas.sort((a, b) => a - b);
+  return deltas[Math.floor(deltas.length / 2)];
+}
+
+// 在已按 timestamp 升序的 timeline 中，查找与目标时间戳最接近且在容差内的点（秒级）
+function findClosestPointByTimestamp(
+  sortedTimeline: LayerTimelinePoint[],
+  targetTimestamp: number,
+  toleranceSeconds: number
+): LayerTimelinePoint | undefined {
+  if (sortedTimeline.length === 0) return undefined;
+
+  // 二分查找：找到第一个 timestamp >= targetTimestamp 的位置
+  let left = 0;
+  let right = sortedTimeline.length;
+  while (left < right) {
+    const mid = (left + right) >> 1;
+    if (sortedTimeline[mid].timestamp < targetTimestamp) {
+      left = mid + 1;
+    } else {
+      right = mid;
+    }
+  }
+
+  // 候选点：当前位置和前一个位置
+  const candidates: LayerTimelinePoint[] = [];
+  if (left < sortedTimeline.length) candidates.push(sortedTimeline[left]);
+  if (left - 1 >= 0) candidates.push(sortedTimeline[left - 1]);
+
+  // 找到时间差最小的点
+  let best: LayerTimelinePoint | undefined;
+  let bestDiff = Number.POSITIVE_INFINITY;
+  candidates.forEach((p) => {
+    const diff = Math.abs(p.timestamp - targetTimestamp);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = p;
+    }
+  });
+
+  return best && bestDiff <= toleranceSeconds ? best : undefined;
+}
+
 // 从多个层构建综合时间轴（每个时间点取最差状态）
+// 使用时间戳对齐而非索引对齐，解决多模型组因配置变更导致的 timeline 长度不一致问题
 function buildCompositeTimelineFromLayers(
   layers: MonitorLayer[]
 ): Array<{
@@ -159,12 +214,35 @@ function buildCompositeTimelineFromLayers(
   const baseTimeline = baseLayer.timeline ?? [];
   if (baseTimeline.length === 0) return [];
 
+  // 计算时间戳对齐容差：默认取步长一半，最小 3s（覆盖 2s 组内间隔），最大 15s
+  const baseStepSeconds = estimateTimelineStepSeconds(baseTimeline);
+  const toleranceSeconds = Math.max(3, Math.min(15, Math.floor(baseStepSeconds / 2)));
+
+  // 预排序各层 timeline，便于按时间戳做二分查找
+  // 优化：先检查是否已升序，避免不必要的排序（后端通常已按时间升序返回）
+  const sortedLayerTimelines = layers.map((layer) => {
+    const timeline = layer.timeline ?? [];
+    // 检查是否已升序
+    let isSorted = true;
+    for (let i = 1; i < timeline.length && isSorted; i++) {
+      if (timeline[i].timestamp < timeline[i - 1].timestamp) {
+        isSorted = false;
+      }
+    }
+    return {
+      layer_order: layer.layer_order,
+      timeline: isSorted ? timeline : timeline.slice().sort((a, b) => a.timestamp - b.timestamp),
+    };
+  });
+
   // 对每个时间点，计算所有层的综合状态
-  return baseTimeline.map((basePoint, index) => {
-    // 收集所有层在该索引位置的数据点
-    const points = layers
-      .map((layer) => layer.timeline[index])
-      .filter((p): p is NonNullable<typeof p> => Boolean(p));
+  return baseTimeline.map((basePoint) => {
+    const targetTimestamp = basePoint.timestamp;
+
+    // 按时间戳对齐：对每层取与 targetTimestamp 最接近且在容差内的点
+    const points = sortedLayerTimelines
+      .map(({ timeline }) => findClosestPointByTimestamp(timeline, targetTimestamp, toleranceSeconds))
+      .filter((p): p is LayerTimelinePoint => Boolean(p));
 
     // 计算最差状态
     let worstStatus = -1;

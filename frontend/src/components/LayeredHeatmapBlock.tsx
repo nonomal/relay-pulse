@@ -5,6 +5,52 @@ import { STATUS_MAP } from '../types';
 import { availabilityToStyle } from '../utils/color';
 
 type HeatmapPoint = ProcessedMonitorData['history'][number];
+type LayerTimelinePoint = NonNullable<MonitorLayer['timeline']>[number];
+
+// 时间戳对齐容差（秒）：覆盖 2s 组内间隔 + 少量调度/网络抖动
+const TIMELINE_ALIGN_TOLERANCE_SECONDS = 5;
+
+// 在 timeline 中查找与目标时间戳最接近且在容差内的点
+// 返回 undefined 表示没有找到匹配的点（显示为灰色）
+// 使用二分查找优化性能：O(log n) 而非 O(n)
+function findClosestPointByTimestamp(
+  timeline: LayerTimelinePoint[],
+  targetTimestamp: number,
+  toleranceSeconds: number
+): LayerTimelinePoint | undefined {
+  if (timeline.length === 0) return undefined;
+
+  // 二分查找：假设 timeline 按 timestamp 升序排列
+  let lo = 0;
+  let hi = timeline.length - 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    const ts = timeline[mid].timestamp;
+    if (ts === targetTimestamp) return timeline[mid];
+    if (ts < targetTimestamp) lo = mid + 1;
+    else hi = mid - 1;
+  }
+
+  // lo 是第一个 > target 的位置，hi 是最后一个 < target 的位置
+  // 只需比较两侧邻居
+  let best: LayerTimelinePoint | undefined;
+  let bestDiff = Number.POSITIVE_INFINITY;
+
+  const consider = (i: number) => {
+    if (i < 0 || i >= timeline.length) return;
+    const p = timeline[i];
+    const diff = Math.abs(p.timestamp - targetTimestamp);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = p;
+    }
+  };
+
+  consider(hi);
+  consider(lo);
+
+  return bestDiff <= toleranceSeconds ? best : undefined;
+}
 
 interface LayeredHeatmapBlockProps {
   /** 所有层的数据 */
@@ -72,7 +118,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
   // 注意：必须在条件返回前调用所有 Hooks
   const referenceTimePoint = useMemo(() => {
     for (const l of sortedLayers) {
-      const p = l.timeline[timeIndex];
+      const p = l.timeline?.[timeIndex];
       if (p) return p;
     }
     return undefined;
@@ -97,8 +143,16 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
 
   // 将时间点数据转换为 HeatmapPoint 格式
   // 当该层缺少数据时，返回占位点（availability=-1 -> 灰色）而不是 null
+  // 使用时间戳对齐而非索引访问，解决多模型组因探测时间不同导致的 timeline 长度不一致问题
   const convertToHeatmapPoint = (layer: MonitorLayer, index: number): HeatmapPoint => {
-    const ownTimePoint = layer.timeline[index];
+    // 获取目标时间戳：从参考时间点获取，用于在其他层中按时间戳查找
+    const targetTimestamp = referenceTimePoint?.timestamp;
+
+    // 使用时间戳对齐查找：优先按时间戳匹配，回退到索引访问
+    const ownTimePoint = targetTimestamp != null
+      ? findClosestPointByTimestamp(layer.timeline ?? [], targetTimestamp, TIMELINE_ALIGN_TOLERANCE_SECONDS)
+      : layer.timeline?.[index];
+
     const timePointForTimestamp = ownTimePoint ?? referenceTimePoint;
 
     // 极端兜底：所有层都没有该 index（理论上不该发生）
