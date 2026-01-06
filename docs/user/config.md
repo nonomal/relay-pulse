@@ -782,6 +782,73 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 - **说明**: 业务通道标识（用于区分同一服务的不同渠道）
 - **示例**: `"vip"`, `"free"`, `"premium"`
 
+##### `model`
+- **类型**: string
+- **说明**: 模型名称，用于多模型监测组功能
+- **使用场景**:
+  - 同一个 `provider + service + channel` 下监测多个不同模型
+  - 需要配合 `parent` 字段使用以建立父子关系
+- **约束**:
+  - 同一 `provider + service + channel + model` 组合必须唯一
+  - 如果配置了 `parent`，则 `model` 为必填
+- **示例**: `"claude-sonnet-4-20250514"`, `"gpt-4o"`
+
+##### `parent`
+- **类型**: string
+- **说明**: 父通道引用，格式为 `provider/service/channel`，用于建立父子继承关系
+- **继承内容**:
+  - `url` - 探测端点 URL
+  - `method` - HTTP 请求方法
+  - `headers` - 请求头（子通道可追加或覆盖）
+  - `body` - 请求体
+  - `success_contains` - 响应校验关键字
+  - `api_key` - API 密钥
+  - `slow_latency` - 慢请求阈值
+  - `timeout` - 超时时间
+- **约束**:
+  - 父通道必须存在且配置了 `model` 字段
+  - 不允许循环引用
+  - 同一 `provider/service/channel` 下只能有一个父层（`parent` 为空且 `model` 非空的项）
+- **示例**: `"88code/cc/vip"`
+
+##### 多模型监测组配置示例
+
+```yaml
+# 父通道：定义公共配置
+- provider: "88code"
+  service: "cc"
+  channel: "vip"
+  model: "claude-sonnet-4-20250514"  # 父层必须配置 model
+  category: "commercial"
+  sponsor: "团队"
+  url: "https://api.88code.com/v1/chat/completions"
+  method: "POST"
+  headers:
+    Authorization: "Bearer {{API_KEY}}"
+    Content-Type: "application/json"
+  body: |
+    {"model": "claude-sonnet-4-20250514", "messages": [{"role": "user", "content": "hi"}]}
+  success_contains: "content"
+
+# 子通道：继承父通道配置，只需指定差异部分
+- provider: "88code"
+  service: "cc"
+  channel: "vip"
+  model: "claude-opus-4-20250514"
+  parent: "88code/cc/vip"  # 引用父通道
+  category: "commercial"
+  sponsor: "团队"
+  # url/method/headers 自动继承，只覆盖 body 中的 model
+  body: |
+    {"model": "claude-opus-4-20250514", "messages": [{"role": "user", "content": "hi"}]}
+```
+
+**前端显示**：
+- 多模型监测组会在热力图左侧显示 `!` 标记
+- 热力图采用垂直分层显示，父层在上，子层在下
+- 组级状态取所有层的最差状态（红 > 黄 > 绿）
+- 组级可用率取所有层的最小值
+
 ##### `price_min`
 - **类型**: number（可选）
 - **说明**: 服务商声明的参考倍率下限
