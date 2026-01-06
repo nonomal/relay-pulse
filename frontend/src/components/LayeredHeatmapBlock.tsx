@@ -130,11 +130,12 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
   }
 
   // 提取高度数值（如 'h-5' → 5 → 1.25rem → 20px）
-  // Tailwind h-5 = 1.25rem = 20px，h-8 = 2rem = 32px
+  // Tailwind h-5 = 1.25rem = 20px，h-8 = 2rem = 32px，h-10 = 2.5rem = 40px
   const heightMap: Record<string, number> = {
     'h-full': 20, // 默认 20px
     'h-5': 20,
     'h-8': 32,
+    'h-10': 40,
   };
   const totalHeightPx = heightMap[height] || 20;
   const gapPx = 2; // 层间间隙 2px
@@ -215,19 +216,21 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
 
   return (
     <div
-      className="flex flex-col rounded-sm overflow-hidden"
-      style={{ width }}
+      className="flex flex-col overflow-hidden"
+      style={{ width, height: `${totalHeightPx}px` }}
     >
       {sortedLayers.map((layer, layerIdx) => {
         const point = convertToHeatmapPoint(layer, timeIndex);
         const availabilityStyle = availabilityToStyle(point.availability);
+        const isFirst = layerIdx === 0;
+        const isLast = layerIdx === sortedLayers.length - 1;
 
         return (
           <div
             key={`${layer.model}-${layer.layer_order}`}
             role="button"
             tabIndex={0}
-            className="transition-all duration-200 hover:brightness-110 active:brightness-105 cursor-pointer opacity-80 hover:opacity-100 active:opacity-100 relative hover:z-10"
+            className={`transition-all duration-200 hover:brightness-110 active:brightness-105 cursor-pointer opacity-80 hover:opacity-100 active:opacity-100 relative hover:z-10 ${isFirst ? 'rounded-t-sm' : ''} ${isLast ? 'rounded-b-sm' : ''}`}
             style={{
               height: `${layerHeightPx}px`,
               ...availabilityStyle,

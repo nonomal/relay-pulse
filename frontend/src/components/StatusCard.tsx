@@ -3,6 +3,7 @@ import { Activity, Clock, Zap, Shield } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
+import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { FavoriteButton } from './FavoriteButton';
 import { getStatusConfig, getTimeRanges } from '../constants';
@@ -200,21 +201,41 @@ function StatusCardComponent({
           </span>
           <span>{t('common.now')}</span>
         </div>
-        <div className="flex gap-[3px] h-10 w-full">
-          {aggregatedHistory.map((point, idx) => (
-            <HeatmapBlock
-              key={idx}
-              point={point}
-              width={`${100 / aggregatedHistory.length}%`}
-              onHover={onBlockHover}
-              onLeave={onBlockLeave}
-              isMobile={false}
-            />
-          ))}
+        {/* 多模型 vs 单模型热力图（与表格视图一致） */}
+        <div className={`flex gap-[2px] w-full overflow-hidden rounded-sm ${item.isMultiModel && item.layers ? 'h-10' : 'h-10'}`}>
+          {item.isMultiModel && item.layers ? (
+            // 多模型：垂直分层热力图（使用原始 history 长度，不聚合）
+            item.history.map((_, idx) => (
+              <LayeredHeatmapBlock
+                key={idx}
+                layers={item.layers!}
+                timeIndex={idx}
+                width={`${100 / item.history.length}%`}
+                height="h-10"
+                onHover={onBlockHover}
+                onLeave={onBlockLeave}
+                isMobile={false}
+                slowLatencyMs={item.slowLatencyMs ?? slowLatencyMs}
+              />
+            ))
+          ) : (
+            // 单模型：传统热力图（聚合后）
+            aggregatedHistory.map((point, idx) => (
+              <HeatmapBlock
+                key={idx}
+                point={point}
+                width={`${100 / aggregatedHistory.length}%`}
+                height="h-10"
+                onHover={onBlockHover}
+                onLeave={onBlockLeave}
+                isMobile={false}
+              />
+            ))
+          )}
         </div>
 
-        {/* 移动端提示：点击查看详情 */}
-        {aggregatedHistory.length < item.history.length && (
+        {/* 移动端提示：点击查看详情（仅单模型聚合时显示） */}
+        {!item.isMultiModel && aggregatedHistory.length < item.history.length && (
           <div className="mt-2 text-[10px] text-muted text-center sm:hidden">
             {t('table.heatmapHint', { from: item.history.length, to: aggregatedHistory.length })}
           </div>
