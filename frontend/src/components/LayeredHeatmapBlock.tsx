@@ -59,7 +59,9 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
     'h-8': 32,
   };
   const totalHeightPx = heightMap[height] || 20;
-  const layerHeightPx = totalHeightPx / sortedLayers.length;
+  const gapPx = 2; // 层间间隙 2px
+  const totalGapPx = (sortedLayers.length - 1) * gapPx;
+  const layerHeightPx = (totalHeightPx - totalGapPx) / sortedLayers.length;
 
   // 将时间点数据转换为 HeatmapPoint 格式
   const convertToHeatmapPoint = (layer: MonitorLayer, index: number): HeatmapPoint | null => {
@@ -122,10 +124,8 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
             style={{
               height: `${layerHeightPx}px`,
               ...availabilityStyle,
-              // 层间细微分隔（1px 深色边框，所有非第一层）
-              ...(layerIdx > 0
-                ? { borderTop: '1px solid rgba(0, 0, 0, 0.1)' }
-                : {}),
+              // 层间间隙（非第一层加 marginTop，兼容 Safari ≤13）
+              ...(layerIdx > 0 ? { marginTop: `${gapPx}px` } : {}),
             }}
             // 鼠标事件（仅桌面端）
             onMouseEnter={isMobile ? undefined : (e) => {
