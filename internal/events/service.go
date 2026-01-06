@@ -14,7 +14,7 @@ type Service struct {
 	detector *Detector
 	storage  storage.Storage
 	enabled  bool
-	locks    sync.Map // key(provider/service/channel) -> *sync.Mutex，防止同一监测项并发处理导致状态机错乱
+	locks    sync.Map // key(provider/service/channel/model) -> *sync.Mutex，防止同一监测项并发处理导致状态机错乱
 }
 
 // NewService 创建事件服务
@@ -43,8 +43,8 @@ func (s *Service) IsEnabled() bool {
 }
 
 // lockFor 获取指定监测项的锁
-func (s *Service) lockFor(provider, service, channel string) *sync.Mutex {
-	key := provider + "\n" + service + "\n" + channel
+func (s *Service) lockFor(provider, service, channel, model string) *sync.Mutex {
+	key := provider + "\n" + service + "\n" + channel + "\n" + model
 	v, _ := s.locks.LoadOrStore(key, &sync.Mutex{})
 	return v.(*sync.Mutex)
 }
@@ -65,15 +65,15 @@ func (s *Service) ProcessRecord(record *storage.ProbeRecord) (*StatusEvent, erro
 	// 同一监测项串行化：否则 Scheduler 允许同任务重叠时，会出现：
 	// - 两个 goroutine 读到同一个 prev，重复触发事件
 	// - last_record_id 倒退/覆盖，导致 streak 计算错误
-	mu := s.lockFor(record.Provider, record.Service, record.Channel)
+	mu := s.lockFor(record.Provider, record.Service, record.Channel, record.Model)
 	mu.Lock()
 	defer mu.Unlock()
 
 	// 获取当前状态
-	prev, err := s.storage.GetServiceState(record.Provider, record.Service, record.Channel)
+	prev, err := s.storage.GetServiceState(record.Provider, record.Service, record.Channel, record.Model)
 	if err != nil {
 		logger.Error("events", "获取服务状态失败",
-			"provider", record.Provider, "service", record.Service, "channel", record.Channel,
+			"provider", record.Provider, "service", record.Service, "channel", record.Channel, "model", record.Model,
 			"error", err)
 		return nil, err
 	}

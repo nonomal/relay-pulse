@@ -237,20 +237,48 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 				default:
 				}
 
-				// 获取最新探测记录
-				latest, err := store.GetLatest(target.provider, target.service, ch.name)
-				if err != nil {
-					return nil, fmt.Errorf("查询失败(provider=%s service=%s channel=%s): %w",
-						target.provider, target.service, ch.name, err)
+				// 聚合该 channel 下的所有 model，取最差状态
+				worstStatus := -1
+				var worstRecord *storage.ProbeRecord
+				for _, model := range ch.models {
+					// 检查 context 是否已取消
+					select {
+					case <-ctx.Done():
+						return nil, fmt.Errorf("查询超时或取消: %w", ctx.Err())
+					default:
+					}
+
+					latest, err := store.GetLatest(target.provider, target.service, ch.name, model)
+					if err != nil {
+						return nil, fmt.Errorf("查询失败(provider=%s service=%s channel=%s model=%s): %w",
+							target.provider, target.service, ch.name, model, err)
+					}
+
+					status := -1
+					if latest != nil {
+						status = latest.Status
+					}
+
+					newWorst := pickWorstStatus(worstStatus, status)
+					if newWorst != worstStatus {
+						worstStatus = newWorst
+						worstRecord = latest
+						continue
+					}
+
+					// 同一严重程度时，优先选择更新时间更近的记录作为展示信息
+					if latest != nil && worstRecord != nil && latest.Status == worstRecord.Status && latest.Timestamp > worstRecord.Timestamp {
+						worstRecord = latest
+					}
 				}
 
 				chResult := StatusQueryChannel{
 					Name:   ch.name, // 返回原始标识
-					Status: probeStatusToString(latest),
+					Status: statusIntToString(worstStatus),
 				}
-				if latest != nil {
-					chResult.LatencyMs = latest.Latency
-					chResult.UpdatedAt = time.Unix(latest.Timestamp, 0).UTC().Format(time.RFC3339)
+				if worstRecord != nil {
+					chResult.LatencyMs = worstRecord.Latency
+					chResult.UpdatedAt = time.Unix(worstRecord.Timestamp, 0).UTC().Format(time.RFC3339)
 				}
 				channelResults = append(channelResults, chResult)
 			}
@@ -281,7 +309,8 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 
 // channelInfo 通道信息（内部使用）
 type channelInfo struct {
-	name string // 原始配置值（用于数据库查询和 API 返回）
+	name   string   // 原始配置值（用于数据库查询和 API 返回）
+	models []string // 该 channel 下的所有 model（原始配置值）
 }
 
 // serviceTarget 服务目标（内部使用）
@@ -338,19 +367,41 @@ func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]servi
 		}
 	}
 
-	// 第四步：为每个 service 展开 channel
+	// 第四步：为每个 service 展开 channel（并聚合每个 channel 的 models）
 	var targets []serviceTarget
 	for _, svcLower := range targetServices {
 		svcConfigs := serviceMap[svcLower]
 
-		// 收集该 service 下的 channel
-		channelMap := make(map[string]channelInfo) // key: lowercase channel
+		// 收集该 service 下的 channel（并聚合每个 channel 的 models）
+		channelMap := make(map[string]*channelInfo)             // key: lowercase channel
+		modelSetByChannel := make(map[string]map[string]string) // chLower -> modelLower -> original model
 		for _, m := range svcConfigs {
 			chLower := strings.ToLower(strings.TrimSpace(m.Channel))
 			if _, ok := channelMap[chLower]; !ok {
-				channelMap[chLower] = channelInfo{
+				channelMap[chLower] = &channelInfo{
 					name: m.Channel,
 				}
+			}
+
+			modelLower := strings.ToLower(strings.TrimSpace(m.Model))
+			if _, ok := modelSetByChannel[chLower]; !ok {
+				modelSetByChannel[chLower] = make(map[string]string)
+			}
+			if _, ok := modelSetByChannel[chLower][modelLower]; !ok {
+				modelSetByChannel[chLower][modelLower] = strings.TrimSpace(m.Model)
+			}
+		}
+
+		// 为每个 channel 填充 models 列表
+		for chLower, ch := range channelMap {
+			for _, model := range modelSetByChannel[chLower] {
+				ch.models = append(ch.models, model)
+			}
+			if len(ch.models) == 0 {
+				// 兼容旧数据：model 为空时使用空字符串查询
+				ch.models = []string{""}
+			} else {
+				sort.Strings(ch.models)
 			}
 		}
 
@@ -361,10 +412,10 @@ func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]servi
 			if !ok {
 				return nil, &StatusQueryErrorObject{Code: "NOT_FOUND", Message: "channel 不存在"}
 			}
-			channels = []channelInfo{ch}
+			channels = []channelInfo{*ch}
 		} else {
 			for _, ch := range channelMap {
-				channels = append(channels, ch)
+				channels = append(channels, *ch)
 			}
 		}
 
@@ -378,13 +429,10 @@ func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]servi
 	return targets, nil
 }
 
-// probeStatusToString 将探测状态码转换为字符串
-// 无数据时返回 "down"（符合 API 规范：只允许 up/down/degraded）
-func probeStatusToString(latest *storage.ProbeRecord) string {
-	if latest == nil {
-		return "down"
-	}
-	switch latest.Status {
+// statusIntToString 将状态码转换为字符串
+// 无数据/缺失（-1）时返回 "down"（符合 API 规范：只允许 up/down/degraded）
+func statusIntToString(status int) string {
+	switch status {
 	case 1:
 		return "up"
 	case 2:

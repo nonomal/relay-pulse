@@ -101,6 +101,7 @@ func (s *PostgresStorage) Init() error {
 		provider TEXT NOT NULL,
 		service TEXT NOT NULL,
 		channel TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
 		status INTEGER NOT NULL,
 		sub_status TEXT NOT NULL DEFAULT '',
 		latency INTEGER NOT NULL,
@@ -123,12 +124,15 @@ func (s *PostgresStorage) Init() error {
 	if err := s.ensureHttpCodeColumn(); err != nil {
 		return err
 	}
+	if err := s.ensureModelColumn(); err != nil {
+		return err
+	}
 
 	// 在列迁移完成后创建索引
 	//
 	// 索引设计说明：
 	// - 覆盖索引专为核心查询优化：GetLatest() 和 GetHistory()
-	// - 所有业务查询都包含完整的 (provider, service, channel) 等值条件
+	// - 所有业务查询都包含完整的 (provider, service, channel, model) 等值条件
 	// - timestamp DESC 支持时间范围查询和排序，避免额外排序开销
 	// - INCLUDE 子句包含查询所需的大部分字段，减少回表开销
 	// - 列顺序遵循 B-Tree 最佳实践：等值列在前，范围/排序列在后
@@ -142,9 +146,12 @@ func (s *PostgresStorage) Init() error {
 	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
 	//
 	// 性能验证：EXPLAIN ANALYZE SELECT ... WHERE provider=? AND service=? AND channel=? AND timestamp>=?
+	if _, err := s.pool.Exec(ctx, `DROP INDEX IF EXISTS idx_probe_history_psc_ts_cover`); err != nil {
+		return fmt.Errorf("删除旧覆盖索引失败: %w", err)
+	}
 	indexSQL := `
-	CREATE INDEX IF NOT EXISTS idx_probe_history_psc_ts_cover
-	ON probe_history (provider, service, channel, timestamp DESC)
+	CREATE INDEX IF NOT EXISTS idx_probe_history_pscm_ts_cover
+	ON probe_history (provider, service, channel, model, timestamp DESC)
 	INCLUDE (status, sub_status, latency, id, http_code);
 	`
 	if _, err := s.pool.Exec(ctx, indexSQL); err != nil {
@@ -247,6 +254,33 @@ func (s *PostgresStorage) ensureHttpCodeColumn() error {
 	return nil
 }
 
+func (s *PostgresStorage) ensureModelColumn() error {
+	ctx := s.effectiveCtx()
+	checkQuery := `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_name = 'probe_history' AND column_name = 'model'
+	`
+
+	var count int
+	err := s.pool.QueryRow(ctx, checkQuery).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("查询 PostgreSQL 表结构失败: %w", err)
+	}
+
+	if count > 0 {
+		return nil // 列已存在，无需添加
+	}
+
+	alterQuery := `ALTER TABLE probe_history ADD COLUMN model TEXT NOT NULL DEFAULT ''`
+	if _, err := s.pool.Exec(ctx, alterQuery); err != nil {
+		return fmt.Errorf("添加 model 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 probe_history 表添加 model 列 (PostgreSQL)")
+	return nil
+}
+
 // MigrateChannelData 根据配置将 channel 为空的旧数据迁移到指定 channel
 func (s *PostgresStorage) MigrateChannelData(mappings []ChannelMigrationMapping) error {
 	ctx := s.effectiveCtx()
@@ -314,8 +348,8 @@ func (s *PostgresStorage) Close() error {
 func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO probe_history (provider, service, channel, status, sub_status, http_code, latency, timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		INSERT INTO probe_history (provider, service, channel, model, status, sub_status, http_code, latency, timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		RETURNING id
 	`
 
@@ -323,6 +357,7 @@ func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 		record.Provider,
 		record.Service,
 		record.Channel,
+		record.Model,
 		record.Status,
 		string(record.SubStatus),
 		record.HttpCode,
@@ -350,25 +385,25 @@ func (s *PostgresStorage) GetLatestBatch(keys []MonitorKey) (map[MonitorKey]*Pro
 	}
 
 	var b strings.Builder
-	args := make([]any, 0, len(keys)*3)
+	args := make([]any, 0, len(keys)*4)
 
-	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	b.WriteString("WITH keys(provider, service, channel, model) AS (VALUES ")
 	for i, k := range keys {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i*3 + 1
-		fmt.Fprintf(&b, "($%d,$%d,$%d)", base, base+1, base+2)
-		args = append(args, k.Provider, k.Service, k.Channel)
+		base := i*4 + 1
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d)", base, base+1, base+2, base+3)
+		args = append(args, k.Provider, k.Service, k.Channel, k.Model)
 	}
 	b.WriteString(")\n")
 	b.WriteString(`
-SELECT DISTINCT ON (p.provider, p.service, p.channel)
-	p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
+SELECT DISTINCT ON (p.provider, p.service, p.channel, p.model)
+	p.id, p.provider, p.service, p.channel, p.model, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
 FROM probe_history p
 JOIN keys k
-	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
-ORDER BY p.provider, p.service, p.channel, p.timestamp DESC, p.id DESC
+	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel AND p.model = k.model
+ORDER BY p.provider, p.service, p.channel, p.model, p.timestamp DESC, p.id DESC
 `)
 
 	rows, err := s.pool.Query(ctx, b.String(), args...)
@@ -385,6 +420,7 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC, p.id DESC
 			&rec.Provider,
 			&rec.Service,
 			&rec.Channel,
+			&rec.Model,
 			&rec.Status,
 			&subStatusStr,
 			&rec.HttpCode,
@@ -394,7 +430,7 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC, p.id DESC
 			return nil, fmt.Errorf("扫描 PostgreSQL 最新记录失败: %w", err)
 		}
 		rec.SubStatus = SubStatus(subStatusStr)
-		result[MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}] = rec
+		result[MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel, Model: rec.Model}] = rec
 	}
 
 	if err := rows.Err(); err != nil {
@@ -418,30 +454,30 @@ func (s *PostgresStorage) GetHistoryBatch(keys []MonitorKey, since time.Time) (m
 	}
 
 	var b strings.Builder
-	args := make([]any, 0, len(keys)*3+1)
+	args := make([]any, 0, len(keys)*4+1)
 
-	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	b.WriteString("WITH keys(provider, service, channel, model) AS (VALUES ")
 	for i, k := range keys {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i*3 + 1
-		fmt.Fprintf(&b, "($%d,$%d,$%d)", base, base+1, base+2)
-		args = append(args, k.Provider, k.Service, k.Channel)
+		base := i*4 + 1
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d)", base, base+1, base+2, base+3)
+		args = append(args, k.Provider, k.Service, k.Channel, k.Model)
 	}
 
-	sinceArgIndex := len(keys)*3 + 1
+	sinceArgIndex := len(keys)*4 + 1
 	args = append(args, since.Unix())
 
 	b.WriteString(")\n")
 	fmt.Fprintf(&b, `
 SELECT
-	p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
+	p.id, p.provider, p.service, p.channel, p.model, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
 FROM probe_history p
 JOIN keys k
-	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel AND p.model = k.model
 WHERE p.timestamp >= $%d
-ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
+ORDER BY p.provider, p.service, p.channel, p.model, p.timestamp DESC
 `, sinceArgIndex)
 
 	rows, err := s.pool.Query(ctx, b.String(), args...)
@@ -458,6 +494,7 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
 			&rec.Provider,
 			&rec.Service,
 			&rec.Channel,
+			&rec.Model,
 			&rec.Status,
 			&subStatusStr,
 			&rec.HttpCode,
@@ -467,7 +504,7 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
 			return nil, fmt.Errorf("扫描 PostgreSQL 历史记录失败: %w", err)
 		}
 		rec.SubStatus = SubStatus(subStatusStr)
-		key := MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}
+		key := MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel, Model: rec.Model}
 		result[key] = append(result[key], rec)
 	}
 
@@ -507,17 +544,17 @@ func (s *PostgresStorage) GetTimelineAggBatch(keys []MonitorKey, since, endTime 
 	endUnix := endTime.Unix()
 
 	var b strings.Builder
-	args := make([]any, 0, len(keys)*3+8)
+	args := make([]any, 0, len(keys)*4+8)
 
 	// keys CTE
-	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	b.WriteString("WITH keys(provider, service, channel, model) AS (VALUES ")
 	for i, k := range keys {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		base := i*3 + 1
-		fmt.Fprintf(&b, "($%d,$%d,$%d)", base, base+1, base+2)
-		args = append(args, k.Provider, k.Service, k.Channel)
+		base := i*4 + 1
+		fmt.Fprintf(&b, "($%d,$%d,$%d,$%d)", base, base+1, base+2, base+3)
+		args = append(args, k.Provider, k.Service, k.Channel, k.Model)
 	}
 	b.WriteString(")\n")
 
@@ -566,6 +603,7 @@ func (s *PostgresStorage) GetTimelineAggBatch(keys []MonitorKey, since, endTime 
 		p.provider,
 		p.service,
 		p.channel,
+		p.model,
 		p.status,
 		p.sub_status,
 		p.http_code,
@@ -574,7 +612,7 @@ func (s *PostgresStorage) GetTimelineAggBatch(keys []MonitorKey, since, endTime 
 		($%d::int - 1 - (($%d::bigint - p.timestamp) / $%d::bigint))::int AS bucket_idx
 	FROM probe_history p
 	JOIN keys k
-		ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+		ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel AND p.model = k.model
 	WHERE p.timestamp > $%d
 	  AND p.timestamp <= $%d
 	  AND (($%d::bigint - p.timestamp) / $%d::bigint) < $%d::bigint
@@ -587,31 +625,32 @@ func (s *PostgresStorage) GetTimelineAggBatch(keys []MonitorKey, since, endTime 
 	b.WriteString(`
 , http_code_counts AS (
 	SELECT
-		provider, service, channel, bucket_idx, sub_status, http_code, COUNT(*)::int AS cnt
+		provider, service, channel, model, bucket_idx, sub_status, http_code, COUNT(*)::int AS cnt
 	FROM filtered
 	WHERE status = 0
 	  AND http_code > 0
 	  AND sub_status IN ('server_error','client_error','auth_error','invalid_request','rate_limit')
-	GROUP BY provider, service, channel, bucket_idx, sub_status, http_code
+	GROUP BY provider, service, channel, model, bucket_idx, sub_status, http_code
 )
 , http_code_sub_agg AS (
 	SELECT
-		provider, service, channel, bucket_idx, sub_status,
+		provider, service, channel, model, bucket_idx, sub_status,
 		jsonb_object_agg(http_code::text, cnt) AS codes
 	FROM http_code_counts
-	GROUP BY provider, service, channel, bucket_idx, sub_status
+	GROUP BY provider, service, channel, model, bucket_idx, sub_status
 )
 , http_code_bucket_agg AS (
 	SELECT
-		provider, service, channel, bucket_idx,
+		provider, service, channel, model, bucket_idx,
 		COALESCE(jsonb_object_agg(sub_status, codes), '{}'::jsonb) AS breakdown
 	FROM http_code_sub_agg
-	GROUP BY provider, service, channel, bucket_idx
+	GROUP BY provider, service, channel, model, bucket_idx
 )
 SELECT
 	f.provider,
 	f.service,
 	f.channel,
+	f.model,
 	f.bucket_idx,
 	COUNT(*)::int AS total,
 	(ARRAY_AGG(f.status ORDER BY f.timestamp DESC, f.id DESC))[1]::int AS last_status,
@@ -638,11 +677,11 @@ SELECT
 	COALESCE(h.breakdown, '{}'::jsonb) AS http_code_breakdown
 FROM filtered f
 LEFT JOIN http_code_bucket_agg h
-	ON h.provider = f.provider AND h.service = f.service AND h.channel = f.channel AND h.bucket_idx = f.bucket_idx
+	ON h.provider = f.provider AND h.service = f.service AND h.channel = f.channel AND h.model = f.model AND h.bucket_idx = f.bucket_idx
 GROUP BY
-	f.provider, f.service, f.channel, f.bucket_idx, h.breakdown
+	f.provider, f.service, f.channel, f.model, f.bucket_idx, h.breakdown
 ORDER BY
-	f.provider, f.service, f.channel, f.bucket_idx
+	f.provider, f.service, f.channel, f.model, f.bucket_idx
 `)
 
 	rows, err := s.pool.Query(ctx, b.String(), args...)
@@ -653,14 +692,14 @@ ORDER BY
 
 	for rows.Next() {
 		var (
-			provider, service, channel string
-			bucketIdx                  int
-			total                      int
-			lastStatus                 int
-			latencySum                 int64
-			latencyCount               int
-			allLatencySum              int64
-			allLatencyCount            int
+			provider, service, channel, model string
+			bucketIdx                         int
+			total                             int
+			lastStatus                        int
+			latencySum                        int64
+			latencyCount                      int
+			allLatencySum                     int64
+			allLatencyCount                   int
 
 			available       int
 			degraded        int
@@ -682,6 +721,7 @@ ORDER BY
 			&provider,
 			&service,
 			&channel,
+			&model,
 			&bucketIdx,
 			&total,
 			&lastStatus,
@@ -718,7 +758,7 @@ ORDER BY
 			}
 		}
 
-		key := MonitorKey{Provider: provider, Service: service, Channel: channel}
+		key := MonitorKey{Provider: provider, Service: service, Channel: channel, Model: model}
 		result[key] = append(result[key], AggBucketRow{
 			BucketIndex:     bucketIdx,
 			Total:           total,
@@ -753,23 +793,24 @@ ORDER BY
 }
 
 // GetLatest 获取最新记录
-func (s *PostgresStorage) GetLatest(provider, service, channel string) (*ProbeRecord, error) {
+func (s *PostgresStorage) GetLatest(provider, service, channel, model string) (*ProbeRecord, error) {
 	ctx := s.effectiveCtx()
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
+		SELECT id, provider, service, channel, model, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
-		WHERE provider = $1 AND service = $2 AND channel = $3
-		ORDER BY timestamp DESC
+		WHERE provider = $1 AND service = $2 AND channel = $3 AND model = $4
+		ORDER BY timestamp DESC, id DESC
 		LIMIT 1
 	`
 
 	var record ProbeRecord
 	var subStatusStr string
-	err := s.pool.QueryRow(ctx, query, provider, service, channel).Scan(
+	err := s.pool.QueryRow(ctx, query, provider, service, channel, model).Scan(
 		&record.ID,
 		&record.Provider,
 		&record.Service,
 		&record.Channel,
+		&record.Model,
 		&record.Status,
 		&subStatusStr,
 		&record.HttpCode,
@@ -790,18 +831,18 @@ func (s *PostgresStorage) GetLatest(provider, service, channel string) (*ProbeRe
 }
 
 // GetHistory 获取历史记录
-func (s *PostgresStorage) GetHistory(provider, service, channel string, since time.Time) ([]*ProbeRecord, error) {
+func (s *PostgresStorage) GetHistory(provider, service, channel, model string, since time.Time) ([]*ProbeRecord, error) {
 	ctx := s.effectiveCtx()
 	// 使用 ORDER BY timestamp DESC 以利用索引（索引是 timestamp DESC）
 	// 返回前在 Go 代码中反转为时间升序
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
+		SELECT id, provider, service, channel, model, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
-		WHERE provider = $1 AND service = $2 AND channel = $3 AND timestamp >= $4
+		WHERE provider = $1 AND service = $2 AND channel = $3 AND model = $4 AND timestamp >= $5
 		ORDER BY timestamp DESC
 	`
 
-	rows, err := s.pool.Query(ctx, query, provider, service, channel, since.Unix())
+	rows, err := s.pool.Query(ctx, query, provider, service, channel, model, since.Unix())
 	if err != nil {
 		return nil, fmt.Errorf("查询 PostgreSQL 历史记录失败: %w", err)
 	}
@@ -816,6 +857,7 @@ func (s *PostgresStorage) GetHistory(provider, service, channel string, since ti
 			&record.Provider,
 			&record.Service,
 			&record.Channel,
+			&record.Model,
 			&record.Status,
 			&subStatusStr,
 			&record.HttpCode,
@@ -850,12 +892,13 @@ func (s *PostgresStorage) initEventTables(ctx context.Context) error {
 		provider TEXT NOT NULL,
 		service TEXT NOT NULL,
 		channel TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
 		stable_available INTEGER NOT NULL DEFAULT -1,
 		streak_count INTEGER NOT NULL DEFAULT 0,
 		streak_status INTEGER NOT NULL DEFAULT -1,
 		last_record_id BIGINT,
 		last_timestamp BIGINT NOT NULL DEFAULT 0,
-		PRIMARY KEY (provider, service, channel)
+		PRIMARY KEY (provider, service, channel, model)
 	);
 	`
 	if _, err := s.pool.Exec(ctx, serviceStatesSchema); err != nil {
@@ -869,6 +912,7 @@ func (s *PostgresStorage) initEventTables(ctx context.Context) error {
 		provider TEXT NOT NULL,
 		service TEXT NOT NULL,
 		channel TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
 		event_type TEXT NOT NULL,
 		from_status INTEGER NOT NULL,
 		to_status INTEGER NOT NULL,
@@ -880,6 +924,14 @@ func (s *PostgresStorage) initEventTables(ctx context.Context) error {
 	`
 	if _, err := s.pool.Exec(ctx, statusEventsSchema); err != nil {
 		return fmt.Errorf("创建 status_events 表失败 (PostgreSQL): %w", err)
+	}
+
+	// 兼容旧数据库：事件表补齐 model 列（旧数据默认 model=''）
+	if err := s.ensureServiceStatesModelColumn(); err != nil {
+		return err
+	}
+	if err := s.ensureStatusEventsModelColumn(); err != nil {
+		return err
 	}
 
 	// 创建索引
@@ -903,22 +955,154 @@ func (s *PostgresStorage) initEventTables(ctx context.Context) error {
 	return nil
 }
 
+func (s *PostgresStorage) ensureServiceStatesModelColumn() error {
+	ctx := s.effectiveCtx()
+
+	// 检查 model 列是否存在
+	checkColumnQuery := `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = current_schema()
+			AND table_name = 'service_states'
+			AND column_name = 'model'
+	`
+	var columnCount int
+	if err := s.pool.QueryRow(ctx, checkColumnQuery).Scan(&columnCount); err != nil {
+		return fmt.Errorf("查询 PostgreSQL 表结构失败: %w", err)
+	}
+
+	// 检查 model 是否在主键中
+	checkPKQuery := `
+		SELECT COUNT(*)
+		FROM information_schema.key_column_usage kcu
+		JOIN information_schema.table_constraints tc
+			ON kcu.constraint_name = tc.constraint_name
+			AND kcu.table_schema = tc.table_schema
+		WHERE tc.constraint_type = 'PRIMARY KEY'
+			AND tc.table_schema = current_schema()
+			AND kcu.table_name = 'service_states'
+			AND kcu.column_name = 'model'
+	`
+	var pkCount int
+	if err := s.pool.QueryRow(ctx, checkPKQuery).Scan(&pkCount); err != nil {
+		return fmt.Errorf("查询 PostgreSQL 主键结构失败: %w", err)
+	}
+
+	// 如果 model 列存在且在主键中，无需迁移
+	if columnCount > 0 && pkCount > 0 {
+		return nil
+	}
+
+	// 需要重建主键（PostgreSQL 支持 ALTER PRIMARY KEY）
+	logger.Info("storage", "正在迁移 service_states 表以添加 model 到主键 (PostgreSQL)...")
+
+	// PostgreSQL 可以直接修改主键，但需要先删除旧主键再添加新主键
+	// 使用事务确保原子性
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("开始事务失败: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 1. 如果 model 列不存在，先添加
+	if columnCount == 0 {
+		if _, err := tx.Exec(ctx, `ALTER TABLE service_states ADD COLUMN model TEXT NOT NULL DEFAULT ''`); err != nil {
+			return fmt.Errorf("添加 service_states.model 列失败: %w", err)
+		}
+	} else {
+		// model 列存在但可能有 NULL 值或不是 NOT NULL，需要清洗数据
+		// 将 NULL 值转换为空字符串
+		if _, err := tx.Exec(ctx, `UPDATE service_states SET model = '' WHERE model IS NULL`); err != nil {
+			return fmt.Errorf("清洗 model 列 NULL 值失败: %w", err)
+		}
+		// 设置默认值和 NOT NULL 约束
+		if _, err := tx.Exec(ctx, `ALTER TABLE service_states ALTER COLUMN model SET DEFAULT ''`); err != nil {
+			return fmt.Errorf("设置 model 列默认值失败: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `ALTER TABLE service_states ALTER COLUMN model SET NOT NULL`); err != nil {
+			return fmt.Errorf("设置 model 列 NOT NULL 失败: %w", err)
+		}
+	}
+
+	// 2. 查询旧主键约束名称
+	var constraintName string
+	pkNameQuery := `
+		SELECT tc.constraint_name
+		FROM information_schema.table_constraints tc
+		WHERE tc.table_schema = current_schema()
+			AND tc.table_name = 'service_states'
+			AND tc.constraint_type = 'PRIMARY KEY'
+	`
+	if err := tx.QueryRow(ctx, pkNameQuery).Scan(&constraintName); err != nil {
+		return fmt.Errorf("查询主键约束名称失败: %w", err)
+	}
+
+	// 3. 删除旧主键（使用引号保护约束名）
+	dropPKSQL := fmt.Sprintf(`ALTER TABLE service_states DROP CONSTRAINT "%s"`, constraintName)
+	if _, err := tx.Exec(ctx, dropPKSQL); err != nil {
+		return fmt.Errorf("删除旧主键失败: %w", err)
+	}
+
+	// 4. 添加新主键（包含 model）
+	addPKSQL := `ALTER TABLE service_states ADD PRIMARY KEY (provider, service, channel, model)`
+	if _, err := tx.Exec(ctx, addPKSQL); err != nil {
+		return fmt.Errorf("添加新主键失败: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	logger.Info("storage", "已完成 service_states 表迁移（model 列已加入主键）(PostgreSQL)")
+	return nil
+}
+
+func (s *PostgresStorage) ensureStatusEventsModelColumn() error {
+	ctx := s.effectiveCtx()
+	checkQuery := `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = current_schema()
+			AND table_name = 'status_events'
+			AND column_name = 'model'
+	`
+
+	var count int
+	err := s.pool.QueryRow(ctx, checkQuery).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("查询 PostgreSQL 表结构失败: %w", err)
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	alterQuery := `ALTER TABLE status_events ADD COLUMN model TEXT NOT NULL DEFAULT ''`
+	if _, err := s.pool.Exec(ctx, alterQuery); err != nil {
+		return fmt.Errorf("添加 status_events.model 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 status_events 表添加 model 列 (PostgreSQL)")
+	return nil
+}
+
 // GetServiceState 获取服务状态机持久化状态
-func (s *PostgresStorage) GetServiceState(provider, service, channel string) (*ServiceState, error) {
+func (s *PostgresStorage) GetServiceState(provider, service, channel, model string) (*ServiceState, error) {
 	ctx := s.effectiveCtx()
 	query := `
-		SELECT provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp
+		SELECT provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp
 		FROM service_states
-		WHERE provider = $1 AND service = $2 AND channel = $3
+		WHERE provider = $1 AND service = $2 AND channel = $3 AND model = $4
 	`
 
 	var state ServiceState
 	var lastRecordID *int64
 
-	err := s.pool.QueryRow(ctx, query, provider, service, channel).Scan(
+	err := s.pool.QueryRow(ctx, query, provider, service, channel, model).Scan(
 		&state.Provider,
 		&state.Service,
 		&state.Channel,
+		&state.Model,
 		&state.StableAvailable,
 		&state.StreakCount,
 		&state.StreakStatus,
@@ -944,9 +1128,9 @@ func (s *PostgresStorage) GetServiceState(provider, service, channel string) (*S
 func (s *PostgresStorage) UpsertServiceState(state *ServiceState) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO service_states (provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-		ON CONFLICT(provider, service, channel) DO UPDATE SET
+		INSERT INTO service_states (provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT(provider, service, channel, model) DO UPDATE SET
 			stable_available = EXCLUDED.stable_available,
 			streak_count = EXCLUDED.streak_count,
 			streak_status = EXCLUDED.streak_status,
@@ -958,6 +1142,7 @@ func (s *PostgresStorage) UpsertServiceState(state *ServiceState) error {
 		state.Provider,
 		state.Service,
 		state.Channel,
+		state.Model,
 		state.StableAvailable,
 		state.StreakCount,
 		state.StreakStatus,
@@ -977,8 +1162,8 @@ func (s *PostgresStorage) SaveStatusEvent(event *StatusEvent) error {
 	ctx := s.effectiveCtx()
 
 	query := `
-		INSERT INTO status_events (provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		INSERT INTO status_events (provider, service, channel, model, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 		ON CONFLICT (provider, service, channel, event_type, trigger_record_id) DO NOTHING
 		RETURNING id
 	`
@@ -987,6 +1172,7 @@ func (s *PostgresStorage) SaveStatusEvent(event *StatusEvent) error {
 		event.Provider,
 		event.Service,
 		event.Channel,
+		event.Model,
 		string(event.EventType),
 		event.FromStatus,
 		event.ToStatus,
@@ -1057,7 +1243,7 @@ func (s *PostgresStorage) GetStatusEvents(sinceID int64, limit int, filters *Eve
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta
+		SELECT id, provider, service, channel, model, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta
 		FROM status_events
 		WHERE %s
 		ORDER BY id ASC
@@ -1082,6 +1268,7 @@ func (s *PostgresStorage) GetStatusEvents(sinceID int64, limit int, filters *Eve
 			&event.Provider,
 			&event.Service,
 			&event.Channel,
+			&event.Model,
 			&eventTypeStr,
 			&event.FromStatus,
 			&event.ToStatus,

@@ -246,6 +246,15 @@
     "changeLanguage": "Change language",
     "selectLanguage": "Select language"
   },
+  "multiModel": {
+    "indicator": {
+      "title": "Multi-model monitoring (composite status: worst layer): {{models}}",
+      "ariaLabel": "Multi-model monitoring (composite status: worst layer), includes {{count}} models: {{models}}"
+    },
+    "layer": "Layer {{order}}",
+    "composite": "Composite",
+    "modelPrefix": "🔄"
+  },
   "share": {
     "share": "Share",
     "shareShort": "Share",

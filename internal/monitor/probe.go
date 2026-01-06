@@ -23,6 +23,7 @@ type ProbeResult struct {
 	Provider  string
 	Service   string
 	Channel   string
+	Model     string            // 模型标识
 	Status    int               // 1=绿, 0=红, 2=黄
 	SubStatus storage.SubStatus // 细分状态（黄色/红色原因）
 	HttpCode  int               // HTTP 状态码（0 表示非 HTTP 错误）
@@ -51,6 +52,7 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		Provider:  cfg.Provider,
 		Service:   cfg.Service,
 		Channel:   cfg.Channel,
+		Model:     cfg.Model,
 		Timestamp: time.Now().Unix(),
 		SubStatus: storage.SubStatusNone,
 		HttpCode:  0, // 默认为 0，表示非 HTTP 错误
@@ -102,7 +104,7 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 			err = fmt.Errorf("请求取消: %w", err)
 		}
 		logger.Error("probe", "请求失败",
-			"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", err)
+			"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", err)
 		result.Error = err
 		result.Status = 0
 		result.SubStatus = storage.SubStatusNetworkError
@@ -124,15 +126,15 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 			// 可容忍的传输错误（EOF、HTTP/2 流错误等），已读内容仍可用于匹配
 			bodyBytes = data
 			logger.Debug("probe", "读取响应体遇到可容忍错误，使用已读数据",
-				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", readErr, "bytes", len(data))
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr, "bytes", len(data))
 		default:
 			logger.Warn("probe", "读取响应体失败",
-				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "error", readErr)
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
 		}
 
 		// gzip 解压：当 Content-Encoding 包含 gzip 时，手动解压响应体
 		// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
-		bodyBytes = decompressGzipIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel)
+		bodyBytes = decompressGzipIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
 	} else {
 		_, _ = io.Copy(io.Discard, resp.Body)
 	}
@@ -155,7 +157,7 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 			if trimmed == "" {
 				// body_bytes > 0 但 agg_len = 0 说明聚合器未能提取文本（如二进制/不识别格式）
 				logger.Warn("probe", "内容校验失败：响应体为空或无法提取文本",
-					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel,
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
 					"body_bytes", len(bodyBytes), "agg_len", len(aggText), "keyword_len", len(cfg.SuccessContains))
 			} else {
 				snippet := trimmed
@@ -163,7 +165,7 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 					snippet = snippet[:maxSnippetLen] + "... (truncated)"
 				}
 				logger.Warn("probe", "内容校验失败：未包含预期关键字",
-					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel,
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
 					"body_bytes", len(bodyBytes), "keyword_len", len(cfg.SuccessContains), "snippet", snippet)
 			}
 		} else if len(bodyBytes) > 0 {
@@ -174,14 +176,14 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 					snippet = snippet[:maxSnippetLen] + "... (truncated)"
 				}
 				logger.Warn("probe", "响应片段",
-					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "snippet", snippet)
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "snippet", snippet)
 			}
 		}
 	}
 
 	// 日志（不打印敏感信息）
 	logger.Info("probe", "探测完成",
-		"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel,
+		"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
 		"code", resp.StatusCode, "latency_ms", latency, "status", result.Status, "sub_status", result.SubStatus)
 
 	return result
@@ -224,7 +226,7 @@ func evaluateStatus(baseStatus int, baseSubStatus storage.SubStatus, body []byte
 // decompressGzipIfNeeded 检测并解压 gzip 压缩的响应体
 // 当 Content-Encoding 包含 gzip 时进行解压，失败则保留原始数据
 // 额外检测 gzip 魔术头（0x1f 0x8b）作为兜底，处理服务器漏写 Content-Encoding 的情况
-func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service, channel string) []byte {
+func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service, channel, model string) []byte {
 	if len(data) == 0 {
 		return data
 	}
@@ -242,7 +244,7 @@ func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service,
 	gr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		logger.Warn("probe", "gzip 解压初始化失败，使用原始响应体",
-			"provider", provider, "service", service, "channel", channel, "error", err)
+			"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
 		return data
 	}
 	defer gr.Close()
@@ -251,12 +253,12 @@ func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service,
 	decompressed, err := io.ReadAll(gr)
 	if err != nil {
 		logger.Warn("probe", "gzip 解压读取失败，使用原始响应体",
-			"provider", provider, "service", service, "channel", channel, "error", err)
+			"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
 		return data
 	}
 
 	logger.Debug("probe", "gzip 解压成功",
-		"provider", provider, "service", service, "channel", channel,
+		"provider", provider, "service", service, "channel", channel, "model", model,
 		"compressed_size", len(data), "decompressed_size", len(decompressed))
 
 	return decompressed
@@ -436,6 +438,7 @@ func (p *Prober) SaveResult(result *ProbeResult) (*storage.ProbeRecord, error) {
 		Provider:  result.Provider,
 		Service:   result.Service,
 		Channel:   result.Channel,
+		Model:     result.Model,
 		Status:    result.Status,
 		SubStatus: result.SubStatus,
 		HttpCode:  result.HttpCode,

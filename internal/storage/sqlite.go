@@ -64,6 +64,7 @@ func (s *SQLiteStorage) Init() error {
 		provider TEXT NOT NULL,
 		service TEXT NOT NULL,
 		channel TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
 		status INTEGER NOT NULL,
 		sub_status TEXT NOT NULL DEFAULT '',
 		latency INTEGER NOT NULL,
@@ -86,12 +87,15 @@ func (s *SQLiteStorage) Init() error {
 	if err := s.ensureHttpCodeColumn(); err != nil {
 		return err
 	}
+	if err := s.ensureModelColumn(); err != nil {
+		return err
+	}
 
 	// 在列迁移完成后创建索引
 	//
 	// 索引设计说明：
 	// - 复合索引专为核心查询优化：GetLatest() 和 GetHistory()
-	// - 所有业务查询都包含完整的 (provider, service, channel) 等值条件
+	// - 所有业务查询都包含完整的 (provider, service, channel, model) 等值条件
 	// - timestamp DESC 支持时间范围查询和排序，避免额外排序开销
 	// - 包含查询所需的大部分字段（status, sub_status, latency），尽量减少回表
 	// - 列顺序遵循 B-Tree 最佳实践：等值列在前，范围/排序列在后
@@ -102,13 +106,16 @@ func (s *SQLiteStorage) Init() error {
 	// - 对于小型数据集（<1GB），性能提升明显
 	//
 	// ⚠️ 维护注意事项：
-	// - 如果未来新增"不带 channel 的高频查询"，需要重新评估索引策略
+	// - 如果未来新增"不带 channel/model 的高频查询"，需要重新评估索引策略
 	// - SQLite 对大数据量（>1GB）性能有限，建议迁移到 PostgreSQL
 	//
-	// 性能验证：EXPLAIN QUERY PLAN SELECT ... WHERE provider=? AND service=? AND channel=? AND timestamp>=?
+	// 性能验证：EXPLAIN QUERY PLAN SELECT ... WHERE provider=? AND service=? AND channel=? AND model=? AND timestamp>=?
+	if _, err := s.db.ExecContext(ctx, `DROP INDEX IF EXISTS idx_probe_history_psc_ts_cover`); err != nil {
+		return fmt.Errorf("删除旧覆盖索引失败: %w", err)
+	}
 	indexSQL := `
-	CREATE INDEX IF NOT EXISTS idx_probe_history_psc_ts_cover
-	ON probe_history(provider, service, channel, timestamp DESC, status, sub_status, latency, http_code);
+	CREATE INDEX IF NOT EXISTS idx_probe_history_pscm_ts_cover
+	ON probe_history(provider, service, channel, model, timestamp DESC, status, sub_status, latency, http_code);
 	`
 	if _, err := s.db.ExecContext(ctx, indexSQL); err != nil {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)
@@ -257,6 +264,51 @@ func (s *SQLiteStorage) ensureHttpCodeColumn() error {
 	return nil
 }
 
+// ensureModelColumn 在旧表上添加 model 列（向后兼容）
+func (s *SQLiteStorage) ensureModelColumn() error {
+	ctx := s.effectiveCtx()
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(probe_history)`)
+	if err != nil {
+		return fmt.Errorf("查询表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	hasColumn := false
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			colType      string
+			notNull      int
+			defaultValue sql.NullString
+			pk           int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("扫描表结构失败: %w", err)
+		}
+		if name == "model" {
+			hasColumn = true
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历表结构失败: %w", err)
+	}
+
+	if hasColumn {
+		return nil // 列已存在，无需添加
+	}
+
+	// 添加列
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE probe_history ADD COLUMN model TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("添加 model 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 probe_history 表添加 model 列")
+	return nil
+}
+
 // MigrateChannelData 根据配置将 channel 为空的旧数据迁移到指定 channel
 func (s *SQLiteStorage) MigrateChannelData(mappings []ChannelMigrationMapping) error {
 	ctx := s.effectiveCtx()
@@ -327,14 +379,15 @@ func (s *SQLiteStorage) Close() error {
 func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO probe_history (provider, service, channel, status, sub_status, http_code, latency, timestamp)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO probe_history (provider, service, channel, model, status, sub_status, http_code, latency, timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	result, err := s.db.ExecContext(ctx, query,
 		record.Provider,
 		record.Service,
 		record.Channel,
+		record.Model,
 		record.Status,
 		string(record.SubStatus),
 		record.HttpCode,
@@ -364,26 +417,26 @@ func (s *SQLiteStorage) GetLatestBatch(keys []MonitorKey) (map[MonitorKey]*Probe
 	}
 
 	var b strings.Builder
-	args := make([]any, 0, len(keys)*3)
+	args := make([]any, 0, len(keys)*4)
 
-	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	b.WriteString("WITH keys(provider, service, channel, model) AS (VALUES ")
 	for i, k := range keys {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		b.WriteString("(?, ?, ?)")
-		args = append(args, k.Provider, k.Service, k.Channel)
+		b.WriteString("(?, ?, ?, ?)")
+		args = append(args, k.Provider, k.Service, k.Channel, k.Model)
 	}
 	b.WriteString(`),
 ranked AS (
 	SELECT
-		p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp,
-		ROW_NUMBER() OVER (PARTITION BY p.provider, p.service, p.channel ORDER BY p.timestamp DESC, p.id DESC) AS rn
+		p.id, p.provider, p.service, p.channel, p.model, p.status, p.sub_status, p.http_code, p.latency, p.timestamp,
+		ROW_NUMBER() OVER (PARTITION BY p.provider, p.service, p.channel, p.model ORDER BY p.timestamp DESC, p.id DESC) AS rn
 	FROM probe_history p
 	JOIN keys k
-		ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+		ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel AND p.model = k.model
 )
-SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
+SELECT id, provider, service, channel, model, status, sub_status, http_code, latency, timestamp
 FROM ranked
 WHERE rn = 1
 `)
@@ -402,6 +455,7 @@ WHERE rn = 1
 			&rec.Provider,
 			&rec.Service,
 			&rec.Channel,
+			&rec.Model,
 			&rec.Status,
 			&subStatusStr,
 			&rec.HttpCode,
@@ -411,7 +465,7 @@ WHERE rn = 1
 			return nil, fmt.Errorf("扫描最新记录失败: %w", err)
 		}
 		rec.SubStatus = SubStatus(subStatusStr)
-		result[MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}] = rec
+		result[MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel, Model: rec.Model}] = rec
 	}
 
 	if err := rows.Err(); err != nil {
@@ -435,25 +489,25 @@ func (s *SQLiteStorage) GetHistoryBatch(keys []MonitorKey, since time.Time) (map
 	}
 
 	var b strings.Builder
-	args := make([]any, 0, len(keys)*3+1)
+	args := make([]any, 0, len(keys)*4+1)
 
-	b.WriteString("WITH keys(provider, service, channel) AS (VALUES ")
+	b.WriteString("WITH keys(provider, service, channel, model) AS (VALUES ")
 	for i, k := range keys {
 		if i > 0 {
 			b.WriteString(",")
 		}
-		b.WriteString("(?, ?, ?)")
-		args = append(args, k.Provider, k.Service, k.Channel)
+		b.WriteString("(?, ?, ?, ?)")
+		args = append(args, k.Provider, k.Service, k.Channel, k.Model)
 	}
 	b.WriteString(")\n")
 	b.WriteString(`
 SELECT
-	p.id, p.provider, p.service, p.channel, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
+	p.id, p.provider, p.service, p.channel, p.model, p.status, p.sub_status, p.http_code, p.latency, p.timestamp
 FROM probe_history p
 JOIN keys k
-	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel
+	ON p.provider = k.provider AND p.service = k.service AND p.channel = k.channel AND p.model = k.model
 WHERE p.timestamp >= ?
-ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
+ORDER BY p.provider, p.service, p.channel, p.model, p.timestamp DESC
 `)
 	args = append(args, since.Unix())
 
@@ -471,6 +525,7 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
 			&rec.Provider,
 			&rec.Service,
 			&rec.Channel,
+			&rec.Model,
 			&rec.Status,
 			&subStatusStr,
 			&rec.HttpCode,
@@ -480,7 +535,7 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
 			return nil, fmt.Errorf("扫描历史记录失败: %w", err)
 		}
 		rec.SubStatus = SubStatus(subStatusStr)
-		key := MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel}
+		key := MonitorKey{Provider: rec.Provider, Service: rec.Service, Channel: rec.Channel, Model: rec.Model}
 		result[key] = append(result[key], rec)
 	}
 
@@ -497,23 +552,24 @@ ORDER BY p.provider, p.service, p.channel, p.timestamp DESC
 }
 
 // GetLatest 获取最新记录
-func (s *SQLiteStorage) GetLatest(provider, service, channel string) (*ProbeRecord, error) {
+func (s *SQLiteStorage) GetLatest(provider, service, channel, model string) (*ProbeRecord, error) {
 	ctx := s.effectiveCtx()
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
+		SELECT id, provider, service, channel, model, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
-		WHERE provider = ? AND service = ? AND channel = ?
-		ORDER BY timestamp DESC
+		WHERE provider = ? AND service = ? AND channel = ? AND model = ?
+		ORDER BY timestamp DESC, id DESC
 		LIMIT 1
 	`
 
 	var record ProbeRecord
 	var subStatusStr string
-	err := s.db.QueryRowContext(ctx, query, provider, service, channel).Scan(
+	err := s.db.QueryRowContext(ctx, query, provider, service, channel, model).Scan(
 		&record.ID,
 		&record.Provider,
 		&record.Service,
 		&record.Channel,
+		&record.Model,
 		&record.Status,
 		&subStatusStr,
 		&record.HttpCode,
@@ -534,18 +590,18 @@ func (s *SQLiteStorage) GetLatest(provider, service, channel string) (*ProbeReco
 }
 
 // GetHistory 获取历史记录
-func (s *SQLiteStorage) GetHistory(provider, service, channel string, since time.Time) ([]*ProbeRecord, error) {
+func (s *SQLiteStorage) GetHistory(provider, service, channel, model string, since time.Time) ([]*ProbeRecord, error) {
 	ctx := s.effectiveCtx()
 	// 使用 ORDER BY timestamp DESC 以利用索引（索引是 timestamp DESC）
 	// 返回前在 Go 代码中反转为时间升序
 	query := `
-		SELECT id, provider, service, channel, status, sub_status, http_code, latency, timestamp
+		SELECT id, provider, service, channel, model, status, sub_status, http_code, latency, timestamp
 		FROM probe_history
-		WHERE provider = ? AND service = ? AND channel = ? AND timestamp >= ?
+		WHERE provider = ? AND service = ? AND channel = ? AND model = ? AND timestamp >= ?
 		ORDER BY timestamp DESC
 	`
 
-	rows, err := s.db.QueryContext(ctx, query, provider, service, channel, since.Unix())
+	rows, err := s.db.QueryContext(ctx, query, provider, service, channel, model, since.Unix())
 	if err != nil {
 		return nil, fmt.Errorf("查询历史记录失败: %w", err)
 	}
@@ -560,6 +616,7 @@ func (s *SQLiteStorage) GetHistory(provider, service, channel string, since time
 			&record.Provider,
 			&record.Service,
 			&record.Channel,
+			&record.Model,
 			&record.Status,
 			&subStatusStr,
 			&record.HttpCode,
@@ -594,12 +651,13 @@ func (s *SQLiteStorage) initEventTables(ctx context.Context) error {
 		provider TEXT NOT NULL,
 		service TEXT NOT NULL,
 		channel TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
 		stable_available INTEGER NOT NULL DEFAULT -1,
 		streak_count INTEGER NOT NULL DEFAULT 0,
 		streak_status INTEGER NOT NULL DEFAULT -1,
 		last_record_id INTEGER,
 		last_timestamp INTEGER NOT NULL DEFAULT 0,
-		PRIMARY KEY (provider, service, channel)
+		PRIMARY KEY (provider, service, channel, model)
 	);
 	`
 	if _, err := s.db.ExecContext(ctx, serviceStatesSchema); err != nil {
@@ -613,6 +671,7 @@ func (s *SQLiteStorage) initEventTables(ctx context.Context) error {
 		provider TEXT NOT NULL,
 		service TEXT NOT NULL,
 		channel TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL DEFAULT '',
 		event_type TEXT NOT NULL,
 		from_status INTEGER NOT NULL,
 		to_status INTEGER NOT NULL,
@@ -624,6 +683,14 @@ func (s *SQLiteStorage) initEventTables(ctx context.Context) error {
 	`
 	if _, err := s.db.ExecContext(ctx, statusEventsSchema); err != nil {
 		return fmt.Errorf("创建 status_events 表失败: %w", err)
+	}
+
+	// 兼容旧数据库：事件表补齐 model 列（旧数据默认 model=''）
+	if err := s.ensureServiceStatesModelColumn(); err != nil {
+		return err
+	}
+	if err := s.ensureStatusEventsModelColumn(); err != nil {
+		return err
 	}
 
 	// 创建索引
@@ -647,22 +714,178 @@ func (s *SQLiteStorage) initEventTables(ctx context.Context) error {
 	return nil
 }
 
+func (s *SQLiteStorage) ensureServiceStatesModelColumn() error {
+	ctx := s.effectiveCtx()
+
+	// 检查表结构：是否有 model 列，以及 model 是否在主键中
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(service_states)`)
+	if err != nil {
+		return fmt.Errorf("查询 service_states 表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	hasModelColumn := false
+	modelInPK := false
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			colType      string
+			notNull      int
+			defaultValue sql.NullString
+			pk           int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("扫描 service_states 表结构失败: %w", err)
+		}
+		if name == "model" {
+			hasModelColumn = true
+			modelInPK = pk > 0 // pk > 0 表示该列是主键的一部分
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历 service_states 表结构失败: %w", err)
+	}
+
+	// 如果 model 列存在且在主键中，无需迁移
+	if hasModelColumn && modelInPK {
+		return nil
+	}
+
+	// 需要重建表以更新主键（SQLite 不支持 ALTER PRIMARY KEY）
+	logger.Info("storage", "正在迁移 service_states 表以添加 model 到主键...")
+
+	// 使用事务确保原子性
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("开始事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 1. 清理可能残留的临时表
+	if _, err := tx.ExecContext(ctx, `DROP TABLE IF EXISTS service_states_new`); err != nil {
+		return fmt.Errorf("清理临时表失败: %w", err)
+	}
+
+	// 2. 创建新表（包含 model 在主键中）
+	createSQL := `
+		CREATE TABLE service_states_new (
+			provider TEXT NOT NULL,
+			service TEXT NOT NULL,
+			channel TEXT NOT NULL DEFAULT '',
+			model TEXT NOT NULL DEFAULT '',
+			stable_available INTEGER NOT NULL DEFAULT -1,
+			streak_count INTEGER NOT NULL DEFAULT 0,
+			streak_status INTEGER NOT NULL DEFAULT -1,
+			last_record_id INTEGER,
+			last_timestamp INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (provider, service, channel, model)
+		)
+	`
+	if _, err := tx.ExecContext(ctx, createSQL); err != nil {
+		return fmt.Errorf("创建临时表失败: %w", err)
+	}
+
+	// 3. 复制数据（根据是否有 model 列选择不同的 SQL）
+	var copySQL string
+	if hasModelColumn {
+		// 旧表有 model 列，需要 COALESCE 处理可能的 NULL 值
+		copySQL = `
+			INSERT INTO service_states_new (provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
+			SELECT provider, service, channel, COALESCE(model, ''), stable_available, streak_count, streak_status, last_record_id, last_timestamp
+			FROM service_states
+		`
+	} else {
+		// 旧表无 model 列，使用空字符串作为默认值
+		copySQL = `
+			INSERT INTO service_states_new (provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
+			SELECT provider, service, channel, '', stable_available, streak_count, streak_status, last_record_id, last_timestamp
+			FROM service_states
+		`
+	}
+	if _, err := tx.ExecContext(ctx, copySQL); err != nil {
+		return fmt.Errorf("复制数据失败: %w", err)
+	}
+
+	// 4. 删除旧表
+	if _, err := tx.ExecContext(ctx, `DROP TABLE service_states`); err != nil {
+		return fmt.Errorf("删除旧表失败: %w", err)
+	}
+
+	// 5. 重命名新表
+	if _, err := tx.ExecContext(ctx, `ALTER TABLE service_states_new RENAME TO service_states`); err != nil {
+		return fmt.Errorf("重命名表失败: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	logger.Info("storage", "已完成 service_states 表迁移（model 列已加入主键）")
+	return nil
+}
+
+func (s *SQLiteStorage) ensureStatusEventsModelColumn() error {
+	ctx := s.effectiveCtx()
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(status_events)`)
+	if err != nil {
+		return fmt.Errorf("查询 status_events 表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	hasColumn := false
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			colType      string
+			notNull      int
+			defaultValue sql.NullString
+			pk           int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("扫描 status_events 表结构失败: %w", err)
+		}
+		if name == "model" {
+			hasColumn = true
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历 status_events 表结构失败: %w", err)
+	}
+
+	if hasColumn {
+		return nil
+	}
+
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE status_events ADD COLUMN model TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("添加 status_events.model 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 status_events 表添加 model 列")
+	return nil
+}
+
 // GetServiceState 获取服务状态机持久化状态
-func (s *SQLiteStorage) GetServiceState(provider, service, channel string) (*ServiceState, error) {
+func (s *SQLiteStorage) GetServiceState(provider, service, channel, model string) (*ServiceState, error) {
 	ctx := s.effectiveCtx()
 	query := `
-		SELECT provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp
+		SELECT provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp
 		FROM service_states
-		WHERE provider = ? AND service = ? AND channel = ?
+		WHERE provider = ? AND service = ? AND channel = ? AND model = ?
 	`
 
 	var state ServiceState
 	var lastRecordID sql.NullInt64
 
-	err := s.db.QueryRowContext(ctx, query, provider, service, channel).Scan(
+	err := s.db.QueryRowContext(ctx, query, provider, service, channel, model).Scan(
 		&state.Provider,
 		&state.Service,
 		&state.Channel,
+		&state.Model,
 		&state.StableAvailable,
 		&state.StreakCount,
 		&state.StreakStatus,
@@ -688,9 +911,9 @@ func (s *SQLiteStorage) GetServiceState(provider, service, channel string) (*Ser
 func (s *SQLiteStorage) UpsertServiceState(state *ServiceState) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO service_states (provider, service, channel, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(provider, service, channel) DO UPDATE SET
+		INSERT INTO service_states (provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(provider, service, channel, model) DO UPDATE SET
 			stable_available = excluded.stable_available,
 			streak_count = excluded.streak_count,
 			streak_status = excluded.streak_status,
@@ -702,6 +925,7 @@ func (s *SQLiteStorage) UpsertServiceState(state *ServiceState) error {
 		state.Provider,
 		state.Service,
 		state.Channel,
+		state.Model,
 		state.StableAvailable,
 		state.StreakCount,
 		state.StreakStatus,
@@ -731,14 +955,15 @@ func (s *SQLiteStorage) SaveStatusEvent(event *StatusEvent) error {
 	}
 
 	query := `
-		INSERT INTO status_events (provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO status_events (provider, service, channel, model, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	result, err := s.db.ExecContext(ctx, query,
 		event.Provider,
 		event.Service,
 		event.Channel,
+		event.Model,
 		string(event.EventType),
 		event.FromStatus,
 		event.ToStatus,
@@ -805,7 +1030,7 @@ func (s *SQLiteStorage) GetStatusEvents(sinceID int64, limit int, filters *Event
 	}
 
 	query := fmt.Sprintf(`
-		SELECT id, provider, service, channel, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta
+		SELECT id, provider, service, channel, model, event_type, from_status, to_status, trigger_record_id, observed_at, created_at, meta
 		FROM status_events
 		WHERE %s
 		ORDER BY id ASC
@@ -830,6 +1055,7 @@ func (s *SQLiteStorage) GetStatusEvents(sinceID int64, limit int, filters *Event
 			&event.Provider,
 			&event.Service,
 			&event.Channel,
+			&event.Model,
 			&eventTypeStr,
 			&event.FromStatus,
 			&event.ToStatus,

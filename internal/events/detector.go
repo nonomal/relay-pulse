@@ -60,6 +60,7 @@ func (d *Detector) Detect(prev *ServiceState, record *storage.ProbeRecord) (*Ser
 			Provider:        record.Provider,
 			Service:         record.Service,
 			Channel:         record.Channel,
+			Model:           record.Model,
 			StableAvailable: currentAvailable,
 			StreakCount:     1,
 			StreakStatus:    currentAvailable,
@@ -74,6 +75,7 @@ func (d *Detector) Detect(prev *ServiceState, record *storage.ProbeRecord) (*Ser
 		Provider:        record.Provider,
 		Service:         record.Service,
 		Channel:         record.Channel,
+		Model:           record.Model,
 		StableAvailable: prev.StableAvailable,
 		StreakCount:     prev.StreakCount,
 		StreakStatus:    prev.StreakStatus,
@@ -101,6 +103,7 @@ func (d *Detector) Detect(prev *ServiceState, record *storage.ProbeRecord) (*Ser
 				Provider:        record.Provider,
 				Service:         record.Service,
 				Channel:         record.Channel,
+				Model:           record.Model,
 				EventType:       EventTypeDown,
 				FromStatus:      1, // 从可用
 				ToStatus:        record.Status,
@@ -125,6 +128,7 @@ func (d *Detector) Detect(prev *ServiceState, record *storage.ProbeRecord) (*Ser
 				Provider:        record.Provider,
 				Service:         record.Service,
 				Channel:         record.Channel,
+				Model:           record.Model,
 				EventType:       EventTypeUp,
 				FromStatus:      0, // 从不可用
 				ToStatus:        record.Status,

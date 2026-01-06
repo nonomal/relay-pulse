@@ -418,7 +418,7 @@ func (s *Scheduler) runTask(t *task) {
 		record, err := s.prober.SaveResult(result)
 		if err != nil {
 			logger.Error("scheduler", "保存结果失败",
-				"provider", m.Provider, "service", m.Service, "channel", m.Channel, "error", err)
+				"provider", m.Provider, "service", m.Service, "channel", m.Channel, "model", m.Model, "error", err)
 			return
 		}
 
@@ -426,10 +426,10 @@ func (s *Scheduler) runTask(t *task) {
 		if eventSvc != nil && eventSvc.IsEnabled() {
 			if event, err := eventSvc.ProcessRecord(record); err != nil {
 				logger.Error("scheduler", "事件检测失败",
-					"provider", m.Provider, "service", m.Service, "channel", m.Channel, "error", err)
+					"provider", m.Provider, "service", m.Service, "channel", m.Channel, "model", m.Model, "error", err)
 			} else if event != nil {
 				logger.Info("scheduler", "检测到状态变更",
-					"provider", m.Provider, "service", m.Service, "channel", m.Channel,
+					"provider", m.Provider, "service", m.Service, "channel", m.Channel, "model", m.Model,
 					"event_type", event.EventType, "from", event.FromStatus, "to", event.ToStatus)
 			}
 		}

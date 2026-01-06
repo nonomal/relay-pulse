@@ -26,6 +26,7 @@ type ProbeRecord struct {
 	Provider  string
 	Service   string
 	Channel   string    // 业务通道标识
+	Model     string    // 模型标识（可为空，兼容旧数据）
 	Status    int       // 1=绿, 0=红, 2=黄
 	SubStatus SubStatus // 细分状态（黄色/红色原因）
 	HttpCode  int       // HTTP 状态码（0 表示非 HTTP 错误，如网络错误）
@@ -75,12 +76,13 @@ type ChannelMigrationMapping struct {
 	Channel  string
 }
 
-// MonitorKey 监测项唯一键（provider/service/channel）
+// MonitorKey 监测项唯一键（provider/service/channel/model）
 // 用于批量查询时作为 map 的 key，避免字符串拼接的歧义和冲突
 type MonitorKey struct {
 	Provider string
 	Service  string
 	Channel  string
+	Model    string
 }
 
 // ===== 状态订阅通知（事件）相关类型 =====
@@ -99,6 +101,7 @@ type ServiceState struct {
 	Provider string
 	Service  string
 	Channel  string
+	Model    string
 
 	// StableAvailable 稳定态可用性：-1=未初始化, 0=不可用, 1=可用
 	StableAvailable int
@@ -122,6 +125,7 @@ type StatusEvent struct {
 	Provider string
 	Service  string
 	Channel  string
+	Model    string
 
 	// EventType 事件类型（DOWN/UP）
 	EventType EventType
@@ -156,9 +160,9 @@ type EventFilters struct {
 // Storage 存储接口
 //
 // 索引依赖说明：
-// - GetLatest 和 GetHistory 的性能依赖于 idx_provider_service_channel_timestamp 索引
-// - 两个方法都必须包含完整的 (provider, service, channel) 等值条件
-// - ⚠️ 如果新增不带 channel 参数的查询方法，需要重新评估索引策略
+// - GetLatest 和 GetHistory 的性能依赖于 idx_probe_history_pscm_ts_cover 覆盖索引
+// - 两个方法都必须包含完整的 (provider, service, channel, model) 等值条件
+// - ⚠️ 如果新增不带 channel/model 参数的查询方法，需要重新评估索引策略
 type Storage interface {
 	// Init 初始化存储
 	Init() error
@@ -174,12 +178,12 @@ type Storage interface {
 	SaveRecord(record *ProbeRecord) error
 
 	// GetLatest 获取最新记录
-	// 要求：必须传入 provider, service, channel 三个参数（索引覆盖）
-	GetLatest(provider, service, channel string) (*ProbeRecord, error)
+	// 要求：必须传入 provider, service, channel, model 四个参数（索引覆盖）
+	GetLatest(provider, service, channel, model string) (*ProbeRecord, error)
 
 	// GetHistory 获取历史记录（时间范围）
-	// 要求：必须传入 provider, service, channel 三个参数（索引覆盖）
-	GetHistory(provider, service, channel string, since time.Time) ([]*ProbeRecord, error)
+	// 要求：必须传入 provider, service, channel, model 四个参数（索引覆盖）
+	GetHistory(provider, service, channel, model string, since time.Time) ([]*ProbeRecord, error)
 
 	// GetLatestBatch 批量获取每个监测项的最新记录
 	// 返回 map 中缺失的 key 表示该监测项没有任何记录
@@ -199,7 +203,7 @@ type Storage interface {
 
 	// GetServiceState 获取服务状态机持久化状态
 	// 返回 nil, nil 表示该监测项尚未初始化状态
-	GetServiceState(provider, service, channel string) (*ServiceState, error)
+	GetServiceState(provider, service, channel, model string) (*ServiceState, error)
 
 	// UpsertServiceState 写入或更新服务状态机持久化状态
 	UpsertServiceState(state *ServiceState) error

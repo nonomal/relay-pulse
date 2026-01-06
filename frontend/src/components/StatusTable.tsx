@@ -4,6 +4,8 @@ import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, Filter } from 'lucide-rea
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
+import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
+import { MultiModelIndicator } from './MultiModelIndicator';
 import { ExternalLink } from './ExternalLink';
 import { BadgeCell } from './badges';
 import { FavoriteButton } from './FavoriteButton';
@@ -268,6 +270,10 @@ function MobileListItem({
 
       {/* 热力图 */}
       <div className="flex items-center gap-[2px] h-5 w-full overflow-hidden rounded-sm">
+        {/* 多模型标记 */}
+        {item.isMultiModel && item.layers && (
+          <MultiModelIndicator layers={item.layers} className="flex-shrink-0 mr-1" />
+        )}
         {aggregatedHistory.map((point, idx) => (
           <HeatmapBlock
             key={idx}
@@ -700,17 +706,40 @@ function StatusTableComponent({
               </td>
               <td className="pl-2 pr-4 py-1.5 align-middle">
                 <div className="flex items-center gap-[2px] h-5 w-full overflow-hidden rounded-sm">
-                  {item.history.map((point, idx) => (
-                    <HeatmapBlock
-                      key={idx}
-                      point={point}
-                      width={`${100 / item.history.length}%`}
-                      height="h-full"
-                      onHover={onBlockHover}
-                      onLeave={onBlockLeave}
-                      isMobile={false}
-                    />
-                  ))}
+                  {/* 多模型标记 */}
+                  {item.isMultiModel && item.layers && (
+                    <MultiModelIndicator layers={item.layers} className="flex-shrink-0 mr-1" />
+                  )}
+                  {/* 热力图：多层 vs 单层 */}
+                  {item.isMultiModel && item.layers ? (
+                    // Phase B: 多层垂直堆叠热力图
+                    item.history.map((_, idx) => (
+                      <LayeredHeatmapBlock
+                        key={idx}
+                        layers={item.layers!}
+                        timeIndex={idx}
+                        width={`${100 / item.history.length}%`}
+                        height="h-full"
+                        onHover={onBlockHover}
+                        onLeave={onBlockLeave}
+                        isMobile={false}
+                        slowLatencyMs={item.slowLatencyMs ?? slowLatencyMs}
+                      />
+                    ))
+                  ) : (
+                    // Phase A: 单层传统热力图
+                    item.history.map((point, idx) => (
+                      <HeatmapBlock
+                        key={idx}
+                        point={point}
+                        width={`${100 / item.history.length}%`}
+                        height="h-full"
+                        onHover={onBlockHover}
+                        onLeave={onBlockLeave}
+                        isMobile={false}
+                      />
+                    ))
+                  )}
                 </div>
               </td>
             </tr>

@@ -246,6 +246,15 @@
     "changeLanguage": "切换语言",
     "selectLanguage": "选择语言"
   },
+  "multiModel": {
+    "indicator": {
+      "title": "多模型监测（综合状态：最差层）: {{models}}",
+      "ariaLabel": "多模型监测（综合状态：最差层），包含 {{count}} 个模型: {{models}}"
+    },
+    "layer": "Layer {{order}}",
+    "composite": "综合",
+    "modelPrefix": "🔄"
+  },
   "share": {
     "share": "分享",
     "shareShort": "分享",

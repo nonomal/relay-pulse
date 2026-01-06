@@ -246,6 +246,15 @@
     "changeLanguage": "言語を切り替え",
     "selectLanguage": "言語を選択"
   },
+  "multiModel": {
+    "indicator": {
+      "title": "マルチモデル監視（総合ステータス：最悪レイヤー）: {{models}}",
+      "ariaLabel": "マルチモデル監視（総合ステータス：最悪レイヤー）、{{count}} 個のモデルを含む: {{models}}"
+    },
+    "layer": "レイヤー {{order}}",
+    "composite": "総合",
+    "modelPrefix": "🔄"
+  },
   "share": {
     "share": "共有",
     "shareShort": "共有",

@@ -19,6 +19,7 @@ function createMockData(overrides: Partial<ProcessedMonitorData>): ProcessedMoni
     currentStatus: 'AVAILABLE',
     uptime: 99.5,
     lastCheckLatency: 100,
+    isMultiModel: false,
     ...overrides,
   };
 }

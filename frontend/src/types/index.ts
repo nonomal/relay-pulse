@@ -2,7 +2,7 @@
 export interface TimePoint {
   time: string;         // 格式化时间标签（如 "15:04" 或 "2006-01-02"）
   timestamp: number;    // Unix 时间戳（秒）
-  status: number;       // 1=可用, 0=不可用, 2=波动, -1=缺失（bucket内最后一条）
+  status: number;       // 1=可用, 0=不可用, 2=波动, 3=未配置/认证失败, -1=缺失（bucket内最后一条）
   latency: number;      // 平均延迟(ms)
   availability: number; // 可用率百分比(0-100)，缺失时为 -1
   status_counts?: StatusCounts; // 各状态计数（可选，向后兼容）
@@ -135,6 +135,7 @@ export const STATUS_MAP: Record<number, StatusKey> = {
   1: 'AVAILABLE',
   2: 'DEGRADED',
   0: 'UNAVAILABLE',
+  3: 'MISSING',   // 未配置/认证失败
   '-1': 'MISSING',  // 缺失数据
 };
 
@@ -165,6 +166,8 @@ export interface ProcessedMonitorData {
   intervalMs?: number;                 // 监测间隔（毫秒，可选）
   slowLatencyMs?: number;              // 慢请求阈值（毫秒，per-monitor）
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
+  isMultiModel: boolean;               // 是否为多模型监测组
+  layers?: MonitorLayer[];             // 原始分层数据（仅多模型组有值）
   history: Array<{
     index: number;
     status: StatusKey;
@@ -174,6 +177,8 @@ export interface ProcessedMonitorData {
     availability: number;     // 可用率百分比(0-100)，缺失时为 -1
     statusCounts: StatusCounts; // 各状态计数
     slowLatencyMs?: number;   // 慢请求阈值（毫秒，per-monitor，用于 tooltip 显示）
+    model?: string;           // 模型名称（可选，仅多模型时有值）
+    layerOrder?: number;      // 层序号（可选，仅多模型时有值）
   }>;
   currentStatus: StatusKey;
   uptime: number;             // 可用率百分比
@@ -216,6 +221,8 @@ export interface TooltipState {
     availability: number;  // 可用率百分比(0-100)，缺失时为 -1
     statusCounts: StatusCounts; // 各状态计数
     slowLatencyMs?: number;     // 慢请求阈值（毫秒，per-monitor）
+    model?: string;             // 模型名称（可选，仅多模型时有值）
+    layerOrder?: number;        // 层序号（可选，仅多模型时有值）
   } | null;
 }
 
@@ -252,4 +259,70 @@ export interface CommunityItem {
   groupNumber?: string;          // 群号（可选，用于展示）
   qrImageSrc?: string;           // 二维码图片路径
   joinUrl?: string;              // 加入链接
+}
+
+// ============= 多模型/父子通道类型定义 =============
+
+// 状态点（用于 layer 的当前状态）
+export interface StatusPoint {
+  status: number;      // 1=可用, 0=不可用, 2=波动, -1=缺失
+  latency: number;     // 延迟(ms)
+  timestamp: number;   // Unix 时间戳（秒）
+}
+
+// 监测层（单个 model 的探测结果）
+export interface MonitorLayer {
+  model: string;                  // 模型名称
+  layer_order: number;            // 层序号：0=父，1+=子
+  current_status: StatusPoint;    // 当前状态点
+  timeline: TimePoint[];          // 时间线数据
+}
+
+// 监测组（父子/多模型结构的聚合单元）
+export interface MonitorGroup {
+  provider: string;
+  provider_name?: string;
+  provider_slug: string;
+  provider_url?: string;
+  service: string;
+  service_name?: string;
+  category: 'commercial' | 'public';
+  sponsor: string;
+  sponsor_url?: string;
+  sponsor_level?: SponsorLevel;
+  risks?: RiskBadge[];
+  badges?: GenericBadge[];
+  price_min?: number;
+  price_max?: number;
+  listed_days?: number;
+  channel: string;
+  channel_name?: string;
+  board: Board;
+  cold_reason?: string;
+  probe_url?: string;
+  template_name?: string;
+  interval_ms?: number;
+  slow_latency_ms?: number;
+
+  current_status: number;         // 组级最差状态：0>2>1>-1
+  layers: MonitorLayer[];         // 分层列表（父在前，子在后）
+}
+
+// 扩展 ApiResponse 以包含 groups 字段
+export interface ApiResponseWithGroups extends ApiResponse {
+  groups?: MonitorGroup[];  // 可选，向后兼容
+}
+
+// 扩展 TooltipState.data 以支持 layer 信息
+export interface TooltipDataWithLayer {
+  index: number;
+  status: StatusKey;
+  timestamp: string;
+  timestampNum: number;  // Unix 时间戳（秒）
+  latency: number;
+  availability: number;  // 可用率百分比(0-100)，缺失时为 -1
+  statusCounts: StatusCounts; // 各状态计数
+  slowLatencyMs?: number;     // 慢请求阈值（毫秒，per-monitor）
+  model?: string;             // 模型名称（可选，仅多模型时有值）
+  layerOrder?: number;        // 层序号（可选，仅多模型时有值）
 }

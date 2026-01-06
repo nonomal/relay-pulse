@@ -423,8 +423,23 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		realProvider = mappedProvider
 	}
 
-	// 过滤并去重监测项
-	filtered := h.filterMonitors(monitors, realProvider, qService, qBoard, boardsEnabled, includeHidden)
+	// 将监测项拆分为：
+	// - plainCandidates: model 为空（仅进入 data，兼容旧前端）
+	// - layeredCandidates: model 非空（仅进入 groups，新前端使用）
+	plainCandidates := make([]config.ServiceConfig, 0, len(monitors))
+	layeredCandidates := make([]config.ServiceConfig, 0, len(monitors))
+	for _, task := range monitors {
+		if strings.TrimSpace(task.Model) == "" {
+			plainCandidates = append(plainCandidates, task)
+			continue
+		}
+		layeredCandidates = append(layeredCandidates, task)
+	}
+
+	// data：过滤并去重（PSC）
+	filteredData := h.filterMonitors(plainCandidates, realProvider, qService, qBoard, boardsEnabled, includeHidden)
+	// groups：过滤但不去重（保留同一 PSC 下的多 model 层，并保留配置顺序）
+	filteredLayered := h.filterMonitorsForGroups(layeredCandidates, realProvider, qService, qBoard, boardsEnabled, includeHidden)
 
 	// 根据配置选择批量/并发/串行查询（支持回退：batch → concurrent → serial）
 	var response []MonitorResult
@@ -432,12 +447,12 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	var mode string
 
 	// 批量查询仅针对 7d/30d 的高频大查询场景启用（避免对短周期造成额外复杂度）
-	tryBatch := enableBatchQuery && (period == "7d" || period == "30d") && len(filtered) <= batchQueryMaxKeys
+	tryBatch := enableBatchQuery && (period == "7d" || period == "30d") && len(filteredData) <= batchQueryMaxKeys
 	if tryBatch {
 		mode = "batch"
-		response, err = h.getStatusBatch(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg)
+		response, err = h.getStatusBatch(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg)
 		if err != nil {
-			logger.Warn("api", "批量查询失败，回退到并发/串行模式", "error", err, "monitors", len(filtered), "period", period)
+			logger.Warn("api", "批量查询失败，回退到并发/串行模式", "error", err, "monitors", len(filteredData), "period", period)
 		}
 	}
 
@@ -445,10 +460,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	if err != nil || !tryBatch {
 		if enableConcurrent {
 			mode = "concurrent"
-			response, err = h.getStatusConcurrent(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
+			response, err = h.getStatusConcurrent(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
 		} else {
 			mode = "serial"
-			response, err = h.getStatusSerial(ctx, filtered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
+			response, err = h.getStatusSerial(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
 		}
 	}
 
@@ -456,7 +471,13 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		return nil, err
 	}
 
-	logger.Info("api", "GetStatus 查询完成", "mode", mode, "monitors", len(filtered), "period", period, "align", align, "count", len(response))
+	// 构建 groups（仅包含有 model 的监测项）
+	groups, err := h.buildMonitorGroups(ctx, filteredLayered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg, enableConcurrent, concurrentLimit, enableBatchQuery, batchQueryMaxKeys)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("api", "GetStatus 查询完成", "mode", mode, "monitors", len(filteredData), "layered", len(filteredLayered), "period", period, "align", align, "count", len(response), "groups", len(groups))
 
 	// 确定 timeline 模式：90m 返回原始记录，其他返回聚合数据
 	timelineMode := "aggregated"
@@ -500,8 +521,9 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	}
 
 	result := gin.H{
-		"meta": meta,
-		"data": response,
+		"meta":   meta,
+		"data":   response,
+		"groups": groups,
 	}
 
 	return json.Marshal(result)
@@ -603,6 +625,7 @@ func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceC
 			Provider: task.Provider,
 			Service:  task.Service,
 			Channel:  task.Channel,
+			Model:    task.Model,
 		})
 	}
 
@@ -658,6 +681,7 @@ func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceC
 			Provider: task.Provider,
 			Service:  task.Service,
 			Channel:  task.Channel,
+			Model:    task.Model,
 		}
 		if aggMap != nil {
 			// timeline 由 DB 聚合结果生成（与 buildTimeline 输出格式一致）
@@ -679,16 +703,18 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 	store := h.storage.WithContext(ctx)
 
 	for _, task := range monitors {
+		monitorKey := formatMonitorKey(task.Provider, task.Service, task.Channel, task.Model)
+
 		// 获取最新记录
-		latest, err := store.GetLatest(task.Provider, task.Service, task.Channel)
+		latest, err := store.GetLatest(task.Provider, task.Service, task.Channel, task.Model)
 		if err != nil {
-			return nil, fmt.Errorf("查询失败 %s/%s/%s: %w", task.Provider, task.Service, task.Channel, err)
+			return nil, fmt.Errorf("查询失败 %s: %w", monitorKey, err)
 		}
 
 		// 获取历史记录
-		history, err := store.GetHistory(task.Provider, task.Service, task.Channel, since)
+		history, err := store.GetHistory(task.Provider, task.Service, task.Channel, task.Model, since)
 		if err != nil {
-			return nil, fmt.Errorf("查询历史失败 %s/%s/%s: %w", task.Provider, task.Service, task.Channel, err)
+			return nil, fmt.Errorf("查询历史失败 %s: %w", monitorKey, err)
 		}
 
 		// 构建响应
@@ -712,16 +738,18 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 	for i, task := range monitors {
 		i, task := i, task // 捕获循环变量
 		g.Go(func() error {
+			monitorKey := formatMonitorKey(task.Provider, task.Service, task.Channel, task.Model)
+
 			// 获取最新记录
-			latest, err := store.GetLatest(task.Provider, task.Service, task.Channel)
+			latest, err := store.GetLatest(task.Provider, task.Service, task.Channel, task.Model)
 			if err != nil {
-				return fmt.Errorf("GetLatest %s/%s/%s: %w", task.Provider, task.Service, task.Channel, err)
+				return fmt.Errorf("GetLatest %s: %w", monitorKey, err)
 			}
 
 			// 获取历史记录
-			history, err := store.GetHistory(task.Provider, task.Service, task.Channel, since)
+			history, err := store.GetHistory(task.Provider, task.Service, task.Channel, task.Model, since)
 			if err != nil {
-				return fmt.Errorf("GetHistory %s/%s/%s: %w", task.Provider, task.Service, task.Channel, err)
+				return fmt.Errorf("GetHistory %s: %w", monitorKey, err)
 			}
 
 			// 构建响应（固定位置写入，保持顺序）
@@ -830,6 +858,14 @@ func sanitizeProbeURL(rawURL string) string {
 	u.RawQuery = "" // 移除 query 参数
 	u.Fragment = "" // 移除 fragment
 	return u.String()
+}
+
+// formatMonitorKey 格式化监测项 key（用于日志输出）
+func formatMonitorKey(provider, service, channel, model string) string {
+	if strings.TrimSpace(model) == "" {
+		return provider + "/" + service + "/" + channel
+	}
+	return provider + "/" + service + "/" + channel + "/" + model
 }
 
 // parsePeriod 解析时间范围（仅用于验证）

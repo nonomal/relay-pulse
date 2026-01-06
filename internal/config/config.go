@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"monitor/internal/logger"
+
 	"gopkg.in/yaml.v3"
 )
 
@@ -168,6 +170,8 @@ type ServiceConfig struct {
 	Badges         []BadgeRef        `yaml:"badges" json:"-"`                            // 徽标引用（可选，支持 tooltip 覆盖）
 	ResolvedBadges []ResolvedBadge   `yaml:"-" json:"badges,omitempty"`                  // 解析后的徽标（由 badges + badge_providers 注入）
 	Channel        string            `yaml:"channel" json:"channel"`                     // 业务通道标识（如 "vip-channel"），用于分类和过滤
+	Model          string            `yaml:"model" json:"model,omitempty"`               // 模型名称（父子结构必填）
+	Parent         string            `yaml:"parent" json:"parent,omitempty"`             // 父通道引用，格式 provider/service/channel
 	ChannelName    string            `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
 	ListedSince    string            `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
 	URL            string            `yaml:"url" json:"url"`
@@ -502,8 +506,8 @@ type AppConfig struct {
 	// 需要同时启用 enable_batch_query=true 才能生效
 	EnableDBTimelineAgg bool `yaml:"enable_db_timeline_agg" json:"enable_db_timeline_agg"`
 
-	// 批量查询最大 key 数（默认 300）
-	// SQLite 单条 SQL 参数上限通常为 999（每个 key 需要 3 个参数），因此默认 300 比较安全
+	// 批量查询最大 key 数（默认 249）
+	// SQLite 单条 SQL 参数上限通常为 999（每个 key 需要 4 个参数），因此默认 249 比较安全
 	BatchQueryMaxKeys int `yaml:"batch_query_max_keys" json:"batch_query_max_keys"`
 
 	// API 响应缓存 TTL 配置（按 period 区分）
@@ -568,30 +572,170 @@ func (c *AppConfig) Validate() error {
 		return fmt.Errorf("至少需要配置一个监测项")
 	}
 
-	// 检查重复和必填字段
-	seen := make(map[string]bool)
+	// 1. 四元组唯一性检查（provider/service/channel/model）
+	quadrupleKeys := make(map[string]bool)
+	for _, m := range c.Monitors {
+		key := fmt.Sprintf("%s/%s/%s/%s", m.Provider, m.Service, m.Channel, m.Model)
+		if quadrupleKeys[key] {
+			return fmt.Errorf("重复的监测项: %s", key)
+		}
+		quadrupleKeys[key] = true
+	}
+
+	// 2. 父子约束校验：收集父通道引用
+	parentRefs := make(map[string]struct{})
 	for i, m := range c.Monitors {
-		// 必填字段检查
+		parentPath := strings.TrimSpace(m.Parent)
+		if parentPath == "" {
+			continue
+		}
+
+		// 子通道必须有 model
+		if strings.TrimSpace(m.Model) == "" {
+			return fmt.Errorf("monitor[%d]: 子通道 %s/%s/%s 有 parent 但缺少 model", i, m.Provider, m.Service, m.Channel)
+		}
+
+		parentRefs[parentPath] = struct{}{}
+	}
+
+	// 被引用为父的监测项必须有 model
+	for i, m := range c.Monitors {
+		path := fmt.Sprintf("%s/%s/%s", m.Provider, m.Service, m.Channel)
+		if _, isReferencedAsParent := parentRefs[path]; isReferencedAsParent {
+			if strings.TrimSpace(m.Model) == "" {
+				return fmt.Errorf("monitor[%d]: 监测项 %s 被引用为父但缺少 model", i, path)
+			}
+		}
+	}
+
+	// 3. 构建父通道索引（parent 为空的 monitor 定义）
+	rootByPath := make(map[string]*ServiceConfig)
+	for i := range c.Monitors {
+		if strings.TrimSpace(c.Monitors[i].Parent) != "" {
+			continue
+		}
+		path := fmt.Sprintf("%s/%s/%s", c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+		if existing, exists := rootByPath[path]; exists {
+			// 标记为多定义（nil 表示冲突）
+			if existing != nil {
+				rootByPath[path] = nil
+			}
+			continue
+		}
+		rootByPath[path] = &c.Monitors[i]
+	}
+
+	// 4. 父存在性和一致性校验，并构建 parent 关系图（用于循环检测）
+	parentOf := make(map[string]string)
+	for i, m := range c.Monitors {
+		parentPath := strings.TrimSpace(m.Parent)
+		if parentPath == "" {
+			continue
+		}
+
+		// 验证 parent 格式
+		parts := strings.Split(parentPath, "/")
+		if len(parts) != 3 {
+			return fmt.Errorf("monitor[%d]: parent 格式错误: %s (应为 provider/service/channel)", i, parentPath)
+		}
+		parentProvider, parentService, parentChannel := parts[0], parts[1], parts[2]
+
+		// 子的 provider/service/channel 必须与父一致
+		if m.Provider != parentProvider || m.Service != parentService || m.Channel != parentChannel {
+			return fmt.Errorf("monitor[%d]: 子 %s/%s/%s/%s 的 parent 路径不一致", i, m.Provider, m.Service, m.Channel, m.Model)
+		}
+
+		// 验证父存在且唯一
+		parent := rootByPath[parentPath]
+		if parent == nil {
+			if _, pathExists := rootByPath[parentPath]; pathExists {
+				return fmt.Errorf("monitor[%d]: 父通道 %s 存在多个定义", i, parentPath)
+			}
+			return fmt.Errorf("monitor[%d]: 找不到父通道: %s", i, parentPath)
+		}
+
+		// 构建父子关系图
+		childKey := fmt.Sprintf("%s/%s/%s/%s", m.Provider, m.Service, m.Channel, m.Model)
+		parentKey := fmt.Sprintf("%s/%s/%s/%s", parent.Provider, parent.Service, parent.Channel, parent.Model)
+		parentOf[childKey] = parentKey
+	}
+
+	// 5. 循环引用检测（DFS 颜色标记：0=白, 1=灰, 2=黑）
+	color := make(map[string]int)
+	var dfsCheckCycle func(key string) error
+	dfsCheckCycle = func(key string) error {
+		switch color[key] {
+		case 1:
+			return fmt.Errorf("检测到循环引用: %s", key)
+		case 2:
+			return nil
+		}
+
+		color[key] = 1 // 标记为灰色（访问中）
+
+		if parentKey, hasParent := parentOf[key]; hasParent {
+			if err := dfsCheckCycle(parentKey); err != nil {
+				return err
+			}
+		}
+
+		color[key] = 2 // 标记为黑色（已完成）
+		return nil
+	}
+
+	for key := range quadrupleKeys {
+		if color[key] == 0 {
+			if err := dfsCheckCycle(key); err != nil {
+				return err
+			}
+		}
+	}
+
+	// 5.5 多父层警告（同一 PSC 下多个 Parent='' 且 Model!='' 的监测项）
+	// 只有第一个会被视为父层，其他会从 API 输出中丢失（请修正配置）
+	pscNoParentCount := make(map[string]int) // key: provider/service/channel
+	for _, m := range c.Monitors {
+		if strings.TrimSpace(m.Parent) == "" && strings.TrimSpace(m.Model) != "" {
+			psc := fmt.Sprintf("%s/%s/%s", m.Provider, m.Service, m.Channel)
+			pscNoParentCount[psc]++
+		}
+	}
+	for psc, count := range pscNoParentCount {
+		if count > 1 {
+			logger.Warn("config", "同一 PSC 下存在多个父层 (Parent='', Model!='')，只有第一个会作为父层，其他会丢失",
+				"psc", psc, "count", count)
+		}
+	}
+
+	// 6. 必填字段检查与字段合法性检查
+	for i, m := range c.Monitors {
+		hasParent := strings.TrimSpace(m.Parent) != ""
+
+		// 基础必填字段
 		if m.Provider == "" {
 			return fmt.Errorf("monitor[%d]: provider 不能为空", i)
 		}
 		if m.Service == "" {
 			return fmt.Errorf("monitor[%d]: service 不能为空", i)
 		}
-		if m.URL == "" {
-			return fmt.Errorf("monitor[%d]: URL 不能为空", i)
-		}
-		if m.Method == "" {
-			return fmt.Errorf("monitor[%d]: method 不能为空", i)
-		}
 		if m.Category == "" {
 			return fmt.Errorf("monitor[%d]: category 不能为空（必须是 commercial 或 public）", i)
 		}
 
-		// Method 枚举检查
-		validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true}
-		if !validMethods[strings.ToUpper(m.Method)] {
-			return fmt.Errorf("monitor[%d]: method '%s' 无效，必须是 GET/POST/PUT/DELETE/PATCH 之一", i, m.Method)
+		// URL 和 Method 对于非子通道是必填的（子通道可以继承）
+		if !hasParent && m.URL == "" {
+			return fmt.Errorf("monitor[%d]: URL 不能为空", i)
+		}
+		if !hasParent && m.Method == "" {
+			return fmt.Errorf("monitor[%d]: method 不能为空", i)
+		}
+
+		// Method 枚举检查（子通道允许留空继承）
+		if m.Method != "" {
+			validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true}
+			if !validMethods[strings.ToUpper(m.Method)] {
+				return fmt.Errorf("monitor[%d]: method '%s' 无效，必须是 GET/POST/PUT/DELETE/PATCH 之一", i, m.Method)
+			}
 		}
 
 		// Category 枚举检查
@@ -646,13 +790,6 @@ func (c *AppConfig) Validate() error {
 				return fmt.Errorf("monitor[%d]: %w", i, err)
 			}
 		}
-
-		// 唯一性检查（provider + service + channel 组合唯一）
-		key := m.Provider + "/" + m.Service + "/" + m.Channel
-		if seen[key] {
-			return fmt.Errorf("重复的监测项: provider=%s, service=%s, channel=%s", m.Provider, m.Service, m.Channel)
-		}
-		seen[key] = true
 	}
 
 	// 验证 disabled_providers
@@ -1010,10 +1147,10 @@ func (c *AppConfig) Normalize() error {
 	if c.Storage.Type == "sqlite" && c.Storage.SQLite.Path == "" {
 		c.Storage.SQLite.Path = "monitor.db" // 默认路径
 	}
-	// SQLite 参数上限保护：默认上限通常为 999，每个 key 需要 3 个参数
+	// SQLite 参数上限保护：默认上限通常为 999，每个 key 需要 4 个参数 (provider, service, channel, model)
 	if c.Storage.Type == "sqlite" && c.EnableBatchQuery {
 		const sqliteMaxParams = 999
-		const keyParams = 3
+		const keyParams = 4
 		maxKeys := sqliteMaxParams / keyParams
 		if c.BatchQueryMaxKeys > maxKeys {
 			log.Printf("[Config] 警告: batch_query_max_keys(%d) 超出 SQLite 参数上限(%d)，已回退为 %d",
@@ -1382,6 +1519,89 @@ func (c *AppConfig) Normalize() error {
 		}
 	}
 
+	// 应用父子继承逻辑
+	if err := c.applyParentInheritance(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// applyParentInheritance 实现子通道从父通道继承配置
+func (c *AppConfig) applyParentInheritance() error {
+	// 构建父通道索引
+	rootByPath := make(map[string]*ServiceConfig)
+	for i := range c.Monitors {
+		if strings.TrimSpace(c.Monitors[i].Parent) != "" {
+			continue
+		}
+		path := fmt.Sprintf("%s/%s/%s", c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+		if existing, exists := rootByPath[path]; exists {
+			// 标记为多定义（nil 表示冲突）
+			if existing != nil {
+				rootByPath[path] = nil
+			}
+			continue
+		}
+		rootByPath[path] = &c.Monitors[i]
+	}
+
+	// 应用继承
+	for i := range c.Monitors {
+		child := &c.Monitors[i]
+		parentPath := strings.TrimSpace(child.Parent)
+		if parentPath == "" {
+			continue
+		}
+
+		// 验证 parent 格式
+		parts := strings.Split(parentPath, "/")
+		if len(parts) != 3 {
+			return fmt.Errorf("monitor[%d]: parent 格式错误: %s (应为 provider/service/channel)", i, parentPath)
+		}
+		parentProvider, parentService, parentChannel := parts[0], parts[1], parts[2]
+
+		// 子的 provider/service/channel 必须与父一致
+		if child.Provider != parentProvider || child.Service != parentService || child.Channel != parentChannel {
+			return fmt.Errorf("monitor[%d]: 子 %s/%s/%s/%s 的 parent 路径不一致",
+				i, child.Provider, child.Service, child.Channel, child.Model)
+		}
+
+		// 查找父通道
+		parent := rootByPath[parentPath]
+		if parent == nil {
+			if _, pathExists := rootByPath[parentPath]; pathExists {
+				return fmt.Errorf("monitor[%d]: 父通道 %s 存在多个定义", i, parentPath)
+			}
+			return fmt.Errorf("monitor[%d]: 找不到父通道: %s", i, parentPath)
+		}
+
+		// 继承逻辑：子的空字段从父继承
+		if child.APIKey == "" {
+			child.APIKey = parent.APIKey
+		}
+		if child.URL == "" {
+			child.URL = parent.URL
+		}
+		if child.Method == "" {
+			child.Method = parent.Method
+		}
+		if child.Body == "" {
+			child.Body = parent.Body
+		}
+		if child.SuccessContains == "" {
+			child.SuccessContains = parent.SuccessContains
+		}
+
+		// Headers 继承（深拷贝，避免父子共享同一 map）
+		if len(child.Headers) == 0 && len(parent.Headers) > 0 {
+			child.Headers = make(map[string]string, len(parent.Headers))
+			for k, v := range parent.Headers {
+				child.Headers[k] = v
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -1465,15 +1685,18 @@ func (c *AppConfig) ApplyEnvOverrides() {
 	}
 }
 
-// ProcessPlaceholders 处理 {{API_KEY}} 占位符替换（headers 和 body）
+// ProcessPlaceholders 处理 {{API_KEY}} / {{MODEL}} 占位符替换（headers 和 body）
 func (m *ServiceConfig) ProcessPlaceholders() {
 	// Headers 中替换
 	for k, v := range m.Headers {
-		m.Headers[k] = strings.ReplaceAll(v, "{{API_KEY}}", m.APIKey)
+		v = strings.ReplaceAll(v, "{{API_KEY}}", m.APIKey)
+		v = strings.ReplaceAll(v, "{{MODEL}}", m.Model)
+		m.Headers[k] = v
 	}
 
 	// Body 中替换
 	m.Body = strings.ReplaceAll(m.Body, "{{API_KEY}}", m.APIKey)
+	m.Body = strings.ReplaceAll(m.Body, "{{MODEL}}", m.Model)
 }
 
 // ResolveBodyIncludes 允许 body 字段引用 data/ 目录下的 JSON 文件

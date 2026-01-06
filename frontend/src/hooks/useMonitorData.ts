@@ -1,17 +1,20 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import i18n from '../i18n';
 import type {
-  ApiResponse,
+  ApiResponseWithGroups,
+  MonitorGroup,
+  MonitorLayer,
   ProcessedMonitorData,
   SortConfig,
-  StatusKey,
   StatusCounts,
   ProviderOption,
   ChannelOption,
   SponsorLevel,
   SponsorPinConfig,
   Board,
+  MonitorResult,
 } from '../types';
+import { STATUS_MAP } from '../types';
 import { API_BASE_URL, USE_MOCK_DATA } from '../constants';
 import { fetchMockMonitorData } from '../utils/mockMonitor';
 import { trackAPIPerformance, trackAPIError } from '../utils/analytics';
@@ -44,15 +47,6 @@ function formatProviderLabel(value?: string): string {
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 }
 
-// 导入 STATUS_MAP
-const statusMap: Record<number, StatusKey> = {
-  1: 'AVAILABLE',
-  2: 'DEGRADED',
-  0: 'UNAVAILABLE',
-  3: 'MISSING',  // 未配置/认证失败
-  '-1': 'MISSING',  // 缺失数据
-};
-
 // 自动轮询间隔（毫秒）- 与后端探测频率 interval: "1m" 保持一致
 const POLL_INTERVAL_MS = 60_000;
 
@@ -77,6 +71,307 @@ const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({
   content_mismatch: counts?.content_mismatch ?? 0,
   http_code_breakdown: counts?.http_code_breakdown, // 透传 HTTP 错误码细分
 });
+
+// 状态严重程度：0（红）> 2（黄）> 1（绿）> 3/-1（灰/缺失）
+function statusSeverity(status: number): number {
+  switch (status) {
+    case 0: return 3; // 红色最严重
+    case 2: return 2; // 黄色次之
+    case 1: return 1; // 绿色
+    default: return 0; // 灰色/缺失（包括 status=3 未配置和 status=-1 无数据）
+  }
+}
+
+// 选择两个状态中较严重的一个
+function pickWorstStatus(a: number, b: number): number {
+  return statusSeverity(b) > statusSeverity(a) ? b : a;
+}
+
+// 合并多个层的状态计数
+function mergeStatusCounts(points: Array<{ status_counts?: StatusCounts }>): StatusCounts {
+  const merged: StatusCounts = {
+    available: 0,
+    degraded: 0,
+    unavailable: 0,
+    missing: 0,
+    slow_latency: 0,
+    rate_limit: 0,
+    server_error: 0,
+    client_error: 0,
+    auth_error: 0,
+    invalid_request: 0,
+    network_error: 0,
+    content_mismatch: 0,
+  };
+
+  points.forEach((p) => {
+    const counts = p.status_counts;
+    if (!counts) return;
+    merged.available += counts.available ?? 0;
+    merged.degraded += counts.degraded ?? 0;
+    merged.unavailable += counts.unavailable ?? 0;
+    merged.missing += counts.missing ?? 0;
+    merged.slow_latency += counts.slow_latency ?? 0;
+    merged.rate_limit += counts.rate_limit ?? 0;
+    merged.server_error += counts.server_error ?? 0;
+    merged.client_error += counts.client_error ?? 0;
+    merged.auth_error += counts.auth_error ?? 0;
+    merged.invalid_request += counts.invalid_request ?? 0;
+    merged.network_error += counts.network_error ?? 0;
+    merged.content_mismatch += counts.content_mismatch ?? 0;
+
+    // 合并 http_code_breakdown
+    if (counts.http_code_breakdown) {
+      if (!merged.http_code_breakdown) {
+        merged.http_code_breakdown = {};
+      }
+      Object.entries(counts.http_code_breakdown).forEach(([subStatus, codes]) => {
+        if (!merged.http_code_breakdown![subStatus]) {
+          merged.http_code_breakdown![subStatus] = {};
+        }
+        Object.entries(codes).forEach(([code, count]) => {
+          const codeNum = parseInt(code, 10);
+          merged.http_code_breakdown![subStatus][codeNum] =
+            (merged.http_code_breakdown![subStatus][codeNum] ?? 0) + count;
+        });
+      });
+    }
+  });
+
+  return merged;
+}
+
+// 从多个层构建综合时间轴（每个时间点取最差状态）
+function buildCompositeTimelineFromLayers(
+  layers: MonitorLayer[]
+): Array<{
+  status: number;
+  time: string;
+  timestamp: number;
+  latency: number;
+  availability: number;
+  status_counts: StatusCounts;
+}> {
+  if (layers.length === 0) return [];
+
+  // 使用父层（layer_order=0）作为基准时间轴，如果不存在则使用第一个层
+  const baseLayer = layers.find((layer) => layer.layer_order === 0) ?? layers[0];
+  const baseTimeline = baseLayer.timeline ?? [];
+  if (baseTimeline.length === 0) return [];
+
+  // 对每个时间点，计算所有层的综合状态
+  return baseTimeline.map((basePoint, index) => {
+    // 收集所有层在该索引位置的数据点
+    const points = layers
+      .map((layer) => layer.timeline[index])
+      .filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+    // 计算最差状态
+    let worstStatus = -1;
+    points.forEach((p) => {
+      worstStatus = pickWorstStatus(worstStatus, p.status);
+    });
+
+    // 可用率：取所有层的最小值（最差层决定整体）
+    const availabilities = points.map((p) => p.availability).filter((a) => a >= 0);
+    const availability = availabilities.length > 0 ? Math.min(...availabilities) : -1;
+
+    // 延迟：取所有层的最大值（最慢层决定整体）
+    const latencies = points.map((p) => p.latency).filter((l) => l > 0);
+    const latency = latencies.length > 0 ? Math.max(...latencies) : 0;
+
+    // 合并状态计数
+    const status_counts = mergeStatusCounts(points);
+
+    return {
+      status: worstStatus,
+      time: basePoint.time,
+      timestamp: basePoint.timestamp,
+      latency,
+      availability,
+      status_counts,
+    };
+  });
+}
+
+// 计算可用率：仅统计有数据的时间块
+function calculateUptime(points: Array<{ availability: number }>): number {
+  const validPoints = points.filter((point) => point.availability >= 0);
+  if (validPoints.length === 0) return -1;
+  return parseFloat((
+    validPoints.reduce((acc, point) => acc + point.availability, 0) / validPoints.length
+  ).toFixed(2));
+}
+
+// 从 timeline 构建 history 数组
+function buildHistoryFromTimeline(
+  timeline: Array<{
+    status: number;
+    time: string;
+    timestamp: number;
+    latency: number;
+    availability: number;
+    status_counts?: StatusCounts;
+  }>,
+  slowLatencyMs: number,
+  model?: string,
+  layerOrder?: number
+): ProcessedMonitorData['history'] {
+  return (timeline || []).map((point, index) => ({
+    index,
+    status: STATUS_MAP[point.status] || 'UNAVAILABLE',
+    timestamp: point.time,
+    timestampNum: point.timestamp,
+    latency: point.latency,
+    availability: point.availability,
+    statusCounts: mapStatusCounts(point.status_counts),
+    slowLatencyMs,
+    model,
+    layerOrder,
+  }));
+}
+
+// 选择最后检查时所用的层（优先父层，否则取时间戳最新的层）
+function pickLastCheckLayer(layers: MonitorLayer[]): MonitorLayer | undefined {
+  if (layers.length === 0) return undefined;
+  // 优先选择父层（layer_order=0）
+  const parent = layers.find((layer) => layer.layer_order === 0);
+  if (parent) return parent;
+  // 否则取时间戳最新的层
+  return layers.reduce((latest, layer) => {
+    const latestTs = latest.current_status?.timestamp ?? 0;
+    const currentTs = layer.current_status?.timestamp ?? 0;
+    return currentTs > latestTs ? layer : latest;
+  }, layers[0]);
+}
+
+// 将 legacy MonitorResult 转换为 ProcessedMonitorData（单层，isMultiModel=false）
+function convertLegacyDataToProcessedData(
+  item: MonitorResult,
+  globalSlowLatencyMs: number
+): ProcessedMonitorData {
+  // 计算当前监测项的 slowLatencyMs（优先 per-monitor，否则用全局值）
+  const itemSlowLatencyMs = item.slow_latency_ms ?? globalSlowLatencyMs;
+
+  const history = buildHistoryFromTimeline(item.timeline, itemSlowLatencyMs);
+  const uptime = calculateUptime(history);
+
+  const currentStatus = item.current_status
+    ? STATUS_MAP[item.current_status.status] || 'UNAVAILABLE'
+    : 'MISSING';
+
+  // 标准化 provider 名称
+  const providerKey = canonicalize(item.provider);
+  const providerLabel = item.provider_name || formatProviderLabel(item.provider);
+  const serviceName = item.service_name || item.service;
+  const channelName = item.channel_name || item.channel;
+
+  return {
+    id: `${providerKey || item.provider}-${item.service}-${item.channel || 'default'}`,
+    providerId: providerKey || item.provider,
+    providerSlug: item.provider_slug || canonicalize(item.provider),
+    providerName: providerLabel,
+    providerUrl: validateUrl(item.provider_url),
+    serviceType: item.service,
+    serviceName,
+    category: item.category,
+    sponsor: item.sponsor,
+    sponsorUrl: validateUrl(item.sponsor_url),
+    sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
+    risks: item.risks,
+    badges: item.badges,
+    priceMin: item.price_min ?? null,
+    priceMax: item.price_max ?? null,
+    listedDays: item.listed_days ?? null,
+    channel: item.channel || undefined,
+    channelName: channelName || undefined,
+    board: item.board || 'hot',
+    coldReason: item.cold_reason || undefined,
+    probeUrl: item.probe_url,
+    templateName: item.template_name,
+    intervalMs: item.interval_ms ?? 0,
+    slowLatencyMs: itemSlowLatencyMs,
+    history,
+    currentStatus,
+    uptime,
+    lastCheckTimestamp: item.current_status?.timestamp,
+    lastCheckLatency: item.current_status?.latency,
+    isMultiModel: false,  // Legacy data is single-layer
+  };
+}
+
+// 将 MonitorGroup 转换为 ProcessedMonitorData（多层，isMultiModel=true）
+function convertGroupToProcessedData(
+  group: MonitorGroup,
+  globalSlowLatencyMs: number
+): ProcessedMonitorData {
+  const itemSlowLatencyMs = group.slow_latency_ms ?? globalSlowLatencyMs;
+
+  // 构建综合时间轴（每个时间点取所有层的最差状态）
+  const compositeTimeline = buildCompositeTimelineFromLayers(group.layers);
+  const history = compositeTimeline.length > 0
+    ? buildHistoryFromTimeline(
+        compositeTimeline,
+        itemSlowLatencyMs,
+        i18n.t('multiModel.composite'),  // 使用翻译的"综合"标记
+        undefined // 综合状态无单一层序号
+      )
+    : [];
+
+  // 组级可用率：取所有层可用率的最小值（最差层决定整体）
+  const layerUptimes = group.layers.map((layer) =>
+    calculateUptime(buildHistoryFromTimeline(layer.timeline, itemSlowLatencyMs))
+  ).filter((u) => u >= 0);
+  const uptime = layerUptimes.length > 0 ? Math.min(...layerUptimes) : -1;
+
+  // 组级当前状态：直接使用后端计算的 current_status
+  const currentStatus = STATUS_MAP[group.current_status] || 'MISSING';
+
+  // 最后检查时间和延迟：优先父层，否则取最新层
+  const lastCheckLayer = pickLastCheckLayer(group.layers);
+  const lastCheckTimestamp = lastCheckLayer?.current_status?.timestamp;
+  const lastCheckLatency = lastCheckLayer?.current_status?.latency;
+
+  // 标准化 provider 名称
+  const providerKey = canonicalize(group.provider);
+  const providerLabel = group.provider_name || formatProviderLabel(group.provider);
+  const serviceName = group.service_name || group.service;
+  const channelName = group.channel_name || group.channel;
+
+  return {
+    id: `${providerKey || group.provider}-${group.service}-${group.channel || 'default'}`,
+    providerId: providerKey || group.provider,
+    providerSlug: group.provider_slug || canonicalize(group.provider),
+    providerName: providerLabel,
+    providerUrl: validateUrl(group.provider_url),
+    serviceType: group.service,
+    serviceName,
+    category: group.category,
+    sponsor: group.sponsor,
+    sponsorUrl: validateUrl(group.sponsor_url),
+    sponsorLevel: normalizeSponsorLevel(group.sponsor_level),
+    risks: group.risks,
+    badges: group.badges,
+    priceMin: group.price_min ?? null,
+    priceMax: group.price_max ?? null,
+    listedDays: group.listed_days ?? null,
+    channel: group.channel || undefined,
+    channelName: channelName || undefined,
+    board: group.board || 'hot',
+    coldReason: group.cold_reason || undefined,
+    probeUrl: group.probe_url,
+    templateName: group.template_name,
+    intervalMs: group.interval_ms ?? 0,
+    slowLatencyMs: itemSlowLatencyMs,
+    history,
+    currentStatus,
+    uptime,
+    lastCheckTimestamp,
+    lastCheckLatency,
+    isMultiModel: group.layers.length > 1,   // 只有多于 1 层才是真正的多模型
+    layers: group.layers, // 保留原始分层数据
+  };
+}
 
 interface UseMonitorDataOptions {
   timeRange: string;
@@ -109,7 +404,7 @@ export function useMonitorData({
   const [error, setError] = useState<string | null>(null);
   const [rawData, setRawData] = useState<ProcessedMonitorData[]>([]);
   const [reloadToken, setReloadToken] = useState(0);
-  const [forceRefresh, setForceRefresh] = useState(false); // 手动刷新时绕过缓存
+  const skipCacheRef = useRef(false); // 使用 ref 避免触发 effect 重新执行
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
   const [enableBadges, setEnableBadges] = useState<boolean>(true); // 徽标系统总开关（默认启用）
   const [boardsEnabled, setBoardsEnabled] = useState<boolean>(false); // 板块功能开关（默认禁用）
@@ -123,7 +418,7 @@ export function useMonitorData({
   const triggerRefetch = useCallback((skipCache = false) => {
     setLoading(true);
     if (skipCache) {
-      setForceRefresh(true);
+      skipCacheRef.current = true; // 使用 ref 设置标志
     }
     setReloadToken((token) => token + 1);
   }, []);
@@ -163,14 +458,16 @@ export function useMonitorData({
           const boardParam = `&board=${encodeURIComponent(board)}`;
           const url = `${API_BASE_URL}/api/status?period=${timeRange}${alignParam}${timeFilterParam}${boardParam}`;
 
+          // 读取并重置 skipCache 标志
+          const shouldSkipCache = skipCacheRef.current;
+          if (shouldSkipCache) {
+            skipCacheRef.current = false; // 立即重置，避免影响后续请求
+          }
+
           // 手动刷新时绕过浏览器缓存
-          const fetchOptions: RequestInit = forceRefresh ? { cache: 'no-store' } : {};
+          const fetchOptions: RequestInit = shouldSkipCache ? { cache: 'no-store' } : {};
           const response = await fetch(url, fetchOptions);
 
-          // 重置强制刷新标记
-          if (forceRefresh) {
-            setForceRefresh(false);
-          }
           const duration = Math.round(performance.now() - startTime);
 
           if (!response.ok) {
@@ -180,7 +477,7 @@ export function useMonitorData({
             throw new Error(`HTTP error! status: ${response.status}`);
           }
 
-          const json: ApiResponse = await response.json();
+          const json: ApiResponseWithGroups = await response.json();
 
           // 追踪成功的 API 性能
           trackAPIPerformance('/api/status', duration, true);
@@ -217,77 +514,15 @@ export function useMonitorData({
             setAllMonitorIdsSupported(false); // 旧后端不支持
           }
 
-          // 转换为前端数据格式
-          // 防御性检查：json.data 和 item.timeline 可能为 null（新站点无数据时）
-          processed = (json.data || []).map((item) => {
-            // 计算当前监测项的 slowLatencyMs（优先 per-monitor，否则用全局值）
-            const itemSlowLatencyMs = item.slow_latency_ms ?? json.meta.slow_latency_ms ?? 5000;
-
-            const history = (item.timeline || []).map((point, index) => ({
-              index,
-              status: statusMap[point.status] || 'UNAVAILABLE',
-              timestamp: point.time,
-              timestampNum: point.timestamp,  // Unix 时间戳（秒）
-              latency: point.latency,
-              availability: point.availability,  // 可用率百分比
-              statusCounts: mapStatusCounts(point.status_counts), // 映射状态计数
-              slowLatencyMs: itemSlowLatencyMs, // 用于 tooltip 显示延迟颜色
-            }));
-
-            const currentStatus = item.current_status
-              ? statusMap[item.current_status.status] || 'UNAVAILABLE'
-              : 'MISSING';  // 无探测数据时显示"无数据"，而非"不可用"
-
-            // 计算可用率：仅统计有数据的时间块，无数据不参与计算
-            // - 无数据 ≠ 不可用，也 ≠ 某个固定百分比，它是"未知"
-            // - 若全部时间块均无数据，返回 -1 由 UI 层展示为 "--"
-            const validPoints = history.filter(point => point.availability >= 0);
-            const uptime = validPoints.length > 0
-              ? parseFloat((
-                  validPoints.reduce((acc, point) => acc + point.availability, 0) / validPoints.length
-                ).toFixed(2))
-              : -1;
-
-            // 标准化 provider 名称
-            const providerKey = canonicalize(item.provider);
-            // 优先使用后端提供的显示名称，回退到格式化的 provider
-            const providerLabel = item.provider_name || formatProviderLabel(item.provider);
-            // 服务和通道的显示名称：优先后端配置，否则回退到标识符
-            const serviceName = item.service_name || item.service;
-            const channelName = item.channel_name || item.channel;
-
-            return {
-              id: `${providerKey || item.provider}-${item.service}-${item.channel || 'default'}`,
-              providerId: providerKey || item.provider,  // 规范化的 ID（小写）
-              providerSlug: item.provider_slug || canonicalize(item.provider), // URL slug
-              providerName: providerLabel,  // 格式化的显示名称
-              providerUrl: validateUrl(item.provider_url),
-              serviceType: item.service,
-              serviceName,
-              category: item.category,
-              sponsor: item.sponsor,
-              sponsorUrl: validateUrl(item.sponsor_url),
-              sponsorLevel: normalizeSponsorLevel(item.sponsor_level),
-              risks: item.risks,  // 直接传递风险徽标数组
-              badges: item.badges,  // 直接传递通用徽标数组
-              priceMin: item.price_min ?? null,  // 参考倍率下限
-              priceMax: item.price_max ?? null,  // 参考倍率
-              listedDays: item.listed_days ?? null,       // 收录天数
-              channel: item.channel || undefined,
-              channelName: channelName || undefined,
-              board: item.board || 'hot',  // 板块：hot/cold（默认 hot）
-              coldReason: item.cold_reason || undefined,  // 冷板原因
-              probeUrl: item.probe_url,
-              templateName: item.template_name,
-              intervalMs: item.interval_ms ?? 0,  // 监测间隔（毫秒），兜底 0 兼容旧后端
-              slowLatencyMs: itemSlowLatencyMs,   // 慢请求阈值（已在上面计算）
-              history,
-              currentStatus,
-              uptime,
-              lastCheckTimestamp: item.current_status?.timestamp,
-              lastCheckLatency: item.current_status?.latency,
-            };
-          });
+          // 统一转换：合并 legacy data 和 groups
+          const globalSlowLatencyMs = json.meta.slow_latency_ms ?? 5000;
+          const legacy = (json.data || []).map((item) =>
+            convertLegacyDataToProcessedData(item, globalSlowLatencyMs)
+          );
+          const groups = (Array.isArray(json.groups) ? json.groups : []).map((g) =>
+            convertGroupToProcessedData(g, globalSlowLatencyMs)
+          );
+          processed = [...legacy, ...groups];
         }
 
         // 防止组件卸载后的状态更新
@@ -314,12 +549,8 @@ export function useMonitorData({
     };
 
     // 使用 debounce 延迟请求，防止快速切换参数
-    // forceRefresh（手动刷新）时立即执行，不走 debounce
-    if (forceRefresh) {
-      fetchData();
-    } else {
-      debounceTimer = setTimeout(fetchData, FETCH_THROTTLE_MS);
-    }
+    // 注意：skipCacheRef 是 ref，不会触发 effect，直接在 fetchData 中读取
+    debounceTimer = setTimeout(fetchData, FETCH_THROTTLE_MS);
 
     return () => {
       isMounted = false;
@@ -327,7 +558,7 @@ export function useMonitorData({
         clearTimeout(debounceTimer);
       }
     };
-  }, [timeRange, timeAlign, timeFilter, board, reloadToken, forceRefresh]);
+  }, [timeRange, timeAlign, timeFilter, board, reloadToken]);
 
   // 页面可见性驱动的自动轮询
   useEffect(() => {

@@ -146,7 +146,8 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
             currentStatus,
             uptime,
             lastCheckTimestamp,
-            lastCheckLatency
+            lastCheckLatency,
+            isMultiModel: false, // Mock data is single-layer
           });
         });
       });
