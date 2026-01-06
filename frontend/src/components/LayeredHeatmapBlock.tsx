@@ -25,6 +25,22 @@ interface LayeredHeatmapBlockProps {
   slowLatencyMs: number;
 }
 
+// 默认状态计数（用于缺失数据点）
+const defaultStatusCounts: HeatmapPoint['statusCounts'] = {
+  available: 0,
+  degraded: 0,
+  unavailable: 0,
+  missing: 0,
+  slow_latency: 0,
+  rate_limit: 0,
+  server_error: 0,
+  client_error: 0,
+  auth_error: 0,
+  invalid_request: 0,
+  network_error: 0,
+  content_mismatch: 0,
+};
+
 /**
  * 分层热力图块组件（Phase B）
  *
@@ -32,6 +48,7 @@ interface LayeredHeatmapBlockProps {
  * - 每层占一个子块，父层在上，子层在下
  * - 总高度固定，N 层时每层高度 = 总高度 / N
  * - 悬停某层时，Tooltip 显示该层的数据
+ * - 当某层缺少该时间点数据时，显示灰色（无数据）
  */
 export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
   layers,
@@ -51,6 +68,21 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
     [layers]
   );
 
+  // 参考时间点：当某层缺失该 index 时，用其他层的时间信息填充
+  // 注意：必须在条件返回前调用所有 Hooks
+  const referenceTimePoint = useMemo(() => {
+    for (const l of sortedLayers) {
+      const p = l.timeline[timeIndex];
+      if (p) return p;
+    }
+    return undefined;
+  }, [sortedLayers, timeIndex]);
+
+  // 边界情况：空数组时不渲染
+  if (sortedLayers.length === 0) {
+    return null;
+  }
+
   // 提取高度数值（如 'h-5' → 5 → 1.25rem → 20px）
   // Tailwind h-5 = 1.25rem = 20px，h-8 = 2rem = 32px
   const heightMap: Record<string, number> = {
@@ -64,31 +96,53 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
   const layerHeightPx = (totalHeightPx - totalGapPx) / sortedLayers.length;
 
   // 将时间点数据转换为 HeatmapPoint 格式
-  const convertToHeatmapPoint = (layer: MonitorLayer, index: number): HeatmapPoint | null => {
-    const timePoint = layer.timeline[index];
-    if (!timePoint) return null;
+  // 当该层缺少数据时，返回占位点（availability=-1 -> 灰色）而不是 null
+  const convertToHeatmapPoint = (layer: MonitorLayer, index: number): HeatmapPoint => {
+    const ownTimePoint = layer.timeline[index];
+    const timePointForTimestamp = ownTimePoint ?? referenceTimePoint;
 
+    // 极端兜底：所有层都没有该 index（理论上不该发生）
+    if (!timePointForTimestamp) {
+      return {
+        index,
+        status: 'MISSING',
+        timestamp: '',
+        timestampNum: 0,
+        latency: 0,
+        availability: -1,
+        statusCounts: { ...defaultStatusCounts, missing: 1 },
+        slowLatencyMs,
+        model: layer.model,
+        layerOrder: layer.layer_order,
+      };
+    }
+
+    // 该层缺失该时间点：返回占位点（灰色），保持层数一致
+    if (!ownTimePoint) {
+      return {
+        index,
+        status: 'MISSING',
+        timestamp: timePointForTimestamp.time,
+        timestampNum: timePointForTimestamp.timestamp,
+        latency: 0,
+        availability: -1,
+        statusCounts: { ...defaultStatusCounts, missing: 1 },
+        slowLatencyMs,
+        model: layer.model,
+        layerOrder: layer.layer_order,
+      };
+    }
+
+    // 正常情况：该层有数据
+    // 使用展开运算符确保 statusCounts 所有字段都存在（防止后端返回不完整对象）
     return {
       index,
-      status: STATUS_MAP[timePoint.status] || 'UNAVAILABLE',
-      timestamp: timePoint.time,
-      timestampNum: timePoint.timestamp,
-      latency: timePoint.latency,
-      availability: timePoint.availability,
-      statusCounts: timePoint.status_counts || {
-        available: 0,
-        degraded: 0,
-        unavailable: 0,
-        missing: 0,
-        slow_latency: 0,
-        rate_limit: 0,
-        server_error: 0,
-        client_error: 0,
-        auth_error: 0,
-        invalid_request: 0,
-        network_error: 0,
-        content_mismatch: 0,
-      },
+      status: STATUS_MAP[ownTimePoint.status] || 'UNAVAILABLE',
+      timestamp: ownTimePoint.time,
+      timestampNum: ownTimePoint.timestamp,
+      latency: ownTimePoint.latency,
+      availability: ownTimePoint.availability,
+      statusCounts: { ...defaultStatusCounts, ...ownTimePoint.status_counts },
       slowLatencyMs,
       model: layer.model,
       layerOrder: layer.layer_order,
@@ -99,7 +153,8 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
   const handleLayerClick = (e: React.MouseEvent<HTMLDivElement>, layer: MonitorLayer) => {
     e.stopPropagation();
     const point = convertToHeatmapPoint(layer, timeIndex);
-    if (point) {
+    // 只有有效数据才触发 hover（灰色块不弹 tooltip）
+    if (point.availability >= 0) {
       onHover(e, point);
     }
   };
@@ -111,8 +166,6 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
     >
       {sortedLayers.map((layer, layerIdx) => {
         const point = convertToHeatmapPoint(layer, timeIndex);
-        if (!point) return null;
-
         const availabilityStyle = availabilityToStyle(point.availability);
 
         return (
@@ -127,10 +180,10 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
               // 层间间隙（非第一层加 marginTop，兼容 Safari ≤13）
               ...(layerIdx > 0 ? { marginTop: `${gapPx}px` } : {}),
             }}
-            // 鼠标事件（仅桌面端）
+            // 鼠标事件（仅桌面端，灰色块不弹 tooltip）
             onMouseEnter={isMobile ? undefined : (e) => {
               const p = convertToHeatmapPoint(layer, timeIndex);
-              if (p) onHover(e, p);
+              if (p.availability >= 0) onHover(e, p);
             }}
             onMouseLeave={isMobile ? undefined : onLeave}
             // 点击事件（移动端）
@@ -138,7 +191,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
             // 键盘可访问性（仅桌面端）
             onFocus={isMobile ? undefined : (e) => {
               const p = convertToHeatmapPoint(layer, timeIndex);
-              if (p) onHover(e as unknown as React.MouseEvent<HTMLDivElement>, p);
+              if (p.availability >= 0) onHover(e as unknown as React.MouseEvent<HTMLDivElement>, p);
             }}
             onBlur={isMobile ? undefined : onLeave}
             // 无障碍标签
