@@ -3,6 +3,7 @@ package config
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestValidateMonitorsUniqueByQuadruple(t *testing.T) {
@@ -385,5 +386,128 @@ func TestChildInheritsCategoryFromParent(t *testing.T) {
 	child := &cfg.Monitors[1]
 	if child.Category != "commercial" {
 		t.Fatalf("child.Category = %q, want %q (inherited from parent)", child.Category, "commercial")
+	}
+}
+
+// TestChildInheritsDurationFieldsFromParent 验证子项继承 interval/slow_latency/timeout 后，Duration 字段也正确计算
+func TestChildInheritsDurationFieldsFromParent(t *testing.T) {
+	cfg := &AppConfig{
+		Interval:    "5m",  // 全局默认
+		SlowLatency: "3s",  // 全局默认
+		Timeout:     "10s", // 全局默认
+		Monitors: []ServiceConfig{
+			{
+				Provider:    "demo",
+				Service:     "cc",
+				Channel:     "vip",
+				Model:       "base",
+				URL:         "https://example.com",
+				Method:      "POST",
+				Category:    "public",
+				Interval:    "1m",  // 父通道自定义 interval
+				SlowLatency: "5s",  // 父通道自定义 slow_latency
+				Timeout:     "15s", // 父通道自定义 timeout
+			},
+			{
+				// 子项只需 parent + model，所有 Duration 相关字段从父继承
+				Model:    "child",
+				Parent:   "demo/cc/vip",
+				Category: "public",
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() failed: %v", err)
+	}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	parent := &cfg.Monitors[0]
+	child := &cfg.Monitors[1]
+
+	// 验证字符串字段继承
+	if child.Interval != "1m" {
+		t.Errorf("child.Interval = %q, want %q (inherited from parent)", child.Interval, "1m")
+	}
+	if child.SlowLatency != "5s" {
+		t.Errorf("child.SlowLatency = %q, want %q (inherited from parent)", child.SlowLatency, "5s")
+	}
+	if child.Timeout != "15s" {
+		t.Errorf("child.Timeout = %q, want %q (inherited from parent)", child.Timeout, "15s")
+	}
+
+	// 验证 Duration 字段正确计算（核心测试点）
+	if child.IntervalDuration != parent.IntervalDuration {
+		t.Errorf("child.IntervalDuration = %v, want %v (same as parent)", child.IntervalDuration, parent.IntervalDuration)
+	}
+	if child.SlowLatencyDuration != parent.SlowLatencyDuration {
+		t.Errorf("child.SlowLatencyDuration = %v, want %v (same as parent)", child.SlowLatencyDuration, parent.SlowLatencyDuration)
+	}
+	if child.TimeoutDuration != parent.TimeoutDuration {
+		t.Errorf("child.TimeoutDuration = %v, want %v (same as parent)", child.TimeoutDuration, parent.TimeoutDuration)
+	}
+
+	// 验证继承的值是父通道的值，而不是全局默认值
+	if child.IntervalDuration != 1*time.Minute {
+		t.Errorf("child.IntervalDuration = %v, want 1m (from parent, not global 5m)", child.IntervalDuration)
+	}
+	if child.SlowLatencyDuration != 5*time.Second {
+		t.Errorf("child.SlowLatencyDuration = %v, want 5s (from parent, not global 3s)", child.SlowLatencyDuration)
+	}
+	if child.TimeoutDuration != 15*time.Second {
+		t.Errorf("child.TimeoutDuration = %v, want 15s (from parent, not global 10s)", child.TimeoutDuration)
+	}
+}
+
+// TestChildOwnDurationFieldsNotOverwritten 验证子项自己配置的 Duration 字段不会被父通道覆盖
+func TestChildOwnDurationFieldsNotOverwritten(t *testing.T) {
+	cfg := &AppConfig{
+		Interval:    "5m",
+		SlowLatency: "3s",
+		Timeout:     "10s",
+		Monitors: []ServiceConfig{
+			{
+				Provider:    "demo",
+				Service:     "cc",
+				Channel:     "vip",
+				Model:       "base",
+				URL:         "https://example.com",
+				Method:      "POST",
+				Category:    "public",
+				Interval:    "1m",
+				SlowLatency: "5s",
+				Timeout:     "15s",
+			},
+			{
+				Model:       "child",
+				Parent:      "demo/cc/vip",
+				Category:    "public",
+				Interval:    "30s", // 子通道自己配置，不应被父覆盖
+				SlowLatency: "8s",  // 子通道自己配置
+				Timeout:     "20s", // 子通道自己配置
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() failed: %v", err)
+	}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	child := &cfg.Monitors[1]
+
+	// 验证子项自己的配置保持不变
+	if child.IntervalDuration != 30*time.Second {
+		t.Errorf("child.IntervalDuration = %v, want 30s (child's own config, not parent's 1m)", child.IntervalDuration)
+	}
+	if child.SlowLatencyDuration != 8*time.Second {
+		t.Errorf("child.SlowLatencyDuration = %v, want 8s (child's own config, not parent's 5s)", child.SlowLatencyDuration)
+	}
+	if child.TimeoutDuration != 20*time.Second {
+		t.Errorf("child.TimeoutDuration = %v, want 20s (child's own config, not parent's 15s)", child.TimeoutDuration)
 	}
 }

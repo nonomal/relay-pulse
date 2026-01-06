@@ -800,6 +800,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
   - 子项**必填** `parent` 和 `model`
   - 其他所有字段均从父通道继承，子项可按需覆盖
   - `provider/service/channel` 从 parent 路径自动继承，不支持覆盖为不同值
+  - `interval/slow_latency/timeout` 从父通道继承（包括解析后的 Duration 值）
   - `headers` 采用合并策略（父为基础，子覆盖同名 key）
   - `disabled/hidden` 采用级联逻辑（父禁用/隐藏则子也禁用/隐藏）
 - **约束**:
@@ -838,7 +839,6 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 ```
 
 **前端显示**：
-- 多模型监测组会在热力图左侧显示 `!` 标记
 - 热力图采用垂直分层显示，父层在上，子层在下
 - 组级状态取所有层的最差状态（红 > 黄 > 绿）
 - 组级可用率取所有层的最小值

@@ -1623,17 +1623,26 @@ func (c *AppConfig) applyParentInheritance() error {
 		}
 
 		// --- 时间/阈值配置 ---
+		// 标记哪些字段是从 parent 继承的（用于后续重新计算 Duration）
+		// 注意：使用 TrimSpace 判空，与 Validate() 保持一致
+		inheritedSlowLatency := false
+		inheritedTimeout := false
+		inheritedInterval := false
+
 		// SlowLatency: 字符串形式，空值表示未配置
-		if child.SlowLatency == "" && parent.SlowLatency != "" {
+		if strings.TrimSpace(child.SlowLatency) == "" && strings.TrimSpace(parent.SlowLatency) != "" {
 			child.SlowLatency = parent.SlowLatency
+			inheritedSlowLatency = true
 		}
 		// Timeout: 字符串形式，空值表示未配置
-		if child.Timeout == "" && parent.Timeout != "" {
+		if strings.TrimSpace(child.Timeout) == "" && strings.TrimSpace(parent.Timeout) != "" {
 			child.Timeout = parent.Timeout
+			inheritedTimeout = true
 		}
 		// Interval: 字符串形式，空值表示未配置
-		if child.Interval == "" && parent.Interval != "" {
+		if strings.TrimSpace(child.Interval) == "" && strings.TrimSpace(parent.Interval) != "" {
 			child.Interval = parent.Interval
+			inheritedInterval = true
 		}
 
 		// --- 元数据配置 ---
@@ -1715,6 +1724,58 @@ func (c *AppConfig) applyParentInheritance() error {
 		// --- 收录日期继承（子为空时继承） ---
 		if child.ListedSince == "" {
 			child.ListedSince = parent.ListedSince
+		}
+
+		// ===== Duration 字段修复 =====
+		// Validate() 中 Duration 解析发生在 applyParentInheritance() 之前，
+		// 当子通道通过 parent 继承了字符串字段（Interval/SlowLatency/Timeout）时，
+		// 需要在此重新计算对应的 Duration 字段。
+		if inheritedInterval {
+			trimmed := strings.TrimSpace(child.Interval)
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d]: 解析继承的 interval 失败: %w", i, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d]: 继承的 interval 必须大于 0", i)
+			}
+			child.IntervalDuration = d
+		}
+
+		if inheritedSlowLatency {
+			trimmed := strings.TrimSpace(child.SlowLatency)
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析继承的 slow_latency 失败: %w",
+					i, child.Provider, child.Service, child.Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 继承的 slow_latency 必须大于 0",
+					i, child.Provider, child.Service, child.Channel)
+			}
+			child.SlowLatencyDuration = d
+		}
+
+		if inheritedTimeout {
+			trimmed := strings.TrimSpace(child.Timeout)
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析继承的 timeout 失败: %w",
+					i, child.Provider, child.Service, child.Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 继承的 timeout 必须大于 0",
+					i, child.Provider, child.Service, child.Channel)
+			}
+			child.TimeoutDuration = d
+		}
+
+		// 继承后重新检查：slow_latency >= timeout 时黄灯基本不会触发
+		if (inheritedSlowLatency || inheritedTimeout) &&
+			child.SlowLatencyDuration >= child.TimeoutDuration {
+			log.Printf("[Config] 警告: monitor[%d] (provider=%s, service=%s, channel=%s, model=%s): slow_latency(%v) >= timeout(%v)，慢响应黄灯可能不会触发（继承自 parent）",
+				i, child.Provider, child.Service, child.Channel, child.Model,
+				child.SlowLatencyDuration, child.TimeoutDuration)
 		}
 
 		// 注意：以下字段不继承（有特殊约束）：
