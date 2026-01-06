@@ -572,6 +572,39 @@ func (c *AppConfig) Validate() error {
 		return fmt.Errorf("至少需要配置一个监测项")
 	}
 
+	// 0. 预处理：子项的 provider/service/channel 从 parent 路径继承
+	// 必须在唯一性检查前完成，否则子项的 key 不完整
+	for i := range c.Monitors {
+		m := &c.Monitors[i]
+		parentPath := strings.TrimSpace(m.Parent)
+		if parentPath == "" {
+			continue
+		}
+
+		parts := strings.Split(parentPath, "/")
+		if len(parts) != 3 {
+			return fmt.Errorf("monitor[%d]: parent 格式错误: %s (应为 provider/service/channel)", i, parentPath)
+		}
+		parentProvider, parentService, parentChannel := parts[0], parts[1], parts[2]
+
+		// 子的 provider/service/channel：为空则从 parent 继承；非空则必须与 parent 一致
+		if m.Provider == "" {
+			m.Provider = parentProvider
+		} else if m.Provider != parentProvider {
+			return fmt.Errorf("monitor[%d]: 子通道 provider '%s' 与 parent '%s' 不一致，不支持覆盖", i, m.Provider, parentProvider)
+		}
+		if m.Service == "" {
+			m.Service = parentService
+		} else if m.Service != parentService {
+			return fmt.Errorf("monitor[%d]: 子通道 service '%s' 与 parent '%s' 不一致，不支持覆盖", i, m.Service, parentService)
+		}
+		if m.Channel == "" {
+			m.Channel = parentChannel
+		} else if m.Channel != parentChannel {
+			return fmt.Errorf("monitor[%d]: 子通道 channel '%s' 与 parent '%s' 不一致，不支持覆盖", i, m.Channel, parentChannel)
+		}
+	}
+
 	// 1. 四元组唯一性检查（provider/service/channel/model）
 	quadrupleKeys := make(map[string]bool)
 	for _, m := range c.Monitors {
@@ -625,24 +658,13 @@ func (c *AppConfig) Validate() error {
 		rootByPath[path] = &c.Monitors[i]
 	}
 
-	// 4. 父存在性和一致性校验，并构建 parent 关系图（用于循环检测）
+	// 4. 父存在性校验，并构建 parent 关系图（用于循环检测）
+	// 注意：provider/service/channel 的继承和一致性校验已在步骤 0 完成
 	parentOf := make(map[string]string)
 	for i, m := range c.Monitors {
 		parentPath := strings.TrimSpace(m.Parent)
 		if parentPath == "" {
 			continue
-		}
-
-		// 验证 parent 格式
-		parts := strings.Split(parentPath, "/")
-		if len(parts) != 3 {
-			return fmt.Errorf("monitor[%d]: parent 格式错误: %s (应为 provider/service/channel)", i, parentPath)
-		}
-		parentProvider, parentService, parentChannel := parts[0], parts[1], parts[2]
-
-		// 子的 provider/service/channel 必须与父一致
-		if m.Provider != parentProvider || m.Service != parentService || m.Channel != parentChannel {
-			return fmt.Errorf("monitor[%d]: 子 %s/%s/%s/%s 的 parent 路径不一致", i, m.Provider, m.Service, m.Channel, m.Model)
 		}
 
 		// 验证父存在且唯一
@@ -711,14 +733,16 @@ func (c *AppConfig) Validate() error {
 	for i, m := range c.Monitors {
 		hasParent := strings.TrimSpace(m.Parent) != ""
 
-		// 基础必填字段
+		// 基础必填字段（provider/service/channel 已在步骤 0 处理）
 		if m.Provider == "" {
 			return fmt.Errorf("monitor[%d]: provider 不能为空", i)
 		}
 		if m.Service == "" {
 			return fmt.Errorf("monitor[%d]: service 不能为空", i)
 		}
-		if m.Category == "" {
+
+		// Category: 非子通道必填（子通道可以继承）
+		if !hasParent && m.Category == "" {
 			return fmt.Errorf("monitor[%d]: category 不能为空（必须是 commercial 或 public）", i)
 		}
 
@@ -738,8 +762,8 @@ func (c *AppConfig) Validate() error {
 			}
 		}
 
-		// Category 枚举检查
-		if !isValidCategory(m.Category) {
+		// Category 枚举检查（子通道允许留空继承）
+		if m.Category != "" && !isValidCategory(m.Category) {
 			return fmt.Errorf("monitor[%d]: category '%s' 无效，必须是 commercial 或 public", i, m.Category)
 		}
 
@@ -1554,29 +1578,18 @@ func (c *AppConfig) applyParentInheritance() error {
 			continue
 		}
 
-		// 验证 parent 格式
-		parts := strings.Split(parentPath, "/")
-		if len(parts) != 3 {
-			return fmt.Errorf("monitor[%d]: parent 格式错误: %s (应为 provider/service/channel)", i, parentPath)
-		}
-		parentProvider, parentService, parentChannel := parts[0], parts[1], parts[2]
-
-		// 子的 provider/service/channel 必须与父一致
-		if child.Provider != parentProvider || child.Service != parentService || child.Channel != parentChannel {
-			return fmt.Errorf("monitor[%d]: 子 %s/%s/%s/%s 的 parent 路径不一致",
-				i, child.Provider, child.Service, child.Channel, child.Model)
-		}
-
-		// 查找父通道
+		// 注意：provider/service/channel 的继承已在 Validate() 步骤 0 完成
+		// 这里直接查找父通道
 		parent := rootByPath[parentPath]
 		if parent == nil {
-			if _, pathExists := rootByPath[parentPath]; pathExists {
-				return fmt.Errorf("monitor[%d]: 父通道 %s 存在多个定义", i, parentPath)
-			}
 			return fmt.Errorf("monitor[%d]: 找不到父通道: %s", i, parentPath)
 		}
 
-		// 继承逻辑：子的空字段从父继承
+		// ===== 完整继承逻辑 =====
+		// 设计原则：子通道只需配置 parent 即可继承父通道所有配置，
+		// 仅需在子通道中覆盖有差异的字段
+
+		// --- 监测行为配置（核心继承）---
 		if child.APIKey == "" {
 			child.APIKey = parent.APIKey
 		}
@@ -1592,14 +1605,121 @@ func (c *AppConfig) applyParentInheritance() error {
 		if child.SuccessContains == "" {
 			child.SuccessContains = parent.SuccessContains
 		}
+		// 自定义环境变量名（用于 API Key 查找）
+		if child.EnvVarName == "" {
+			child.EnvVarName = parent.EnvVarName
+		}
 
-		// Headers 继承（深拷贝，避免父子共享同一 map）
-		if len(child.Headers) == 0 && len(parent.Headers) > 0 {
-			child.Headers = make(map[string]string, len(parent.Headers))
+		// Headers 继承（合并策略：父为基础，子覆盖）
+		if len(parent.Headers) > 0 {
+			merged := make(map[string]string, len(parent.Headers)+len(child.Headers))
 			for k, v := range parent.Headers {
-				child.Headers[k] = v
+				merged[k] = v
+			}
+			for k, v := range child.Headers {
+				merged[k] = v // 子覆盖父
+			}
+			child.Headers = merged
+		}
+
+		// --- 时间/阈值配置 ---
+		// SlowLatency: 字符串形式，空值表示未配置
+		if child.SlowLatency == "" && parent.SlowLatency != "" {
+			child.SlowLatency = parent.SlowLatency
+		}
+		// Timeout: 字符串形式，空值表示未配置
+		if child.Timeout == "" && parent.Timeout != "" {
+			child.Timeout = parent.Timeout
+		}
+		// Interval: 字符串形式，空值表示未配置
+		if child.Interval == "" && parent.Interval != "" {
+			child.Interval = parent.Interval
+		}
+
+		// --- 元数据配置 ---
+		// Category: 必填字段，但子通道可能想继承
+		if child.Category == "" {
+			child.Category = parent.Category
+		}
+		// Sponsor: 继承（通常同一 provider 的赞助者相同）
+		if child.Sponsor == "" {
+			child.Sponsor = parent.Sponsor
+		}
+		if child.SponsorURL == "" {
+			child.SponsorURL = parent.SponsorURL
+		}
+		if child.SponsorLevel == "" {
+			child.SponsorLevel = parent.SponsorLevel
+		}
+		// Provider 相关元数据
+		if child.ProviderURL == "" {
+			child.ProviderURL = parent.ProviderURL
+		}
+		if child.ProviderSlug == "" {
+			child.ProviderSlug = parent.ProviderSlug
+		}
+		if child.ProviderName == "" {
+			child.ProviderName = parent.ProviderName
+		}
+		if child.ServiceName == "" {
+			child.ServiceName = parent.ServiceName
+		}
+
+		// --- 板块配置 ---
+		// Board: 空值会在 Normalize 中默认为 "hot"，这里只继承显式配置
+		if child.Board == "" && parent.Board != "" {
+			child.Board = parent.Board
+		}
+		if child.ColdReason == "" && parent.ColdReason != "" {
+			child.ColdReason = parent.ColdReason
+		}
+
+		// --- 状态配置（级联 OR 逻辑）---
+		// Disabled: 父禁用则子也禁用
+		if parent.Disabled {
+			child.Disabled = true
+			if child.DisabledReason == "" {
+				child.DisabledReason = parent.DisabledReason
 			}
 		}
+		// Hidden: 父隐藏则子也隐藏
+		if parent.Hidden {
+			child.Hidden = true
+			if child.HiddenReason == "" {
+				child.HiddenReason = parent.HiddenReason
+			}
+		}
+
+		// --- 徽标配置 ---
+		// Badges: 子为空时继承父的徽标（替换策略，非合并）
+		if len(child.Badges) == 0 && len(parent.Badges) > 0 {
+			child.Badges = make([]BadgeRef, len(parent.Badges))
+			copy(child.Badges, parent.Badges)
+		}
+
+		// --- 显示名称继承（子为空时继承） ---
+		if child.ChannelName == "" {
+			child.ChannelName = parent.ChannelName
+		}
+
+		// --- 定价信息继承（子为 nil 时继承） ---
+		if child.PriceMin == nil && parent.PriceMin != nil {
+			v := *parent.PriceMin
+			child.PriceMin = &v
+		}
+		if child.PriceMax == nil && parent.PriceMax != nil {
+			v := *parent.PriceMax
+			child.PriceMax = &v
+		}
+
+		// --- 收录日期继承（子为空时继承） ---
+		if child.ListedSince == "" {
+			child.ListedSince = parent.ListedSince
+		}
+
+		// 注意：以下字段不继承（有特殊约束）：
+		// - Model: 父子关系的唯一区分字段，若继承则变成重复项
+		// - Provider/Service/Channel: 由父子路径验证强制一致
 	}
 
 	return nil

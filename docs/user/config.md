@@ -796,49 +796,43 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 ##### `parent`
 - **类型**: string
 - **说明**: 父通道引用，格式为 `provider/service/channel`，用于建立父子继承关系
-- **继承内容**:
-  - `url` - 探测端点 URL
-  - `method` - HTTP 请求方法
-  - `headers` - 请求头（子通道可追加或覆盖）
-  - `body` - 请求体
-  - `success_contains` - 响应校验关键字
-  - `api_key` - API 密钥
-  - `slow_latency` - 慢请求阈值
-  - `timeout` - 超时时间
+- **继承规则**:
+  - 子项**必填** `parent` 和 `model`
+  - 其他所有字段均从父通道继承，子项可按需覆盖
+  - `provider/service/channel` 从 parent 路径自动继承，不支持覆盖为不同值
+  - `headers` 采用合并策略（父为基础，子覆盖同名 key）
+  - `disabled/hidden` 采用级联逻辑（父禁用/隐藏则子也禁用/隐藏）
 - **约束**:
   - 父通道必须存在且配置了 `model` 字段
   - 不允许循环引用
-  - 同一 `provider/service/channel` 下只能有一个父层（`parent` 为空且 `model` 非空的项）
+  - 同一 `provider/service/channel` 下只能有一个父层
 - **示例**: `"88code/cc/vip"`
 
 ##### 多模型监测组配置示例
 
 ```yaml
-# 父通道：定义公共配置
+# 父通道：定义公共配置（完整配置）
 - provider: "88code"
   service: "cc"
   channel: "vip"
   model: "claude-sonnet-4-20250514"  # 父层必须配置 model
   category: "commercial"
   sponsor: "团队"
+  sponsor_level: "advanced"
   url: "https://api.88code.com/v1/chat/completions"
   method: "POST"
   headers:
     Authorization: "Bearer {{API_KEY}}"
     Content-Type: "application/json"
   body: |
-    {"model": "claude-sonnet-4-20250514", "messages": [{"role": "user", "content": "hi"}]}
+    {"model": "{{MODEL}}", "messages": [{"role": "user", "content": "hi"}]}
   success_contains: "content"
 
-# 子通道：继承父通道配置，只需指定差异部分
-- provider: "88code"
-  service: "cc"
-  channel: "vip"
-  model: "claude-opus-4-20250514"
-  parent: "88code/cc/vip"  # 引用父通道
-  category: "commercial"
-  sponsor: "团队"
-  # url/method/headers 自动继承，只覆盖 body 中的 model
+# 子通道：完整继承，只需 parent + model（+ 差异字段）
+- model: "claude-opus-4-20250514"
+  parent: "88code/cc/vip"  # 自动继承 provider/service/channel 及其他配置
+  # category 会从父通道继承，也可显式覆盖
+  # 仅覆盖不同的 body（使用 {{MODEL}} 占位符时甚至可以省略）
   body: |
     {"model": "claude-opus-4-20250514", "messages": [{"role": "user", "content": "hi"}]}
 ```
