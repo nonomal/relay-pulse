@@ -154,6 +154,18 @@ func (b *Bot) HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 调试日志：记录收到的事件类型（仅 message 和 message_sent）
+	if event.PostType == "message" || event.PostType == "message_sent" {
+		slog.Debug("OneBot 收到消息事件",
+			"post_type", event.PostType,
+			"message_type", event.MessageType,
+			"user_id", event.UserID,
+			"self_id", event.SelfID,
+			"group_id", event.GroupID,
+			"raw_message", event.RawMessage,
+		)
+	}
+
 	// 快速响应，避免阻塞 NapCatQQ
 	b.writeOK(w)
 
