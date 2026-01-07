@@ -285,22 +285,28 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 		b.setSelfID(e.SelfID)
 	}
 
-	// 忽略自己发的消息
-	if e.UserID != 0 && e.UserID == e.SelfID {
-		return
+	// 提取纯文本
+	text := strings.TrimSpace(extractPlainText(e))
+
+	// 检查是否是机器人自己发的消息
+	isSelfMessage := e.UserID != 0 && e.UserID == e.SelfID
+	if isSelfMessage {
+		// 仅允许 // 双斜杠命令（隐藏的自发命令入口，避免循环）
+		if !strings.HasPrefix(text, "//") {
+			return
+		}
+		// 将 // 转换为 / 以便后续统一处理
+		text = text[1:]
 	}
 
 	// 私聊权限检查：仅接受好友消息（好友即白名单）
-	if e.MessageType == "private" && e.SubType != "friend" {
+	if e.MessageType == "private" && e.SubType != "friend" && !isSelfMessage {
 		slog.Debug("忽略非好友私聊消息", "user_id", e.UserID, "sub_type", e.SubType)
 		return
 	}
 
-	// 提取纯文本
-	text := extractPlainText(e)
-
 	// 群聊"状态检查"关键词：无需 @、无需 /，直接触发截图
-	if e.MessageType == "group" && strings.TrimSpace(text) == statusCheckKeyword {
+	if e.MessageType == "group" && text == statusCheckKeyword {
 		if !b.allowGroupStatusCheck(e.GroupID) {
 			slog.Debug("群聊状态检查触发过于频繁，已忽略", "group_id", e.GroupID)
 			return
@@ -326,8 +332,8 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 		return
 	}
 
-	// 其他群聊命令必须 @机器人 才响应
-	if e.MessageType == "group" && !b.isMessageToBot(e) {
+	// 其他群聊命令必须 @机器人 才响应（自发命令跳过此检查）
+	if e.MessageType == "group" && !isSelfMessage && !b.isMessageToBot(e) {
 		return
 	}
 
@@ -364,9 +370,12 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 		return
 	}
 
-	// 群消息权限检查：管理命令需群管理员；白名单可越权
+	// 群消息权限检查：管理命令需群管理员；白名单/自发命令可越权
 	if e.MessageType == "group" && isAdminOnlyCommand(cmd) {
-		if b.isWhitelisted(e.UserID) {
+		if isSelfMessage {
+			// 审计日志：机器人自发命令执行管理命令
+			slog.Info("机器人自发命令执行管理命令", "command", cmd, "group_id", e.GroupID)
+		} else if b.isWhitelisted(e.UserID) {
 			// 审计日志：白名单越权执行管理命令
 			slog.Info("管理员白名单越权执行管理命令", "command", cmd, "group_id", e.GroupID, "user_id", e.UserID)
 		} else {
