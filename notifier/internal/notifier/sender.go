@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,6 +16,22 @@ import (
 	"notifier/internal/storage"
 	"notifier/internal/telegram"
 )
+
+// aggregateKey 事件聚合键：按 provider/service/channel/event_type 分组
+type aggregateKey struct {
+	Provider  string
+	Service   string
+	Channel   string
+	EventType string
+}
+
+// eventAggregate 事件聚合缓冲区
+type eventAggregate struct {
+	firstAt time.Time           // 首个事件到达时间
+	timer   *time.Timer         // 聚合窗口定时器
+	base    *poller.Event       // 基准事件（用于构建通知）
+	models  map[string]struct{} // 收集的所有 model
+}
 
 // Sender 通知发送器（多平台）
 type Sender struct {
@@ -27,7 +45,26 @@ type Sender struct {
 	mu          sync.Mutex
 	running     bool
 	stopChan    chan struct{}
+	baseCtx     context.Context // 保存启动时的 context，供定时器回调使用
+
+	// 事件聚合：按 provider/service/channel/event_type 分组
+	// 同一监测组下多个 model 的事件会在时间窗口内合并为一条通知
+	aggWindow time.Duration
+	aggMu     sync.Mutex
+	aggBuf    map[aggregateKey]*eventAggregate
 }
+
+// DefaultAggregateWindow 默认事件聚合窗口时长
+// 同一监测组（provider/service/channel）下的多个 model 事件
+// 在此时间窗口内会合并为一条通知
+//
+// 窗口计算依据：
+// - 组内探测间隔：2秒/model，6 个 model 需要 10 秒启动完
+// - 慢响应时间：可能高达 10 秒
+// - poller 轮询间隔：5 秒
+// - 最坏情况：10s（启动间隔）+ 10s（慢响应）+ 5s（轮询对齐）= 25s
+// - 取 30 秒留有余量
+const DefaultAggregateWindow = 30 * time.Second
 
 // NewSender 创建发送器
 func NewSender(cfg *config.Config, store storage.Storage) *Sender {
@@ -36,6 +73,8 @@ func NewSender(cfg *config.Config, store storage.Storage) *Sender {
 		storage:     store,
 		rateLimiter: time.NewTicker(time.Second / time.Duration(cfg.Limits.RateLimitPerSecond)),
 		stopChan:    make(chan struct{}),
+		aggWindow:   DefaultAggregateWindow,
+		aggBuf:      make(map[aggregateKey]*eventAggregate),
 	}
 
 	// 按配置初始化客户端
@@ -58,12 +97,14 @@ func (s *Sender) Start(ctx context.Context) error {
 	}
 	s.running = true
 	s.stopChan = make(chan struct{})
+	s.baseCtx = ctx
 	s.mu.Unlock()
 
 	slog.Info("通知发送器启动",
 		"rate_limit", s.cfg.Limits.RateLimitPerSecond,
 		"telegram_enabled", s.tgClient != nil,
 		"qq_enabled", s.qqClient != nil,
+		"aggregate_window", s.aggWindow,
 	)
 
 	// 启动重试处理
@@ -76,17 +117,171 @@ func (s *Sender) Start(ctx context.Context) error {
 // Stop 停止发送器
 func (s *Sender) Stop() {
 	s.mu.Lock()
-	defer s.mu.Unlock()
+	if !s.running {
+		s.mu.Unlock()
+		return
+	}
+	s.running = false
+	close(s.stopChan)
+	s.mu.Unlock()
 
-	if s.running {
-		close(s.stopChan)
-		s.rateLimiter.Stop()
-		s.running = false
+	// 在释放 mu 锁后再 flush，避免死锁
+	// 先 flush 再停止 rateLimiter，否则 sendNotification 会阻塞在等待 tick
+	s.flushAllAggregates()
+
+	// 最后停止限流器
+	s.rateLimiter.Stop()
+}
+
+// flushAllAggregates 刷新所有聚合缓冲区（用于优雅关闭）
+func (s *Sender) flushAllAggregates() {
+	s.aggMu.Lock()
+	keys := make([]aggregateKey, 0, len(s.aggBuf))
+	for k, agg := range s.aggBuf {
+		if agg.timer != nil {
+			agg.timer.Stop()
+		}
+		keys = append(keys, k)
+	}
+	s.aggMu.Unlock()
+
+	// 立即 flush 所有待发送的聚合事件
+	for _, key := range keys {
+		s.flushAggregate(key)
 	}
 }
 
 // HandleEvent 处理事件（由 Poller 调用）
+// 事件会先进入聚合缓冲区，等待时间窗口结束后合并发送
+// 这样同一监测组下多个 model 的 DOWN/UP 事件会合并为一条通知
 func (s *Sender) HandleEvent(ctx context.Context, event *poller.Event) error {
+	if event == nil {
+		return nil
+	}
+
+	key := aggregateKey{
+		Provider:  event.Provider,
+		Service:   event.Service,
+		Channel:   event.Channel,
+		EventType: event.Type,
+	}
+
+	now := time.Now()
+
+	s.aggMu.Lock()
+	agg := s.aggBuf[key]
+	if agg == nil {
+		// 首个事件：创建聚合缓冲区并启动定时器
+		baseCopy := *event
+		agg = &eventAggregate{
+			firstAt: now,
+			base:    &baseCopy,
+			models:  make(map[string]struct{}),
+		}
+		agg.timer = time.AfterFunc(s.aggWindow, func() {
+			s.flushAggregate(key)
+		})
+		s.aggBuf[key] = agg
+
+		slog.Debug("事件聚合开始",
+			"provider", event.Provider,
+			"service", event.Service,
+			"channel", event.Channel,
+			"type", event.Type,
+			"window", s.aggWindow,
+		)
+	}
+
+	// 收集 model（去重）
+	if model := strings.TrimSpace(event.Model); model != "" {
+		agg.models[model] = struct{}{}
+	}
+	s.aggMu.Unlock()
+
+	return nil
+}
+
+// flushAggregate 刷新聚合缓冲区，发送合并后的通知
+func (s *Sender) flushAggregate(key aggregateKey) {
+	s.aggMu.Lock()
+	agg := s.aggBuf[key]
+	if agg == nil {
+		s.aggMu.Unlock()
+		return
+	}
+	delete(s.aggBuf, key)
+	if agg.timer != nil {
+		agg.timer.Stop()
+	}
+	s.aggMu.Unlock()
+
+	// 收集并排序 models
+	models := make([]string, 0, len(agg.models))
+	for m := range agg.models {
+		if strings.TrimSpace(m) != "" {
+			models = append(models, m)
+		}
+	}
+	sort.Strings(models)
+
+	// 构建合并后的事件
+	merged := *agg.base
+	if merged.Meta == nil {
+		merged.Meta = make(map[string]any)
+	} else {
+		// 深拷贝 Meta 防止并发问题
+		metaCopy := make(map[string]any, len(merged.Meta)+1)
+		for k, v := range merged.Meta {
+			metaCopy[k] = v
+		}
+		merged.Meta = metaCopy
+	}
+	if len(models) > 0 {
+		merged.Meta["models"] = models
+	}
+
+	slog.Info("事件聚合完成",
+		"provider", key.Provider,
+		"service", key.Service,
+		"channel", key.Channel,
+		"type", key.EventType,
+		"models", models,
+	)
+
+	// 获取发送用的 context
+	sendCtx := s.getSendContext()
+	if err := s.dispatchEvent(sendCtx, &merged); err != nil {
+		slog.Error("聚合事件发送失败",
+			"provider", key.Provider,
+			"service", key.Service,
+			"channel", key.Channel,
+			"type", key.EventType,
+			"error", err,
+		)
+	}
+}
+
+// getSendContext 获取用于发送通知的 context
+// 如果服务已停止或 baseCtx 已取消，返回 Background context 确保 flush 能完成
+func (s *Sender) getSendContext() context.Context {
+	s.mu.Lock()
+	running := s.running
+	ctx := s.baseCtx
+	s.mu.Unlock()
+
+	// 服务已停止时，使用 Background 确保 flush 能完成发送
+	if !running {
+		return context.Background()
+	}
+
+	if ctx != nil && ctx.Err() == nil {
+		return ctx
+	}
+	return context.Background()
+}
+
+// dispatchEvent 分发事件通知给所有订阅者
+func (s *Sender) dispatchEvent(ctx context.Context, event *poller.Event) error {
 	// 查找订阅者（返回 platform + chatID）
 	subscribers, err := s.storage.GetSubscribersByMonitor(ctx, event.Provider, event.Service, event.Channel)
 	if err != nil {
@@ -133,10 +328,12 @@ func (s *Sender) HandleEvent(ctx context.Context, event *poller.Event) error {
 
 // sendNotification 发送单条通知（多平台路由）
 func (s *Sender) sendNotification(ctx context.Context, delivery *storage.Delivery, event *poller.Event) {
-	// 等待限流
+	// 等待限流，同时监听退出信号避免 Stop() 后阻塞
 	select {
 	case <-ctx.Done():
 		return
+	case <-s.stopChan:
+		// 服务正在关闭，跳过限流直接发送
 	case <-s.rateLimiter.C:
 	}
 
@@ -202,6 +399,69 @@ func (s *Sender) sendQQ(ctx context.Context, delivery *storage.Delivery, event *
 	}
 
 	return fmt.Sprintf("%d", mid), nil
+}
+
+// extractModels 从事件中提取所有 model 信息
+// 优先从 Meta["models"] 读取（聚合后的事件），回退到 event.Model（单个事件）
+func extractModels(event *poller.Event) []string {
+	if event == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	var models []string
+
+	// 从 Meta["models"] 读取（聚合后的事件会设置这个字段）
+	if event.Meta != nil {
+		if v, ok := event.Meta["models"]; ok {
+			switch t := v.(type) {
+			case []string:
+				for _, m := range t {
+					m = strings.TrimSpace(m)
+					if m == "" {
+						continue
+					}
+					if _, exists := seen[m]; exists {
+						continue
+					}
+					seen[m] = struct{}{}
+					models = append(models, m)
+				}
+			case []any:
+				// JSON 解码后可能是 []any 类型
+				for _, raw := range t {
+					m, ok := raw.(string)
+					if !ok {
+						continue
+					}
+					m = strings.TrimSpace(m)
+					if m == "" {
+						continue
+					}
+					if _, exists := seen[m]; exists {
+						continue
+					}
+					seen[m] = struct{}{}
+					models = append(models, m)
+				}
+			}
+		}
+	}
+
+	// 回退到单个 event.Model（兼容未聚合的事件）
+	if m := strings.TrimSpace(event.Model); m != "" {
+		if _, exists := seen[m]; !exists {
+			seen[m] = struct{}{}
+			models = append(models, m)
+		}
+	}
+
+	// 保持稳定排序
+	if len(models) > 1 {
+		sort.Strings(models)
+	}
+
+	return models
 }
 
 // handleSendError 处理发送错误
@@ -276,6 +536,15 @@ func (s *Sender) formatMessageTelegram(event *poller.Event) string {
 		location += fmt.Sprintf(" / <b>%s</b>", channel)
 	}
 
+	// 模型信息（多模型监测组会显示所有受影响的模型）
+	var modelLine string
+	models := extractModels(event)
+	if len(models) == 1 {
+		modelLine = fmt.Sprintf("\n模型: %s", html.EscapeString(models[0]))
+	} else if len(models) > 1 {
+		modelLine = fmt.Sprintf("\n模型: %s", html.EscapeString(strings.Join(models, ", ")))
+	}
+
 	var details string
 	if subStatus, ok := event.Meta["sub_status"]; ok {
 		details = fmt.Sprintf("\n原因: %s", html.EscapeString(fmt.Sprintf("%v", subStatus)))
@@ -290,11 +559,12 @@ func (s *Sender) formatMessageTelegram(event *poller.Event) string {
 
 	return fmt.Sprintf(`%s <b>%s</b>
 
-%s%s
+%s%s%s
 
 时间: %s`,
 		emoji, statusText,
 		location,
+		modelLine,
 		details,
 		eventTime,
 	)
@@ -334,6 +604,15 @@ func (s *Sender) formatMessageQQ(event *poller.Event) string {
 		location += fmt.Sprintf(" / %s", event.Channel)
 	}
 
+	// 模型信息（多模型监测组会显示所有受影响的模型）
+	var modelLine string
+	models := extractModels(event)
+	if len(models) == 1 {
+		modelLine = fmt.Sprintf("\n模型: %s", models[0])
+	} else if len(models) > 1 {
+		modelLine = fmt.Sprintf("\n模型: %s", strings.Join(models, ", "))
+	}
+
 	var details string
 	if subStatus, ok := event.Meta["sub_status"]; ok {
 		details = fmt.Sprintf("\n原因: %v", subStatus)
@@ -346,7 +625,7 @@ func (s *Sender) formatMessageQQ(event *poller.Event) string {
 	cst := time.FixedZone("CST", 8*60*60)
 	eventTime := time.Unix(eventTs, 0).In(cst).Format("2006-01-02 15:04:05")
 
-	return fmt.Sprintf("%s %s\n\n%s%s\n\n时间: %s", emoji, statusText, location, details, eventTime)
+	return fmt.Sprintf("%s %s\n\n%s%s%s\n\n时间: %s", emoji, statusText, location, modelLine, details, eventTime)
 }
 
 // retryLoop 重试失败的投递

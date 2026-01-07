@@ -23,6 +23,7 @@ type EventItem struct {
 	Provider        string         `json:"provider"`
 	Service         string         `json:"service"`
 	Channel         string         `json:"channel,omitempty"`
+	Model           string         `json:"model,omitempty"`
 	Type            string         `json:"type"`
 	FromStatus      int            `json:"from_status"`
 	ToStatus        int            `json:"to_status"`
@@ -122,6 +123,7 @@ func (h *Handler) GetEvents(c *gin.Context) {
 			Provider:        e.Provider,
 			Service:         e.Service,
 			Channel:         e.Channel,
+			Model:           e.Model,
 			Type:            string(e.EventType),
 			FromStatus:      e.FromStatus,
 			ToStatus:        e.ToStatus,

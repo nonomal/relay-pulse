@@ -22,6 +22,7 @@ type Event struct {
 	Provider        string         `json:"provider"`
 	Service         string         `json:"service"`
 	Channel         string         `json:"channel,omitempty"`
+	Model           string         `json:"model,omitempty"`
 	Type            string         `json:"type"`              // DOWN 或 UP
 	FromStatus      int            `json:"from_status"`       // 变更前状态
 	ToStatus        int            `json:"to_status"`         // 变更后状态
