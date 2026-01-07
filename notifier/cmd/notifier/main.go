@@ -29,9 +29,20 @@ var (
 func main() {
 	flag.Parse()
 
-	// 初始化日志
+	// 初始化日志（支持 LOG_LEVEL 环境变量：debug/info/warn/error）
+	logLevel := slog.LevelInfo
+	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+		switch lvl {
+		case "debug", "DEBUG":
+			logLevel = slog.LevelDebug
+		case "warn", "WARN":
+			logLevel = slog.LevelWarn
+		case "error", "ERROR":
+			logLevel = slog.LevelError
+		}
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
+		Level: logLevel,
 	}))
 	slog.SetDefault(logger)
 
