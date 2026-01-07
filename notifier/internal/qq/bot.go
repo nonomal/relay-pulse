@@ -276,7 +276,14 @@ func (b *Bot) allowGroupStatusCheck(groupID int64) bool {
 
 // handleMessage 处理消息
 func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
-	if e == nil || e.PostType != "message" {
+	if e == nil {
+		return
+	}
+
+	// 支持两种事件类型：
+	// - "message": 收到的消息
+	// - "message_sent": 机器人自己发送的消息（用于 // 自发命令）
+	if e.PostType != "message" && e.PostType != "message_sent" {
 		return
 	}
 
@@ -288,15 +295,20 @@ func (b *Bot) handleMessage(ctx context.Context, e *OneBotEvent) {
 	// 提取纯文本
 	text := strings.TrimSpace(extractPlainText(e))
 
-	// 检查是否是机器人自己发的消息
-	isSelfMessage := e.UserID != 0 && e.UserID == e.SelfID
+	// 判断是否是机器人自发消息（兼容两种实现）：
+	// 1. post_type="message_sent"（NapCat 等）
+	// 2. post_type="message" 且 user_id=self_id（部分其他实现）
+	isSelfMessage := e.PostType == "message_sent" ||
+		(e.PostType == "message" && e.UserID != 0 && e.UserID == e.SelfID)
+
+	// 自发消息仅允许 // 双斜杠命令，避免循环
 	if isSelfMessage {
-		// 仅允许 // 双斜杠命令（隐藏的自发命令入口，避免循环）
 		if !strings.HasPrefix(text, "//") {
 			return
 		}
 		// 将 // 转换为 / 以便后续统一处理
 		text = text[1:]
+		slog.Debug("收到机器人自发命令", "text", text, "group_id", e.GroupID)
 	}
 
 	// 私聊权限检查：仅接受好友消息（好友即白名单）
