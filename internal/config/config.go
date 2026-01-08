@@ -1339,7 +1339,6 @@ func (c *AppConfig) Normalize() error {
 	}
 
 	// 将慢请求阈值和超时时间下发到每个监测项（优先级：monitor > by_service > global），并标准化 category、URLs、provider_slug
-	slugSet := make(map[string]int) // slug -> monitor index (用于检测重复)
 	for i := range c.Monitors {
 		// 注意：SlowLatencyDuration/TimeoutDuration 为 yaml:"-" 字段。
 		// 在热更新/复用 slice 元素的场景下，旧值可能残留，导致删除 monitor 级配置后无法回退。
@@ -1460,13 +1459,6 @@ func (c *AppConfig) Normalize() error {
 		c.Monitors[i].ProviderName = strings.TrimSpace(c.Monitors[i].ProviderName)
 		c.Monitors[i].ServiceName = strings.TrimSpace(c.Monitors[i].ServiceName)
 		c.Monitors[i].ChannelName = strings.TrimSpace(c.Monitors[i].ChannelName)
-
-		// 检测 slug 重复 (同一 slug 可用于不同 service，仅记录不报错)
-		if prevIdx, exists := slugSet[slug]; exists {
-			log.Printf("[Config] 注意: provider_slug '%s' 被多个监测项使用 (monitor[%d] 和 monitor[%d])", slug, prevIdx, i)
-		} else {
-			slugSet[slug] = i
-		}
 
 		// 计算最终禁用状态：providerDisabled || monitorDisabled
 		// 原因优先级：monitor.DisabledReason > provider.Reason
