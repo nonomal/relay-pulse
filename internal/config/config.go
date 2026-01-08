@@ -337,11 +337,24 @@ type EventsConfig struct {
 	// 是否启用事件功能（默认禁用）
 	Enabled bool `yaml:"enabled" json:"enabled"`
 
-	// 连续 N 次不可用触发 DOWN 事件（默认 2）
+	// 事件模式："model"（默认，按模型独立触发）或 "channel"（按通道整体判定）
+	// - model: 每个模型独立维护状态机，独立触发 DOWN/UP 事件
+	// - channel: 按通道整体判定，任意 N 个模型 DOWN 触发通道 DOWN，所有模型恢复触发通道 UP
+	Mode string `yaml:"mode" json:"mode"`
+
+	// 连续 N 次不可用触发 DOWN 事件（默认 2，mode=model 时使用）
 	DownThreshold int `yaml:"down_threshold" json:"down_threshold"`
 
-	// 连续 N 次可用触发 UP 事件（默认 1）
+	// 连续 N 次可用触发 UP 事件（默认 1，mode=model 时使用）
 	UpThreshold int `yaml:"up_threshold" json:"up_threshold"`
+
+	// 通道级 DOWN 阈值：N 个模型 DOWN 触发通道 DOWN（默认 1，mode=channel 时使用）
+	ChannelDownThreshold int `yaml:"channel_down_threshold" json:"channel_down_threshold"`
+
+	// 通道级计数模式（mode=channel 时使用）：
+	// - "recompute"（默认）：每次基于活跃模型集合重新计算 down_count/known_count，解决迁移/模型删除等边界问题
+	// - "incremental"：增量维护计数，性能最优，适合大规模稳定运行的系统
+	ChannelCountMode string `yaml:"channel_count_mode" json:"channel_count_mode"`
 
 	// API 访问令牌（可选，空值表示无鉴权）
 	// 配置后需要在请求头中携带 Authorization: Bearer <token>
@@ -1151,17 +1164,35 @@ func (c *AppConfig) Normalize() error {
 	}
 
 	// Events 配置默认值
+	if c.Events.Mode == "" {
+		c.Events.Mode = "model" // 默认按模型独立触发事件
+	}
+	if c.Events.Mode != "model" && c.Events.Mode != "channel" {
+		return fmt.Errorf("events.mode 必须是 'model' 或 'channel'，当前值: %s", c.Events.Mode)
+	}
 	if c.Events.DownThreshold == 0 {
 		c.Events.DownThreshold = 2 // 默认连续 2 次不可用触发 DOWN
 	}
 	if c.Events.UpThreshold == 0 {
 		c.Events.UpThreshold = 1 // 默认 1 次可用触发 UP
 	}
+	if c.Events.ChannelDownThreshold == 0 {
+		c.Events.ChannelDownThreshold = 1 // 默认 1 个模型 DOWN 触发通道 DOWN
+	}
 	if c.Events.DownThreshold < 1 {
 		return fmt.Errorf("events.down_threshold 必须 >= 1，当前值: %d", c.Events.DownThreshold)
 	}
 	if c.Events.UpThreshold < 1 {
 		return fmt.Errorf("events.up_threshold 必须 >= 1，当前值: %d", c.Events.UpThreshold)
+	}
+	if c.Events.ChannelDownThreshold < 1 {
+		return fmt.Errorf("events.channel_down_threshold 必须 >= 1，当前值: %d", c.Events.ChannelDownThreshold)
+	}
+	if c.Events.ChannelCountMode == "" {
+		c.Events.ChannelCountMode = "recompute" // 默认使用重算模式，更稳定
+	}
+	if c.Events.ChannelCountMode != "incremental" && c.Events.ChannelCountMode != "recompute" {
+		return fmt.Errorf("events.channel_count_mode 必须是 'incremental' 或 'recompute'，当前值: %s", c.Events.ChannelCountMode)
 	}
 
 	// 存储配置默认值

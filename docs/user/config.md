@@ -284,8 +284,11 @@ monitors:
 ```yaml
 events:
   enabled: true           # 是否启用事件功能（默认 false）
+  mode: "model"           # 事件检测粒度："model"（默认）或 "channel"
   down_threshold: 2       # 连续 N 次不可用触发 DOWN 事件（默认 2）
   up_threshold: 1         # 连续 N 次可用触发 UP 事件（默认 1）
+  channel_down_threshold: 1    # 通道级 DOWN 阈值（mode=channel 时生效）
+  channel_count_mode: "recompute"  # 通道级计数模式（mode=channel 时生效）
   api_token: ""           # API 访问令牌（空=无鉴权）
 ```
 
@@ -311,6 +314,73 @@ events:
 - **默认值**: `""`（空，无鉴权）
 - **说明**: 事件 API 的访问令牌，用于保护 `/api/events` 端点
 - **使用方式**: 请求时需在 Header 中携带 `Authorization: Bearer <token>`
+
+#### `events.mode`
+- **类型**: string
+- **默认值**: `"model"`
+- **可选值**: `"model"`, `"channel"`
+- **说明**: 事件检测粒度模式
+  - `model`: 模型级事件检测（默认），每个模型独立触发 DOWN/UP 事件
+  - `channel`: 通道级事件检测，基于通道内模型的整体状态触发事件
+- **使用场景**:
+  - `model`: 需要精细监控每个模型状态变化的场景
+  - `channel`: 只关心通道整体可用性，减少事件噪音
+
+#### `events.channel_down_threshold`
+- **类型**: integer
+- **默认值**: `1`
+- **说明**: 通道级 DOWN 事件的触发阈值（仅 `mode: channel` 时生效）
+- **行为**: 当通道内 DOWN 状态的模型数量 ≥ 此阈值时，触发通道级 DOWN 事件
+- **示例**: 设为 `2` 表示至少 2 个模型 DOWN 才触发通道 DOWN
+
+#### `events.channel_count_mode`
+- **类型**: string
+- **默认值**: `"recompute"`
+- **可选值**: `"recompute"`, `"incremental"`
+- **说明**: 通道级计数模式（仅 `mode: channel` 时生效）
+  - `recompute`（默认）: 每次基于活跃模型集合重新计算 `down_count`/`known_count`
+    - ✅ 解决迁移场景（从 `mode: model` 切换到 `mode: channel`）
+    - ✅ 解决模型删除导致的状态卡死问题
+    - ✅ 自动修复计数异常
+    - ⚠️ 每次探测需查询所有模型状态（O(n) 复杂度）
+  - `incremental`: 增量维护 `down_count`/`count`
+    - ✅ 性能最优（O(1) 复杂度）
+    - ⚠️ 迁移场景可能有问题（首次启用时 `channel_states` 为空）
+    - ⚠️ 模型删除后计数不会自动回收
+    - 🔧 内置自愈机制：检测到计数异常时自动回退到 `recompute` 校准
+- **推荐**:
+  - 新部署或配置频繁变更：使用 `recompute`（默认）
+  - 大规模稳定运行的系统：可切换到 `incremental` 优化性能
+
+**通道级事件配置示例**:
+
+```yaml
+events:
+  enabled: true
+  mode: "channel"              # 启用通道级事件检测
+  down_threshold: 2            # 模型级阈值（仍用于模型状态机）
+  up_threshold: 1              # 模型级阈值
+  channel_down_threshold: 1    # 通道级阈值：1 个模型 DOWN 即触发通道 DOWN
+  channel_count_mode: "recompute"  # 推荐：每次重算，更稳定
+  api_token: "your-secure-token"
+```
+
+**通道级事件 Meta 字段**:
+
+通道级事件（`model` 字段为空）的 `meta` 包含以下额外信息：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `scope` | string | 固定为 `"channel"`，标识通道级事件 |
+| `trigger_model` | string | 触发此事件的模型名称 |
+| `down_count` | int | 当前 DOWN 状态的模型数量 |
+| `known_count` | int | 已知状态的模型数量 |
+| `total_models` | int | 该通道的活跃模型总数 |
+| `channel_down_threshold` | int | 配置的通道 DOWN 阈值 |
+| `down_models` | []string | DOWN 状态的模型列表 |
+| `up_models` | []string | UP 状态的模型列表 |
+| `model_states` | object | 各模型的详细状态 |
+| `models` | []string | 兼容字段：DOWN 事件为 `down_models`，UP 事件为 `up_models` |
 
 #### 事件 API 端点
 

@@ -685,6 +685,24 @@ func (s *SQLiteStorage) initEventTables(ctx context.Context) error {
 		return fmt.Errorf("创建 status_events 表失败: %w", err)
 	}
 
+	// 通道状态表（通道级状态机持久化，用于 events.mode=channel）
+	channelStatesSchema := `
+	CREATE TABLE IF NOT EXISTS channel_states (
+		provider TEXT NOT NULL,
+		service TEXT NOT NULL,
+		channel TEXT NOT NULL DEFAULT '',
+		stable_available INTEGER NOT NULL DEFAULT -1,
+		down_count INTEGER NOT NULL DEFAULT 0,
+		known_count INTEGER NOT NULL DEFAULT 0,
+		last_record_id INTEGER,
+		last_timestamp INTEGER NOT NULL DEFAULT 0,
+		PRIMARY KEY (provider, service, channel)
+	);
+	`
+	if _, err := s.db.ExecContext(ctx, channelStatesSchema); err != nil {
+		return fmt.Errorf("创建 channel_states 表失败: %w", err)
+	}
+
 	// 兼容旧数据库：事件表补齐 model 列（旧数据默认 model=''）
 	if err := s.ensureServiceStatesModelColumn(); err != nil {
 		return err
@@ -938,6 +956,125 @@ func (s *SQLiteStorage) UpsertServiceState(state *ServiceState) error {
 	}
 
 	return nil
+}
+
+// GetChannelState 获取通道级状态机持久化状态
+func (s *SQLiteStorage) GetChannelState(provider, service, channel string) (*ChannelState, error) {
+	ctx := s.effectiveCtx()
+	query := `
+		SELECT provider, service, channel, stable_available, down_count, known_count, last_record_id, last_timestamp
+		FROM channel_states
+		WHERE provider = ? AND service = ? AND channel = ?
+	`
+
+	var state ChannelState
+	var lastRecordID sql.NullInt64
+
+	err := s.db.QueryRowContext(ctx, query, provider, service, channel).Scan(
+		&state.Provider,
+		&state.Service,
+		&state.Channel,
+		&state.StableAvailable,
+		&state.DownCount,
+		&state.KnownCount,
+		&lastRecordID,
+		&state.LastTimestamp,
+	)
+
+	if err == sql.ErrNoRows {
+		return nil, nil // 尚未初始化
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询通道状态失败: %w", err)
+	}
+
+	if lastRecordID.Valid {
+		state.LastRecordID = lastRecordID.Int64
+	}
+
+	return &state, nil
+}
+
+// UpsertChannelState 写入或更新通道级状态机持久化状态
+func (s *SQLiteStorage) UpsertChannelState(state *ChannelState) error {
+	ctx := s.effectiveCtx()
+	query := `
+		INSERT INTO channel_states (provider, service, channel, stable_available, down_count, known_count, last_record_id, last_timestamp)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		ON CONFLICT(provider, service, channel) DO UPDATE SET
+			stable_available = excluded.stable_available,
+			down_count = excluded.down_count,
+			known_count = excluded.known_count,
+			last_record_id = excluded.last_record_id,
+			last_timestamp = excluded.last_timestamp
+	`
+
+	_, err := s.db.ExecContext(ctx, query,
+		state.Provider,
+		state.Service,
+		state.Channel,
+		state.StableAvailable,
+		state.DownCount,
+		state.KnownCount,
+		state.LastRecordID,
+		state.LastTimestamp,
+	)
+
+	if err != nil {
+		return fmt.Errorf("更新通道状态失败: %w", err)
+	}
+
+	return nil
+}
+
+// GetModelStatesForChannel 获取通道下所有模型的状态
+func (s *SQLiteStorage) GetModelStatesForChannel(provider, service, channel string) ([]*ServiceState, error) {
+	ctx := s.effectiveCtx()
+	query := `
+		SELECT provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp
+		FROM service_states
+		WHERE provider = ? AND service = ? AND channel = ?
+		ORDER BY model
+	`
+
+	rows, err := s.db.QueryContext(ctx, query, provider, service, channel)
+	if err != nil {
+		return nil, fmt.Errorf("查询通道模型状态失败: %w", err)
+	}
+	defer rows.Close()
+
+	var states []*ServiceState
+	for rows.Next() {
+		var state ServiceState
+		var lastRecordID sql.NullInt64
+
+		err := rows.Scan(
+			&state.Provider,
+			&state.Service,
+			&state.Channel,
+			&state.Model,
+			&state.StableAvailable,
+			&state.StreakCount,
+			&state.StreakStatus,
+			&lastRecordID,
+			&state.LastTimestamp,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描模型状态失败: %w", err)
+		}
+
+		if lastRecordID.Valid {
+			state.LastRecordID = lastRecordID.Int64
+		}
+
+		states = append(states, &state)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代模型状态失败: %w", err)
+	}
+
+	return states, nil
 }
 
 // SaveStatusEvent 保存状态变更事件

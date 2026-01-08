@@ -122,6 +122,12 @@ func (s *Scheduler) Start(ctx context.Context, cfg *config.AppConfig) {
 // UpdateConfig 更新配置（热更新时调用）
 func (s *Scheduler) UpdateConfig(cfg *config.AppConfig) {
 	s.rebuildTasks(cfg, false)
+
+	// 更新事件服务的活跃模型索引（用于 channel 模式）
+	if s.eventService != nil && s.eventService.IsEnabled() {
+		s.eventService.UpdateActiveModels(cfg.Monitors)
+	}
+
 	logger.Info("scheduler", "配置已更新，调度任务已重建")
 }
 

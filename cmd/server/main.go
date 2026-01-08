@@ -117,19 +117,32 @@ func main() {
 	sched := scheduler.NewScheduler(store, interval)
 
 	// 创建事件服务（如果启用）
-	eventSvc, err := events.NewService(events.DetectorConfig{
-		DownThreshold: cfg.Events.DownThreshold,
-		UpThreshold:   cfg.Events.UpThreshold,
-	}, store, cfg.Events.Enabled)
+	eventSvc, err := events.NewService(events.ServiceConfig{
+		DetectorConfig: events.DetectorConfig{
+			DownThreshold: cfg.Events.DownThreshold,
+			UpThreshold:   cfg.Events.UpThreshold,
+		},
+		ChannelDetectorConfig: events.ChannelDetectorConfig{
+			DownThreshold: cfg.Events.ChannelDownThreshold,
+		},
+		Mode:             cfg.Events.Mode,
+		ChannelCountMode: cfg.Events.ChannelCountMode,
+		Enabled:          cfg.Events.Enabled,
+	}, store)
 	if err != nil {
 		logger.Error("main", "创建事件服务失败", "error", err)
 		os.Exit(1)
 	}
 	if eventSvc.IsEnabled() {
 		sched.SetEventService(eventSvc)
+		// 初始化活跃模型索引
+		eventSvc.UpdateActiveModels(cfg.Monitors)
 		logger.Info("main", "事件服务已启用",
+			"mode", eventSvc.GetMode(),
 			"down_threshold", cfg.Events.DownThreshold,
-			"up_threshold", cfg.Events.UpThreshold)
+			"up_threshold", cfg.Events.UpThreshold,
+			"channel_down_threshold", cfg.Events.ChannelDownThreshold,
+			"channel_count_mode", cfg.Events.ChannelCountMode)
 	}
 
 	sched.Start(ctx, cfg)

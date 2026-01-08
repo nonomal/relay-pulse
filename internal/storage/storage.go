@@ -119,6 +119,29 @@ type ServiceState struct {
 	LastTimestamp int64
 }
 
+// ChannelState 通道级状态机持久化状态
+// 用于 events.mode=channel 时追踪通道整体的可用性状态
+type ChannelState struct {
+	Provider string
+	Service  string
+	Channel  string
+
+	// StableAvailable 稳定态可用性：-1=未初始化, 0=不可用, 1=可用
+	StableAvailable int
+
+	// DownCount 当前 DOWN 的模型数
+	DownCount int
+
+	// KnownCount 已初始化状态的模型数
+	KnownCount int
+
+	// LastRecordID 最后处理的探测记录 ID
+	LastRecordID int64
+
+	// LastTimestamp 最后更新时间戳（Unix 秒）
+	LastTimestamp int64
+}
+
 // StatusEvent 状态变更事件
 type StatusEvent struct {
 	ID       int64
@@ -207,6 +230,17 @@ type Storage interface {
 
 	// UpsertServiceState 写入或更新服务状态机持久化状态
 	UpsertServiceState(state *ServiceState) error
+
+	// GetChannelState 获取通道级状态机持久化状态
+	// 返回 nil, nil 表示该通道尚未初始化状态
+	GetChannelState(provider, service, channel string) (*ChannelState, error)
+
+	// UpsertChannelState 写入或更新通道级状态机持久化状态
+	UpsertChannelState(state *ChannelState) error
+
+	// GetModelStatesForChannel 获取通道下所有模型的状态
+	// 用于构建通道级事件的 Meta 信息
+	GetModelStatesForChannel(provider, service, channel string) ([]*ServiceState, error)
 
 	// SaveStatusEvent 保存状态变更事件
 	// 使用唯一约束确保幂等（相同 provider/service/channel/event_type/trigger_record_id 不重复插入）

@@ -934,6 +934,24 @@ func (s *PostgresStorage) initEventTables(ctx context.Context) error {
 		return err
 	}
 
+	// 通道状态表（通道级状态机持久化，用于 events.mode=channel）
+	channelStatesSchema := `
+	CREATE TABLE IF NOT EXISTS channel_states (
+		provider TEXT NOT NULL,
+		service TEXT NOT NULL,
+		channel TEXT NOT NULL DEFAULT '',
+		stable_available INTEGER NOT NULL DEFAULT -1,
+		down_count INTEGER NOT NULL DEFAULT 0,
+		known_count INTEGER NOT NULL DEFAULT 0,
+		last_record_id BIGINT,
+		last_timestamp BIGINT NOT NULL DEFAULT 0,
+		PRIMARY KEY (provider, service, channel)
+	);
+	`
+	if _, err := s.pool.Exec(ctx, channelStatesSchema); err != nil {
+		return fmt.Errorf("创建 channel_states 表失败 (PostgreSQL): %w", err)
+	}
+
 	// 创建索引
 	eventsIndexSQL := `
 	CREATE INDEX IF NOT EXISTS idx_status_events_psc_id
@@ -1306,4 +1324,123 @@ func (s *PostgresStorage) GetLatestEventID() (int64, error) {
 	}
 
 	return latestID, nil
+}
+
+// GetChannelState 获取通道级状态机持久化状态
+func (s *PostgresStorage) GetChannelState(provider, service, channel string) (*ChannelState, error) {
+	ctx := s.effectiveCtx()
+	query := `
+		SELECT provider, service, channel, stable_available, down_count, known_count, last_record_id, last_timestamp
+		FROM channel_states
+		WHERE provider = $1 AND service = $2 AND channel = $3
+	`
+
+	var state ChannelState
+	var lastRecordID *int64
+
+	err := s.pool.QueryRow(ctx, query, provider, service, channel).Scan(
+		&state.Provider,
+		&state.Service,
+		&state.Channel,
+		&state.StableAvailable,
+		&state.DownCount,
+		&state.KnownCount,
+		&lastRecordID,
+		&state.LastTimestamp,
+	)
+
+	if err != nil {
+		if err.Error() == "no rows in result set" {
+			return nil, nil // 尚未初始化
+		}
+		return nil, fmt.Errorf("查询通道状态失败 (PostgreSQL): %w", err)
+	}
+
+	if lastRecordID != nil {
+		state.LastRecordID = *lastRecordID
+	}
+
+	return &state, nil
+}
+
+// UpsertChannelState 写入或更新通道级状态机持久化状态
+func (s *PostgresStorage) UpsertChannelState(state *ChannelState) error {
+	ctx := s.effectiveCtx()
+	query := `
+		INSERT INTO channel_states (provider, service, channel, stable_available, down_count, known_count, last_record_id, last_timestamp)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT(provider, service, channel) DO UPDATE SET
+			stable_available = EXCLUDED.stable_available,
+			down_count = EXCLUDED.down_count,
+			known_count = EXCLUDED.known_count,
+			last_record_id = EXCLUDED.last_record_id,
+			last_timestamp = EXCLUDED.last_timestamp
+	`
+
+	_, err := s.pool.Exec(ctx, query,
+		state.Provider,
+		state.Service,
+		state.Channel,
+		state.StableAvailable,
+		state.DownCount,
+		state.KnownCount,
+		state.LastRecordID,
+		state.LastTimestamp,
+	)
+
+	if err != nil {
+		return fmt.Errorf("更新通道状态失败 (PostgreSQL): %w", err)
+	}
+
+	return nil
+}
+
+// GetModelStatesForChannel 获取通道下所有模型的状态
+func (s *PostgresStorage) GetModelStatesForChannel(provider, service, channel string) ([]*ServiceState, error) {
+	ctx := s.effectiveCtx()
+	query := `
+		SELECT provider, service, channel, model, stable_available, streak_count, streak_status, last_record_id, last_timestamp
+		FROM service_states
+		WHERE provider = $1 AND service = $2 AND channel = $3
+		ORDER BY model
+	`
+
+	rows, err := s.pool.Query(ctx, query, provider, service, channel)
+	if err != nil {
+		return nil, fmt.Errorf("查询通道模型状态失败 (PostgreSQL): %w", err)
+	}
+	defer rows.Close()
+
+	var states []*ServiceState
+	for rows.Next() {
+		var state ServiceState
+		var lastRecordID *int64
+
+		err := rows.Scan(
+			&state.Provider,
+			&state.Service,
+			&state.Channel,
+			&state.Model,
+			&state.StableAvailable,
+			&state.StreakCount,
+			&state.StreakStatus,
+			&lastRecordID,
+			&state.LastTimestamp,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描模型状态失败 (PostgreSQL): %w", err)
+		}
+
+		if lastRecordID != nil {
+			state.LastRecordID = *lastRecordID
+		}
+
+		states = append(states, &state)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("迭代模型状态失败 (PostgreSQL): %w", err)
+	}
+
+	return states, nil
 }
