@@ -297,7 +297,7 @@ type StorageConfig struct {
 	// PostgreSQL 配置
 	Postgres PostgresConfig `yaml:"postgres" json:"postgres"`
 
-	// 历史数据保留与清理配置（默认启用）
+	// 历史数据保留与清理配置（默认禁用，需显式开启）
 	Retention RetentionConfig `yaml:"retention" json:"retention"`
 
 	// 历史数据归档配置（默认禁用）
@@ -306,7 +306,7 @@ type StorageConfig struct {
 
 // RetentionConfig 历史数据保留与清理配置
 type RetentionConfig struct {
-	// 是否启用清理任务（默认 true）
+	// 是否启用清理任务（默认 false，需要显式开启）
 	Enabled *bool `yaml:"enabled" json:"enabled"`
 
 	// 原始明细保留天数（默认 36）
@@ -339,7 +339,7 @@ type RetentionConfig struct {
 // IsEnabled 返回是否启用清理任务
 func (c *RetentionConfig) IsEnabled() bool {
 	if c.Enabled == nil {
-		return true // 默认启用
+		return false // 默认禁用（需要显式开启）
 	}
 	return *c.Enabled
 }
@@ -413,6 +413,10 @@ type ArchiveConfig struct {
 	// 是否启用归档（默认 false，需要显式开启）
 	Enabled *bool `yaml:"enabled" json:"enabled"`
 
+	// 归档执行时间（UTC 小时，0-23，默认 3）
+	// 例如：配置为 19 表示每天 UTC 19:00（北京时间次日 03:00）执行
+	ScheduleHour *int `yaml:"schedule_hour" json:"schedule_hour"`
+
 	// 归档输出目录（默认 "./archive"）
 	OutputDir string `yaml:"output_dir" json:"output_dir"`
 
@@ -447,6 +451,13 @@ func (c *ArchiveConfig) IsEnabled() bool {
 
 // Normalize 规范化 archive 配置（填充默认值）
 func (c *ArchiveConfig) Normalize() error {
+	// 归档执行时间校验（UTC 小时，0-23，默认 3）
+	if c.ScheduleHour != nil {
+		if *c.ScheduleHour < 0 || *c.ScheduleHour > 23 {
+			return fmt.Errorf("storage.archive.schedule_hour 必须在 [0,23] 范围内，当前值: %d", *c.ScheduleHour)
+		}
+	}
+
 	// 输出目录（默认 ./archive）
 	if strings.TrimSpace(c.OutputDir) == "" {
 		c.OutputDir = "./archive"

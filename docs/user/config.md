@@ -777,7 +777,7 @@ GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 
 ### 数据保留与清理
 
-RelayPulse 支持自动清理过期的历史数据，避免数据库无限增长。清理功能**默认启用**，保留最近 36 天的数据。
+RelayPulse 支持自动清理过期的历史数据，避免数据库无限增长。清理功能**默认禁用**，需要显式开启。
 
 > **注意**：`retention` 和 `archive` 配置修改后需要**重启服务**才能生效（不支持热更新）。
 
@@ -789,7 +789,7 @@ storage:
   # ... 其他存储配置 ...
 
   retention:
-    enabled: true              # 是否启用清理（默认 true）
+    enabled: true              # 是否启用清理（默认 false，需显式开启）
     days: 36                   # 保留天数（默认 36，建议比用户可见的 30 天多几天缓冲）
     cleanup_interval: "1h"     # 清理任务执行间隔（默认 1h）
     batch_size: 10000          # 每批删除的最大行数（默认 10000）
@@ -802,7 +802,7 @@ storage:
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
-| `enabled` | `true` | 是否启用清理任务 |
+| `enabled` | `false` | 是否启用清理任务（需显式开启） |
 | `days` | `36` | 保留天数（超过此天数的数据将被删除） |
 | `cleanup_interval` | `"1h"` | 清理任务执行间隔 |
 | `batch_size` | `10000` | 每批删除的最大行数 |
@@ -815,11 +815,12 @@ storage:
 - cutoff 时间按 UTC 计算，避免时区/DST 导致边界不一致
 - SQLite 单连接模式，无需额外处理
 
-**禁用清理**：
+**启用清理**：
 ```yaml
 storage:
   retention:
-    enabled: false
+    enabled: true
+    days: 36
 ```
 
 #### 归档配置（archive）
@@ -833,6 +834,7 @@ storage:
 
   archive:
     enabled: true              # 是否启用归档（默认 false）
+    schedule_hour: 19          # 归档执行时间（UTC 小时，默认 3；19=北京时间次日 03:00）
     output_dir: "./archive"    # 归档文件输出目录（默认 ./archive）
     format: "csv.gz"           # 归档格式（默认 csv.gz，可选 csv）
     archive_days: 35           # 归档多少天前的数据（默认 35）
@@ -845,6 +847,7 @@ storage:
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `enabled` | `false` | 是否启用归档（需显式开启） |
+| `schedule_hour` | `3` | 归档执行时间（UTC 小时，0-23）。例如：`19` 表示 UTC 19:00（北京时间次日 03:00） |
 | `output_dir` | `"./archive"` | 归档文件输出目录 |
 | `format` | `"csv.gz"` | 归档格式：`csv` 或 `csv.gz` |
 | `archive_days` | `35` | 归档阈值天数（归档此天数之前的数据） |
@@ -852,7 +855,7 @@ storage:
 | `keep_days` | `365` | 归档文件保留天数（0=永久） |
 
 **归档流程**：
-1. 启动后会立即执行一次归档检查，并在每天凌晨 3 点（UTC）执行
+1. 启动后会立即执行一次归档检查，并在每天 `schedule_hour`（UTC）执行
 2. 每次运行以 `now - archive_days` 为"最新可归档日"，并在 `backfill_days` 窗口内逐日补齐缺失的归档文件
 3. PostgreSQL 多实例使用 advisory lock 确保同一天只会被一个实例归档（按日期互斥，不同日期可能并行归档）
 4. 文件命名格式：`probe_history_2024-01-15.csv.gz`，并自动清理超过 `keep_days` 的旧归档文件

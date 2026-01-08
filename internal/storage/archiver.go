@@ -68,13 +68,14 @@ func (a *Archiver) Start(ctx context.Context) {
 	// 首次立即尝试归档
 	a.runArchive(ctx, archiveStorage)
 
-	// 每天凌晨 3 点执行归档
+	// 每天在配置的 UTC 小时执行归档（默认 UTC 3:00）
 	for {
 		nextRun := a.nextArchiveTime()
 		waitDuration := time.Until(nextRun)
 
 		logger.Info("archiver", "下次归档时间",
 			"next_run", nextRun.Format(time.RFC3339),
+			"schedule_hour_utc", a.scheduleHourUTC(),
 			"wait", waitDuration)
 
 		select {
@@ -97,14 +98,23 @@ func (a *Archiver) Stop() {
 	})
 }
 
-// nextArchiveTime 计算下次归档时间（每天凌晨 3 点 UTC）
+// nextArchiveTime 计算下次归档时间（每天在配置的 UTC 小时执行，默认 3）
 func (a *Archiver) nextArchiveTime() time.Time {
 	now := time.Now().UTC()
-	next := time.Date(now.Year(), now.Month(), now.Day(), 3, 0, 0, 0, time.UTC)
+	scheduleHour := a.scheduleHourUTC()
+	next := time.Date(now.Year(), now.Month(), now.Day(), scheduleHour, 0, 0, 0, time.UTC)
 	if now.After(next) {
 		next = next.Add(24 * time.Hour)
 	}
 	return next
+}
+
+// scheduleHourUTC 返回配置的归档执行时间（UTC 小时），默认 3
+func (a *Archiver) scheduleHourUTC() int {
+	if a.config != nil && a.config.ScheduleHour != nil {
+		return *a.config.ScheduleHour
+	}
+	return 3
 }
 
 // runArchive 执行一轮归档
