@@ -121,6 +121,16 @@ func (s *SQLiteStorage) Init() error {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)
 	}
 
+	// 新增 timestamp 索引：用于历史数据清理任务（PurgeOldRecords）
+	// 支持高效的 WHERE timestamp < ? ORDER BY timestamp LIMIT ? 查询
+	timestampIndexSQL := `
+	CREATE INDEX IF NOT EXISTS idx_probe_history_timestamp
+	ON probe_history(timestamp);
+	`
+	if _, err := s.db.ExecContext(ctx, timestampIndexSQL); err != nil {
+		return fmt.Errorf("创建 timestamp 索引失败: %w", err)
+	}
+
 	// 事件功能相关表
 	if err := s.initEventTables(ctx); err != nil {
 		return err
@@ -1237,4 +1247,37 @@ func (s *SQLiteStorage) GetLatestEventID() (int64, error) {
 	}
 
 	return latestID, nil
+}
+
+// ===== 历史数据清理相关方法 =====
+
+// PurgeOldRecords 清理指定时间之前的历史记录
+// SQLite 实现：使用子查询批量删除，带锁冲突重试
+func (s *SQLiteStorage) PurgeOldRecords(ctx context.Context, before time.Time, batchSize int) (int64, error) {
+	cutoff := before.Unix()
+
+	// 使用主键 id 批量删除，确保走 timestamp 索引
+	// 注意：SQLite 不支持 LIMIT 在 DELETE 中直接使用，使用子查询
+	query := `
+		DELETE FROM probe_history
+		WHERE id IN (
+			SELECT id FROM probe_history
+			WHERE timestamp < ?
+			ORDER BY timestamp
+			LIMIT ?
+		)
+	`
+
+	result, err := s.db.ExecContext(ctx, query, cutoff, batchSize)
+	if err != nil {
+		// SQLite 锁冲突由调用方（Cleaner）处理重试逻辑
+		return 0, fmt.Errorf("删除历史记录失败: %w", err)
+	}
+
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("获取删除行数失败: %w", err)
+	}
+
+	return affected, nil
 }

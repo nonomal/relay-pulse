@@ -109,6 +109,34 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// 启动历史数据清理任务
+	var cleaner *storage.Cleaner
+	if cfg.Storage.Retention.IsEnabled() {
+		cleaner = storage.NewCleaner(store, &cfg.Storage.Retention)
+		go cleaner.Start(ctx)
+		logger.Info("main", "历史数据清理任务已启动",
+			"retention_days", cfg.Storage.Retention.Days,
+			"cleanup_interval", cfg.Storage.Retention.CleanupInterval)
+	}
+
+	// 启动历史数据归档任务（仅 PostgreSQL 支持）
+	var archiver *storage.Archiver
+	if cfg.Storage.Archive.IsEnabled() {
+		// 检查存储是否支持归档（仅 PostgreSQL 支持）
+		if _, ok := store.(storage.ArchiveStorage); !ok {
+			logger.Warn("main", "归档功能已启用但当前存储不支持（仅 PostgreSQL 支持），归档任务将不会执行",
+				"storage_type", cfg.Storage.Type)
+		} else {
+			archiver = storage.NewArchiver(store, &cfg.Storage.Archive)
+			go archiver.Start(ctx)
+			logger.Info("main", "历史数据归档任务已启动",
+				"archive_days", cfg.Storage.Archive.ArchiveDays,
+				"backfill_days", cfg.Storage.Archive.BackfillDays,
+				"output_dir", cfg.Storage.Archive.OutputDir,
+				"format", cfg.Storage.Archive.Format)
+		}
+	}
+
 	// 创建调度器（支持通过 config.yaml 配置 interval）
 	interval := cfg.IntervalDuration
 	if interval <= 0 {
@@ -261,6 +289,16 @@ func main() {
 	if selfTestMgr != nil {
 		selfTestMgr.Stop()
 		logger.Info("main", "自助测试管理器已关闭")
+	}
+
+	// 停止清理和归档任务
+	if cleaner != nil {
+		cleaner.Stop()
+		logger.Info("main", "历史数据清理任务已关闭")
+	}
+	if archiver != nil {
+		archiver.Stop()
+		logger.Info("main", "历史数据归档任务已关闭")
 	}
 
 	// 停止HTTP服务器

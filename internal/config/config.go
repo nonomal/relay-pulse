@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -297,6 +296,207 @@ type StorageConfig struct {
 
 	// PostgreSQL 配置
 	Postgres PostgresConfig `yaml:"postgres" json:"postgres"`
+
+	// 历史数据保留与清理配置（默认启用）
+	Retention RetentionConfig `yaml:"retention" json:"retention"`
+
+	// 历史数据归档配置（默认禁用）
+	Archive ArchiveConfig `yaml:"archive" json:"archive"`
+}
+
+// RetentionConfig 历史数据保留与清理配置
+type RetentionConfig struct {
+	// 是否启用清理任务（默认 true）
+	Enabled *bool `yaml:"enabled" json:"enabled"`
+
+	// 原始明细保留天数（默认 36）
+	// 建议比用户可见的最大时间范围（30 天）多几天缓冲
+	Days int `yaml:"days" json:"days"`
+
+	// 清理任务执行间隔（默认 "1h"）
+	CleanupInterval string `yaml:"cleanup_interval" json:"cleanup_interval"`
+
+	// 每批删除的最大行数（默认 10000）
+	BatchSize int `yaml:"batch_size" json:"batch_size"`
+
+	// 单轮运行最多批次数（默认 100）
+	// 用于限制单次清理耗时，避免长期占用写锁或造成抖动
+	MaxBatchesPerRun int `yaml:"max_batches_per_run" json:"max_batches_per_run"`
+
+	// 启动后延迟多久开始首次清理（默认 "1m"）
+	// 用于避免服务启动抖动或多实例同时启动造成的峰值冲击
+	StartupDelay string `yaml:"startup_delay" json:"startup_delay"`
+
+	// 调度抖动比例（默认 0.2）
+	// 取值范围 [0,1]，用于在 interval 基础上增加随机偏移，避免多实例同刻执行
+	Jitter float64 `yaml:"jitter" json:"jitter"`
+
+	// 解析后的时间间隔（内部使用，不序列化）
+	CleanupIntervalDuration time.Duration `yaml:"-" json:"-"`
+	StartupDelayDuration    time.Duration `yaml:"-" json:"-"`
+}
+
+// IsEnabled 返回是否启用清理任务
+func (c *RetentionConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true // 默认启用
+	}
+	return *c.Enabled
+}
+
+// Normalize 规范化 retention 配置（填充默认值并解析 duration）
+func (c *RetentionConfig) Normalize() error {
+	// 保留天数（默认 36）
+	if c.Days == 0 {
+		c.Days = 36
+	}
+	if c.Days < 1 {
+		return fmt.Errorf("storage.retention.days 必须 >= 1，当前值: %d", c.Days)
+	}
+
+	// 清理间隔（默认 1h）
+	if strings.TrimSpace(c.CleanupInterval) == "" {
+		c.CleanupInterval = "1h"
+	}
+	d, err := time.ParseDuration(strings.TrimSpace(c.CleanupInterval))
+	if err != nil {
+		return fmt.Errorf("storage.retention.cleanup_interval 解析失败: %w", err)
+	}
+	if d <= 0 {
+		return fmt.Errorf("storage.retention.cleanup_interval 必须 > 0")
+	}
+	c.CleanupIntervalDuration = d
+
+	// 批大小（默认 10000）
+	if c.BatchSize == 0 {
+		c.BatchSize = 10000
+	}
+	if c.BatchSize < 1 {
+		return fmt.Errorf("storage.retention.batch_size 必须 >= 1，当前值: %d", c.BatchSize)
+	}
+
+	// 单轮最多批次数（默认 100）
+	if c.MaxBatchesPerRun == 0 {
+		c.MaxBatchesPerRun = 100
+	}
+	if c.MaxBatchesPerRun < 1 {
+		return fmt.Errorf("storage.retention.max_batches_per_run 必须 >= 1，当前值: %d", c.MaxBatchesPerRun)
+	}
+
+	// 启动延迟（默认 1m）
+	if strings.TrimSpace(c.StartupDelay) == "" {
+		c.StartupDelay = "1m"
+	}
+	d, err = time.ParseDuration(strings.TrimSpace(c.StartupDelay))
+	if err != nil {
+		return fmt.Errorf("storage.retention.startup_delay 解析失败: %w", err)
+	}
+	if d < 0 {
+		return fmt.Errorf("storage.retention.startup_delay 必须 >= 0")
+	}
+	c.StartupDelayDuration = d
+
+	// 抖动比例（默认 0.2）
+	if c.Jitter == 0 {
+		c.Jitter = 0.2
+	}
+	if c.Jitter < 0 || c.Jitter > 1 {
+		return fmt.Errorf("storage.retention.jitter 必须在 [0,1] 范围内，当前值: %g", c.Jitter)
+	}
+
+	return nil
+}
+
+// ArchiveConfig 历史数据归档配置
+// 归档数据仅用于备份，不提供在线查询
+type ArchiveConfig struct {
+	// 是否启用归档（默认 false，需要显式开启）
+	Enabled *bool `yaml:"enabled" json:"enabled"`
+
+	// 归档输出目录（默认 "./archive"）
+	OutputDir string `yaml:"output_dir" json:"output_dir"`
+
+	// 归档格式（默认 "csv.gz"，可选 "csv"）
+	Format string `yaml:"format" json:"format"`
+
+	// 归档阈值天数（默认 35）
+	// timestamp < now - archive_days 的整天数据将被归档
+	ArchiveDays int `yaml:"archive_days" json:"archive_days"`
+
+	// 归档补齐回溯天数（默认 7）
+	// 每次归档会尝试补齐 [now-archive_days-backfill_days+1, now-archive_days] 区间内缺失的归档文件
+	// 设置为 1 表示仅归档单日（兼容旧行为）
+	BackfillDays int `yaml:"backfill_days" json:"backfill_days"`
+
+	// 归档文件保留天数（默认 365）
+	// 使用指针类型区分"未配置"(nil→365) 和"配置为0"(0→永久保留)
+	KeepDays *int `yaml:"keep_days" json:"keep_days"`
+
+	// KeepDaysValue 规范化后的实际值（供运行时使用）
+	// -1 表示永久保留，>0 表示保留天数
+	KeepDaysValue int `yaml:"-" json:"-"`
+}
+
+// IsEnabled 返回是否启用归档
+func (c *ArchiveConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return false // 默认禁用
+	}
+	return *c.Enabled
+}
+
+// Normalize 规范化 archive 配置（填充默认值）
+func (c *ArchiveConfig) Normalize() error {
+	// 输出目录（默认 ./archive）
+	if strings.TrimSpace(c.OutputDir) == "" {
+		c.OutputDir = "./archive"
+	}
+
+	// 格式（默认 csv.gz）
+	if strings.TrimSpace(c.Format) == "" {
+		c.Format = "csv.gz"
+	}
+	format := strings.ToLower(strings.TrimSpace(c.Format))
+	if format != "csv" && format != "csv.gz" {
+		return fmt.Errorf("storage.archive.format 仅支持 csv 或 csv.gz，当前值: %s", c.Format)
+	}
+	c.Format = format
+
+	// 归档阈值天数（默认 35）
+	if c.ArchiveDays == 0 {
+		c.ArchiveDays = 35
+	}
+	if c.ArchiveDays < 1 {
+		return fmt.Errorf("storage.archive.archive_days 必须 >= 1，当前值: %d", c.ArchiveDays)
+	}
+
+	// 归档补齐回溯天数（默认 7）
+	if c.BackfillDays == 0 {
+		c.BackfillDays = 7
+	}
+	if c.BackfillDays < 1 {
+		return fmt.Errorf("storage.archive.backfill_days 必须 >= 1，当前值: %d", c.BackfillDays)
+	}
+	if c.BackfillDays > 365 {
+		return fmt.Errorf("storage.archive.backfill_days 必须 <= 365，当前值: %d", c.BackfillDays)
+	}
+
+	// 保留天数规范化
+	// nil(未配置) → 365 天
+	// 0 → 永久保留（用 -1 表示）
+	// >0 → 使用配置值
+	// <0 → 错误
+	if c.KeepDays == nil {
+		c.KeepDaysValue = 365 // 默认 365 天
+	} else if *c.KeepDays == 0 {
+		c.KeepDaysValue = -1 // 永久保留
+	} else if *c.KeepDays > 0 {
+		c.KeepDaysValue = *c.KeepDays
+	} else {
+		return fmt.Errorf("storage.archive.keep_days 必须 >= 0，当前值: %d", *c.KeepDays)
+	}
+
+	return nil
 }
 
 // SQLiteConfig SQLite 配置
@@ -1108,19 +1308,19 @@ func (c *AppConfig) Normalize() error {
 	}
 	// 验证赞助商置顶配置
 	if c.SponsorPin.MaxPinned < 0 {
-		log.Printf("[Config] 警告: sponsor_pin.max_pinned(%d) 无效，回退默认值 3", c.SponsorPin.MaxPinned)
+		logger.Warn("config", "sponsor_pin.max_pinned 无效，已回退默认值", "value", c.SponsorPin.MaxPinned, "default", 3)
 		c.SponsorPin.MaxPinned = 3
 	}
 	if c.SponsorPin.ServiceCount < 1 {
-		log.Printf("[Config] 警告: sponsor_pin.service_count(%d) 无效，回退默认值 3", c.SponsorPin.ServiceCount)
+		logger.Warn("config", "sponsor_pin.service_count 无效，已回退默认值", "value", c.SponsorPin.ServiceCount, "default", 3)
 		c.SponsorPin.ServiceCount = 3
 	}
 	if c.SponsorPin.MinUptime < 0 || c.SponsorPin.MinUptime > 100 {
-		log.Printf("[Config] 警告: sponsor_pin.min_uptime(%.2f) 超出范围，回退默认值 95.0", c.SponsorPin.MinUptime)
+		logger.Warn("config", "sponsor_pin.min_uptime 超出范围，已回退默认值", "value", c.SponsorPin.MinUptime, "default", 95.0)
 		c.SponsorPin.MinUptime = 95.0
 	}
 	if !c.SponsorPin.MinLevel.IsValid() || c.SponsorPin.MinLevel == SponsorLevelNone {
-		log.Printf("[Config] 警告: sponsor_pin.min_level(%s) 无效，回退默认值 basic", c.SponsorPin.MinLevel)
+		logger.Warn("config", "sponsor_pin.min_level 无效，已回退默认值", "value", c.SponsorPin.MinLevel, "default", SponsorLevelBasic)
 		c.SponsorPin.MinLevel = SponsorLevelBasic
 	}
 
@@ -1143,7 +1343,7 @@ func (c *AppConfig) Normalize() error {
 		d, err := time.ParseDuration(strings.TrimSpace(c.SelfTest.JobTimeout))
 		if err != nil || d <= 0 {
 			// 保守回退到默认值，避免因为历史配置导致无法启动
-			log.Printf("[Config] 警告: selftest.job_timeout(%s) 无效，回退默认值 30s", c.SelfTest.JobTimeout)
+			logger.Warn("config", "selftest.job_timeout 无效，已回退默认值", "value", c.SelfTest.JobTimeout, "default", "30s")
 			d = 30 * time.Second
 			c.SelfTest.JobTimeout = "30s"
 		}
@@ -1156,7 +1356,7 @@ func (c *AppConfig) Normalize() error {
 	{
 		d, err := time.ParseDuration(strings.TrimSpace(c.SelfTest.ResultTTL))
 		if err != nil || d <= 0 {
-			log.Printf("[Config] 警告: selftest.result_ttl(%s) 无效，回退默认值 2m", c.SelfTest.ResultTTL)
+			logger.Warn("config", "selftest.result_ttl 无效，已回退默认值", "value", c.SelfTest.ResultTTL, "default", "2m")
 			d = 2 * time.Minute
 			c.SelfTest.ResultTTL = "2m"
 		}
@@ -1208,8 +1408,8 @@ func (c *AppConfig) Normalize() error {
 		const keyParams = 4
 		maxKeys := sqliteMaxParams / keyParams
 		if c.BatchQueryMaxKeys > maxKeys {
-			log.Printf("[Config] 警告: batch_query_max_keys(%d) 超出 SQLite 参数上限(%d)，已回退为 %d",
-				c.BatchQueryMaxKeys, sqliteMaxParams, maxKeys)
+			logger.Warn("config", "batch_query_max_keys 超出 SQLite 参数上限，已回退",
+				"value", c.BatchQueryMaxKeys, "sqlite_max_params", sqliteMaxParams, "fallback", maxKeys)
 			c.BatchQueryMaxKeys = maxKeys
 		}
 	}
@@ -1217,10 +1417,10 @@ func (c *AppConfig) Normalize() error {
 	// DB 侧 timeline 聚合相关验证
 	if c.EnableDBTimelineAgg {
 		if c.Storage.Type != "postgres" {
-			log.Printf("[Config] 警告: enable_db_timeline_agg 仅支持 PostgreSQL，当前 storage.type=%s，将自动回退到应用层聚合", c.Storage.Type)
+			logger.Warn("config", "enable_db_timeline_agg 仅支持 PostgreSQL，将自动回退到应用层聚合", "storage_type", c.Storage.Type)
 		}
 		if !c.EnableBatchQuery {
-			log.Printf("[Config] 提示: enable_db_timeline_agg 依赖批量查询路径（enable_batch_query=true）才会生效")
+			logger.Info("config", "enable_db_timeline_agg 依赖 enable_batch_query=true 才会生效")
 		}
 	}
 
@@ -1257,15 +1457,43 @@ func (c *AppConfig) Normalize() error {
 		// 并发查询配置校验（仅警告，不强制修改）
 		if c.EnableConcurrentQuery {
 			if c.Storage.Postgres.MaxOpenConns > 0 && c.Storage.Postgres.MaxOpenConns < c.ConcurrentQueryLimit {
-				log.Printf("[Config] 警告: max_open_conns(%d) < concurrent_query_limit(%d)，可能导致连接池等待",
-					c.Storage.Postgres.MaxOpenConns, c.ConcurrentQueryLimit)
+				logger.Warn("config", "max_open_conns 小于 concurrent_query_limit，可能导致连接池等待",
+					"max_open_conns", c.Storage.Postgres.MaxOpenConns, "concurrent_query_limit", c.ConcurrentQueryLimit)
 			}
 		}
 	}
 
 	// SQLite 场景下的并发查询警告
 	if c.Storage.Type == "sqlite" && c.EnableConcurrentQuery {
-		log.Println("[Config] 警告: SQLite 使用单连接（max_open_conns=1），并发查询无性能收益，建议关闭 enable_concurrent_query")
+		logger.Warn("config", "SQLite 使用单连接，并发查询无性能收益，建议关闭 enable_concurrent_query")
+	}
+
+	// 历史数据保留与清理配置
+	if err := c.Storage.Retention.Normalize(); err != nil {
+		return err
+	}
+
+	// 历史数据归档配置（仅在启用时校验）
+	if c.Storage.Archive.IsEnabled() {
+		if err := c.Storage.Archive.Normalize(); err != nil {
+			return err
+		}
+		// 校验归档天数应小于保留天数，避免数据丢失
+		if c.Storage.Archive.ArchiveDays >= c.Storage.Retention.Days {
+			logger.Warn("config", "archive.archive_days >= retention.days，数据可能在归档前被清理",
+				"archive_days", c.Storage.Archive.ArchiveDays, "retention_days", c.Storage.Retention.Days)
+		}
+		// 校验 backfill 窗口：如果 retention.days < archive_days + backfill_days，停机补齐可能产生空归档
+		if c.Storage.Retention.IsEnabled() && c.Storage.Archive.BackfillDays > 1 {
+			oldestNeeded := c.Storage.Archive.ArchiveDays + c.Storage.Archive.BackfillDays - 1
+			if oldestNeeded >= c.Storage.Retention.Days {
+				logger.Warn("config", "archive.backfill_days 窗口可能超出 retention.days，停机补齐可能产生空归档或被提前清理",
+					"archive_days", c.Storage.Archive.ArchiveDays,
+					"backfill_days", c.Storage.Archive.BackfillDays,
+					"oldest_needed_days", oldestNeeded,
+					"retention_days", c.Storage.Retention.Days)
+			}
+		}
 	}
 
 	// 构建禁用的服务商映射（provider -> reason）
@@ -1396,9 +1624,13 @@ func (c *AppConfig) Normalize() error {
 
 		// 警告：slow_latency >= timeout 时黄灯基本不会触发
 		if c.Monitors[i].SlowLatencyDuration >= c.Monitors[i].TimeoutDuration {
-			log.Printf("[Config] 警告: monitor[%d] (provider=%s, service=%s, channel=%s): slow_latency(%v) >= timeout(%v)，慢响应黄灯可能不会触发",
-				i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel,
-				c.Monitors[i].SlowLatencyDuration, c.Monitors[i].TimeoutDuration)
+			logger.Warn("config", "slow_latency >= timeout，慢响应黄灯可能不会触发",
+				"monitor_index", i,
+				"provider", c.Monitors[i].Provider,
+				"service", c.Monitors[i].Service,
+				"channel", c.Monitors[i].Channel,
+				"slow_latency", c.Monitors[i].SlowLatencyDuration,
+				"timeout", c.Monitors[i].TimeoutDuration)
 		}
 
 		// 解析单监测项的 interval，空值回退到全局
@@ -1424,8 +1656,10 @@ func (c *AppConfig) Normalize() error {
 
 		// cold_reason 仅在 board=cold 时有意义，其他情况清空并警告
 		if c.Monitors[i].ColdReason != "" && c.Monitors[i].Board != "cold" {
-			log.Printf("[Config] 警告: monitor[%d] (provider=%s, service=%s): cold_reason 仅在 board=cold 时有效，已忽略",
-				i, c.Monitors[i].Provider, c.Monitors[i].Service)
+			logger.Warn("config", "cold_reason 仅在 board=cold 时有效，已忽略",
+				"monitor_index", i,
+				"provider", c.Monitors[i].Provider,
+				"service", c.Monitors[i].Service)
 			c.Monitors[i].ColdReason = ""
 		}
 
@@ -1796,9 +2030,14 @@ func (c *AppConfig) applyParentInheritance() error {
 		// 继承后重新检查：slow_latency >= timeout 时黄灯基本不会触发
 		if (inheritedSlowLatency || inheritedTimeout) &&
 			child.SlowLatencyDuration >= child.TimeoutDuration {
-			log.Printf("[Config] 警告: monitor[%d] (provider=%s, service=%s, channel=%s, model=%s): slow_latency(%v) >= timeout(%v)，慢响应黄灯可能不会触发（继承自 parent）",
-				i, child.Provider, child.Service, child.Channel, child.Model,
-				child.SlowLatencyDuration, child.TimeoutDuration)
+			logger.Warn("config", "slow_latency >= timeout，慢响应黄灯可能不会触发（继承自 parent）",
+				"monitor_index", i,
+				"provider", child.Provider,
+				"service", child.Service,
+				"channel", child.Channel,
+				"model", child.Model,
+				"slow_latency", child.SlowLatencyDuration,
+				"timeout", child.TimeoutDuration)
 		}
 
 		// 注意：以下字段不继承（有特殊约束）：
@@ -2100,7 +2339,7 @@ func validateURL(rawURL, fieldName string) error {
 
 	// 非 HTTPS 警告
 	if scheme == "http" {
-		log.Printf("[Config] 警告: %s 使用了非加密的 http:// 协议: %s", fieldName, trimmed)
+		logger.Warn("config", "检测到非 HTTPS URL", "field", fieldName, "url", trimmed)
 	}
 
 	return nil
@@ -2169,7 +2408,7 @@ func validateBaseURL(baseURL string) error {
 
 	// 非 HTTPS 警告
 	if scheme == "http" {
-		log.Printf("[Config] 警告: public_base_url 使用了非加密的 http:// 协议: %s", baseURL)
+		logger.Warn("config", "public_base_url 使用了非加密的 http:// 协议", "url", baseURL)
 	}
 
 	return nil

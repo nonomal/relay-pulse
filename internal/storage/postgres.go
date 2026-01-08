@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -156,6 +158,17 @@ func (s *PostgresStorage) Init() error {
 	`
 	if _, err := s.pool.Exec(ctx, indexSQL); err != nil {
 		return fmt.Errorf("创建覆盖索引失败: %w", err)
+	}
+
+	// 新增 timestamp 索引：用于历史数据清理任务（PurgeOldRecords）
+	// 支持高效的 WHERE timestamp < ? ORDER BY timestamp LIMIT ? 查询
+	// 注意：对于生产环境现有大表，建议使用 CREATE INDEX CONCURRENTLY 手动创建
+	timestampIndexSQL := `
+	CREATE INDEX IF NOT EXISTS idx_probe_history_timestamp
+	ON probe_history (timestamp);
+	`
+	if _, err := s.pool.Exec(ctx, timestampIndexSQL); err != nil {
+		return fmt.Errorf("创建 timestamp 索引失败: %w", err)
 	}
 
 	// 事件功能相关表
@@ -1443,4 +1456,119 @@ func (s *PostgresStorage) GetModelStatesForChannel(provider, service, channel st
 	}
 
 	return states, nil
+}
+
+// ===== 历史数据清理相关方法 =====
+
+// cleanupLockID PostgreSQL advisory lock ID，用于多实例互斥
+// 使用固定值确保所有实例共享同一把锁
+const cleanupLockID = 12345
+
+// archiveLockNamespace PostgreSQL advisory lock 命名空间，用于归档任务多实例互斥
+// 使用两参数版本 pg_try_advisory_lock(namespace, key)，其中 key 为日期
+// 注意：必须与清理任务使用的 lock key 区分，避免互相干扰
+const archiveLockNamespace int32 = 23456
+
+// ErrArchiveAdvisoryLockNotAcquired 表示未获取归档 advisory lock（其他实例正在归档）
+var ErrArchiveAdvisoryLockNotAcquired = errors.New("未获取归档 advisory lock")
+
+// PurgeOldRecords 清理指定时间之前的历史记录
+// PostgreSQL 实现：使用 advisory lock 确保多实例互斥
+func (s *PostgresStorage) PurgeOldRecords(ctx context.Context, before time.Time, batchSize int) (int64, error) {
+	cutoff := before.Unix()
+
+	// 获取单独连接确保 lock 和 delete 在同一连接
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("获取连接失败: %w", err)
+	}
+	defer conn.Release()
+
+	// 尝试获取 advisory lock（非阻塞）
+	var acquired bool
+	err = conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1)", cleanupLockID).Scan(&acquired)
+	if err != nil {
+		return 0, fmt.Errorf("获取 advisory lock 失败: %w", err)
+	}
+
+	if !acquired {
+		// 其他实例正在清理，跳过本轮
+		logger.Info("cleaner", "其他实例正在清理，跳过本轮")
+		return 0, nil
+	}
+
+	// 确保释放锁
+	defer func() {
+		_, unlockErr := conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", cleanupLockID)
+		if unlockErr != nil {
+			logger.Warn("cleaner", "释放 advisory lock 失败", "error", unlockErr)
+		}
+	}()
+
+	// 使用 CTE 批量删除
+	query := `
+		WITH d AS (
+			SELECT id FROM probe_history
+			WHERE timestamp < $1
+			ORDER BY timestamp
+			LIMIT $2
+		)
+		DELETE FROM probe_history
+		WHERE id IN (SELECT id FROM d)
+	`
+
+	result, err := conn.Exec(ctx, query, cutoff, batchSize)
+	if err != nil {
+		return 0, fmt.Errorf("删除历史记录失败: %w", err)
+	}
+
+	return result.RowsAffected(), nil
+}
+
+// ExportDayToWriter 导出指定日期范围的历史记录到 writer
+// PostgreSQL 实现：使用 COPY 协议高效导出 CSV
+// 多实例互斥：按"日期(UTC)"加锁，避免多实例同时归档同一天数据
+func (s *PostgresStorage) ExportDayToWriter(ctx context.Context, dayStart, dayEnd int64, w io.Writer) (int64, error) {
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("获取连接失败: %w", err)
+	}
+	defer conn.Release()
+
+	// 归档多实例互斥：按"日期(UTC)"加锁，避免多实例同时归档同一天数据
+	day := time.Unix(dayStart, 0).UTC()
+	dayKey := int32(day.Year()*10000 + int(day.Month())*100 + day.Day())
+
+	var acquired bool
+	err = conn.QueryRow(ctx, "SELECT pg_try_advisory_lock($1, $2)", archiveLockNamespace, dayKey).Scan(&acquired)
+	if err != nil {
+		return 0, fmt.Errorf("获取归档 advisory lock 失败: %w", err)
+	}
+	if !acquired {
+		return 0, ErrArchiveAdvisoryLockNotAcquired
+	}
+	defer func() {
+		_, unlockErr := conn.Exec(ctx, "SELECT pg_advisory_unlock($1, $2)", archiveLockNamespace, dayKey)
+		if unlockErr != nil {
+			logger.Warn("archiver", "释放 advisory lock 失败", "error", unlockErr, "date", day.Format("2006-01-02"))
+		}
+	}()
+
+	// 使用 COPY TO STDOUT 导出 CSV
+	query := fmt.Sprintf(`
+		COPY (
+			SELECT id, provider, service, channel, model, status, sub_status, http_code, latency, timestamp
+			FROM probe_history
+			WHERE timestamp >= %d AND timestamp < %d
+			ORDER BY timestamp
+		) TO STDOUT WITH (FORMAT CSV, HEADER)
+	`, dayStart, dayEnd)
+
+	// pgx 使用 CopyTo 方法
+	tag, err := conn.Conn().PgConn().CopyTo(ctx, w, query)
+	if err != nil {
+		return 0, fmt.Errorf("导出数据失败: %w", err)
+	}
+
+	return tag.RowsAffected(), nil
 }

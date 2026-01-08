@@ -775,11 +775,135 @@ CREATE USER monitor WITH PASSWORD 'your_password';
 GRANT ALL PRIVILEGES ON DATABASE llm_monitor TO monitor;
 ```
 
-### 数据保留策略
+### 数据保留与清理
 
-- RelayPulse **不会自动清理历史数据**，数据会永久保留在数据库中。
-- 如需控制数据库大小，请参考下方的手动清理命令或配置外部定时任务。
-- 运维层面的验证与手动清理命令请参考 [运维手册 - 数据保留策略（历史文档，仅供参考）](../../archive/docs/user/operations.md#数据保留策略)。
+RelayPulse 支持自动清理过期的历史数据，避免数据库无限增长。清理功能**默认启用**，保留最近 36 天的数据。
+
+> **注意**：`retention` 和 `archive` 配置修改后需要**重启服务**才能生效（不支持热更新）。
+
+#### 清理配置（retention）
+
+```yaml
+storage:
+  type: "postgres"
+  # ... 其他存储配置 ...
+
+  retention:
+    enabled: true              # 是否启用清理（默认 true）
+    days: 36                   # 保留天数（默认 36，建议比用户可见的 30 天多几天缓冲）
+    cleanup_interval: "1h"     # 清理任务执行间隔（默认 1h）
+    batch_size: 10000          # 每批删除的最大行数（默认 10000）
+    max_batches_per_run: 100   # 单轮最多执行批次（默认 100，避免长时间占用）
+    startup_delay: "1m"        # 启动后延迟多久开始首次清理（默认 1m）
+    jitter: 0.2                # 调度抖动比例（默认 0.2，避免多实例同时执行）
+```
+
+**配置项说明**：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `enabled` | `true` | 是否启用清理任务 |
+| `days` | `36` | 保留天数（超过此天数的数据将被删除） |
+| `cleanup_interval` | `"1h"` | 清理任务执行间隔 |
+| `batch_size` | `10000` | 每批删除的最大行数 |
+| `max_batches_per_run` | `100` | 单轮最多执行批次 |
+| `startup_delay` | `"1m"` | 启动后延迟首次清理 |
+| `jitter` | `0.2` | 调度抖动比例（0-1） |
+
+**多实例部署**：
+- PostgreSQL 使用 advisory lock 确保同一时刻只有一个实例执行清理
+- cutoff 时间按 UTC 计算，避免时区/DST 导致边界不一致
+- SQLite 单连接模式，无需额外处理
+
+**禁用清理**：
+```yaml
+storage:
+  retention:
+    enabled: false
+```
+
+#### 归档配置（archive）
+
+归档功能用于将过期数据导出到文件备份，**默认禁用**，仅 PostgreSQL 支持。
+
+```yaml
+storage:
+  type: "postgres"
+  # ... 其他存储配置 ...
+
+  archive:
+    enabled: true              # 是否启用归档（默认 false）
+    output_dir: "./archive"    # 归档文件输出目录（默认 ./archive）
+    format: "csv.gz"           # 归档格式（默认 csv.gz，可选 csv）
+    archive_days: 35           # 归档多少天前的数据（默认 35）
+    backfill_days: 7           # 回溯补齐天数（默认 7，1=仅归档单日）
+    keep_days: 365             # 归档文件保留天数（默认 365，0=永久）
+```
+
+**配置项说明**：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `enabled` | `false` | 是否启用归档（需显式开启） |
+| `output_dir` | `"./archive"` | 归档文件输出目录 |
+| `format` | `"csv.gz"` | 归档格式：`csv` 或 `csv.gz` |
+| `archive_days` | `35` | 归档阈值天数（归档此天数之前的数据） |
+| `backfill_days` | `7` | 回溯补齐天数（每次运行最多补齐多少天的缺口） |
+| `keep_days` | `365` | 归档文件保留天数（0=永久） |
+
+**归档流程**：
+1. 启动后会立即执行一次归档检查，并在每天凌晨 3 点（UTC）执行
+2. 每次运行以 `now - archive_days` 为"最新可归档日"，并在 `backfill_days` 窗口内逐日补齐缺失的归档文件
+3. PostgreSQL 多实例使用 advisory lock 确保同一天只会被一个实例归档（按日期互斥，不同日期可能并行归档）
+4. 文件命名格式：`probe_history_2024-01-15.csv.gz`，并自动清理超过 `keep_days` 的旧归档文件
+
+**多实例部署注意事项**：
+> **重要**：归档文件写入实例本地的 `output_dir` 目录。多实例部署时，必须确保：
+> - `output_dir` 挂载到**共享持久化存储**（如 NFS、RWX PVC、云存储挂载等）
+> - 或者只让**单个实例/独立 CronJob** 执行归档任务
+>
+> 否则归档文件可能随 Pod/容器重建而丢失，导致备份不完整。
+
+**配置协调**：
+- `archive_days` 应小于 `retention.days`，否则数据可能在归档前被清理
+- 如希望"停机补齐窗口"内的数据也能稳定导出，建议 `retention.days >= archive_days + backfill_days`
+- 推荐配置：`archive_days: 35`，`backfill_days: 7`，`retention.days: 43`
+
+**示例：完整的清理+归档配置**：
+```yaml
+storage:
+  type: "postgres"
+  postgres:
+    host: "localhost"
+    port: 5432
+    user: "monitor"
+    password: "secret"
+    database: "llm_monitor"
+
+  retention:
+    enabled: true
+    days: 43                   # >= archive_days + backfill_days
+    cleanup_interval: "1h"
+
+  archive:
+    enabled: true
+    output_dir: "./archive"
+    format: "csv.gz"
+    archive_days: 35
+    backfill_days: 7           # 支持停机 7 天后自动补齐
+    keep_days: 365
+```
+
+**手动清理命令**（如需手动清理）：
+```sql
+-- PostgreSQL: 删除 30 天前的数据
+DELETE FROM probe_history
+WHERE timestamp < EXTRACT(EPOCH FROM NOW() - INTERVAL '30 days');
+
+-- SQLite: 删除 30 天前的数据
+DELETE FROM probe_history
+WHERE timestamp < strftime('%s', 'now', '-30 days');
+```
 
 ### 监测项配置
 

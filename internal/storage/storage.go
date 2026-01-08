@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"io"
 	"time"
 )
 
@@ -255,6 +256,15 @@ type Storage interface {
 	// GetLatestEventID 获取最新事件 ID（用于客户端初始化游标）
 	// 返回 0 表示没有任何事件
 	GetLatestEventID() (int64, error)
+
+	// ===== 历史数据清理相关方法 =====
+
+	// PurgeOldRecords 清理指定时间之前的历史记录
+	// before: 清理此时间戳之前的记录
+	// batchSize: 每批删除的最大行数
+	// 返回实际删除的行数和错误
+	// 注意：该方法应在单次调用中删除一批记录，调用方负责循环调用直到无更多数据
+	PurgeOldRecords(ctx context.Context, before time.Time, batchSize int) (deleted int64, err error)
 }
 
 // ===== DB 侧时间轴聚合相关类型 =====
@@ -301,4 +311,17 @@ type TimelineAggStorage interface {
 	// - 仅聚合 (since, endTime] 的数据，严格排除 timestamp==since 的边界数据
 	// - 聚合窗口由 bucketCount + bucketWindow 决定（与 api.determineBucketStrategy 一致）
 	GetTimelineAggBatch(keys []MonitorKey, since, endTime time.Time, bucketCount int, bucketWindow time.Duration, timeFilter *DailyTimeFilter) (map[MonitorKey][]AggBucketRow, error)
+}
+
+// ArchiveStorage 为"历史数据归档"提供的可选能力接口
+//
+// 仅 PostgreSQL 实现（使用 COPY 协议高效导出）；SQLite 可选实现。
+type ArchiveStorage interface {
+	// ExportDayToWriter 导出指定日期范围的历史记录到 writer
+	// dayStart: 日期开始时间戳（Unix 秒，包含）
+	// dayEnd: 日期结束时间戳（Unix 秒，不包含）
+	// w: 目标 writer（通常是 gzip.Writer）
+	// 返回导出的行数和错误
+	// 输出格式：CSV（包含表头），字段顺序与 ProbeRecord 一致
+	ExportDayToWriter(ctx context.Context, dayStart, dayEnd int64, w io.Writer) (rowCount int64, err error)
 }
