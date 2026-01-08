@@ -1497,9 +1497,11 @@ func (s *PostgresStorage) PurgeOldRecords(ctx context.Context, before time.Time,
 		return 0, nil
 	}
 
-	// 确保释放锁
+	// 确保释放锁（使用独立 ctx，避免传入 ctx 取消导致解锁失败）
 	defer func() {
-		_, unlockErr := conn.Exec(ctx, "SELECT pg_advisory_unlock($1)", cleanupLockID)
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer unlockCancel()
+		_, unlockErr := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1)", cleanupLockID)
 		if unlockErr != nil {
 			logger.Warn("cleaner", "释放 advisory lock 失败", "error", unlockErr)
 		}
@@ -1547,8 +1549,11 @@ func (s *PostgresStorage) ExportDayToWriter(ctx context.Context, dayStart, dayEn
 	if !acquired {
 		return 0, ErrArchiveAdvisoryLockNotAcquired
 	}
+	// 确保释放锁（使用独立 ctx，避免传入 ctx 取消导致解锁失败）
 	defer func() {
-		_, unlockErr := conn.Exec(ctx, "SELECT pg_advisory_unlock($1, $2)", archiveLockNamespace, dayKey)
+		unlockCtx, unlockCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer unlockCancel()
+		_, unlockErr := conn.Exec(unlockCtx, "SELECT pg_advisory_unlock($1, $2)", archiveLockNamespace, dayKey)
 		if unlockErr != nil {
 			logger.Warn("archiver", "释放 advisory lock 失败", "error", unlockErr, "date", day.Format("2006-01-02"))
 		}
