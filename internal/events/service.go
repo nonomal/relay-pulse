@@ -83,12 +83,17 @@ func (s *Service) GetMode() string {
 }
 
 // UpdateActiveModels 从配置更新活跃模型索引
-func (s *Service) UpdateActiveModels(monitors []config.ServiceConfig) {
+// boardsEnabled: 是否启用热板/冷板功能，启用时排除 cold 板块模型
+func (s *Service) UpdateActiveModels(monitors []config.ServiceConfig, boardsEnabled bool) {
 	index := make(map[string][]string)
 	seen := make(map[string]map[string]struct{})
 
 	for _, m := range monitors {
 		if m.Disabled {
+			continue
+		}
+		// 排除冷板模型（启用 boards 功能时）
+		if boardsEnabled && m.Board == "cold" {
 			continue
 		}
 		model := m.Model
@@ -307,6 +312,14 @@ func (s *Service) processRecordChannelMode(record *storage.ProbeRecord) (*Status
 			needsRecalibration = true
 			logger.Warn("events", "incremental 模式检测到迁移场景，自动回退 recompute 校准",
 				"provider", record.Provider, "service", record.Service, "channel", record.Channel)
+		}
+		// 多模型迁移加入但 KnownCount 与 totalModels 不一致
+		// 说明可能是配置热更新后新增了模型，需要校准以确保计数准确
+		if prevModelStable == -1 && prevChannel.KnownCount > 0 && prevChannel.KnownCount < totalModels {
+			needsRecalibration = true
+			logger.Warn("events", "incremental 模式检测到多模型迁移场景，自动回退 recompute 校准",
+				"provider", record.Provider, "service", record.Service, "channel", record.Channel,
+				"known_count", prevChannel.KnownCount, "total_models", totalModels)
 		}
 		if needsRecalibration {
 			useRecompute = true

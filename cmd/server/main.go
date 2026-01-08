@@ -136,7 +136,7 @@ func main() {
 	if eventSvc.IsEnabled() {
 		sched.SetEventService(eventSvc)
 		// 初始化活跃模型索引
-		eventSvc.UpdateActiveModels(cfg.Monitors)
+		eventSvc.UpdateActiveModels(cfg.Monitors, cfg.Boards.Enabled)
 		logger.Info("main", "事件服务已启用",
 			"mode", eventSvc.GetMode(),
 			"down_threshold", cfg.Events.DownThreshold,
