@@ -1478,20 +1478,22 @@ func (c *AppConfig) Normalize() error {
 		if err := c.Storage.Archive.Normalize(); err != nil {
 			return err
 		}
-		// 校验归档天数应小于保留天数，避免数据丢失
-		if c.Storage.Archive.ArchiveDays >= c.Storage.Retention.Days {
-			logger.Warn("config", "archive.archive_days >= retention.days，数据可能在归档前被清理",
-				"archive_days", c.Storage.Archive.ArchiveDays, "retention_days", c.Storage.Retention.Days)
+		// 校验归档天数应小于保留天数，避免数据在归档前被清理
+		// 这是一个严重的配置错误，直接返回错误防止启动
+		if c.Storage.Retention.IsEnabled() && c.Storage.Archive.ArchiveDays >= c.Storage.Retention.Days {
+			return fmt.Errorf("配置冲突: archive.archive_days(%d) >= retention.days(%d)，数据将在归档前被清理。"+
+				"建议: retention.days >= archive_days + backfill_days，如 retention.days=%d",
+				c.Storage.Archive.ArchiveDays, c.Storage.Retention.Days,
+				c.Storage.Archive.ArchiveDays+c.Storage.Archive.BackfillDays)
 		}
 		// 校验 backfill 窗口：如果 retention.days < archive_days + backfill_days，停机补齐可能产生空归档
 		if c.Storage.Retention.IsEnabled() && c.Storage.Archive.BackfillDays > 1 {
 			oldestNeeded := c.Storage.Archive.ArchiveDays + c.Storage.Archive.BackfillDays - 1
 			if oldestNeeded >= c.Storage.Retention.Days {
-				logger.Warn("config", "archive.backfill_days 窗口可能超出 retention.days，停机补齐可能产生空归档或被提前清理",
-					"archive_days", c.Storage.Archive.ArchiveDays,
-					"backfill_days", c.Storage.Archive.BackfillDays,
-					"oldest_needed_days", oldestNeeded,
-					"retention_days", c.Storage.Retention.Days)
+				return fmt.Errorf("配置冲突: archive.archive_days(%d) + backfill_days(%d) - 1 = %d >= retention.days(%d)，"+
+					"停机补齐时数据可能已被清理。建议: retention.days >= %d",
+					c.Storage.Archive.ArchiveDays, c.Storage.Archive.BackfillDays,
+					oldestNeeded, c.Storage.Retention.Days, oldestNeeded+1)
 			}
 		}
 	}

@@ -2,11 +2,14 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"math/rand"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"monitor/internal/config"
 	"monitor/internal/logger"
@@ -123,8 +126,9 @@ func (c *Cleaner) runCleanup(ctx context.Context) {
 				return
 			}
 
-			// SQLite 锁冲突时指数退避重试
-			if strings.Contains(err.Error(), "database is locked") {
+			// SQLite 锁冲突时指数退避重试（使用类型断言而非字符串匹配）
+			var sqliteErr *sqlite.Error
+			if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_BUSY {
 				logger.Warn("cleaner", "数据库锁冲突，等待重试",
 					"backoff", backoff,
 					"deleted_so_far", totalDeleted)

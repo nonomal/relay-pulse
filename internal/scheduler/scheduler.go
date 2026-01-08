@@ -75,6 +75,7 @@ type Scheduler struct {
 	wakeCh  chan struct{} // 唤醒信号（配置变更时）
 	ctx     context.Context
 	cancel  context.CancelFunc
+	wg      sync.WaitGroup // 追踪在途探测 goroutine
 
 	// 配置引用（支持热更新）
 	cfg      *config.AppConfig
@@ -180,6 +181,9 @@ func (s *Scheduler) Stop() {
 	// 唤醒 loop 以便退出
 	s.notifyWakeLocked()
 	s.mu.Unlock()
+
+	// 等待在途探测 goroutine 完成
+	s.wg.Wait()
 
 	s.prober.Close()
 	logger.Info("scheduler", "调度器已停止")
@@ -553,8 +557,12 @@ func (s *Scheduler) runTask(t *task) {
 		return
 	}
 
+	// 追踪在途 goroutine
+	s.wg.Add(1)
+
 	// 异步执行，释放信号量
 	go func(m config.ServiceConfig) {
+		defer s.wg.Done()
 		defer func() { <-sem }()
 
 		result := s.prober.Probe(ctx, &m)
