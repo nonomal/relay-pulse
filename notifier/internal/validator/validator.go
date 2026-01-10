@@ -69,11 +69,32 @@ func (e *UnavailableError) Unwrap() error {
 	return e.Cause
 }
 
+// ColdBoardError 表示目标为冷板（board=cold），不允许新增订阅
+type ColdBoardError struct {
+	Provider string
+	Service  string
+	Channel  string
+}
+
+func (e *ColdBoardError) Error() string {
+	if e.Channel != "" {
+		return fmt.Sprintf("%s/%s/%s 已被移入冷板，不支持订阅", e.Provider, e.Service, e.Channel)
+	}
+	if e.Service != "" {
+		return fmt.Sprintf("%s/%s 当前无可订阅的热板监测项", e.Provider, e.Service)
+	}
+	if e.Provider != "" {
+		return fmt.Sprintf("%s 当前无可订阅的热板监测项", e.Provider)
+	}
+	return "目标为冷板，禁止订阅"
+}
+
 // CanonicalTarget 表示规范化的订阅目标
 type CanonicalTarget struct {
 	Provider string // 规范化的 provider 名称
 	Service  string // 规范化的 service 名称
 	Channel  string // 规范化的 channel 名称（空表示订阅所有 channel）
+	Board    string // hot/cold（用于拒绝冷板订阅）
 }
 
 // Validator 订阅目标验证器接口
@@ -108,12 +129,18 @@ type providerCacheEntry struct {
 	notFound bool     // 是否为负向缓存
 }
 
+// channelEntry channel 信息（包含 board 状态）
+type channelEntry struct {
+	name  string // channel 名称
+	board string // hot/cold
+}
+
 type serviceCacheEntry struct {
 	expireAt time.Time
-	provider string   // canonical provider 名称
-	service  string   // canonical service 名称
-	channels []string // 可用的 channel 列表
-	notFound bool     // 是否为负向缓存
+	provider string         // canonical provider 名称
+	service  string         // canonical service 名称
+	channels []channelEntry // 可用的 channel 列表（包含 board 信息）
+	notFound bool           // 是否为负向缓存
 	level    NotFoundLevel
 }
 
@@ -188,23 +215,39 @@ func (v *RelayPulseValidator) ValidateAdd(ctx context.Context, provider, service
 	if channel != "" {
 		channelLower := strings.ToLower(channel)
 		var canonicalChannel string
+		var canonicalBoard string
 		found := false
 
 		for _, ch := range svcEntry.channels {
-			if strings.ToLower(ch) == channelLower {
-				canonicalChannel = ch
+			if strings.ToLower(ch.name) == channelLower {
+				canonicalChannel = ch.name
+				canonicalBoard = strings.TrimSpace(ch.board)
 				found = true
 				break
 			}
 		}
 
 		if !found {
+			// 构建候选列表
+			var candidates []string
+			for _, ch := range svcEntry.channels {
+				candidates = append(candidates, ch.name)
+			}
 			return nil, &NotFoundError{
 				Level:      NotFoundChannel,
 				Provider:   provider,
 				Service:    service,
 				Channel:    channel,
-				Candidates: limitSlice(svcEntry.channels, maxCandidates),
+				Candidates: limitSlice(candidates, maxCandidates),
+			}
+		}
+
+		// 冷板订阅拒绝：仅当 relay-pulse 返回 board=cold 时生效；缺失时按 hot 处理（兼容旧版本）
+		if strings.EqualFold(canonicalBoard, "cold") {
+			return nil, &ColdBoardError{
+				Provider: svcEntry.provider,
+				Service:  svcEntry.service,
+				Channel:  canonicalChannel,
 			}
 		}
 
@@ -212,6 +255,7 @@ func (v *RelayPulseValidator) ValidateAdd(ctx context.Context, provider, service
 			Provider: svcEntry.provider,
 			Service:  svcEntry.service,
 			Channel:  canonicalChannel,
+			Board:    canonicalBoard,
 		}, nil
 	}
 
@@ -254,22 +298,25 @@ func (v *RelayPulseValidator) ValidateAndExpandProvider(ctx context.Context, pro
 				Channel:  "",
 			})
 		} else {
-			// 展开每个 channel
+			// 展开每个 channel，跳过冷板
 			for _, ch := range svcEntry.channels {
+				// 冷板订阅拒绝：仅当 relay-pulse 返回 board=cold 时生效；缺失时按 hot 处理（兼容旧版本）
+				if strings.EqualFold(strings.TrimSpace(ch.board), "cold") {
+					continue
+				}
 				targets = append(targets, CanonicalTarget{
 					Provider: provEntry.provider,
 					Service:  svcEntry.service,
-					Channel:  ch,
+					Channel:  ch.name,
+					Board:    strings.TrimSpace(ch.board),
 				})
 			}
 		}
 	}
 
 	if len(targets) == 0 {
-		return nil, &NotFoundError{
-			Level:    NotFoundService,
-			Provider: provider,
-		}
+		// provider 存在但无可订阅热板项（全部为冷板）
+		return nil, &ColdBoardError{Provider: provEntry.provider}
 	}
 
 	return targets, nil
@@ -309,14 +356,24 @@ func (v *RelayPulseValidator) ValidateAndExpandService(ctx context.Context, prov
 			Channel:  "",
 		})
 	} else {
-		// 展开每个 channel
+		// 展开每个 channel，跳过冷板
 		for _, ch := range svcEntry.channels {
+			// 冷板订阅拒绝：仅当 relay-pulse 返回 board=cold 时生效；缺失时按 hot 处理（兼容旧版本）
+			if strings.EqualFold(strings.TrimSpace(ch.board), "cold") {
+				continue
+			}
 			targets = append(targets, CanonicalTarget{
 				Provider: svcEntry.provider,
 				Service:  svcEntry.service,
-				Channel:  ch,
+				Channel:  ch.name,
+				Board:    strings.TrimSpace(ch.board),
 			})
 		}
+	}
+
+	if len(targets) == 0 {
+		// service 存在但无可订阅热板项（全部为冷板）
+		return nil, &ColdBoardError{Provider: svcEntry.provider, Service: svcEntry.service}
 	}
 
 	return targets, nil
@@ -516,7 +573,10 @@ func (v *RelayPulseValidator) fetchServiceEntry(ctx context.Context, provider, s
 	if len(resp.Services) > 0 {
 		entry.service = resp.Services[0].Name
 		for _, ch := range resp.Services[0].Channels {
-			entry.channels = append(entry.channels, ch.Name)
+			entry.channels = append(entry.channels, channelEntry{
+				name:  ch.Name,
+				board: strings.TrimSpace(ch.Board),
+			})
 		}
 	}
 
@@ -559,7 +619,8 @@ type statusQueryResponse struct {
 	Services []struct {
 		Name     string `json:"name"`
 		Channels []struct {
-			Name string `json:"name"`
+			Name  string `json:"name"`
+			Board string `json:"board,omitempty"` // hot/cold
 		} `json:"channels"`
 	} `json:"services,omitempty"`
 	Error *struct {

@@ -61,6 +61,7 @@ type StatusQueryChannel struct {
 	Status    string `json:"status"`               // up/down/degraded
 	LatencyMs int    `json:"latency_ms,omitempty"` // 毫秒
 	UpdatedAt string `json:"updated_at,omitempty"` // RFC3339 格式
+	Board     string `json:"board,omitempty"`      // hot/cold（用于订阅校验等场景）
 }
 
 // ===== 常量 =====
@@ -203,6 +204,7 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 	// 读取配置快照
 	h.cfgMu.RLock()
 	monitors := h.config.Monitors
+	boardsEnabled := h.config.Boards.Enabled
 	h.cfgMu.RUnlock()
 
 	// 使用带 context 的 storage
@@ -211,7 +213,7 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 	results := make([]StatusQueryResult, 0, len(queries))
 	for _, q := range queries {
 		// 展开查询目标（基于配置匹配）
-		targets, queryErr := expandQueryTargets(monitors, q)
+		targets, queryErr := expandQueryTargets(monitors, boardsEnabled, q)
 		if queryErr != nil {
 			results = append(results, StatusQueryResult{
 				Query: q,
@@ -275,6 +277,7 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 				chResult := StatusQueryChannel{
 					Name:   ch.name, // 返回原始标识
 					Status: statusIntToString(worstStatus),
+					Board:  ch.board,
 				}
 				if worstRecord != nil {
 					chResult.LatencyMs = worstRecord.Latency
@@ -310,6 +313,7 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 // channelInfo 通道信息（内部使用）
 type channelInfo struct {
 	name   string   // 原始配置值（用于数据库查询和 API 返回）
+	board  string   // hot/cold（channel 级别的 board 状态）
 	models []string // 该 channel 下的所有 model（原始配置值）
 }
 
@@ -322,7 +326,8 @@ type serviceTarget struct {
 
 // expandQueryTargets 根据配置展开查询目标
 // 支持 service/channel 为空时查询所有匹配项
-func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]serviceTarget, *StatusQueryErrorObject) {
+// boardsEnabled: 是否启用热板/冷板功能，启用时计算 channel 级别的 board 状态
+func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q StatusQuery) ([]serviceTarget, *StatusQueryErrorObject) {
 	queryProvider := strings.ToLower(strings.TrimSpace(q.Provider))
 	queryService := strings.ToLower(strings.TrimSpace(q.Service))
 	queryChannel := strings.ToLower(strings.TrimSpace(q.Channel))
@@ -375,11 +380,35 @@ func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]servi
 		// 收集该 service 下的 channel（并聚合每个 channel 的 models）
 		channelMap := make(map[string]*channelInfo)             // key: lowercase channel
 		modelSetByChannel := make(map[string]map[string]string) // chLower -> modelLower -> original model
+
+		// board 统计：记录每个 channel 下是否有 hot/cold model
+		type boardStat struct {
+			hasHot  bool
+			hasCold bool
+		}
+		boardStatByChannel := make(map[string]*boardStat) // chLower -> board stat
+
 		for _, m := range svcConfigs {
 			chLower := strings.ToLower(strings.TrimSpace(m.Channel))
 			if _, ok := channelMap[chLower]; !ok {
 				channelMap[chLower] = &channelInfo{
-					name: m.Channel,
+					name:  m.Channel,
+					board: "hot", // 默认 hot
+				}
+			}
+
+			// 统计 board（仅当 boardsEnabled 时有意义）
+			// 注意：跳过 Disabled 的监测项，避免 disabled 的 hot model 污染 cold 判定
+			if !m.Disabled {
+				if _, ok := boardStatByChannel[chLower]; !ok {
+					boardStatByChannel[chLower] = &boardStat{}
+				}
+				boardLower := strings.ToLower(strings.TrimSpace(m.Board))
+				if boardLower == "cold" {
+					boardStatByChannel[chLower].hasCold = true
+				} else {
+					// 空值或 "hot" 都视为 hot
+					boardStatByChannel[chLower].hasHot = true
 				}
 			}
 
@@ -392,7 +421,7 @@ func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]servi
 			}
 		}
 
-		// 为每个 channel 填充 models 列表
+		// 为每个 channel 填充 models 列表和 board 状态
 		for chLower, ch := range channelMap {
 			for _, model := range modelSetByChannel[chLower] {
 				ch.models = append(ch.models, model)
@@ -402,6 +431,17 @@ func expandQueryTargets(monitors []config.ServiceConfig, q StatusQuery) ([]servi
 				ch.models = []string{""}
 			} else {
 				sort.Strings(ch.models)
+			}
+
+			// 计算 channel 的 board：仅当 boards 启用且该 channel 全为 cold 时，视为 cold
+			if boardsEnabled {
+				if st, ok := boardStatByChannel[chLower]; ok {
+					if st.hasCold && !st.hasHot {
+						ch.board = "cold"
+					} else {
+						ch.board = "hot"
+					}
+				}
 			}
 		}
 

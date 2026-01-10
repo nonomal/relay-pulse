@@ -72,10 +72,22 @@ limits:
   max_subscriptions_per_user: 20
 
   # Telegram 发送限流（每秒消息数，默认: 25）
-  rate_limit_per_second: 25
+  telegram_rate_limit_per_second: 25
+
+  # QQ 发送限流（每秒消息数，默认: 2）
+  # 建议保持 1-2 的保守值，避免触发 QQ 风控
+  qq_rate_limit_per_second: 2
+
+  # QQ 发送抖动：在通过限流后额外 sleep 一段随机时间，用于错峰降低风控
+  # 实际发送间隔 = 限流间隔 + random(jitter_min, jitter_max)
+  qq_jitter_min: "0ms"
+  qq_jitter_max: "300ms"
 
   # 投递失败最大重试次数（默认: 3）
   max_retries: 3
 
   # 绑定 Token 有效期（默认: 5m）
   bind_token_ttl: "5m"
+
+  # 兼容旧配置（deprecated）：等价于 telegram_rate_limit_per_second
+  # rate_limit_per_second: 25

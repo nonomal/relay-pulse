@@ -694,6 +694,30 @@ func (b *Bot) handleAdd(ctx context.Context, e *OneBotEvent, args string) error 
 
 // handleAddError 处理添加订阅时的错误
 func (b *Bot) handleAddError(ctx context.Context, e *OneBotEvent, err error, provider, service, channel string) error {
+	// 冷板错误处理
+	var cb *validator.ColdBoardError
+	if errors.As(err, &cb) {
+		if cb.Channel != "" {
+			b.sendReply(ctx, e, fmt.Sprintf(
+				"🚫 %s / %s / %s 已被移入冷板（board=cold），当前不支持订阅通知。",
+				cb.Provider, cb.Service, cb.Channel,
+			))
+		} else if cb.Service != "" {
+			b.sendReply(ctx, e, fmt.Sprintf(
+				"🚫 %s / %s 当前无可订阅的热板监测项（均为冷板）。",
+				cb.Provider, cb.Service,
+			))
+		} else if cb.Provider != "" {
+			b.sendReply(ctx, e, fmt.Sprintf(
+				"🚫 %s 当前无可订阅的热板监测项（均为冷板）。",
+				cb.Provider,
+			))
+		} else {
+			b.sendReply(ctx, e, "🚫 目标已被移入冷板（board=cold），当前不支持订阅通知。")
+		}
+		return nil
+	}
+
 	var nf *validator.NotFoundError
 	if errors.As(err, &nf) {
 		switch nf.Level {

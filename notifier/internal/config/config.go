@@ -56,9 +56,19 @@ type APIConfig struct {
 // LimitsConfig 限制配置
 type LimitsConfig struct {
 	MaxSubscriptionsPerUser int           `yaml:"max_subscriptions_per_user"`
-	RateLimitPerSecond      int           `yaml:"rate_limit_per_second"`
 	MaxRetries              int           `yaml:"max_retries"`
 	BindTokenTTL            time.Duration `yaml:"bind_token_ttl"`
+
+	// 平台独立限流配置
+	TelegramRateLimitPerSecond int `yaml:"telegram_rate_limit_per_second"` // Telegram 发送限流（每秒消息数）
+	QQRateLimitPerSecond       int `yaml:"qq_rate_limit_per_second"`       // QQ 发送限流（每秒消息数，建议 1-2）
+
+	// QQ 发送抖动：在通过限流后额外 sleep 一段随机时间，用于错峰降低风控
+	QQJitterMin time.Duration `yaml:"qq_jitter_min"`
+	QQJitterMax time.Duration `yaml:"qq_jitter_max"`
+
+	// RateLimitPerSecond 兼容旧配置（deprecated）：等价于 TelegramRateLimitPerSecond
+	RateLimitPerSecond int `yaml:"rate_limit_per_second"`
 }
 
 // ScreenshotConfig 截图功能配置
@@ -142,8 +152,21 @@ func (c *Config) setDefaults() {
 	if c.Limits.MaxSubscriptionsPerUser == 0 {
 		c.Limits.MaxSubscriptionsPerUser = 20
 	}
-	if c.Limits.RateLimitPerSecond == 0 {
-		c.Limits.RateLimitPerSecond = 25
+	// 平台独立限流默认值
+	// 兼容旧字段：rate_limit_per_second 视为 Telegram 限流
+	if c.Limits.TelegramRateLimitPerSecond == 0 {
+		if c.Limits.RateLimitPerSecond > 0 {
+			c.Limits.TelegramRateLimitPerSecond = c.Limits.RateLimitPerSecond
+		} else {
+			c.Limits.TelegramRateLimitPerSecond = 25
+		}
+	}
+	if c.Limits.QQRateLimitPerSecond == 0 {
+		c.Limits.QQRateLimitPerSecond = 2 // QQ 保守限流
+	}
+	// QQ 抖动默认值：0-300ms
+	if c.Limits.QQJitterMax == 0 {
+		c.Limits.QQJitterMax = 300 * time.Millisecond
 	}
 	if c.Limits.MaxRetries == 0 {
 		c.Limits.MaxRetries = 3

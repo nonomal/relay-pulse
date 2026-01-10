@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"log/slog"
+	"math/rand"
 	"sort"
 	"strings"
 	"sync"
@@ -40,12 +41,16 @@ type Sender struct {
 	tgClient *telegram.Client
 	qqClient *qq.Client
 
-	// 限流
-	rateLimiter *time.Ticker
-	mu          sync.Mutex
-	running     bool
-	stopChan    chan struct{}
-	baseCtx     context.Context // 保存启动时的 context，供定时器回调使用
+	// 平台独立限流器
+	tgRateLimiter *time.Ticker
+	qqRateLimiter *time.Ticker
+	qqJitterMin   time.Duration
+	qqJitterMax   time.Duration
+
+	mu       sync.Mutex
+	running  bool
+	stopChan chan struct{}
+	baseCtx  context.Context // 保存启动时的 context，供定时器回调使用
 
 	// 事件聚合：按 provider/service/channel/event_type 分组
 	// 同一监测组下多个 model 的事件会在时间窗口内合并为一条通知
@@ -68,13 +73,26 @@ const DefaultAggregateWindow = 30 * time.Second
 
 // NewSender 创建发送器
 func NewSender(cfg *config.Config, store storage.Storage) *Sender {
+	// 计算限流间隔
+	tgRPS := cfg.Limits.TelegramRateLimitPerSecond
+	if tgRPS <= 0 {
+		tgRPS = 25
+	}
+	qqRPS := cfg.Limits.QQRateLimitPerSecond
+	if qqRPS <= 0 {
+		qqRPS = 2
+	}
+
 	s := &Sender{
-		cfg:         cfg,
-		storage:     store,
-		rateLimiter: time.NewTicker(time.Second / time.Duration(cfg.Limits.RateLimitPerSecond)),
-		stopChan:    make(chan struct{}),
-		aggWindow:   DefaultAggregateWindow,
-		aggBuf:      make(map[aggregateKey]*eventAggregate),
+		cfg:           cfg,
+		storage:       store,
+		tgRateLimiter: time.NewTicker(time.Second / time.Duration(tgRPS)),
+		qqRateLimiter: time.NewTicker(time.Second / time.Duration(qqRPS)),
+		qqJitterMin:   cfg.Limits.QQJitterMin,
+		qqJitterMax:   cfg.Limits.QQJitterMax,
+		stopChan:      make(chan struct{}),
+		aggWindow:     DefaultAggregateWindow,
+		aggBuf:        make(map[aggregateKey]*eventAggregate),
 	}
 
 	// 按配置初始化客户端
@@ -101,7 +119,10 @@ func (s *Sender) Start(ctx context.Context) error {
 	s.mu.Unlock()
 
 	slog.Info("通知发送器启动",
-		"rate_limit", s.cfg.Limits.RateLimitPerSecond,
+		"telegram_rate_limit", s.cfg.Limits.TelegramRateLimitPerSecond,
+		"qq_rate_limit", s.cfg.Limits.QQRateLimitPerSecond,
+		"qq_jitter_min", s.qqJitterMin,
+		"qq_jitter_max", s.qqJitterMax,
 		"telegram_enabled", s.tgClient != nil,
 		"qq_enabled", s.qqClient != nil,
 		"aggregate_window", s.aggWindow,
@@ -130,7 +151,12 @@ func (s *Sender) Stop() {
 	s.flushAllAggregates()
 
 	// 最后停止限流器
-	s.rateLimiter.Stop()
+	if s.tgRateLimiter != nil {
+		s.tgRateLimiter.Stop()
+	}
+	if s.qqRateLimiter != nil {
+		s.qqRateLimiter.Stop()
+	}
 }
 
 // flushAllAggregates 刷新所有聚合缓冲区（用于优雅关闭）
@@ -326,15 +352,86 @@ func (s *Sender) dispatchEvent(ctx context.Context, event *poller.Event) error {
 	return nil
 }
 
-// sendNotification 发送单条通知（多平台路由）
-func (s *Sender) sendNotification(ctx context.Context, delivery *storage.Delivery, event *poller.Event) {
-	// 等待限流，同时监听退出信号避免 Stop() 后阻塞
+// sleepWithContext 带 context 的 sleep，返回 true 表示正常完成，false 表示被取消
+func (s *Sender) sleepWithContext(ctx context.Context, d time.Duration) bool {
+	if d <= 0 {
+		return true
+	}
+	t := time.NewTimer(d)
+	defer t.Stop()
 	select {
 	case <-ctx.Done():
-		return
+		return false
+	case <-s.stopChan:
+		// 服务正在关闭，跳过等待
+		return true
+	case <-t.C:
+		return true
+	}
+}
+
+// waitPlatformRateLimit 等待平台限流，返回 true 表示可以发送，false 表示应该放弃
+func (s *Sender) waitPlatformRateLimit(ctx context.Context, platform string) bool {
+	// 先检查 context 是否已取消
+	select {
+	case <-ctx.Done():
+		return false
 	case <-s.stopChan:
 		// 服务正在关闭，跳过限流直接发送
-	case <-s.rateLimiter.C:
+		return true
+	default:
+	}
+
+	// 根据平台选择限流器
+	var limiter <-chan time.Time
+	switch platform {
+	case storage.PlatformTelegram:
+		if s.tgRateLimiter == nil {
+			return true
+		}
+		limiter = s.tgRateLimiter.C
+	case storage.PlatformQQ:
+		if s.qqRateLimiter == nil {
+			return true
+		}
+		limiter = s.qqRateLimiter.C
+	default:
+		// 未知平台不做限流
+		return true
+	}
+
+	// 等待限流
+	select {
+	case <-ctx.Done():
+		return false
+	case <-s.stopChan:
+		// 服务正在关闭，跳过限流直接发送
+		return true
+	case <-limiter:
+	}
+
+	// QQ 额外抖动：进一步错峰，降低风控
+	if platform == storage.PlatformQQ && s.qqJitterMax > 0 {
+		min := s.qqJitterMin
+		max := s.qqJitterMax
+		if max < min {
+			min, max = max, min
+		}
+		jitter := min
+		if max > min {
+			jitter += time.Duration(rand.Int63n(int64(max - min + 1)))
+		}
+		return s.sleepWithContext(ctx, jitter)
+	}
+
+	return true
+}
+
+// sendNotification 发送单条通知（多平台路由）
+func (s *Sender) sendNotification(ctx context.Context, delivery *storage.Delivery, event *poller.Event) {
+	// 等待平台限流
+	if !s.waitPlatformRateLimit(ctx, delivery.Platform) {
+		return
 	}
 
 	var (
@@ -670,11 +767,9 @@ func (s *Sender) processRetries(ctx context.Context) {
 
 // retryDelivery 重试单条投递
 func (s *Sender) retryDelivery(ctx context.Context, delivery *storage.Delivery) {
-	// 等待限流
-	select {
-	case <-ctx.Done():
+	// 等待平台限流
+	if !s.waitPlatformRateLimit(ctx, delivery.Platform) {
 		return
-	case <-s.rateLimiter.C:
 	}
 
 	// 简单的重试消息

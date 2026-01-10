@@ -255,6 +255,12 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 		return nil
 	}
 
+	// 为避免导入无效/冷板订阅，要求验证器可用
+	if b.validator == nil {
+		b.sendReply(ctx, msg.Chat.ID, "当前无法验证订阅（验证服务未配置），为避免导入无效或冷板订阅，已拒绝本次导入。请稍后再试。")
+		return nil
+	}
+
 	// 检查订阅数量限制
 	currentCount, err := b.storage.CountSubscriptions(ctx, storage.PlatformTelegram, msg.Chat.ID)
 	if err != nil {
@@ -273,21 +279,36 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 
 	// 添加订阅
 	added := 0
+	coldRejected := 0
+	failed := 0
 	for _, fav := range favorites {
 		if added >= availableSlots {
 			break
 		}
 
+		// 校验订阅目标（包括冷板检查）
+		target, err := b.validator.ValidateAdd(ctx, fav.Provider, fav.Service, fav.Channel)
+		if err != nil {
+			var cb *validator.ColdBoardError
+			if errors.As(err, &cb) {
+				coldRejected++
+				continue
+			}
+			failed++
+			continue
+		}
+
 		sub := &storage.Subscription{
 			Platform: storage.PlatformTelegram,
 			ChatID:   msg.Chat.ID,
-			Provider: fav.Provider,
-			Service:  fav.Service,
-			Channel:  fav.Channel,
+			Provider: target.Provider,
+			Service:  target.Service,
+			Channel:  target.Channel,
 		}
 
 		if err := b.storage.AddSubscription(ctx, sub); err != nil {
 			slog.Warn("添加订阅失败", "error", err)
+			failed++
 			continue
 		}
 		added++
@@ -298,7 +319,13 @@ func (b *Bot) handleStart(ctx context.Context, msg *Message, args string) error 
 		added,
 	)
 
-	if len(favorites) > added {
+	if coldRejected > 0 {
+		reply += fmt.Sprintf("\n\n🚫 已跳过 <b>%d</b> 个冷板订阅（board=cold 不支持订阅通知）。", coldRejected)
+	}
+	if failed > 0 {
+		reply += fmt.Sprintf("\n\n⚠️ 有 <b>%d</b> 个订阅导入失败（可能已下线或参数不合法）。", failed)
+	}
+	if len(favorites) > added+coldRejected+failed {
 		reply += fmt.Sprintf("\n\n⚠️ 部分订阅因数量限制未能添加（%d/%d）", added, len(favorites))
 	}
 
@@ -497,6 +524,30 @@ func (b *Bot) handleAddError(ctx context.Context, chatID int64, err error, provi
 	providerEsc := html.EscapeString(provider)
 	serviceEsc := html.EscapeString(service)
 	channelEsc := html.EscapeString(channel)
+
+	// 冷板错误处理
+	var cb *validator.ColdBoardError
+	if errors.As(err, &cb) {
+		if cb.Channel != "" {
+			b.sendReply(ctx, chatID, fmt.Sprintf(
+				"🚫 <b>%s / %s / %s</b> 已被移入冷板（board=cold），当前不支持订阅通知。",
+				html.EscapeString(cb.Provider), html.EscapeString(cb.Service), html.EscapeString(cb.Channel),
+			))
+		} else if cb.Service != "" {
+			b.sendReply(ctx, chatID, fmt.Sprintf(
+				"🚫 <b>%s / %s</b> 当前无可订阅的热板监测项（均为冷板）。",
+				html.EscapeString(cb.Provider), html.EscapeString(cb.Service),
+			))
+		} else if cb.Provider != "" {
+			b.sendReply(ctx, chatID, fmt.Sprintf(
+				"🚫 <b>%s</b> 当前无可订阅的热板监测项（均为冷板）。",
+				html.EscapeString(cb.Provider),
+			))
+		} else {
+			b.sendReply(ctx, chatID, "🚫 目标已被移入冷板（board=cold），当前不支持订阅通知。")
+		}
+		return nil
+	}
 
 	var nf *validator.NotFoundError
 	if errors.As(err, &nf) {
