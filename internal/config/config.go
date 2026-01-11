@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -1509,20 +1508,6 @@ func (c *AppConfig) ApplyEnvOverrides() {
 	}
 }
 
-// ProcessPlaceholders 处理 {{API_KEY}} / {{MODEL}} 占位符替换（headers 和 body）
-func (m *ServiceConfig) ProcessPlaceholders() {
-	// Headers 中替换
-	for k, v := range m.Headers {
-		v = strings.ReplaceAll(v, "{{API_KEY}}", m.APIKey)
-		v = strings.ReplaceAll(v, "{{MODEL}}", m.Model)
-		m.Headers[k] = v
-	}
-
-	// Body 中替换
-	m.Body = strings.ReplaceAll(m.Body, "{{API_KEY}}", m.APIKey)
-	m.Body = strings.ReplaceAll(m.Body, "{{MODEL}}", m.Model)
-}
-
 // ResolveBodyIncludes 允许 body 字段引用 data/ 目录下的 JSON 文件
 func (c *AppConfig) ResolveBodyIncludes(configDir string) error {
 	for i := range c.Monitors {
@@ -1530,44 +1515,6 @@ func (c *AppConfig) ResolveBodyIncludes(configDir string) error {
 			return err
 		}
 	}
-	return nil
-}
-
-func (m *ServiceConfig) resolveBodyInclude(configDir string) error {
-	const includePrefix = "!include "
-	trimmed := strings.TrimSpace(m.Body)
-	if trimmed == "" || !strings.HasPrefix(trimmed, includePrefix) {
-		return nil
-	}
-
-	relativePath := strings.TrimSpace(trimmed[len(includePrefix):])
-	if relativePath == "" {
-		return fmt.Errorf("monitor provider=%s service=%s: body include 路径不能为空", m.Provider, m.Service)
-	}
-
-	if filepath.IsAbs(relativePath) {
-		return fmt.Errorf("monitor provider=%s service=%s: body include 必须使用相对路径", m.Provider, m.Service)
-	}
-
-	cleanPath := filepath.Clean(relativePath)
-	targetPath := filepath.Join(configDir, cleanPath)
-
-	dataDir := filepath.Clean(filepath.Join(configDir, "data"))
-	targetPath = filepath.Clean(targetPath)
-
-	// 确保引用的文件位于 data/ 目录内
-	if targetPath != dataDir && !strings.HasPrefix(targetPath, dataDir+string(os.PathSeparator)) {
-		return fmt.Errorf("monitor provider=%s service=%s: body include 路径必须位于 data/ 目录", m.Provider, m.Service)
-	}
-
-	content, err := os.ReadFile(targetPath)
-	if err != nil {
-		return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
-	}
-
-	// 提取模板文件名（供 API 返回）
-	m.BodyTemplateName = filepath.Base(cleanPath)
-	m.Body = string(content)
 	return nil
 }
 
