@@ -42,18 +42,30 @@ type Fetcher struct {
 	cachedCategoryAt   time.Time
 }
 
-// NewFetcher 创建 GitHub GraphQL 拉取器（支持代理）
+// NewFetcher 创建 GitHub GraphQL 拉取器（支持 HTTP/HTTPS/SOCKS5 代理）
 func NewFetcher(cfg config.GitHubConfig) (*Fetcher, error) {
 	transport := &http.Transport{
 		Proxy: http.ProxyFromEnvironment,
 	}
 
 	// 如果配置了代理，使用配置的代理
-	if strings.TrimSpace(cfg.Proxy) != "" {
-		proxyURL, err := url.Parse(strings.TrimSpace(cfg.Proxy))
+	// 支持格式：
+	// - HTTP/HTTPS: http://host:port 或 http://user:pass@host:port
+	// - SOCKS5: socks5://host:port 或 socks5://user:pass@host:port
+	// - SOCKS (别名): socks://host:port 会自动转为 socks5://
+	if proxyStr := strings.TrimSpace(cfg.Proxy); proxyStr != "" {
+		proxyURL, err := url.Parse(proxyStr)
 		if err != nil {
 			return nil, fmt.Errorf("解析 github.proxy 失败: %w", err)
 		}
+
+		// Go 标准库 net/http.Transport 已原生支持 socks5/socks5h 代理（含用户名/密码认证）
+		// 为兼容常见写法，将 socks:// 视为 socks5://
+		scheme := strings.ToLower(proxyURL.Scheme)
+		if scheme == "socks" {
+			proxyURL.Scheme = "socks5"
+		}
+
 		transport.Proxy = http.ProxyURL(proxyURL)
 	}
 

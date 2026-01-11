@@ -277,6 +277,104 @@ monitors:
   - `true`: 将监测项均匀分散在整个巡检周期内执行（推荐）
   - `false`: 所有监测项同时执行（仅用于调试或压测）
 
+### GitHub 配置
+
+用于 GitHub API 访问的通用配置，目前用于公告通知功能（拉取 GitHub Discussions）。
+
+```yaml
+github:
+  token: ""                # GitHub Personal Access Token（建议用环境变量）
+  proxy: ""                # 代理地址（支持 HTTP/HTTPS/SOCKS5）
+  timeout: "30s"           # 请求超时时间
+```
+
+#### `github.token`
+- **类型**: string
+- **默认值**: 空
+- **环境变量**: `GITHUB_TOKEN`（优先级高于配置文件）
+- **说明**: GitHub Personal Access Token，用于 GraphQL API 访问
+- **权限要求**: 只需 `public_repo`（读取公开仓库）或无权限（匿名访问，但容易被限流）
+- **获取方式**: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → Generate new token
+
+#### `github.proxy`
+- **类型**: string
+- **默认值**: 空（回退到 `HTTPS_PROXY` 环境变量）
+- **说明**: 访问 GitHub API 的代理地址，适用于网络受限环境
+- **支持格式**:
+  ```
+  # HTTP/HTTPS 代理
+  http://host:port
+  http://user:pass@host:port
+  https://host:port
+
+  # SOCKS5 代理（支持账号密码认证）
+  socks5://host:port
+  socks5://user:pass@host:port
+  socks://host:port              # socks:// 是 socks5:// 的别名
+  socks://user:pass@host:port
+  ```
+- **示例**:
+  ```yaml
+  github:
+    proxy: "socks5://yjxt:password@1.2.3.4:5555"
+  ```
+
+#### `github.timeout`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"30s"`
+- **说明**: GitHub API 请求超时时间
+
+### 公告通知配置
+
+用于在前端显示 GitHub Discussions 公告，提示用户关注最新动态。
+
+```yaml
+announcements:
+  enabled: true            # 是否启用公告功能（默认 true）
+  owner: "prehisle"        # GitHub 仓库所有者
+  repo: "relay-pulse"      # GitHub 仓库名称
+  category_name: "Announcements"  # Discussions 分类名称
+  poll_interval: "15m"     # 后端轮询间隔
+  window_hours: 72         # 显示近 N 小时内的公告（默认 72，即 3 天）
+  max_items: 20            # 最大拉取条数
+  api_max_age: 60          # API 响应缓存时间（秒）
+```
+
+#### `announcements.enabled`
+- **类型**: boolean（指针类型，支持显式 false）
+- **默认值**: `true`
+- **说明**: 是否启用公告功能；设为 `false` 完全禁用
+
+#### `announcements.owner` / `announcements.repo`
+- **类型**: string
+- **默认值**: `"prehisle"` / `"relay-pulse"`
+- **说明**: GitHub 仓库坐标，用于拉取 Discussions
+
+#### `announcements.category_name`
+- **类型**: string
+- **默认值**: `"Announcements"`
+- **说明**: Discussions 分类名称（不区分大小写）
+
+#### `announcements.poll_interval`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"15m"`
+- **说明**: 后端轮询 GitHub API 的间隔
+
+#### `announcements.window_hours`
+- **类型**: integer
+- **默认值**: `72`（3 天）
+- **说明**: 只显示近 N 小时内创建的公告
+
+#### `announcements.max_items`
+- **类型**: integer
+- **默认值**: `20`
+- **说明**: 每次拉取的最大 Discussions 条数
+
+#### `announcements.api_max_age`
+- **类型**: integer
+- **默认值**: `60`
+- **说明**: 前端 API 响应的 Cache-Control max-age（秒）
+
 ### 事件通知配置
 
 用于订阅服务状态变更事件，支持外部系统（如 Cloudflare Worker）轮询获取事件并触发通知（如 Telegram 消息）。

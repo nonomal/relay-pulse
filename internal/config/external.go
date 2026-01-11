@@ -49,10 +49,10 @@ func (c *GitHubConfig) Normalize() error {
 			c.Proxy = ""
 		} else {
 			switch strings.ToLower(u.Scheme) {
-			case "http", "https", "socks5":
-				// 有效协议
+			case "http", "https", "socks5", "socks":
+				// 有效协议（socks 是 socks5 的别名）
 			default:
-				logger.Warn("config", "github.proxy 协议无效（仅支持 http/https/socks5），已忽略", "value", c.Proxy)
+				logger.Warn("config", "github.proxy 协议无效（仅支持 http/https/socks5/socks），已忽略", "value", c.Proxy)
 				c.Proxy = ""
 			}
 		}
