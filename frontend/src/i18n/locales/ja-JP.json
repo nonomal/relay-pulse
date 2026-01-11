@@ -387,5 +387,12 @@
     "groupNumber": "グループID",
     "joinLink": "参加する",
     "qrCodeAlt": "{{name}} QRコード"
+  },
+  "announcements": {
+    "newAnnouncement": "新着",
+    "viewAll": "すべてのディスカッションを見る",
+    "close": "閉じる",
+    "discussions": "ディスカッション",
+    "moreAnnouncements": "他 {{count}} 件のお知らせ"
   }
 }

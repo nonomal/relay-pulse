@@ -572,6 +572,170 @@ type EventsConfig struct {
 	APIToken string `yaml:"api_token" json:"-"`
 }
 
+// GitHubConfig GitHub 通用配置（用于 GraphQL 拉取等，可复用于其他 GitHub 功能）
+type GitHubConfig struct {
+	// 访问令牌（建议通过环境变量 GITHUB_TOKEN 注入；不返回给前端）
+	Token string `yaml:"token" json:"-"`
+
+	// 代理地址（可选）；为空时自动回退到 HTTPS_PROXY 环境变量
+	Proxy string `yaml:"proxy" json:"proxy,omitempty"`
+
+	// 请求超时时间（默认 "30s"）
+	Timeout string `yaml:"timeout" json:"timeout"`
+
+	// 解析后的超时时间（内部使用，不序列化）
+	TimeoutDuration time.Duration `yaml:"-" json:"-"`
+}
+
+// Normalize 规范化 GitHub 配置（默认值、环境变量覆盖、基础校验）
+func (c *GitHubConfig) Normalize() error {
+	// token：环境变量优先覆盖
+	if envToken := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); envToken != "" {
+		c.Token = envToken
+	} else {
+		c.Token = strings.TrimSpace(c.Token)
+	}
+
+	// proxy：优先使用配置；为空时回退到 HTTPS_PROXY
+	c.Proxy = strings.TrimSpace(c.Proxy)
+	if c.Proxy == "" {
+		if envProxy := strings.TrimSpace(os.Getenv("HTTPS_PROXY")); envProxy != "" {
+			c.Proxy = envProxy
+		}
+	}
+	// 校验代理 URL 格式
+	if c.Proxy != "" {
+		u, err := url.Parse(c.Proxy)
+		if err != nil || u.Scheme == "" || u.Host == "" {
+			logger.Warn("config", "github.proxy 格式无效，已忽略", "value", c.Proxy)
+			c.Proxy = ""
+		} else {
+			switch strings.ToLower(u.Scheme) {
+			case "http", "https", "socks5":
+				// 有效协议
+			default:
+				logger.Warn("config", "github.proxy 协议无效（仅支持 http/https/socks5），已忽略", "value", c.Proxy)
+				c.Proxy = ""
+			}
+		}
+	}
+
+	// timeout：默认 30s
+	if strings.TrimSpace(c.Timeout) == "" {
+		c.Timeout = "30s"
+	}
+	d, err := time.ParseDuration(strings.TrimSpace(c.Timeout))
+	if err != nil || d <= 0 {
+		logger.Warn("config", "github.timeout 无效，已回退默认值", "value", c.Timeout, "default", "30s")
+		d = 30 * time.Second
+		c.Timeout = "30s"
+	}
+	c.TimeoutDuration = d
+
+	return nil
+}
+
+// AnnouncementsConfig 公告通知配置（GitHub Discussions / Announcements 分类）
+type AnnouncementsConfig struct {
+	// 是否启用公告功能（默认 true）
+	Enabled *bool `yaml:"enabled" json:"enabled"`
+
+	// GitHub 仓库坐标（默认 prehisle/relay-pulse）
+	Owner string `yaml:"owner" json:"owner"`
+	Repo  string `yaml:"repo" json:"repo"`
+
+	// Discussions 分类名称（默认 "Announcements"）
+	CategoryName string `yaml:"category_name" json:"category_name"`
+
+	// 后端轮询间隔（默认 "15m"）
+	PollInterval string `yaml:"poll_interval" json:"poll_interval"`
+
+	// 近 N 小时窗口（默认 72，即 3 天）
+	WindowHours int `yaml:"window_hours" json:"window_hours"`
+
+	// 拉取最大条数（默认 20；后端按 window_hours 二次过滤）
+	MaxItems int `yaml:"max_items" json:"max_items"`
+
+	// API 响应 Cache-Control max-age（秒，默认 60）
+	APIMaxAge int `yaml:"api_max_age" json:"api_max_age"`
+
+	// 解析后的时间间隔（内部使用，不序列化）
+	PollIntervalDuration time.Duration `yaml:"-" json:"-"`
+	WindowDuration       time.Duration `yaml:"-" json:"-"`
+}
+
+// IsEnabled 返回是否启用公告功能
+func (c *AnnouncementsConfig) IsEnabled() bool {
+	if c.Enabled == nil {
+		return true // 默认启用
+	}
+	return *c.Enabled
+}
+
+// Normalize 规范化 announcements 配置（填充默认值、解析 duration）
+func (c *AnnouncementsConfig) Normalize() error {
+	// owner/repo：默认 prehisle/relay-pulse
+	if strings.TrimSpace(c.Owner) == "" {
+		c.Owner = "prehisle"
+	} else {
+		c.Owner = strings.TrimSpace(c.Owner)
+	}
+	if strings.TrimSpace(c.Repo) == "" {
+		c.Repo = "relay-pulse"
+	} else {
+		c.Repo = strings.TrimSpace(c.Repo)
+	}
+
+	// category_name：默认 Announcements
+	if strings.TrimSpace(c.CategoryName) == "" {
+		c.CategoryName = "Announcements"
+	} else {
+		c.CategoryName = strings.TrimSpace(c.CategoryName)
+	}
+
+	// poll_interval：默认 15m
+	if strings.TrimSpace(c.PollInterval) == "" {
+		c.PollInterval = "15m"
+	}
+	d, err := time.ParseDuration(strings.TrimSpace(c.PollInterval))
+	if err != nil || d <= 0 {
+		logger.Warn("config", "announcements.poll_interval 无效，已回退默认值", "value", c.PollInterval, "default", "15m")
+		d = 15 * time.Minute
+		c.PollInterval = "15m"
+	}
+	c.PollIntervalDuration = d
+
+	// window_hours：默认 72（3 天）
+	if c.WindowHours == 0 {
+		c.WindowHours = 72
+	}
+	if c.WindowHours < 1 {
+		logger.Warn("config", "announcements.window_hours 无效，已回退默认值", "value", c.WindowHours, "default", 72)
+		c.WindowHours = 72
+	}
+	c.WindowDuration = time.Duration(c.WindowHours) * time.Hour
+
+	// max_items：默认 20
+	if c.MaxItems == 0 {
+		c.MaxItems = 20
+	}
+	if c.MaxItems < 1 {
+		logger.Warn("config", "announcements.max_items 无效，已回退默认值", "value", c.MaxItems, "default", 20)
+		c.MaxItems = 20
+	}
+
+	// api_max_age：默认 60 秒
+	if c.APIMaxAge == 0 {
+		c.APIMaxAge = 60
+	}
+	if c.APIMaxAge < 0 {
+		logger.Warn("config", "announcements.api_max_age 无效，已回退默认值", "value", c.APIMaxAge, "default", 60)
+		c.APIMaxAge = 60
+	}
+
+	return nil
+}
+
 // Cache TTL 默认值常量（集中定义，避免多处重复）
 const (
 	DefaultCacheTTLShort = 10 * time.Second // 90m, 24h 默认 TTL
@@ -786,6 +950,12 @@ type AppConfig struct {
 
 	// 状态订阅通知（事件）配置
 	Events EventsConfig `yaml:"events" json:"events"`
+
+	// 公告通知配置（GitHub Discussions / Announcements 分类）
+	Announcements AnnouncementsConfig `yaml:"announcements" json:"announcements"`
+
+	// GitHub 通用配置（token/proxy/timeout）
+	GitHub GitHubConfig `yaml:"github" json:"github"`
 
 	Monitors []ServiceConfig `yaml:"monitors"`
 }
@@ -1404,6 +1574,21 @@ func (c *AppConfig) Normalize() error {
 	}
 	if c.Events.ChannelCountMode != "incremental" && c.Events.ChannelCountMode != "recompute" {
 		return fmt.Errorf("events.channel_count_mode 必须是 'incremental' 或 'recompute'，当前值: %s", c.Events.ChannelCountMode)
+	}
+
+	// GitHub 配置默认值与环境变量覆盖
+	if err := c.GitHub.Normalize(); err != nil {
+		return err
+	}
+
+	// 公告配置默认值与解析
+	if err := c.Announcements.Normalize(); err != nil {
+		return err
+	}
+
+	// 公告启用但未配置 token：仅警告（可匿名访问，但容易被限流）
+	if c.Announcements.IsEnabled() && strings.TrimSpace(c.GitHub.Token) == "" {
+		logger.Warn("config", "announcements 已启用但未配置 GITHUB_TOKEN，将使用匿名请求（可能触发限流）")
 	}
 
 	// 存储配置默认值

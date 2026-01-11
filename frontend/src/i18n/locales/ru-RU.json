@@ -387,5 +387,12 @@
     "groupNumber": "ID группы",
     "joinLink": "Присоединиться",
     "qrCodeAlt": "{{name}} QR-код"
+  },
+  "announcements": {
+    "newAnnouncement": "Новое",
+    "viewAll": "Все обсуждения",
+    "close": "Закрыть",
+    "discussions": "Обсуждения",
+    "moreAnnouncements": "Ещё {{count}} объявление(й)"
   }
 }

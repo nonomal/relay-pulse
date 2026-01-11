@@ -387,5 +387,12 @@
     "groupNumber": "群号",
     "joinLink": "点击加入",
     "qrCodeAlt": "{{name}} 二维码"
+  },
+  "announcements": {
+    "newAnnouncement": "新公告",
+    "viewAll": "查看全部讨论",
+    "close": "关闭",
+    "discussions": "讨论",
+    "moreAnnouncements": "还有 {{count}} 条公告"
   }
 }

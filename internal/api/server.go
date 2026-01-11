@@ -32,6 +32,9 @@ type Server struct {
 	router     *gin.Engine
 	httpServer *http.Server
 	port       string
+
+	// 公告处理器（可选，通过 RegisterAnnouncementsHandler 注入）
+	announcementsHandler gin.HandlerFunc
 }
 
 // NewServer 创建服务器
@@ -237,6 +240,13 @@ func (s *Server) UpdateConfig(cfg *config.AppConfig) {
 // GetHandler returns the handler instance
 func (s *Server) GetHandler() *Handler {
 	return s.handler
+}
+
+// RegisterAnnouncementsHandler 注册公告 API 处理器
+// 在 main.go 中初始化 announcements 服务后调用
+func (s *Server) RegisterAnnouncementsHandler(handler gin.HandlerFunc) {
+	s.router.GET("/api/announcements", handler)
+	logger.Info("api", "公告 API 已注册", "path", "/api/announcements")
 }
 
 // setupStaticFiles 设置静态文件服务（前端）

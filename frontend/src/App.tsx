@@ -10,10 +10,12 @@ import { StatusCard } from './components/StatusCard';
 import { Tooltip } from './components/Tooltip';
 import { Footer } from './components/Footer';
 import { EmptyFavorites } from './components/EmptyFavorites';
+import { AnnouncementsBanner } from './components/AnnouncementsBanner';
 import { useMonitorData } from './hooks/useMonitorData';
 import { useSeoMeta } from './hooks/useSeoMeta';
 import { useUrlState } from './hooks/useUrlState';
 import { useFavorites } from './hooks/useFavorites';
+import { useAnnouncements } from './hooks/useAnnouncements';
 import { createMediaQueryEffect } from './utils/mediaQuery';
 import { trackPeriodChange, trackServiceFilter, trackEvent } from './utils/analytics';
 import type { TooltipState, ProcessedMonitorData, ChannelOption } from './types';
@@ -98,6 +100,15 @@ function App() {
 
   // 收藏管理 Hook
   const { favorites, isFavorite, toggleFavorite, cleanupMissingFavorites, count: favoritesCount } = useFavorites();
+
+  // 公告通知 Hook（截图模式下禁用，避免不必要的网络请求）
+  const {
+    data: announcementsData,
+    loading: announcementsLoading,
+    hasUnread: hasUnreadAnnouncements,
+    shouldShowBanner: shouldShowAnnouncementsBanner,
+    dismiss: dismissAnnouncements,
+  } = useAnnouncements(!isScreenshotMode);
 
   // 时间对齐模式（使用 localStorage 持久化，不影响分享链接）
   const [timeAlign, setTimeAlignState] = useState<string>(() => {
@@ -567,6 +578,19 @@ function App() {
               autoRefresh={autoRefresh}
               onToggleAutoRefresh={handleToggleAutoRefresh}
               activeFiltersCount={activeFiltersCount}
+              discussionsUrl={announcementsData?.source?.discussionsUrl}
+              hasUnreadAnnouncements={hasUnreadAnnouncements}
+            />
+          )}
+
+          {/* 公告横幅 - 截图模式下隐藏 */}
+          {!isScreenshotMode && (
+            <AnnouncementsBanner
+              className="mb-4"
+              data={announcementsData}
+              loading={announcementsLoading}
+              shouldShowBanner={shouldShowAnnouncementsBanner}
+              onDismiss={dismissAnnouncements}
             />
           )}
 

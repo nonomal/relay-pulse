@@ -8,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"monitor/internal/announcements"
 	"monitor/internal/api"
 	"monitor/internal/buildinfo"
 	"monitor/internal/config"
@@ -238,6 +239,31 @@ func main() {
 			"rate_limit", rateLimitPerMinute)
 	}
 
+	// 初始化公告服务（如果启用）
+	var announcementsSvc *announcements.Service
+	if cfg.Announcements.IsEnabled() {
+		var err error
+		announcementsSvc, err = announcements.NewService(cfg.Announcements, cfg.GitHub)
+		if err != nil {
+			logger.Error("main", "创建公告服务失败", "error", err)
+			// 公告服务失败不影响主服务启动，仅警告
+		} else {
+			// 注册 API 处理器
+			announcementsHandler := announcements.NewHandler(announcementsSvc)
+			server.RegisterAnnouncementsHandler(announcementsHandler.GetAnnouncements)
+
+			// 启动后台轮询
+			announcementsSvc.Start(ctx)
+
+			logger.Info("main", "公告服务已启用",
+				"owner", cfg.Announcements.Owner,
+				"repo", cfg.Announcements.Repo,
+				"category", cfg.Announcements.CategoryName,
+				"poll_interval", cfg.Announcements.PollInterval,
+				"window_hours", cfg.Announcements.WindowHours)
+		}
+	}
+
 	// 启动配置监听器（热更新）
 	watcher, err := config.NewWatcher(loader, configFile, func(newCfg *config.AppConfig) {
 		// 配置热更新回调
@@ -289,6 +315,12 @@ func main() {
 	if selfTestMgr != nil {
 		selfTestMgr.Stop()
 		logger.Info("main", "自助测试管理器已关闭")
+	}
+
+	// 停止公告服务（如果启用）
+	if announcementsSvc != nil {
+		announcementsSvc.Stop()
+		logger.Info("main", "公告服务已关闭")
 	}
 
 	// 停止清理和归档任务

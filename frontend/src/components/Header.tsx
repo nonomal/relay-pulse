@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Activity, CheckCircle, AlertTriangle, Sparkles, Share2, Filter } from 'lucide-react';
+import { Activity, CheckCircle, AlertTriangle, Sparkles, Share2, Filter, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { FEEDBACK_URLS } from '../constants';
@@ -25,9 +25,12 @@ interface HeaderProps {
   autoRefresh?: boolean;
   onToggleAutoRefresh?: () => void;
   activeFiltersCount?: number;
+  // 公告相关
+  discussionsUrl?: string;
+  hasUnreadAnnouncements?: boolean;
 }
 
-export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldown, autoRefresh = true, onToggleAutoRefresh, activeFiltersCount = 0 }: HeaderProps) {
+export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldown, autoRefresh = true, onToggleAutoRefresh, activeFiltersCount = 0, discussionsUrl, hasUnreadAnnouncements = false }: HeaderProps) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
@@ -255,6 +258,23 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           {/* 加入社群 */}
           <CommunityMenu />
 
+          {/* 讨论入口 */}
+          {discussionsUrl && (
+            <a
+              href={discussionsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="relative p-2 rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              aria-label={t('announcements.discussions')}
+              title={t('announcements.discussions')}
+            >
+              <MessageCircle size={16} />
+              {hasUnreadAnnouncements && (
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-accent rounded-full animate-pulse" />
+              )}
+            </a>
+          )}
+
           {/* 推荐按钮 */}
           <a
             href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
@@ -326,6 +346,22 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
 
         {/* 加入社群 - 移动端 */}
         <CommunityMenu />
+
+        {/* 讨论入口 - 移动端，增大热区至 44px */}
+        {discussionsUrl && (
+          <a
+            href={discussionsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="relative min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg bg-elevated/50 text-secondary hover:text-primary hover:bg-muted/50 transition-all duration-200 text-xs focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+            aria-label={t('announcements.discussions')}
+          >
+            <MessageCircle size={14} />
+            {hasUnreadAnnouncements && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-accent rounded-full animate-pulse" />
+            )}
+          </a>
+        )}
 
         {/* 推荐按钮 - 移动端紧凑版 */}
         <a

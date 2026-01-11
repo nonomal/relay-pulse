@@ -387,5 +387,12 @@
     "groupNumber": "Group ID",
     "joinLink": "Click to join",
     "qrCodeAlt": "{{name}} QR Code"
+  },
+  "announcements": {
+    "newAnnouncement": "New",
+    "viewAll": "View all discussions",
+    "close": "Close",
+    "discussions": "Discussions",
+    "moreAnnouncements": "{{count}} more announcement(s)"
   }
 }
