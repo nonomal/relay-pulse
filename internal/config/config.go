@@ -142,14 +142,80 @@ type AppConfig struct {
 	Monitors []ServiceConfig `yaml:"monitors"`
 }
 
+// validateContext 承载 Validate() 过程中的中间数据
+// 采用结构体而非多返回值，便于扩展且更具可读性
+type validateContext struct {
+	// 四元组唯一性集合 (provider/service/channel/model)
+	quadrupleKeySet map[string]struct{}
+	// 父通道索引 (三元组 path -> *ServiceConfig, nil 表示多定义冲突)
+	rootByPath map[string]*ServiceConfig
+	// 父子关系图 (childKey -> parentKey，单父映射)
+	parentOf map[string]string
+}
+
+// newValidateContext 创建并初始化 validateContext
+// 集中初始化避免各步骤遗漏 make() 导致 nil map panic
+func newValidateContext() *validateContext {
+	return &validateContext{
+		quadrupleKeySet: make(map[string]struct{}),
+		rootByPath:      make(map[string]*ServiceConfig),
+		parentOf:        make(map[string]string),
+	}
+}
+
 // Validate 验证配置合法性
+// 注意：此方法有副作用，会预处理子通道的 provider/service/channel 继承
 func (c *AppConfig) Validate() error {
 	if len(c.Monitors) == 0 {
 		return fmt.Errorf("至少需要配置一个监测项")
 	}
 
 	// 0. 预处理：子项的 provider/service/channel 从 parent 路径继承
-	// 必须在唯一性检查前完成，否则子项的 key 不完整
+	if err := c.preprocessParentInheritance(); err != nil {
+		return err
+	}
+
+	// 1. 四元组唯一性检查
+	ctx := newValidateContext()
+	if err := c.validateMonitorUniqueness(ctx); err != nil {
+		return err
+	}
+
+	// 2-4. 父子约束校验：收集引用、构建索引、验证存在性
+	if err := c.buildAndValidateParentGraph(ctx); err != nil {
+		return err
+	}
+
+	// 5. 循环引用检测
+	if err := c.validateNoCycles(ctx); err != nil {
+		return err
+	}
+
+	// 5.5 多父层警告
+	c.warnMultipleParentLayers()
+
+	// 6. 监测项字段校验
+	if err := c.validateMonitorFields(); err != nil {
+		return err
+	}
+
+	// 7. Provider 配置校验
+	if err := c.validateProviderConfigs(); err != nil {
+		return err
+	}
+
+	// 8. Badge 配置校验
+	if err := c.validateBadgeConfigs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// preprocessParentInheritance 预处理子通道的 provider/service/channel 继承
+// 必须在唯一性检查前完成，否则子项的 key 不完整
+// 注意：此方法会修改 c.Monitors，需保证幂等
+func (c *AppConfig) preprocessParentInheritance() error {
 	for i := range c.Monitors {
 		m := &c.Monitors[i]
 		parentPath := strings.TrimSpace(m.Parent)
@@ -180,18 +246,25 @@ func (c *AppConfig) Validate() error {
 			return fmt.Errorf("monitor[%d]: 子通道 channel '%s' 与 parent '%s' 不一致，不支持覆盖", i, m.Channel, parentChannel)
 		}
 	}
+	return nil
+}
 
-	// 1. 四元组唯一性检查（provider/service/channel/model）
-	quadrupleKeys := make(map[string]bool)
+// validateMonitorUniqueness 检查四元组唯一性 (provider/service/channel/model)
+func (c *AppConfig) validateMonitorUniqueness(ctx *validateContext) error {
 	for _, m := range c.Monitors {
 		key := fmt.Sprintf("%s/%s/%s/%s", m.Provider, m.Service, m.Channel, m.Model)
-		if quadrupleKeys[key] {
+		if _, exists := ctx.quadrupleKeySet[key]; exists {
 			return fmt.Errorf("重复的监测项: %s", key)
 		}
-		quadrupleKeys[key] = true
+		ctx.quadrupleKeySet[key] = struct{}{}
 	}
+	return nil
+}
 
-	// 2. 父子约束校验：收集父通道引用
+// buildAndValidateParentGraph 构建并校验父子关系图
+// 包括：收集父通道引用、构建索引、验证父存在性
+func (c *AppConfig) buildAndValidateParentGraph(ctx *validateContext) error {
+	// 收集父通道引用
 	parentRefs := make(map[string]struct{})
 	for i, m := range c.Monitors {
 		parentPath := strings.TrimSpace(m.Parent)
@@ -217,26 +290,25 @@ func (c *AppConfig) Validate() error {
 		}
 	}
 
-	// 3. 构建父通道索引（parent 为空的 monitor 定义）
-	rootByPath := make(map[string]*ServiceConfig)
+	// 构建父通道索引（parent 为空的 monitor 定义）
+	// 注意：ctx.rootByPath 已在 newValidateContext() 中初始化
 	for i := range c.Monitors {
 		if strings.TrimSpace(c.Monitors[i].Parent) != "" {
 			continue
 		}
 		path := fmt.Sprintf("%s/%s/%s", c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
-		if existing, exists := rootByPath[path]; exists {
+		if existing, exists := ctx.rootByPath[path]; exists {
 			// 标记为多定义（nil 表示冲突）
 			if existing != nil {
-				rootByPath[path] = nil
+				ctx.rootByPath[path] = nil
 			}
 			continue
 		}
-		rootByPath[path] = &c.Monitors[i]
+		ctx.rootByPath[path] = &c.Monitors[i]
 	}
 
-	// 4. 父存在性校验，并构建 parent 关系图（用于循环检测）
-	// 注意：provider/service/channel 的继承和一致性校验已在步骤 0 完成
-	parentOf := make(map[string]string)
+	// 父存在性校验，并构建 parent 关系图（用于循环检测）
+	// 注意：ctx.parentOf 已在 newValidateContext() 中初始化
 	for i, m := range c.Monitors {
 		parentPath := strings.TrimSpace(m.Parent)
 		if parentPath == "" {
@@ -244,9 +316,9 @@ func (c *AppConfig) Validate() error {
 		}
 
 		// 验证父存在且唯一
-		parent := rootByPath[parentPath]
+		parent := ctx.rootByPath[parentPath]
 		if parent == nil {
-			if _, pathExists := rootByPath[parentPath]; pathExists {
+			if _, pathExists := ctx.rootByPath[parentPath]; pathExists {
 				return fmt.Errorf("monitor[%d]: 父通道 %s 存在多个定义", i, parentPath)
 			}
 			return fmt.Errorf("monitor[%d]: 找不到父通道: %s", i, parentPath)
@@ -255,10 +327,14 @@ func (c *AppConfig) Validate() error {
 		// 构建父子关系图
 		childKey := fmt.Sprintf("%s/%s/%s/%s", m.Provider, m.Service, m.Channel, m.Model)
 		parentKey := fmt.Sprintf("%s/%s/%s/%s", parent.Provider, parent.Service, parent.Channel, parent.Model)
-		parentOf[childKey] = parentKey
+		ctx.parentOf[childKey] = parentKey
 	}
 
-	// 5. 循环引用检测（DFS 颜色标记：0=白, 1=灰, 2=黑）
+	return nil
+}
+
+// validateNoCycles 检测循环引用（DFS 颜色标记：0=白, 1=灰, 2=黑）
+func (c *AppConfig) validateNoCycles(ctx *validateContext) error {
 	color := make(map[string]int)
 	var dfsCheckCycle func(key string) error
 	dfsCheckCycle = func(key string) error {
@@ -271,7 +347,7 @@ func (c *AppConfig) Validate() error {
 
 		color[key] = 1 // 标记为灰色（访问中）
 
-		if parentKey, hasParent := parentOf[key]; hasParent {
+		if parentKey, hasParent := ctx.parentOf[key]; hasParent {
 			if err := dfsCheckCycle(parentKey); err != nil {
 				return err
 			}
@@ -281,7 +357,7 @@ func (c *AppConfig) Validate() error {
 		return nil
 	}
 
-	for key := range quadrupleKeys {
+	for key := range ctx.quadrupleKeySet {
 		if color[key] == 0 {
 			if err := dfsCheckCycle(key); err != nil {
 				return err
@@ -289,27 +365,41 @@ func (c *AppConfig) Validate() error {
 		}
 	}
 
-	// 5.5 多父层警告（同一 PSC 下多个 Parent='' 且 Model!='' 的监测项）
-	// 只有第一个会被视为父层，其他会从 API 输出中丢失（请修正配置）
-	pscNoParentCount := make(map[string]int) // key: provider/service/channel
+	return nil
+}
+
+// warnMultipleParentLayers 警告同一 PSC 下存在多个父层
+// 只有第一个会被视为父层，其他会从 API 输出中丢失
+func (c *AppConfig) warnMultipleParentLayers() {
+	pscNoParentCount := make(map[string]int)
 	for _, m := range c.Monitors {
 		if strings.TrimSpace(m.Parent) == "" && strings.TrimSpace(m.Model) != "" {
 			psc := fmt.Sprintf("%s/%s/%s", m.Provider, m.Service, m.Channel)
 			pscNoParentCount[psc]++
 		}
 	}
+
+	// 收集需要警告的 PSC 并排序，保证输出稳定性
+	var warnings []string
 	for psc, count := range pscNoParentCount {
 		if count > 1 {
-			logger.Warn("config", "同一 PSC 下存在多个父层 (Parent='', Model!='')，只有第一个会作为父层，其他会丢失",
-				"psc", psc, "count", count)
+			warnings = append(warnings, psc)
 		}
 	}
+	sort.Strings(warnings)
 
-	// 6. 必填字段检查与字段合法性检查
+	for _, psc := range warnings {
+		logger.Warn("config", "同一 PSC 下存在多个父层 (Parent='', Model!='')，只有第一个会作为父层，其他会丢失",
+			"psc", psc, "count", pscNoParentCount[psc])
+	}
+}
+
+// validateMonitorFields 校验监测项的必填字段和字段合法性
+func (c *AppConfig) validateMonitorFields() error {
 	for i, m := range c.Monitors {
 		hasParent := strings.TrimSpace(m.Parent) != ""
 
-		// 基础必填字段（provider/service/channel 已在步骤 0 处理）
+		// 基础必填字段（provider/service/channel 已在预处理步骤处理）
 		if m.Provider == "" {
 			return fmt.Errorf("monitor[%d]: provider 不能为空", i)
 		}
@@ -391,18 +481,22 @@ func (c *AppConfig) Validate() error {
 			}
 		}
 	}
+	return nil
+}
 
+// validateProviderConfigs 校验 Provider 相关配置
+func (c *AppConfig) validateProviderConfigs() error {
 	// 验证 disabled_providers
-	disabledProviderSet := make(map[string]bool)
+	disabledProviderSet := make(map[string]struct{})
 	for i, dp := range c.DisabledProviders {
 		provider := strings.ToLower(strings.TrimSpace(dp.Provider))
 		if provider == "" {
 			return fmt.Errorf("disabled_providers[%d]: provider 不能为空", i)
 		}
-		if disabledProviderSet[provider] {
+		if _, exists := disabledProviderSet[provider]; exists {
 			return fmt.Errorf("disabled_providers[%d]: provider '%s' 重复配置", i, dp.Provider)
 		}
-		disabledProviderSet[provider] = true
+		disabledProviderSet[provider] = struct{}{}
 	}
 
 	// 验证 risk_providers
@@ -425,8 +519,12 @@ func (c *AppConfig) Validate() error {
 		}
 	}
 
+	return nil
+}
+
+// validateBadgeConfigs 校验 Badge 相关配置
+func (c *AppConfig) validateBadgeConfigs() error {
 	// 验证 badges（全局徽标定义）
-	// map 格式：key 为徽标 ID
 	for id, bd := range c.BadgeDefs {
 		if strings.TrimSpace(id) == "" {
 			return fmt.Errorf("badge_definitions: id 不能为空")
@@ -450,16 +548,16 @@ func (c *AppConfig) Validate() error {
 	}
 
 	// 验证 badge_providers
-	badgeProviderSet := make(map[string]bool)
+	badgeProviderSet := make(map[string]struct{})
 	for i, bp := range c.BadgeProviders {
 		provider := strings.ToLower(strings.TrimSpace(bp.Provider))
 		if provider == "" {
 			return fmt.Errorf("badge_providers[%d]: provider 不能为空", i)
 		}
-		if badgeProviderSet[provider] {
+		if _, exists := badgeProviderSet[provider]; exists {
 			return fmt.Errorf("badge_providers[%d]: provider '%s' 重复配置", i, bp.Provider)
 		}
-		badgeProviderSet[provider] = true
+		badgeProviderSet[provider] = struct{}{}
 		for j, ref := range bp.Badges {
 			refID := strings.TrimSpace(ref.ID)
 			if refID == "" {
@@ -495,6 +593,72 @@ func (c *AppConfig) Validate() error {
 
 // Normalize 规范化配置（填充默认值等）
 func (c *AppConfig) Normalize() error {
+	// 1. 全局时间配置（interval, slow_latency, timeout 及 by_service）
+	if err := c.normalizeGlobalTimings(); err != nil {
+		return err
+	}
+
+	// 2. 全局参数默认值
+	if err := c.normalizeGlobalDefaults(); err != nil {
+		return err
+	}
+
+	// 3. 功能模块配置（sponsor_pin, selftest, events, github, announcements）
+	if err := c.normalizeFeatureConfigs(); err != nil {
+		return err
+	}
+
+	// 4. 存储配置
+	if err := c.normalizeStorageConfig(); err != nil {
+		return err
+	}
+
+	// 5. 构建 Provider/Badge 映射索引
+	ctx := newNormalizeContext()
+	if err := c.buildNormalizeIndexes(ctx); err != nil {
+		return err
+	}
+
+	// 6. 规范化每个监测项
+	if err := c.normalizeMonitors(ctx); err != nil {
+		return err
+	}
+
+	// 7. 父子继承（必须在 per-monitor 规范化之后，因为继承依赖已规范化的路径/键）
+	if err := c.applyParentInheritance(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// normalizeContext 承载 Normalize() 过程中的中间数据
+// 主要用于传递全局构建的映射给 per-monitor 处理
+type normalizeContext struct {
+	// Provider 可见性映射
+	disabledProviderMap map[string]string // provider -> reason
+	hiddenProviderMap   map[string]string // provider -> reason
+	riskProviderMap     map[string][]RiskBadge
+
+	// Badge 体系索引
+	badgeDefMap      map[string]BadgeDef   // id -> def（含内置默认）
+	badgeProviderMap map[string][]BadgeRef // provider -> badges
+}
+
+// newNormalizeContext 创建并初始化 normalizeContext
+func newNormalizeContext() *normalizeContext {
+	return &normalizeContext{
+		disabledProviderMap: make(map[string]string),
+		hiddenProviderMap:   make(map[string]string),
+		riskProviderMap:     make(map[string][]RiskBadge),
+		badgeDefMap:         make(map[string]BadgeDef),
+		badgeProviderMap:    make(map[string][]BadgeRef),
+	}
+}
+
+// normalizeGlobalTimings 规范化全局时间配置
+// 包括：interval, slow_latency, timeout 及其 by_service 版本
+func (c *AppConfig) normalizeGlobalTimings() error {
 	// 巡检间隔
 	if c.Interval == "" {
 		c.IntervalDuration = time.Minute
@@ -597,6 +761,11 @@ func (c *AppConfig) Normalize() error {
 		c.TimeoutByServiceDuration = nil
 	}
 
+	return nil
+}
+
+// normalizeGlobalDefaults 规范化全局参数默认值
+func (c *AppConfig) normalizeGlobalDefaults() error {
 	// 黄色状态权重（默认 0.7，允许 0.01-1.0）
 	// 注意：0 被视为未配置，将使用默认值 0.7
 	// 如果需要极低权重，请使用 0.01 或更小的正数
@@ -656,6 +825,12 @@ func (c *AppConfig) Normalize() error {
 		return err
 	}
 
+	return nil
+}
+
+// normalizeFeatureConfigs 规范化功能模块配置
+// 包括：sponsor_pin, selftest, events, github, announcements
+func (c *AppConfig) normalizeFeatureConfigs() error {
 	// 赞助商置顶配置默认值
 	if c.SponsorPin.MaxPinned == 0 {
 		c.SponsorPin.MaxPinned = 3
@@ -773,6 +948,12 @@ func (c *AppConfig) Normalize() error {
 		logger.Warn("config", "announcements 已启用但未配置 GITHUB_TOKEN，将使用匿名请求（可能触发限流）")
 	}
 
+	return nil
+}
+
+// normalizeStorageConfig 规范化存储配置
+// 包括：SQLite/PostgreSQL 配置默认值、连接池参数、retention/archive 配置
+func (c *AppConfig) normalizeStorageConfig() error {
 	// 存储配置默认值
 	if c.Storage.Type == "" {
 		c.Storage.Type = "sqlite" // 默认使用 SQLite
@@ -876,54 +1057,56 @@ func (c *AppConfig) Normalize() error {
 		}
 	}
 
+	return nil
+}
+
+// buildNormalizeIndexes 构建 Provider/Badge 映射索引
+// 这些索引用于后续 normalizeMonitors() 中的状态注入
+func (c *AppConfig) buildNormalizeIndexes(ctx *normalizeContext) error {
 	// 构建禁用的服务商映射（provider -> reason）
 	// 注意：provider 统一转小写，与 API 查询逻辑保持一致
-	disabledProviderMap := make(map[string]string)
 	for i, dp := range c.DisabledProviders {
 		provider := strings.ToLower(strings.TrimSpace(dp.Provider))
 		if provider == "" {
 			return fmt.Errorf("disabled_providers[%d]: provider 不能为空", i)
 		}
-		if _, exists := disabledProviderMap[provider]; exists {
+		if _, exists := ctx.disabledProviderMap[provider]; exists {
 			return fmt.Errorf("disabled_providers[%d]: provider '%s' 重复配置", i, dp.Provider)
 		}
-		disabledProviderMap[provider] = strings.TrimSpace(dp.Reason)
+		ctx.disabledProviderMap[provider] = strings.TrimSpace(dp.Reason)
 	}
 
 	// 构建隐藏的服务商映射（provider -> reason）
 	// 注意：provider 统一转小写，与 API 查询逻辑保持一致
-	hiddenProviderMap := make(map[string]string)
 	for i, hp := range c.HiddenProviders {
 		provider := strings.ToLower(strings.TrimSpace(hp.Provider))
 		if provider == "" {
 			return fmt.Errorf("hidden_providers[%d]: provider 不能为空", i)
 		}
-		if _, exists := hiddenProviderMap[provider]; exists {
+		if _, exists := ctx.hiddenProviderMap[provider]; exists {
 			return fmt.Errorf("hidden_providers[%d]: provider '%s' 重复配置", i, hp.Provider)
 		}
-		hiddenProviderMap[provider] = strings.TrimSpace(hp.Reason)
+		ctx.hiddenProviderMap[provider] = strings.TrimSpace(hp.Reason)
 	}
 
 	// 构建 risk_providers 快速查找 map
-	riskProviderMap := make(map[string][]RiskBadge)
 	for i, rp := range c.RiskProviders {
 		provider := strings.ToLower(strings.TrimSpace(rp.Provider))
 		if provider == "" {
 			return fmt.Errorf("risk_providers[%d]: provider 不能为空", i)
 		}
-		if _, exists := riskProviderMap[provider]; exists {
+		if _, exists := ctx.riskProviderMap[provider]; exists {
 			return fmt.Errorf("risk_providers[%d]: provider '%s' 重复配置", i, rp.Provider)
 		}
-		riskProviderMap[provider] = rp.Risks
+		ctx.riskProviderMap[provider] = rp.Risks
 	}
 
 	// 构建 badges 定义 map（id -> def），并填充默认值
 	// 先加载内置默认徽标，再加载用户配置（用户配置可覆盖内置）
-	badgeDefMap := make(map[string]BadgeDef)
 
 	// 1. 加载内置默认徽标
 	for id, bd := range defaultBadgeDefs {
-		badgeDefMap[id] = bd
+		ctx.badgeDefMap[id] = bd
 	}
 
 	// 2. 加载用户配置的徽标（可覆盖内置）
@@ -936,23 +1119,30 @@ func (c *AppConfig) Normalize() error {
 			bd.Variant = BadgeVariantDefault
 		}
 		bd.ID = id // 确保 ID 字段与 map key 一致
-		badgeDefMap[id] = bd
+		ctx.badgeDefMap[id] = bd
 	}
 
 	// 构建 badge_providers 快速查找 map（provider -> []BadgeRef）
-	badgeProviderMap := make(map[string][]BadgeRef)
 	for _, bp := range c.BadgeProviders {
 		provider := strings.ToLower(strings.TrimSpace(bp.Provider))
-		badgeProviderMap[provider] = bp.Badges
+		ctx.badgeProviderMap[provider] = bp.Badges
 	}
 
+	return nil
+}
+
+// normalizeMonitors 规范化每个监测项
+// 包括：时间配置下发、字段规范化、Provider 状态注入、徽标解析
+func (c *AppConfig) normalizeMonitors(ctx *normalizeContext) error {
 	// 将慢请求阈值和超时时间下发到每个监测项（优先级：monitor > by_service > global），并标准化 category、URLs、provider_slug
 	for i := range c.Monitors {
-		// 注意：SlowLatencyDuration/TimeoutDuration 为 yaml:"-" 字段。
-		// 在热更新/复用 slice 元素的场景下，旧值可能残留，导致删除 monitor 级配置后无法回退。
-		// 这里每次 Normalize 都从 0 开始重新计算，确保优先级下发逻辑稳定。
+		// 注意：以下 yaml:"-" 字段在热更新/复用 slice 元素的场景下，旧值可能残留。
+		// 每次 Normalize 都从零值开始重新计算，确保派生逻辑稳定。
 		c.Monitors[i].SlowLatencyDuration = 0
 		c.Monitors[i].TimeoutDuration = 0
+		c.Monitors[i].IntervalDuration = 0
+		c.Monitors[i].Risks = nil          // 由 ctx.riskProviderMap 重新注入
+		c.Monitors[i].ResolvedBadges = nil // 由徽标解析逻辑重新计算
 
 		// 解析 monitor 级 slow_latency（如有配置）
 		if trimmed := strings.TrimSpace(c.Monitors[i].SlowLatency); trimmed != "" {
@@ -1043,8 +1233,8 @@ func (c *AppConfig) Normalize() error {
 			c.Monitors[i].ColdReason = ""
 		}
 
-		// 标准化 category 为小写
-		c.Monitors[i].Category = strings.ToLower(c.Monitors[i].Category)
+		// 标准化 category 为小写（与 Validate 的 isValidCategory 保持一致）
+		c.Monitors[i].Category = strings.ToLower(strings.TrimSpace(c.Monitors[i].Category))
 
 		// 规范化 URLs：去除首尾空格和末尾的 /
 		c.Monitors[i].ProviderURL = strings.TrimRight(strings.TrimSpace(c.Monitors[i].ProviderURL), "/")
@@ -1078,7 +1268,7 @@ func (c *AppConfig) Normalize() error {
 		// 原因优先级：monitor.DisabledReason > provider.Reason
 		// 注意：查找时使用小写 provider，与 disabledProviderMap 构建逻辑一致
 		normalizedProvider := strings.ToLower(strings.TrimSpace(c.Monitors[i].Provider))
-		providerDisabledReason, providerDisabled := disabledProviderMap[normalizedProvider]
+		providerDisabledReason, providerDisabled := ctx.disabledProviderMap[normalizedProvider]
 		if providerDisabled || c.Monitors[i].Disabled {
 			c.Monitors[i].Disabled = true
 			// 如果 monitor 自身没有设置原因，使用 provider 级别的原因
@@ -1098,7 +1288,7 @@ func (c *AppConfig) Normalize() error {
 		// 计算最终隐藏状态：providerHidden || monitorHidden（仅对未禁用的项）
 		// 原因优先级：monitor.HiddenReason > provider.Reason
 		// 已禁用的监测项无需再覆盖隐藏原因
-		providerReason, providerHidden := hiddenProviderMap[normalizedProvider]
+		providerReason, providerHidden := ctx.hiddenProviderMap[normalizedProvider]
 		if !c.Monitors[i].Disabled && (providerHidden || c.Monitors[i].Hidden) {
 			c.Monitors[i].Hidden = true
 			// 如果 monitor 自身没有设置原因，使用 provider 级别的原因
@@ -1111,7 +1301,7 @@ func (c *AppConfig) Normalize() error {
 		}
 
 		// 从 risk_providers 注入风险徽标到对应的 monitors
-		if risks, exists := riskProviderMap[normalizedProvider]; exists {
+		if risks, exists := ctx.riskProviderMap[normalizedProvider]; exists {
 			c.Monitors[i].Risks = risks
 		}
 
@@ -1120,7 +1310,7 @@ func (c *AppConfig) Normalize() error {
 		// 仅在启用徽标系统时处理
 		if c.EnableBadges {
 			var refs []BadgeRef
-			if injected, ok := badgeProviderMap[normalizedProvider]; ok && len(injected) > 0 {
+			if injected, ok := ctx.badgeProviderMap[normalizedProvider]; ok && len(injected) > 0 {
 				refs = append(refs, injected...)
 			}
 			if len(c.Monitors[i].Badges) > 0 {
@@ -1140,7 +1330,7 @@ func (c *AppConfig) Normalize() error {
 				if id == "" {
 					continue
 				}
-				def, exists := badgeDefMap[id]
+				def, exists := ctx.badgeDefMap[id]
 				if !exists {
 					continue // 验证阶段已检查，此处跳过
 				}
@@ -1178,11 +1368,6 @@ func (c *AppConfig) Normalize() error {
 			})
 			c.Monitors[i].ResolvedBadges = result
 		}
-	}
-
-	// 应用父子继承逻辑
-	if err := c.applyParentInheritance(); err != nil {
-		return err
 	}
 
 	return nil
