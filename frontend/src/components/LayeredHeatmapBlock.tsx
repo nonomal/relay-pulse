@@ -7,8 +7,18 @@ import { availabilityToStyle } from '../utils/color';
 type HeatmapPoint = ProcessedMonitorData['history'][number];
 type LayerTimelinePoint = NonNullable<MonitorLayer['timeline']>[number];
 
-// 时间戳对齐容差（秒）：覆盖 2s 组内间隔 + 少量调度/网络抖动
-const TIMELINE_ALIGN_TOLERANCE_SECONDS = 5;
+// 估算时间轴相邻点间隔（秒），用于推导时间戳对齐容差
+function estimateTimelineStepSeconds(timeline: Array<{ timestamp: number }>): number {
+  const deltas: number[] = [];
+  for (let i = 1; i < timeline.length; i += 1) {
+    const delta = Math.abs(timeline[i].timestamp - timeline[i - 1].timestamp);
+    if (delta > 0) deltas.push(delta);
+    if (deltas.length >= 10) break;
+  }
+  if (deltas.length === 0) return 60;
+  deltas.sort((a, b) => a - b);
+  return deltas[Math.floor(deltas.length / 2)];
+}
 
 // 在 timeline 中查找与目标时间戳最接近且在容差内的点
 // 返回 undefined 表示没有找到匹配的点（显示为灰色）
@@ -114,6 +124,21 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
     [layers]
   );
 
+  // 选择基准层：优先父层（layer_order=0），否则取第一层
+  const baseLayer = useMemo(
+    () => sortedLayers.find((l) => l.layer_order === 0) ?? sortedLayers[0],
+    [sortedLayers]
+  );
+
+  // 时间戳对齐容差（秒）：
+  // - 90m 模式常见步长约 180s（3 分钟），调度/网络抖动可能到几十秒
+  // - 取步长一半作为容差，并钳制在 [10s, 120s]，避免跨桶误匹配
+  const toleranceSeconds = useMemo(() => {
+    const baseTimeline = baseLayer?.timeline ?? [];
+    const stepSeconds = estimateTimelineStepSeconds(baseTimeline);
+    return Math.max(10, Math.min(120, Math.floor(stepSeconds / 2)));
+  }, [baseLayer]);
+
   // 参考时间点：当某层缺失该 index 时，用其他层的时间信息填充
   // 注意：必须在条件返回前调用所有 Hooks
   const referenceTimePoint = useMemo(() => {
@@ -151,7 +176,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
 
     // 使用时间戳对齐查找：优先按时间戳匹配，回退到索引访问
     const ownTimePoint = targetTimestamp != null
-      ? findClosestPointByTimestamp(layer.timeline ?? [], targetTimestamp, TIMELINE_ALIGN_TOLERANCE_SECONDS)
+      ? findClosestPointByTimestamp(layer.timeline ?? [], targetTimestamp, toleranceSeconds)
       : layer.timeline?.[index];
 
     const timePointForTimestamp = ownTimePoint ?? referenceTimePoint;

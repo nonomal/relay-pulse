@@ -214,9 +214,11 @@ function buildCompositeTimelineFromLayers(
   const baseTimeline = baseLayer.timeline ?? [];
   if (baseTimeline.length === 0) return [];
 
-  // 计算时间戳对齐容差：默认取步长一半，最小 3s（覆盖 2s 组内间隔），最大 15s
+  // 计算时间戳对齐容差：默认取步长一半
+  // - 90m 模式常见步长约 180s（3 分钟），调度/网络抖动可能到几十秒；15s 上限会误判为缺失
+  // - 钳制在 [10s, 120s]，避免跨桶误匹配
   const baseStepSeconds = estimateTimelineStepSeconds(baseTimeline);
-  const toleranceSeconds = Math.max(3, Math.min(15, Math.floor(baseStepSeconds / 2)));
+  const toleranceSeconds = Math.max(10, Math.min(120, Math.floor(baseStepSeconds / 2)));
 
   // 预排序各层 timeline，便于按时间戳做二分查找
   // 优化：先检查是否已升序，避免不必要的排序（后端通常已按时间升序返回）
