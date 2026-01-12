@@ -252,12 +252,15 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 		aggregate strings.Builder
 		chunkNum  int
 
-		// 用于组装完整消息的字段
+		// 用于组装完整消息的字段（Anthropic API）
 		messageBase       map[string]any   // 从 message_start 获取
 		contentBlocks     []map[string]any // 累积的内容块
 		currentBlockIndex int              = -1
 		currentBlockText  strings.Builder
 		finalDelta        map[string]any // 从 message_delta 获取
+
+		// 用于组装完整响应的字段（OpenAI Responses API）
+		openAIResponse map[string]any // 从 response.created/completed 获取
 	)
 
 	// flushEvent 处理一个完整的 SSE 事件
@@ -313,6 +316,11 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 					}
 				case "message_delta":
 					finalDelta = obj
+				// OpenAI Responses API: 捕获 response 对象用于最终组装
+				case "response.created", "response.in_progress", "response.completed", "response.failed":
+					if resp, ok := obj["response"].(map[string]any); ok {
+						openAIResponse = resp
+					}
 				case "response.output_text.delta":
 					// OpenAI Responses API: {"delta":"pong",...}
 					if text, ok := obj["delta"].(string); ok {
@@ -356,7 +364,7 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 
 		if err != nil && err != io.EOF {
 			flushEvent()
-			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta), err
+			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta, openAIResponse), err
 		}
 
 		line = strings.TrimRight(line, "\r\n")
@@ -372,37 +380,48 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 
 		if err == io.EOF {
 			flushEvent()
-			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta), nil
+			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta, openAIResponse), nil
 		}
 	}
 }
 
 // assembleMessage 将 SSE 事件组装成完整的消息 JSON
-func assembleMessage(base map[string]any, contents []map[string]any, delta map[string]any) string {
-	if base == nil {
-		return "{}"
-	}
+// 支持 Anthropic API (message_start/content_block_*/message_delta) 和 OpenAI Responses API (response.*)
+func assembleMessage(base map[string]any, contents []map[string]any, delta map[string]any, openAIResponse map[string]any) string {
+	// Anthropic API: 使用 message_start 的 base
+	if base != nil {
+		// 设置内容块
+		if len(contents) > 0 {
+			base["content"] = contents
+		}
 
-	// 设置内容块
-	if len(contents) > 0 {
-		base["content"] = contents
-	}
-
-	// 合并 message_delta 中的字段
-	if delta != nil {
-		if d, ok := delta["delta"].(map[string]any); ok {
-			for k, v := range d {
-				base[k] = v
+		// 合并 message_delta 中的字段
+		if delta != nil {
+			if d, ok := delta["delta"].(map[string]any); ok {
+				for k, v := range d {
+					base[k] = v
+				}
+			}
+			if usage, ok := delta["usage"].(map[string]any); ok {
+				base["usage"] = usage
 			}
 		}
-		if usage, ok := delta["usage"].(map[string]any); ok {
-			base["usage"] = usage
+
+		result, err := json.Marshal(base)
+		if err != nil {
+			return "{}"
 		}
+		return string(result)
 	}
 
-	result, err := json.Marshal(base)
-	if err != nil {
-		return "{}"
+	// OpenAI Responses API: 使用 response.created/completed 的 response 对象
+	if openAIResponse != nil {
+		result, err := json.Marshal(openAIResponse)
+		if err != nil {
+			return "{}"
+		}
+		return string(result)
 	}
-	return string(result)
+
+	return "{}"
 }
