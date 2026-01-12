@@ -19,14 +19,15 @@ func main() {
 	provider := flag.String("provider", "", "Provider name (required)")
 	service := flag.String("service", "", "Service name (required)")
 	channel := flag.String("channel", "", "Channel name (optional, defaults to service)")
+	model := flag.String("model", "", "Model name (optional, uses first matching channel if not specified)")
 	configFile := flag.String("config", "config.yaml", "Config file path")
 	verbose := flag.Bool("v", false, "Verbose output")
 
 	flag.Parse()
 
 	if *provider == "" || *service == "" {
-		fmt.Println("用法: go run cmd/verify/main.go -provider <name> -service <name> [-channel <name>] [-config <path>] [-v]")
-		fmt.Println("示例: go run cmd/verify/main.go -provider AICodeMirror -service cc -v")
+		fmt.Println("用法: go run cmd/verify/main.go -provider <name> -service <name> [-channel <name>] [-model <name>] [-config <path>] [-v]")
+		fmt.Println("示例: go run cmd/verify/main.go -provider 88code -service cx -channel vip3 -model gpt-5.1-codex-mini -v")
 		os.Exit(1)
 	}
 
@@ -52,8 +53,15 @@ func main() {
 	var target *config.ServiceConfig
 	for i := range cfg.Monitors {
 		m := &cfg.Monitors[i]
-		if m.Provider == *provider && m.Service == *service {
-			if *channel == "" || m.Channel == *channel {
+		if m.Provider == *provider && m.Service == *service && m.Channel == *channel {
+			if *model != "" {
+				// 指定了 model：精确匹配四元组
+				if m.Model == *model {
+					target = m
+					break
+				}
+			} else {
+				// 未指定 model：返回第一个匹配的配置
 				target = m
 				break
 			}
@@ -61,15 +69,27 @@ func main() {
 	}
 
 	if target == nil {
-		fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s\n", *provider, *service, *channel)
+		if *model != "" {
+			fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s, model=%s\n", *provider, *service, *channel, *model)
+		} else {
+			fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s\n", *provider, *service, *channel)
+		}
 		os.Exit(1)
 	}
 
-	fmt.Printf("🔍 验证检测项: provider=%s, service=%s, channel=%s\n", target.Provider, target.Service, target.Channel)
+	// 构建输出标识
+	targetInfo := fmt.Sprintf("provider=%s, service=%s, channel=%s", target.Provider, target.Service, target.Channel)
+	if target.Model != "" {
+		targetInfo += fmt.Sprintf(", model=%s", target.Model)
+	}
+	fmt.Printf("🔍 验证检测项: %s\n", targetInfo)
 	fmt.Println("========================================")
 
 	if *verbose {
 		fmt.Printf("📋 配置信息:\n")
+		if target.Model != "" {
+			fmt.Printf("  Model: %s\n", target.Model)
+		}
 		fmt.Printf("  URL: %s\n", target.URL)
 		fmt.Printf("  Method: %s\n", target.Method)
 		fmt.Printf("  Success Contains: %s\n", target.SuccessContains)
