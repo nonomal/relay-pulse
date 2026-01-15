@@ -553,6 +553,54 @@ func TestBadgesClone(t *testing.T) {
 	}
 }
 
+// TestCloneDeepCopiesMonitorPointerFields tests Clone() for monitor pointer fields deep copy
+func TestCloneDeepCopiesMonitorPointerFields(t *testing.T) {
+	t.Parallel()
+
+	min := 0.05
+	max := 0.2
+	retry := 3
+	jitter := 0.5
+
+	wantMin := min
+	wantMax := max
+	wantRetry := retry
+	wantJitter := jitter
+
+	cfg := &AppConfig{
+		Monitors: []ServiceConfig{
+			{
+				PriceMin:    &min,
+				PriceMax:    &max,
+				Retry:       &retry,
+				RetryJitter: &jitter,
+			},
+		},
+	}
+
+	clone := cfg.Clone()
+
+	// 修改原始值
+	*cfg.Monitors[0].PriceMin = 9.9
+	*cfg.Monitors[0].PriceMax = 9.8
+	*cfg.Monitors[0].Retry = 99
+	*cfg.Monitors[0].RetryJitter = 0
+
+	// 验证克隆不受影响
+	if clone.Monitors[0].PriceMin == nil || *clone.Monitors[0].PriceMin != wantMin {
+		t.Errorf("clone.PriceMin = %v, want %v", clone.Monitors[0].PriceMin, wantMin)
+	}
+	if clone.Monitors[0].PriceMax == nil || *clone.Monitors[0].PriceMax != wantMax {
+		t.Errorf("clone.PriceMax = %v, want %v", clone.Monitors[0].PriceMax, wantMax)
+	}
+	if clone.Monitors[0].Retry == nil || *clone.Monitors[0].Retry != wantRetry {
+		t.Errorf("clone.Retry = %v, want %v", clone.Monitors[0].Retry, wantRetry)
+	}
+	if clone.Monitors[0].RetryJitter == nil || *clone.Monitors[0].RetryJitter != wantJitter {
+		t.Errorf("clone.RetryJitter = %v, want %v", clone.Monitors[0].RetryJitter, wantJitter)
+	}
+}
+
 // TestCacheTTLNormalize tests CacheTTLConfig.Normalize() parsing and defaults
 func TestCacheTTLNormalize(t *testing.T) {
 	t.Parallel()

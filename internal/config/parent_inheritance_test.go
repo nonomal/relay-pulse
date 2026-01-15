@@ -513,9 +513,7 @@ func TestChildOwnDurationFieldsNotOverwritten(t *testing.T) {
 }
 
 // TestChildInheritsBoardFromParent 验证子项继承父通道的 board 配置
-// 注意：由于 normalizeMonitors() 会先给 board 填默认值 "hot"，
-// 导致 applyParentInheritance() 中 child.Board == "" 分支不可达。
-// 此测试验证当前实际行为：子项 board 默认为 "hot"，不会继承父的 "cold"。
+// board 和 cold_reason 都可以被继承
 func TestChildInheritsBoardFromParent(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
@@ -548,22 +546,19 @@ func TestChildInheritsBoardFromParent(t *testing.T) {
 
 	child := &cfg.Monitors[1]
 
-	// 当前行为：子项 board 被 normalizeMonitors() 填充为 "hot"，无法继承父的 "cold"
-	// 这是一个已知限制，因为 normalizeMonitors() 在 applyParentInheritance() 之前执行
-	if child.Board != "hot" {
-		t.Errorf("child.Board = %q, want %q (default, not inherited from parent's 'cold')", child.Board, "hot")
+	// board 从父通道继承
+	if child.Board != "cold" {
+		t.Errorf("child.Board = %q, want %q (inherited from parent)", child.Board, "cold")
 	}
 
-	// ColdReason 可以被继承（因为空字符串不会被默认值覆盖）
+	// ColdReason 从父通道继承
 	if child.ColdReason != "服务不稳定" {
 		t.Errorf("child.ColdReason = %q, want %q (inherited from parent)", child.ColdReason, "服务不稳定")
 	}
 }
 
 // TestChildExplicitBoardNotOverwritten 验证子项显式配置的 board 不会被父通道覆盖
-// 注意：ColdReason 会被继承，即使子项 board=hot，这是一个已知的边界情况。
-// normalizeMonitors() 只在子项自己配置了 cold_reason 且 board != cold 时清空，
-// 但继承来的 ColdReason 发生在 applyParentInheritance() 阶段，此时 normalizeMonitors() 已执行完毕。
+// 子项显式配置 board=hot，不会继承父的 cold，cold_reason 也会在 post-inheritance 清理
 func TestChildExplicitBoardNotOverwritten(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
@@ -602,19 +597,15 @@ func TestChildExplicitBoardNotOverwritten(t *testing.T) {
 		t.Errorf("child.Board = %q, want %q (child's own config)", child.Board, "hot")
 	}
 
-	// 已知行为：ColdReason 会被继承，即使 board=hot
-	// 这是因为继承发生在 normalizeMonitors() 之后，清理逻辑无法再次执行
-	// API 层应该根据 board 值来决定是否显示 ColdReason
-	if child.ColdReason != "父通道冷板原因" {
-		t.Errorf("child.ColdReason = %q, want %q (inherited from parent, known behavior)",
-			child.ColdReason, "父通道冷板原因")
+	// ColdReason 虽然会在继承阶段被复制，但 post-inheritance 会清理 board != cold 的 cold_reason
+	if child.ColdReason != "" {
+		t.Errorf("child.ColdReason = %q, want %q (cleaned up in post-inheritance because board=hot)",
+			child.ColdReason, "")
 	}
 }
 
 // TestChildInheritsProviderSlugFromParent 验证子项继承父通道的 provider_slug
-// 注意：由于 normalizeMonitors() 会先为空 slug 生成默认值，
-// 导致 applyParentInheritance() 中 child.ProviderSlug == "" 分支不可达。
-// 此测试验证当前实际行为。
+// provider_slug 可以被继承，子项未配置时使用父通道的值
 func TestChildInheritsProviderSlugFromParent(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
@@ -646,11 +637,10 @@ func TestChildInheritsProviderSlugFromParent(t *testing.T) {
 
 	child := &cfg.Monitors[1]
 
-	// 当前行为：子项 slug 被 normalizeMonitors() 自动生成为 provider 小写
-	// 这是一个已知限制，因为 normalizeMonitors() 在 applyParentInheritance() 之前执行
-	if child.ProviderSlug != "demo-provider" {
-		t.Errorf("child.ProviderSlug = %q, want %q (auto-generated, not inherited from parent's 'custom-slug')",
-			child.ProviderSlug, "demo-provider")
+	// provider_slug 从父通道继承
+	if child.ProviderSlug != "custom-slug" {
+		t.Errorf("child.ProviderSlug = %q, want %q (inherited from parent)",
+			child.ProviderSlug, "custom-slug")
 	}
 }
 
@@ -735,5 +725,88 @@ func TestChildInheritsProviderNameFromParent(t *testing.T) {
 	}
 	if child.ChannelName != "VIP通道" {
 		t.Errorf("child.ChannelName = %q, want %q (inherited from parent)", child.ChannelName, "VIP通道")
+	}
+}
+
+// TestChildInheritsBadgesResolvedBadgesFromParent 验证子项继承父 badges 后，ResolvedBadges 在 post-inheritance 阶段正确重算
+func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
+	cfg := &AppConfig{
+		EnableBadges: true,
+		BadgeDefs: map[string]BadgeDef{
+			"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 10},
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider: "demo",
+				Service:  "cc",
+				Channel:  "vip",
+				Model:    "base",
+				URL:      "https://example.com",
+				Method:   "POST",
+				Category: "public",
+				Badges:   []BadgeRef{{ID: "api_key_user"}},
+			},
+			{
+				Model:    "child",
+				Parent:   "demo/cc/vip",
+				Category: "public",
+				// Badges 留空：应继承父通道
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() failed: %v", err)
+	}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	child := &cfg.Monitors[1]
+	if len(child.ResolvedBadges) != 1 {
+		t.Fatalf("child should have 1 badge, got %d", len(child.ResolvedBadges))
+	}
+	if child.ResolvedBadges[0].ID != "api_key_user" {
+		t.Fatalf("child badge = %q, want %q", child.ResolvedBadges[0].ID, "api_key_user")
+	}
+}
+
+// TestChildInheritsBodyTemplateNameFromParent 验证子项继承 body 时同步继承 BodyTemplateName
+func TestChildInheritsBodyTemplateNameFromParent(t *testing.T) {
+	cfg := &AppConfig{
+		Monitors: []ServiceConfig{
+			{
+				Provider:         "demo",
+				Service:          "cc",
+				Channel:          "vip",
+				Model:            "base",
+				URL:              "https://example.com",
+				Method:           "POST",
+				Category:         "public",
+				Body:             `{"foo":"bar"}`,
+				BodyTemplateName: "cc_base.json", // 模拟 ResolveBodyIncludes 的结果
+			},
+			{
+				Model:    "child",
+				Parent:   "demo/cc/vip",
+				Category: "public",
+				// Body 留空：应继承父通道
+			},
+		},
+	}
+
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() failed: %v", err)
+	}
+	if err := cfg.Normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	child := &cfg.Monitors[1]
+	if child.Body != `{"foo":"bar"}` {
+		t.Fatalf("child.Body = %q, want inherited body", child.Body)
+	}
+	if child.BodyTemplateName != "cc_base.json" {
+		t.Fatalf("child.BodyTemplateName = %q, want %q", child.BodyTemplateName, "cc_base.json")
 	}
 }

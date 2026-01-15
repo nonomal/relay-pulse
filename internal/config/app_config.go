@@ -1,0 +1,211 @@
+package config
+
+import "time"
+
+// AppConfig 应用配置
+type AppConfig struct {
+	// ===== 探测时间配置 =====
+
+	// 巡检间隔（支持 Go duration 格式，例如 "30s"、"1m", "5m"）
+	Interval string `yaml:"interval" json:"interval"`
+
+	// 解析后的巡检间隔（内部使用，不序列化）
+	IntervalDuration time.Duration `yaml:"-" json:"-"`
+
+	// 慢请求阈值（超过则从绿降为黄），支持 Go duration 格式，例如 "5s"、"3s"
+	SlowLatency string `yaml:"slow_latency" json:"slow_latency"`
+
+	// 解析后的慢请求阈值（内部使用，不序列化）
+	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的慢请求阈值（可选，支持 Go duration 格式）
+	// 例如 cc: "15s", gm: "3s"
+	SlowLatencyByService map[string]string `yaml:"slow_latency_by_service" json:"slow_latency_by_service"`
+
+	// 解析后的按服务慢请求阈值（内部使用，不序列化）
+	SlowLatencyByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// 请求超时时间（支持 Go duration 格式，例如 "10s"、"30s"，默认 "10s"）
+	Timeout string `yaml:"timeout" json:"timeout"`
+
+	// 解析后的超时时间（内部使用，不序列化）
+	TimeoutDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的超时时间（可选，支持 Go duration 格式）
+	// 例如 cc: "30s", gm: "10s"
+	TimeoutByService map[string]string `yaml:"timeout_by_service" json:"timeout_by_service"`
+
+	// 解析后的按服务超时时间（内部使用，不序列化）
+	TimeoutByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// ===== 重试配置 =====
+
+	// 探测重试次数（默认 0，不重试；表示"额外重试次数"，不含首次尝试）
+	// 使用 *int 以区分"未设置(nil)"和"显式设置为 0"
+	Retry *int `yaml:"retry,omitempty" json:"retry,omitempty"`
+
+	// 解析后的全局重试次数（内部使用）
+	RetryCount int `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的重试次数（可选）
+	// 例如 cc: 3, gm: 1
+	RetryByService map[string]int `yaml:"retry_by_service" json:"retry_by_service"`
+
+	// 解析后的按服务重试次数（内部使用，key 统一小写）
+	RetryByServiceCount map[string]int `yaml:"-" json:"-"`
+
+	// 重试退避基准间隔（默认 200ms）
+	RetryBaseDelay string `yaml:"retry_base_delay" json:"retry_base_delay"`
+
+	// 解析后的退避基准间隔（内部使用）
+	RetryBaseDelayDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的退避基准间隔（可选）
+	RetryBaseDelayByService map[string]string `yaml:"retry_base_delay_by_service" json:"retry_base_delay_by_service"`
+
+	// 解析后的按服务退避基准间隔（内部使用，key 统一小写）
+	RetryBaseDelayByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// 重试退避最大间隔（默认 2s）
+	RetryMaxDelay string `yaml:"retry_max_delay" json:"retry_max_delay"`
+
+	// 解析后的退避最大间隔（内部使用）
+	RetryMaxDelayDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的退避最大间隔（可选）
+	RetryMaxDelayByService map[string]string `yaml:"retry_max_delay_by_service" json:"retry_max_delay_by_service"`
+
+	// 解析后的按服务退避最大间隔（内部使用，key 统一小写）
+	RetryMaxDelayByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// 重试抖动比例（0-1，默认 0.2；0 表示无抖动）
+	// 使用 *float64 以区分"未设置(nil)"和"显式设置为 0"
+	RetryJitter *float64 `yaml:"retry_jitter,omitempty" json:"retry_jitter,omitempty"`
+
+	// 解析后的抖动比例（内部使用）
+	RetryJitterValue float64 `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的抖动比例（可选）
+	RetryJitterByService map[string]float64 `yaml:"retry_jitter_by_service" json:"retry_jitter_by_service"`
+
+	// 解析后的按服务抖动比例（内部使用，key 统一小写）
+	RetryJitterByServiceValue map[string]float64 `yaml:"-" json:"-"`
+
+	// ===== 运行时配置 =====
+
+	// 可用率中黄色状态的权重（0-1，默认 0.7）
+	// 绿色=1.0, 黄色=degraded_weight, 红色=0.0
+	DegradedWeight float64 `yaml:"degraded_weight" json:"degraded_weight"`
+
+	// 并发探测的最大 goroutine 数（默认 10）
+	// - 不配置或 0: 使用默认值 10
+	// - -1: 无限制，自动扩容到监测项数量
+	// - >0: 硬上限，超过时监测项会排队等待执行
+	MaxConcurrency int `yaml:"max_concurrency" json:"max_concurrency"`
+
+	// 是否在单个周期内对探测进行错峰（默认 true）
+	// 开启后会将监测项均匀分散在整个巡检周期内，避免流量突发
+	StaggerProbes *bool `yaml:"stagger_probes,omitempty" json:"stagger_probes,omitempty"`
+
+	// 是否启用并发查询（API 层优化，默认 false）
+	// 开启后 /api/status 接口会使用 goroutine 并发查询多个监测项，显著降低响应时间
+	// 注意：需要确保数据库连接池足够大（建议 max_open_conns >= 50）
+	EnableConcurrentQuery bool `yaml:"enable_concurrent_query" json:"enable_concurrent_query"`
+
+	// 并发查询时的最大并发度（默认 10，仅当 enable_concurrent_query=true 时生效）
+	// 限制同时执行的数据库查询数量，防止连接池耗尽
+	ConcurrentQueryLimit int `yaml:"concurrent_query_limit" json:"concurrent_query_limit"`
+
+	// 是否启用批量查询（API 层优化，默认 false）
+	// 开启后 /api/status 在 7d/30d 场景会优先使用批量查询，将 N 个监测项的 GetLatest+GetHistory 从 2N 次往返降为 2 次
+	EnableBatchQuery bool `yaml:"enable_batch_query" json:"enable_batch_query"`
+
+	// 是否启用 DB 侧时间轴聚合（默认 false）
+	// 仅对 PostgreSQL 生效：将 7d/30d 的 timeline bucket 聚合下推到数据库，减少数据传输与应用层计算
+	// 需要同时启用 enable_batch_query=true 才能生效
+	EnableDBTimelineAgg bool `yaml:"enable_db_timeline_agg" json:"enable_db_timeline_agg"`
+
+	// 批量查询最大 key 数（默认 300）
+	// 注意：SQLite 场景下会自动回退到 249（因为参数上限 999，每 key 需要 4 个参数）
+	BatchQueryMaxKeys int `yaml:"batch_query_max_keys" json:"batch_query_max_keys"`
+
+	// API 响应缓存 TTL 配置（按 period 区分）
+	// 默认值：90m/24h = 10s，7d/30d = 60s
+	CacheTTL CacheTTLConfig `yaml:"cache_ttl" json:"cache_ttl"`
+
+	// ===== 存储配置 =====
+
+	// 存储配置
+	Storage StorageConfig `yaml:"storage" json:"storage"`
+
+	// 公开访问的基础 URL（用于 SEO、sitemap 等）
+	// 默认: https://relaypulse.top
+	// 可通过环境变量 MONITOR_PUBLIC_BASE_URL 覆盖
+	PublicBaseURL string `yaml:"public_base_url" json:"public_base_url"`
+
+	// ===== Provider 策略配置 =====
+
+	// 批量禁用的服务商列表（彻底停用，不探测、不存储、不展示）
+	// 列表中的 provider 会自动继承 disabled=true 状态到对应的 monitors
+	DisabledProviders []DisabledProviderConfig `yaml:"disabled_providers" json:"disabled_providers"`
+
+	// 批量隐藏的服务商列表
+	// 列表中的 provider 会自动继承 hidden=true 状态到对应的 monitors
+	// 用于临时下架整个服务商（如商家不配合整改）
+	HiddenProviders []HiddenProviderConfig `yaml:"hidden_providers" json:"hidden_providers"`
+
+	// 风险服务商列表
+	// 列表中的 provider 会自动继承 risks 到对应的所有 monitors
+	// 用于标记存在风险的服务商（如跑路风险）
+	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
+
+	// ===== 功能开关 =====
+
+	// 热板/冷板功能配置（默认禁用，保持向后兼容）
+	// 启用后可通过 monitor.board 字段控制监测项归属
+	Boards BoardsConfig `yaml:"boards" json:"boards"`
+
+	// 是否对外暴露通道技术细节（probe_url, template_name）
+	// 默认 true（保持向后兼容）
+	// 设为 false 时，API 响应中将不包含这些字段
+	ExposeChannelDetails *bool `yaml:"expose_channel_details,omitempty" json:"expose_channel_details,omitempty"`
+
+	// provider 级通道技术细节暴露覆盖配置
+	// 可针对特定 provider 覆盖全局 expose_channel_details 设置
+	ChannelDetailsProviders []ChannelDetailsProviderConfig `yaml:"channel_details_providers,omitempty" json:"channel_details_providers,omitempty"`
+
+	// 赞助商置顶配置
+	// 用于在页面初始加载时置顶符合条件的赞助商监测项
+	SponsorPin SponsorPinConfig `yaml:"sponsor_pin" json:"sponsor_pin"`
+
+	// 自助测试功能配置
+	SelfTest SelfTestConfig `yaml:"selftest" json:"selftest"`
+
+	// 状态订阅通知（事件）配置
+	Events EventsConfig `yaml:"events" json:"events"`
+
+	// 公告通知配置（GitHub Discussions / Announcements 分类）
+	Announcements AnnouncementsConfig `yaml:"announcements" json:"announcements"`
+
+	// GitHub 通用配置（token/proxy/timeout）
+	GitHub GitHubConfig `yaml:"github" json:"github"`
+
+	// ===== 徽标系统 =====
+
+	// 是否启用徽标系统（默认 false）
+	// 开启后会显示 API Key 来源、监测频率等徽标
+	// 未配置任何徽标时，默认显示"官方 API Key"徽标
+	EnableBadges bool `yaml:"enable_badges" json:"enable_badges"`
+
+	// 全局徽标定义（map 格式，key 为徽标 ID）
+	// Label 和 Tooltip 由前端 i18n 提供，后端只存储 id/kind/variant/weight/url
+	BadgeDefs map[string]BadgeDef `yaml:"badge_definitions" json:"badge_definitions"`
+
+	// provider 级徽标注入配置
+	// 列表中的 provider 会自动继承 badges 到对应的所有 monitors
+	BadgeProviders []BadgeProviderConfig `yaml:"badge_providers" json:"badge_providers"`
+
+	// ===== 监测项列表 =====
+
+	Monitors []ServiceConfig `yaml:"monitors"`
+}
