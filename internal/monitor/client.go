@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -92,7 +93,10 @@ func createTransport(proxyURL string) (http.RoundTripper, error) {
 		return nil, fmt.Errorf("解析代理 URL 失败: %w", err)
 	}
 
-	switch parsed.Scheme {
+	// 防御性处理：scheme 小写化（配置层已做规范化，这里是兜底）
+	scheme := strings.ToLower(parsed.Scheme)
+
+	switch scheme {
 	case "http", "https":
 		// HTTP/HTTPS 代理：直接设置 Proxy 函数
 		baseTransport.Proxy = http.ProxyURL(parsed)
@@ -103,7 +107,7 @@ func createTransport(proxyURL string) (http.RoundTripper, error) {
 		return createSOCKS5Transport(parsed, baseTransport)
 
 	default:
-		return nil, fmt.Errorf("不支持的代理协议: %s（支持 http, https, socks5）", parsed.Scheme)
+		return nil, fmt.Errorf("不支持的代理协议: %s（支持 http, https, socks5, socks）", parsed.Scheme)
 	}
 }
 

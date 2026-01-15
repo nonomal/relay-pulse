@@ -108,3 +108,61 @@ func validateBaseURL(baseURL string) error {
 
 	return nil
 }
+
+// validateProxyURL 验证代理 URL 格式
+// 支持 http, https, socks5, socks 协议
+func validateProxyURL(rawURL string) error {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return fmt.Errorf("proxy 格式无效: %w", err)
+	}
+
+	// 检查协议
+	// 注意：url.Parse 对于 "proxy.example.com:8080" 会将其解析为 Opaque URL，
+	// 此时 Scheme 为 "proxy.example.com"，Host 为空。需要检测这种情况。
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme == "" {
+		return fmt.Errorf("proxy 缺少协议（需要 http://, https://, socks5:// 或 socks://）")
+	}
+
+	switch scheme {
+	case "http", "https", "socks5", "socks":
+		// 有效协议（socks 是 socks5 的别名）
+	default:
+		return fmt.Errorf("proxy 协议无效 '%s'（仅支持 http, https, socks5, socks）", scheme)
+	}
+
+	// Host 不能为空（包括检测 Opaque URL 的情况）
+	// 对于 "proxy.example.com:8080"，parsed.Host 为空但 parsed.Opaque 不为空
+	if parsed.Host == "" {
+		return fmt.Errorf("proxy 缺少主机地址（需要 host:port）")
+	}
+
+	// Hostname 不能为空（捕获 "socks5://:1080" 这种情况）
+	// parsed.Host = ":1080"，但 parsed.Hostname() = ""
+	if parsed.Hostname() == "" {
+		return fmt.Errorf("proxy 缺少主机名")
+	}
+
+	// SOCKS5 代理必须指定端口（proxy.SOCKS5 需要完整的 host:port）
+	if (scheme == "socks5" || scheme == "socks") && parsed.Port() == "" {
+		return fmt.Errorf("proxy SOCKS5 代理必须指定端口（如 socks5://host:1080）")
+	}
+
+	// 不允许 path（容忍结尾的 "/"）
+	if parsed.Path != "" && parsed.Path != "/" {
+		return fmt.Errorf("proxy 不支持路径（path）")
+	}
+
+	// 不允许 query/fragment
+	if parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("proxy 不支持 query/fragment")
+	}
+
+	return nil
+}

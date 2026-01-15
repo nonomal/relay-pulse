@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"sort"
 	"strings"
@@ -486,6 +487,13 @@ func (c *AppConfig) validateMonitorFields() error {
 		// SponsorURL 验证（可选字段）
 		if m.SponsorURL != "" {
 			if err := validateURL(m.SponsorURL, "sponsor_url"); err != nil {
+				return fmt.Errorf("monitor[%d]: %w", i, err)
+			}
+		}
+
+		// Proxy 验证（可选字段）
+		if trimmedProxy := strings.TrimSpace(m.Proxy); trimmedProxy != "" {
+			if err := validateProxyURL(trimmedProxy); err != nil {
 				return fmt.Errorf("monitor[%d]: %w", i, err)
 			}
 		}
@@ -1320,6 +1328,23 @@ func (c *AppConfig) normalizeMonitors(ctx *normalizeContext) error {
 			c.Monitors[i].Risks = risks
 		}
 
+		// Proxy 规范化（TrimSpace + scheme 小写化 + 去掉尾部 /）
+		// 无条件先做 TrimSpace，确保空白字符串被清空
+		c.Monitors[i].Proxy = strings.TrimSpace(c.Monitors[i].Proxy)
+		if c.Monitors[i].Proxy != "" {
+			parsed, err := url.Parse(c.Monitors[i].Proxy)
+			if err == nil && parsed.Scheme != "" {
+				// scheme 小写化
+				parsed.Scheme = strings.ToLower(parsed.Scheme)
+				// 去掉尾部 /（path 只保留空或非 / 的情况）
+				if parsed.Path == "/" {
+					parsed.Path = ""
+				}
+				c.Monitors[i].Proxy = parsed.String()
+			}
+			// 解析失败时保留 TrimSpace 后的值（防御性保留，正常调用链下不应触发）
+		}
+
 		// 从 badge_providers + monitors[].badges 注入徽标
 		// 合并策略：provider 级在前，monitor 级在后（同 id 时 monitor 级覆盖）
 		// 仅在启用徽标系统时处理
@@ -1445,6 +1470,12 @@ func (c *AppConfig) applyParentInheritance() error {
 		// 自定义环境变量名（用于 API Key 查找）
 		if child.EnvVarName == "" {
 			child.EnvVarName = parent.EnvVarName
+		}
+
+		// Proxy 继承（子通道可继承父通道的代理配置）
+		// 使用 TrimSpace 判空，与 Normalize 逻辑保持一致
+		if strings.TrimSpace(child.Proxy) == "" {
+			child.Proxy = parent.Proxy
 		}
 
 		// Headers 继承（合并策略：父为基础，子覆盖）

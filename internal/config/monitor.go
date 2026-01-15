@@ -86,9 +86,12 @@ type ServiceConfig struct {
 	BodyTemplateName string `yaml:"-" json:"-"`
 
 	// Proxy 可选：该监测项使用的代理地址
-	// 支持格式：http://host:port, https://host:port, socks5://host:port
-	// 支持账号密码认证：socks5://user:pass@host:port
-	// 不配置时使用系统环境变量代理
+	// 支持格式：
+	//   - HTTP/HTTPS 代理：http://host:port, http://user:pass@host:port
+	//   - SOCKS5 代理：socks5://host:port, socks5://user:pass@host:port
+	//   - socks:// 是 socks5:// 的别名
+	// 注意：SOCKS5 代理必须指定端口
+	// 不配置时使用系统环境变量代理（HTTP_PROXY/HTTPS_PROXY）
 	Proxy string `yaml:"proxy" json:"-"`
 
 	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
