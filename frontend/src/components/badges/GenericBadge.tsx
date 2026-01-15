@@ -54,6 +54,29 @@ function OfficialKeyIcon({ variant }: { variant: BadgeVariant }) {
 }
 
 /**
+ * 官方基准通道图标 - 靶心/准星
+ * 表示 RelayPulse 官方基准监测通道，用于基准对比
+ */
+function OfficialBaselineIcon({ variant }: { variant: BadgeVariant }) {
+  const colorClass = getVariantColorClass(variant);
+  return (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      {/* 外圈 */}
+      <circle cx="12" cy="12" r="10" className={colorClass} fillOpacity="0.3" />
+      {/* 中圈 */}
+      <circle cx="12" cy="12" r="6" className={colorClass} fillOpacity="0.5" />
+      {/* 中心点 */}
+      <circle cx="12" cy="12" r="2" className={colorClass} />
+      {/* 十字准星线 - 使用 rect 替代 line 以便应用 fill 颜色 */}
+      <rect x="11.25" y="2" width="1.5" height="4" className={colorClass} />
+      <rect x="11.25" y="18" width="1.5" height="4" className={colorClass} />
+      <rect x="2" y="11.25" width="4" height="1.5" className={colorClass} />
+      <rect x="18" y="11.25" width="4" height="1.5" className={colorClass} />
+    </svg>
+  );
+}
+
+/**
  * 通用信息图标 - 圆形带 i
  */
 function InfoIcon({ variant }: { variant: BadgeVariant }) {
@@ -116,7 +139,7 @@ function getBadgeIconClass(badgeId: string): string {
 
 /**
  * 根据 badge.id 返回对应的图标组件
- * 支持的图标：api_key_user, api_key_official
+ * 支持的图标：api_key_user, api_key_official, official_baseline
  * 未知 id 回退到基于 kind 的通用图标
  */
 function getBadgeIcon(badge: GenericBadgeType): FC<{ variant: BadgeVariant }> {
@@ -125,6 +148,8 @@ function getBadgeIcon(badge: GenericBadgeType): FC<{ variant: BadgeVariant }> {
       return UserKeyIcon;
     case 'api_key_official':
       return OfficialKeyIcon;
+    case 'official_baseline':
+      return OfficialBaselineIcon;
     default:
       // 基于 kind 回退
       switch (badge.kind) {

@@ -1,6 +1,6 @@
 # 配置手册
 
-> **Audience**: 用户 | **Last reviewed**: 2025-11-21
+> **Audience**: 用户 | **Last reviewed**: 2026-01-15
 
 本文档详细说明 Relay Pulse 的配置选项、环境变量和最佳实践。
 
@@ -23,6 +23,12 @@ slow_latency_by_service:
 timeout_by_service:
   cc: "30s"              # Claude Code 服务允许更长超时
   gm: "10s"              # Gemini 服务超时较短
+
+# 通道技术细节暴露配置（可选）
+expose_channel_details: true  # 是否在 API 中返回 probe_url/template_name（默认 true）
+channel_details_providers:    # provider 级覆盖
+  - provider: "sensitive-provider"
+    expose: false              # 隐藏该 provider 的技术细节
 
 # 赞助商置顶配置
 sponsor_pin:
@@ -639,6 +645,58 @@ async function sendTelegramMessage(env, event) {
    ```bash
    wrangler deploy
    ```
+
+### 通道技术细节暴露配置
+
+用于控制 API 是否返回通道的技术细节（`probe_url` 和 `template_name` 字段）。
+
+```yaml
+# 全局配置（默认 true，保持向后兼容）
+expose_channel_details: false
+
+# provider 级覆盖
+channel_details_providers:
+  - provider: "sensitive-provider"
+    expose: false  # 隐藏该 provider 的技术细节
+  - provider: "open-provider"
+    expose: true   # 显式开启（可用于覆盖全局 false）
+```
+
+#### `expose_channel_details`
+- **类型**: boolean（指针类型）
+- **默认值**: `true`（未配置时默认暴露，保持向后兼容）
+- **说明**: 全局控制 API 是否返回 `probe_url` 和 `template_name` 字段
+- **行为**:
+  - `true`（默认）: API 响应包含 `probe_url` 和 `template_name`
+  - `false`: API 响应中不包含这两个字段
+- **适用场景**:
+  - 隐藏探测端点 URL，防止被恶意利用
+  - 保护 API 架构细节不对外暴露
+
+#### `channel_details_providers`
+- **类型**: array
+- **说明**: 针对特定 provider 覆盖全局 `expose_channel_details` 设置
+- **字段**:
+  | 字段 | 类型 | 说明 |
+  |------|------|------|
+  | `provider` | string | provider 名称，匹配时忽略大小写和首尾空格 |
+  | `expose` | boolean | 是否暴露该 provider 的通道技术细节 |
+- **优先级**: `channel_details_providers` 中的配置优先于全局 `expose_channel_details`
+
+**示例配置**:
+```yaml
+# 全局隐藏，但对特定 provider 开启
+expose_channel_details: false
+channel_details_providers:
+  - provider: "relaypulse"
+    expose: true  # 官方基准通道可以暴露
+
+# 全局开启，但对敏感 provider 隐藏
+expose_channel_details: true
+channel_details_providers:
+  - provider: "sensitive-relay"
+    expose: false
+```
 
 #### `public_base_url`
 - **类型**: string
@@ -1429,6 +1487,30 @@ badge_definitions:
     variant: "success"
     weight: 50
     url: "https://docs.example.com/streaming"  # 可选：点击跳转链接
+```
+
+**内置徽标**：
+
+以下徽标为系统内置，无需在 `badge_definitions` 中定义即可直接使用：
+
+| ID | Kind | Variant | Weight | 说明 |
+|----|------|---------|--------|------|
+| `api_key_user` | source | info | 50 | 用户提供的 API Key |
+| `api_key_official` | source | success | 80 | 官方/服务商提供的 API Key |
+| `official_baseline` | source | info | 80 | RelayPulse 官方基准通道，用于基准对比 |
+
+**`official_baseline` 徽标**：
+- **图标**: 靶心/准星图案
+- **用途**: 标识 RelayPulse 项目官方的基准监测通道
+- **使用场景**: 作为性能和可用性的基准参考点
+
+**使用示例**：
+```yaml
+# 为官方基准通道添加 official_baseline 徽标
+badge_providers:
+  - provider: "relaypulse"
+    badges:
+      - "official_baseline"
 ```
 
 **字段说明**：

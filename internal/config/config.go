@@ -110,6 +110,15 @@ type AppConfig struct {
 	// 启用后可通过 monitor.board 字段控制监测项归属
 	Boards BoardsConfig `yaml:"boards" json:"boards"`
 
+	// 是否对外暴露通道技术细节（probe_url, template_name）
+	// 默认 true（保持向后兼容）
+	// 设为 false 时，API 响应中将不包含这些字段
+	ExposeChannelDetails *bool `yaml:"expose_channel_details,omitempty" json:"expose_channel_details,omitempty"`
+
+	// provider 级通道技术细节暴露覆盖配置
+	// 可针对特定 provider 覆盖全局 expose_channel_details 设置
+	ChannelDetailsProviders []ChannelDetailsProviderConfig `yaml:"channel_details_providers,omitempty" json:"channel_details_providers,omitempty"`
+
 	// 是否启用徽标系统（默认 false）
 	// 开启后会显示 API Key 来源、监测频率等徽标
 	// 未配置任何徽标时，默认显示"官方 API Key"徽标
@@ -823,6 +832,12 @@ func (c *AppConfig) normalizeGlobalDefaults() error {
 	// 缓存 TTL 配置
 	if err := c.CacheTTL.Normalize(); err != nil {
 		return err
+	}
+
+	// 通道技术细节暴露配置（默认 true，保持向后兼容）
+	if c.ExposeChannelDetails == nil {
+		defaultValue := true
+		c.ExposeChannelDetails = &defaultValue
 	}
 
 	return nil
@@ -1719,6 +1734,13 @@ func (c *AppConfig) Clone() *AppConfig {
 		sponsorPinEnabledPtr = &value
 	}
 
+	// 深拷贝 ExposeChannelDetails 指针
+	var exposeChannelDetailsPtr *bool
+	if c.ExposeChannelDetails != nil {
+		value := *c.ExposeChannelDetails
+		exposeChannelDetailsPtr = &value
+	}
+
 	clone := &AppConfig{
 		Interval:                     c.Interval,
 		IntervalDuration:             c.IntervalDuration,
@@ -1741,6 +1763,8 @@ func (c *AppConfig) Clone() *AppConfig {
 		HiddenProviders:              make([]HiddenProviderConfig, len(c.HiddenProviders)),
 		RiskProviders:                make([]RiskProviderConfig, len(c.RiskProviders)),
 		Boards:                       c.Boards, // Boards 是值类型，直接复制
+		ExposeChannelDetails:         exposeChannelDetailsPtr,
+		ChannelDetailsProviders:      make([]ChannelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
 		EnableBadges:                 c.EnableBadges,
 		BadgeDefs:                    make(map[string]BadgeDef, len(c.BadgeDefs)),
 		BadgeProviders:               make([]BadgeProviderConfig, len(c.BadgeProviders)),
@@ -1758,6 +1782,7 @@ func (c *AppConfig) Clone() *AppConfig {
 	copy(clone.DisabledProviders, c.DisabledProviders)
 	copy(clone.HiddenProviders, c.HiddenProviders)
 	copy(clone.RiskProviders, c.RiskProviders)
+	copy(clone.ChannelDetailsProviders, c.ChannelDetailsProviders)
 	for k, v := range c.SlowLatencyByService {
 		clone.SlowLatencyByService[k] = v
 	}
@@ -1824,4 +1849,26 @@ func (c *AppConfig) ShouldStaggerProbes() bool {
 		return true // 默认开启
 	}
 	return *c.StaggerProbes
+}
+
+// ShouldExposeChannelDetails 判断指定 provider 是否应该暴露通道技术细节
+// 优先查找 provider 级覆盖配置，否则回退到全局配置
+func (c *AppConfig) ShouldExposeChannelDetails(provider string) bool {
+	if c == nil {
+		return true // 默认暴露
+	}
+
+	// 先查 provider 级覆盖
+	normalizedProvider := strings.ToLower(strings.TrimSpace(provider))
+	for _, p := range c.ChannelDetailsProviders {
+		if strings.ToLower(strings.TrimSpace(p.Provider)) == normalizedProvider {
+			return p.Expose
+		}
+	}
+
+	// 回退全局配置
+	if c.ExposeChannelDetails == nil {
+		return true // 默认暴露
+	}
+	return *c.ExposeChannelDetails
 }

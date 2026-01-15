@@ -294,6 +294,10 @@
       "api_key_official": {
         "label": "Official API",
         "tooltip": "Monitoring API Key sponsored by provider"
+      },
+      "official_baseline": {
+        "label": "Baseline",
+        "tooltip": "RelayPulse official baseline channel for benchmark comparison"
       }
     },
     "frequency": {

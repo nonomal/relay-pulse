@@ -294,6 +294,10 @@
       "api_key_official": {
         "label": "公式API",
         "tooltip": "プロバイダーがスポンサーする監視用APIキー"
+      },
+      "official_baseline": {
+        "label": "基準",
+        "tooltip": "ベンチマーク比較用のRelayPulse公式基準チャンネル"
       }
     },
     "frequency": {

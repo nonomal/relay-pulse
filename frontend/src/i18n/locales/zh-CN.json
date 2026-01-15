@@ -294,6 +294,10 @@
       "api_key_official": {
         "label": "官方API",
         "tooltip": "由服务商赞助监测 API Key"
+      },
+      "official_baseline": {
+        "label": "官方基准",
+        "tooltip": "RelayPulse 官方基准通道，用于基准对比"
       }
     },
     "frequency": {

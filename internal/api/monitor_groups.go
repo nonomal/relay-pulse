@@ -128,7 +128,8 @@ func pickWorstStatus(a, b int) int {
 }
 
 // buildMonitorGroupFromParent 从父通道配置构建 MonitorGroup 的元数据部分
-func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool) MonitorGroup {
+// exposeChannelDetails 控制是否暴露通道技术细节（probe_url, template_name）
+func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool, exposeChannelDetails bool) MonitorGroup {
 	// 生成 slug：优先使用配置的 provider_slug，回退到 provider 小写
 	slug := parent.ProviderSlug
 	if slug == "" {
@@ -159,6 +160,13 @@ func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool)
 		intervalMs = 0
 	}
 
+	// 根据配置决定是否暴露通道技术细节（probe_url, template_name）
+	var probeURL, templateName string
+	if exposeChannelDetails {
+		probeURL = sanitizeProbeURL(parent.URL)
+		templateName = parent.BodyTemplateName
+	}
+
 	return MonitorGroup{
 		Provider:      parent.Provider,
 		ProviderName:  parent.ProviderName,
@@ -179,8 +187,8 @@ func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool)
 		ChannelName:   parent.ChannelName,
 		Board:         parent.Board,
 		ColdReason:    parent.ColdReason,
-		ProbeURL:      sanitizeProbeURL(parent.URL),
-		TemplateName:  parent.BodyTemplateName,
+		ProbeURL:      probeURL,
+		TemplateName:  templateName,
 		IntervalMs:    intervalMs,
 		SlowLatencyMs: parent.SlowLatencyDuration.Milliseconds(),
 		CurrentStatus: -1,
@@ -302,7 +310,12 @@ func (h *Handler) buildMonitorGroups(
 			continue
 		}
 
-		group := buildMonitorGroupFromParent(b.parent, enableBadges)
+		// 根据配置决定是否暴露通道技术细节
+		h.cfgMu.RLock()
+		exposeChannelDetails := h.config.ShouldExposeChannelDetails(b.parent.Provider)
+		h.cfgMu.RUnlock()
+
+		group := buildMonitorGroupFromParent(b.parent, enableBadges, exposeChannelDetails)
 
 		layers := make([]MonitorLayer, 0, 1+len(b.children))
 

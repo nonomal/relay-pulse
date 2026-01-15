@@ -814,6 +814,16 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		intervalMs = 0
 	}
 
+	// 根据配置决定是否暴露通道技术细节（probe_url, template_name）
+	var probeURL, templateName string
+	h.cfgMu.RLock()
+	shouldExpose := h.config.ShouldExposeChannelDetails(task.Provider)
+	h.cfgMu.RUnlock()
+	if shouldExpose {
+		probeURL = sanitizeProbeURL(task.URL)
+		templateName = task.BodyTemplateName
+	}
+
 	return MonitorResult{
 		Provider:      task.Provider,
 		ProviderName:  task.ProviderName,
@@ -834,8 +844,8 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		ChannelName:   task.ChannelName,
 		Board:         task.Board,
 		ColdReason:    task.ColdReason,
-		ProbeURL:      sanitizeProbeURL(task.URL),
-		TemplateName:  task.BodyTemplateName,
+		ProbeURL:      probeURL,
+		TemplateName:  templateName,
 		IntervalMs:    intervalMs,
 		SlowLatencyMs: task.SlowLatencyDuration.Milliseconds(),
 		Current:       current,

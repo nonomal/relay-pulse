@@ -109,6 +109,13 @@ type RiskProviderConfig struct {
 	Risks    []RiskBadge `yaml:"risks" json:"risks"`       // 风险徽标数组
 }
 
+// ChannelDetailsProviderConfig provider 级通道技术细节暴露配置
+// 用于针对特定 provider 覆盖全局 expose_channel_details 设置
+type ChannelDetailsProviderConfig struct {
+	Provider string `yaml:"provider" json:"provider"` // provider 名称，匹配时忽略大小写和首尾空格
+	Expose   bool   `yaml:"expose" json:"expose"`     // 是否暴露该 provider 的通道技术细节
+}
+
 // ProcessPlaceholders 处理 {{API_KEY}} / {{MODEL}} 占位符替换（headers 和 body）
 func (m *ServiceConfig) ProcessPlaceholders() {
 	// Headers 中替换

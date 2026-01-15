@@ -294,6 +294,10 @@
       "api_key_official": {
         "label": "Офиц. API",
         "tooltip": "API-ключ, спонсируемый провайдером для мониторинга"
+      },
+      "official_baseline": {
+        "label": "Эталон",
+        "tooltip": "Официальный эталонный канал RelayPulse для сравнительного анализа"
       }
     },
     "frequency": {

@@ -27,6 +27,12 @@ var defaultBadgeDefs = map[string]BadgeDef{
 		Variant: BadgeVariantInfo, // 蓝色，柔和
 		Weight:  100,
 	},
+	"official_baseline": {
+		ID:      "official_baseline",
+		Kind:    BadgeKindSource,
+		Variant: BadgeVariantInfo, // 蓝色，与 api_key_official 一致
+		Weight:  80,               // 略低于 api_key_official
+	},
 }
 
 // BadgeRef 监测项级别的徽标引用
