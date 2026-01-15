@@ -83,8 +83,14 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		req.Header.Set(k, v)
 	}
 
-	// 获取对应provider的客户端
-	client := p.clientPool.GetClient(cfg.Provider)
+	// 获取对应provider的客户端（考虑代理配置）
+	client, err := p.clientPool.GetClient(cfg.Provider, cfg.Proxy)
+	if err != nil {
+		result.Error = fmt.Errorf("获取 HTTP 客户端失败: %w", err)
+		result.Status = 0
+		result.SubStatus = storage.SubStatusNetworkError
+		return result
+	}
 
 	// 发送请求并计时
 	start := time.Now()

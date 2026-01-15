@@ -85,6 +85,12 @@ type ServiceConfig struct {
 	// 在配置加载时从 body: "!include data/xxx.json" 提取，供 API 返回
 	BodyTemplateName string `yaml:"-" json:"-"`
 
+	// Proxy 可选：该监测项使用的代理地址
+	// 支持格式：http://host:port, https://host:port, socks5://host:port
+	// 支持账号密码认证：socks5://user:pass@host:port
+	// 不配置时使用系统环境变量代理
+	Proxy string `yaml:"proxy" json:"-"`
+
 	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
 }
 

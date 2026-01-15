@@ -1297,6 +1297,39 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
   - 支持常见的流式响应格式（如 Anthropic 的 `content_block_delta`、
     OpenAI 的 `choices[].delta.content`），会自动拼接增量文本再进行关键字匹配。
 
+##### `proxy`
+- **类型**: string（可选）
+- **说明**: 该监测项使用的代理地址，用于需要通过代理访问的 API 端点
+- **默认**: 不配置时使用系统环境变量代理（`HTTP_PROXY`/`HTTPS_PROXY`）
+- **支持格式**:
+  ```
+  # HTTP/HTTPS 代理
+  http://host:port
+  http://user:pass@host:port
+  https://host:port
+
+  # SOCKS5 代理（支持账号密码认证）
+  socks5://host:port
+  socks5://user:pass@host:port
+  socks://host:port              # socks:// 是 socks5:// 的别名
+  socks://user:pass@host:port
+  ```
+- **示例**:
+  ```yaml
+  monitors:
+    - provider: "88code"
+      service: "cc"
+      proxy: "socks5://user:password@proxy.example.com:1080"
+      # ... 其他配置
+  ```
+- **使用场景**:
+  - 某些 API 端点需要通过特定代理访问（如地理位置限制）
+  - 不同监测项使用不同的代理线路
+  - 代理认证需要账号密码
+- **注意事项**:
+  - 同一 `provider + proxy` 组合会复用 HTTP 客户端连接池
+  - 密码中的特殊字符需要 URL 编码（如 `#` → `%23`）
+
 ##### `interval`
 - **类型**: string (Go duration 格式)
 - **说明**: 该监测项的自定义巡检间隔（可选），覆盖全局 `interval`
