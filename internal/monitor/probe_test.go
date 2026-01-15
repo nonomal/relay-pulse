@@ -63,3 +63,40 @@ func TestEvaluateStatusWithStreamingContentSplit(t *testing.T) {
 		t.Fatalf("expected SubStatusNone for streaming body, got %s", subStatus)
 	}
 }
+
+func TestEvaluateStatusWithGeminiSSE(t *testing.T) {
+	t.Parallel()
+
+	// 模拟 Gemini SSE 格式：没有 event: 行，只有 data: 行
+	// 流式响应中 text 被拆分到多个 chunk
+	body := []byte(
+		`data: {"candidates":[{"content":{"parts":[{"text":"po"}],"role":"model"},"index":0}]}` + "\n\n" +
+			`data: {"candidates":[{"content":{"parts":[{"text":"ng"}],"role":"model"},"index":0}]}` + "\n\n",
+	)
+
+	status, subStatus := evaluateStatus(1, storage.SubStatusNone, body, "pong")
+	if status != 1 {
+		t.Fatalf("expected status 1 for Gemini SSE body containing aggregated keyword, got %d", status)
+	}
+	if subStatus != storage.SubStatusNone {
+		t.Fatalf("expected SubStatusNone for Gemini SSE body, got %s", subStatus)
+	}
+}
+
+func TestEvaluateStatusWithGeminiSSENoEventLine(t *testing.T) {
+	t.Parallel()
+
+	// 完整的 Gemini 响应示例（只有 data: 行，文本完整在一个 chunk）
+	body := []byte(
+		`data: {"candidates":[{"content":{"parts":[{"text":"pong"}],"role":"model"},"index":0}],"usageMetadata":{"promptTokenCount":8}}` + "\n\n" +
+			`data: {"candidates":[{"content":{"parts":[{"text":"","thoughtSignature":"xxx"}],"role":"model"},"finishReason":"MAX_TOKENS","index":0}]}` + "\n\n",
+	)
+
+	status, subStatus := evaluateStatus(1, storage.SubStatusNone, body, "pong")
+	if status != 1 {
+		t.Fatalf("expected status 1 for Gemini SSE with complete text, got %d", status)
+	}
+	if subStatus != storage.SubStatusNone {
+		t.Fatalf("expected SubStatusNone, got %s", subStatus)
+	}
+}

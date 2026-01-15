@@ -175,8 +175,8 @@ func main() {
 		// Peek 可能返回 n < 512 且 err == io.EOF（短响应），仍用拿到的字节判断
 		peeked, _ := bufferedBody.Peek(512)
 		if len(peeked) > 0 {
-			// 同时包含 "event:" 和 "data:" 视为 SSE
-			if bytes.Contains(peeked, []byte("event:")) && bytes.Contains(peeked, []byte("data:")) {
+			// Gemini 的 SSE 可能只有 "data:" 行，没有 "event:" 行；因此只要看起来像 SSE 的 data 行就认为是 SSE
+			if bytes.HasPrefix(peeked, []byte("data:")) || bytes.Contains(peeked, []byte("\ndata:")) {
 				isSSE = true
 				if *verbose {
 					fmt.Println("ℹ️  Content-Type 未指定 SSE，但内容符合 SSE 格式")
@@ -261,7 +261,48 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 
 		// 用于组装完整响应的字段（OpenAI Responses API）
 		openAIResponse map[string]any // 从 response.created/completed 获取
+
+		// 用于组装完整响应的字段（Gemini API）
+		geminiResponse map[string]any // 记录最后一个 candidates 响应块（用于展示/调试）
 	)
+
+	// extractGeminiText 从 Gemini SSE 的 JSON payload 中提取文本：
+	// candidates[].content.parts[].text
+	extractGeminiText := func(obj map[string]any) (text string, ok bool) {
+		rawCandidates, has := obj["candidates"]
+		if !has {
+			return "", false
+		}
+		candidates, ok := rawCandidates.([]any)
+		if !ok {
+			return "", false
+		}
+		var b strings.Builder
+		for _, c := range candidates {
+			cm, ok := c.(map[string]any)
+			if !ok {
+				continue
+			}
+			content, ok := cm["content"].(map[string]any)
+			if !ok {
+				continue
+			}
+			parts, ok := content["parts"].([]any)
+			if !ok {
+				continue
+			}
+			for _, p := range parts {
+				pm, ok := p.(map[string]any)
+				if !ok {
+					continue
+				}
+				if t, ok := pm["text"].(string); ok && t != "" {
+					b.WriteString(t)
+				}
+			}
+		}
+		return b.String(), true
+	}
 
 	// flushEvent 处理一个完整的 SSE 事件
 	flushEvent := func() {
@@ -343,6 +384,21 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 							}
 						}
 					}
+				default:
+					// Gemini SSE: 没有 event: 行（eventName 为空），尝试从 candidates 提取文本
+					if eventName == "" {
+						if text, ok := extractGeminiText(obj); ok {
+							// 记录最后一个 Gemini payload 方便最终组装/展示
+							geminiResponse = obj
+							if text != "" {
+								fmt.Print(text)
+								aggregate.WriteString(text)
+								if verbose {
+									fmt.Printf("  → text (gemini): %q\n", text)
+								}
+							}
+						}
+					}
 				}
 			} else {
 				// 非 JSON payload，按原始文本处理
@@ -364,7 +420,7 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 
 		if err != nil && err != io.EOF {
 			flushEvent()
-			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta, openAIResponse), err
+			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta, openAIResponse, geminiResponse), err
 		}
 
 		line = strings.TrimRight(line, "\r\n")
@@ -380,14 +436,14 @@ func readSSEStream(r io.Reader, verbose bool) (string, string, error) {
 
 		if err == io.EOF {
 			flushEvent()
-			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta, openAIResponse), nil
+			return aggregate.String(), assembleMessage(messageBase, contentBlocks, finalDelta, openAIResponse, geminiResponse), nil
 		}
 	}
 }
 
 // assembleMessage 将 SSE 事件组装成完整的消息 JSON
-// 支持 Anthropic API (message_start/content_block_*/message_delta) 和 OpenAI Responses API (response.*)
-func assembleMessage(base map[string]any, contents []map[string]any, delta map[string]any, openAIResponse map[string]any) string {
+// 支持 Anthropic API (message_start/content_block_*/message_delta)、OpenAI Responses API (response.*) 和 Gemini API (candidates)
+func assembleMessage(base map[string]any, contents []map[string]any, delta map[string]any, openAIResponse map[string]any, geminiResponse map[string]any) string {
 	// Anthropic API: 使用 message_start 的 base
 	if base != nil {
 		// 设置内容块
@@ -417,6 +473,15 @@ func assembleMessage(base map[string]any, contents []map[string]any, delta map[s
 	// OpenAI Responses API: 使用 response.created/completed 的 response 对象
 	if openAIResponse != nil {
 		result, err := json.Marshal(openAIResponse)
+		if err != nil {
+			return "{}"
+		}
+		return string(result)
+	}
+
+	// Gemini API: 直接返回最后一个 candidates payload（方便查看 usageMetadata/finishReason 等）
+	if geminiResponse != nil {
+		result, err := json.Marshal(geminiResponse)
 		if err != nil {
 			return "{}"
 		}

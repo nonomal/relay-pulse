@@ -457,8 +457,14 @@ func aggregateResponseText(body []byte) string {
 		return ""
 	}
 
-	// 简单启发式：同时包含 "event:" 和 "data:" 时按 SSE 解析
-	if bytes.Contains(body, []byte("event:")) && bytes.Contains(body, []byte("data:")) {
+	// 启发式检测 SSE 格式：
+	// - 标准 SSE：同时包含 "event:" 和 "data:"
+	// - Gemini SSE：只有 "data:" 行（以 "data:" 开头或包含 "\ndata:"）
+	isSSE := bytes.Contains(body, []byte("event:")) && bytes.Contains(body, []byte("data:"))
+	if !isSSE {
+		isSSE = bytes.HasPrefix(body, []byte("data:")) || bytes.Contains(body, []byte("\ndata:"))
+	}
+	if isSSE {
 		if sseText := extractTextFromSSE(body); sseText != "" {
 			return sseText
 		}
@@ -475,6 +481,8 @@ func aggregateResponseText(body []byte) string {
 // - OpenAI Responses API:
 //   - event: response.output_text.delta + data: {"delta":"..."}（增量）
 //   - event: response.output_text.done + data: {"text":"..."}（完整，兜底）
+//   - Gemini API: data: {"candidates":[{"content":{"parts":[{"text":"..."}]}}]}
+//     注意：Gemini SSE 没有 event: 行，只有 data: 行；流式响应中 text 可能被拆分
 //
 // 解析失败时会尽量回退到原始 data 文本。
 func extractTextFromSSE(body []byte) string {
@@ -547,6 +555,34 @@ func extractTextFromSSE(body []byte) string {
 		if text, ok := obj["text"].(string); ok {
 			if b.Len() == 0 {
 				appendText(text)
+			}
+		}
+
+		// Gemini API: {"candidates":[{"content":{"parts":[{"text":"..."}]}}]}
+		// 流式响应中 text 可能被拆分到多个 chunk（如 "po" + "ng"），需要累积拼接
+		if candidates, ok := obj["candidates"].([]any); ok {
+			for _, c := range candidates {
+				cm, ok := c.(map[string]any)
+				if !ok {
+					continue
+				}
+				content, ok := cm["content"].(map[string]any)
+				if !ok {
+					continue
+				}
+				parts, ok := content["parts"].([]any)
+				if !ok {
+					continue
+				}
+				for _, p := range parts {
+					pm, ok := p.(map[string]any)
+					if !ok {
+						continue
+					}
+					if text, ok := pm["text"].(string); ok {
+						appendText(text)
+					}
+				}
 			}
 		}
 
