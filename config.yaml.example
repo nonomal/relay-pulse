@@ -9,6 +9,39 @@ slow_latency: "5s"   # 慢请求阈值，超过则从绿降为黄
 #   gm: "3s"     # 模型 API 要求更快
 
 # ============================================
+# 重试配置
+# ============================================
+# 探测失败时自动重试，适用于网络不稳定场景
+# 重试条件：所有 status=0 的错误（除超时外）
+# 超时（context.DeadlineExceeded）不重试，因为已达总超时限制
+
+# 全局重试次数（默认 0，不重试；表示"额外重试次数"，不含首次）
+# retry: 0
+
+# 退避基准间隔（默认 200ms）
+# retry_base_delay: "200ms"
+
+# 退避最大间隔（默认 2s）
+# retry_max_delay: "2s"
+
+# 抖动比例（0-1，默认 0.2；0 表示无抖动）
+# retry_jitter: 0.2
+
+# 按服务类型覆盖重试配置（可选）
+# retry_by_service:
+#   cc: 2        # Claude Code 服务额外重试 2 次
+#   gm: 1        # Gemini 服务额外重试 1 次
+
+# retry_base_delay_by_service:
+#   cc: "300ms"
+
+# retry_max_delay_by_service:
+#   cc: "3s"
+
+# retry_jitter_by_service:
+#   cc: 0.1
+
+# ============================================
 # 并发控制与调度策略
 # ============================================
 
@@ -241,6 +274,11 @@ monitors:
         "messages": [{"role": "user", "content": "hi"}],
         "max_tokens": 1
       }
+    # 可选：per-monitor 重试配置（覆盖全局和 by_service 配置）
+    # retry: 1                    # 额外重试 1 次（优先级：monitor > by_service > global）
+    # retry_base_delay: "150ms"   # 退避基准间隔
+    # retry_max_delay: "1s"       # 退避最大间隔
+    # retry_jitter: 0             # 显式关闭抖动
 
   - provider: "88code"
     service: "cx"

@@ -45,6 +45,57 @@ type AppConfig struct {
 	// 解析后的按服务超时时间（内部使用，不序列化）
 	TimeoutByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
 
+	// 探测重试次数（默认 0，不重试；表示"额外重试次数"，不含首次尝试）
+	// 使用 *int 以区分"未设置(nil)"和"显式设置为 0"
+	Retry *int `yaml:"retry,omitempty" json:"retry,omitempty"`
+
+	// 解析后的全局重试次数（内部使用）
+	RetryCount int `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的重试次数（可选）
+	// 例如 cc: 3, gm: 1
+	RetryByService map[string]int `yaml:"retry_by_service" json:"retry_by_service"`
+
+	// 解析后的按服务重试次数（内部使用，key 统一小写）
+	RetryByServiceCount map[string]int `yaml:"-" json:"-"`
+
+	// 重试退避基准间隔（默认 200ms）
+	RetryBaseDelay string `yaml:"retry_base_delay" json:"retry_base_delay"`
+
+	// 解析后的退避基准间隔（内部使用）
+	RetryBaseDelayDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的退避基准间隔（可选）
+	RetryBaseDelayByService map[string]string `yaml:"retry_base_delay_by_service" json:"retry_base_delay_by_service"`
+
+	// 解析后的按服务退避基准间隔（内部使用，key 统一小写）
+	RetryBaseDelayByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// 重试退避最大间隔（默认 2s）
+	RetryMaxDelay string `yaml:"retry_max_delay" json:"retry_max_delay"`
+
+	// 解析后的退避最大间隔（内部使用）
+	RetryMaxDelayDuration time.Duration `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的退避最大间隔（可选）
+	RetryMaxDelayByService map[string]string `yaml:"retry_max_delay_by_service" json:"retry_max_delay_by_service"`
+
+	// 解析后的按服务退避最大间隔（内部使用，key 统一小写）
+	RetryMaxDelayByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
+
+	// 重试抖动比例（0-1，默认 0.2；0 表示无抖动）
+	// 使用 *float64 以区分"未设置(nil)"和"显式设置为 0"
+	RetryJitter *float64 `yaml:"retry_jitter,omitempty" json:"retry_jitter,omitempty"`
+
+	// 解析后的抖动比例（内部使用）
+	RetryJitterValue float64 `yaml:"-" json:"-"`
+
+	// 按服务类型覆盖的抖动比例（可选）
+	RetryJitterByService map[string]float64 `yaml:"retry_jitter_by_service" json:"retry_jitter_by_service"`
+
+	// 解析后的按服务抖动比例（内部使用，key 统一小写）
+	RetryJitterByServiceValue map[string]float64 `yaml:"-" json:"-"`
+
 	// 可用率中黄色状态的权重（0-1，默认 0.7）
 	// 绿色=1.0, 黄色=degraded_weight, 红色=0.0
 	DegradedWeight float64 `yaml:"degraded_weight" json:"degraded_weight"`
@@ -778,6 +829,156 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 		c.TimeoutByServiceDuration = nil
 	}
 
+	// ===== 重试配置 =====
+	// 重试次数（默认 0，不重试）
+	if c.Retry == nil {
+		c.RetryCount = 0
+	} else {
+		c.RetryCount = *c.Retry
+	}
+	if c.RetryCount < 0 {
+		return fmt.Errorf("retry 必须 >= 0")
+	}
+
+	// 按服务类型覆盖的重试次数
+	if len(c.RetryByService) > 0 {
+		c.RetryByServiceCount = make(map[string]int, len(c.RetryByService))
+		for service, v := range c.RetryByService {
+			key := strings.ToLower(strings.TrimSpace(service))
+			if key == "" {
+				return fmt.Errorf("retry_by_service: service 名称不能为空")
+			}
+			if _, exists := c.RetryByServiceCount[key]; exists {
+				return fmt.Errorf("retry_by_service: service '%s' 重复配置（大小写不敏感）", key)
+			}
+			if v < 0 {
+				return fmt.Errorf("retry_by_service[%s] 必须 >= 0", service)
+			}
+			c.RetryByServiceCount[key] = v
+		}
+	} else {
+		c.RetryByServiceCount = nil
+	}
+
+	// 退避基准间隔（默认 200ms）
+	if strings.TrimSpace(c.RetryBaseDelay) == "" {
+		c.RetryBaseDelayDuration = 200 * time.Millisecond
+	} else {
+		d, err := time.ParseDuration(strings.TrimSpace(c.RetryBaseDelay))
+		if err != nil {
+			return fmt.Errorf("解析 retry_base_delay 失败: %w", err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("retry_base_delay 必须 > 0")
+		}
+		c.RetryBaseDelayDuration = d
+	}
+
+	// 按服务类型覆盖的退避基准间隔
+	if len(c.RetryBaseDelayByService) > 0 {
+		c.RetryBaseDelayByServiceDuration = make(map[string]time.Duration, len(c.RetryBaseDelayByService))
+		for service, raw := range c.RetryBaseDelayByService {
+			key := strings.ToLower(strings.TrimSpace(service))
+			if key == "" {
+				return fmt.Errorf("retry_base_delay_by_service: service 名称不能为空")
+			}
+			if _, exists := c.RetryBaseDelayByServiceDuration[key]; exists {
+				return fmt.Errorf("retry_base_delay_by_service: service '%s' 重复配置（大小写不敏感）", key)
+			}
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
+				return fmt.Errorf("retry_base_delay_by_service[%s]: 值不能为空", service)
+			}
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("解析 retry_base_delay_by_service[%s] 失败: %w", service, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("retry_base_delay_by_service[%s] 必须 > 0", service)
+			}
+			c.RetryBaseDelayByServiceDuration[key] = d
+		}
+	} else {
+		c.RetryBaseDelayByServiceDuration = nil
+	}
+
+	// 退避最大间隔（默认 2s）
+	if strings.TrimSpace(c.RetryMaxDelay) == "" {
+		c.RetryMaxDelayDuration = 2 * time.Second
+	} else {
+		d, err := time.ParseDuration(strings.TrimSpace(c.RetryMaxDelay))
+		if err != nil {
+			return fmt.Errorf("解析 retry_max_delay 失败: %w", err)
+		}
+		if d <= 0 {
+			return fmt.Errorf("retry_max_delay 必须 > 0")
+		}
+		c.RetryMaxDelayDuration = d
+	}
+
+	// 按服务类型覆盖的退避最大间隔
+	if len(c.RetryMaxDelayByService) > 0 {
+		c.RetryMaxDelayByServiceDuration = make(map[string]time.Duration, len(c.RetryMaxDelayByService))
+		for service, raw := range c.RetryMaxDelayByService {
+			key := strings.ToLower(strings.TrimSpace(service))
+			if key == "" {
+				return fmt.Errorf("retry_max_delay_by_service: service 名称不能为空")
+			}
+			if _, exists := c.RetryMaxDelayByServiceDuration[key]; exists {
+				return fmt.Errorf("retry_max_delay_by_service: service '%s' 重复配置（大小写不敏感）", key)
+			}
+			trimmed := strings.TrimSpace(raw)
+			if trimmed == "" {
+				return fmt.Errorf("retry_max_delay_by_service[%s]: 值不能为空", service)
+			}
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("解析 retry_max_delay_by_service[%s] 失败: %w", service, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("retry_max_delay_by_service[%s] 必须 > 0", service)
+			}
+			c.RetryMaxDelayByServiceDuration[key] = d
+		}
+	} else {
+		c.RetryMaxDelayByServiceDuration = nil
+	}
+
+	// 全局 max >= base 校验
+	if c.RetryMaxDelayDuration < c.RetryBaseDelayDuration {
+		return fmt.Errorf("retry_max_delay 必须 >= retry_base_delay")
+	}
+
+	// 抖动比例（默认 0.2）
+	if c.RetryJitter == nil {
+		c.RetryJitterValue = 0.2
+	} else {
+		c.RetryJitterValue = *c.RetryJitter
+	}
+	if c.RetryJitterValue < 0 || c.RetryJitterValue > 1 {
+		return fmt.Errorf("retry_jitter 必须在 0 到 1 之间，当前值: %.2f", c.RetryJitterValue)
+	}
+
+	// 按服务类型覆盖的抖动比例
+	if len(c.RetryJitterByService) > 0 {
+		c.RetryJitterByServiceValue = make(map[string]float64, len(c.RetryJitterByService))
+		for service, v := range c.RetryJitterByService {
+			key := strings.ToLower(strings.TrimSpace(service))
+			if key == "" {
+				return fmt.Errorf("retry_jitter_by_service: service 名称不能为空")
+			}
+			if _, exists := c.RetryJitterByServiceValue[key]; exists {
+				return fmt.Errorf("retry_jitter_by_service: service '%s' 重复配置（大小写不敏感）", key)
+			}
+			if v < 0 || v > 1 {
+				return fmt.Errorf("retry_jitter_by_service[%s] 必须在 0 到 1 之间", service)
+			}
+			c.RetryJitterByServiceValue[key] = v
+		}
+	} else {
+		c.RetryJitterByServiceValue = nil
+	}
+
 	return nil
 }
 
@@ -1164,6 +1365,10 @@ func (c *AppConfig) normalizeMonitors(ctx *normalizeContext) error {
 		c.Monitors[i].SlowLatencyDuration = 0
 		c.Monitors[i].TimeoutDuration = 0
 		c.Monitors[i].IntervalDuration = 0
+		c.Monitors[i].RetryCount = 0
+		c.Monitors[i].RetryBaseDelayDuration = 0
+		c.Monitors[i].RetryMaxDelayDuration = 0
+		c.Monitors[i].RetryJitterValue = 0
 		c.Monitors[i].Risks = nil          // 由 ctx.riskProviderMap 重新注入
 		c.Monitors[i].ResolvedBadges = nil // 由徽标解析逻辑重新计算
 
@@ -1238,6 +1443,78 @@ func (c *AppConfig) normalizeMonitors(ctx *normalizeContext) error {
 			c.Monitors[i].IntervalDuration = d
 		} else {
 			c.Monitors[i].IntervalDuration = c.IntervalDuration
+		}
+
+		// ===== 重试配置下发 =====
+		serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
+
+		// retry 下发：monitor > by_service > global
+		if c.Monitors[i].Retry != nil {
+			if *c.Monitors[i].Retry < 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry 必须 >= 0",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+			}
+			c.Monitors[i].RetryCount = *c.Monitors[i].Retry
+		} else if v, ok := c.RetryByServiceCount[serviceKey]; ok {
+			c.Monitors[i].RetryCount = v
+		} else {
+			c.Monitors[i].RetryCount = c.RetryCount
+		}
+
+		// retry_base_delay 下发：monitor > by_service > global
+		if trimmed := strings.TrimSpace(c.Monitors[i].RetryBaseDelay); trimmed != "" {
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析 retry_base_delay 失败: %w",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry_base_delay 必须 > 0",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+			}
+			c.Monitors[i].RetryBaseDelayDuration = d
+		} else if d, ok := c.RetryBaseDelayByServiceDuration[serviceKey]; ok {
+			c.Monitors[i].RetryBaseDelayDuration = d
+		} else {
+			c.Monitors[i].RetryBaseDelayDuration = c.RetryBaseDelayDuration
+		}
+
+		// retry_max_delay 下发：monitor > by_service > global
+		if trimmed := strings.TrimSpace(c.Monitors[i].RetryMaxDelay); trimmed != "" {
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析 retry_max_delay 失败: %w",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry_max_delay 必须 > 0",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+			}
+			c.Monitors[i].RetryMaxDelayDuration = d
+		} else if d, ok := c.RetryMaxDelayByServiceDuration[serviceKey]; ok {
+			c.Monitors[i].RetryMaxDelayDuration = d
+		} else {
+			c.Monitors[i].RetryMaxDelayDuration = c.RetryMaxDelayDuration
+		}
+
+		// retry_jitter 下发：monitor > by_service > global
+		if c.Monitors[i].RetryJitter != nil {
+			v := *c.Monitors[i].RetryJitter
+			if v < 0 || v > 1 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry_jitter 必须在 0 到 1 之间",
+					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
+			}
+			c.Monitors[i].RetryJitterValue = v
+		} else if v, ok := c.RetryJitterByServiceValue[serviceKey]; ok {
+			c.Monitors[i].RetryJitterValue = v
+		} else {
+			c.Monitors[i].RetryJitterValue = c.RetryJitterValue
+		}
+
+		// 最终校验：max >= base
+		if c.Monitors[i].RetryMaxDelayDuration < c.Monitors[i].RetryBaseDelayDuration {
+			return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry_max_delay 必须 >= retry_base_delay",
+				i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
 		}
 
 		// 规范化 board：空值视为 hot
@@ -1513,6 +1790,34 @@ func (c *AppConfig) applyParentInheritance() error {
 			inheritedInterval = true
 		}
 
+		// --- 重试配置继承 ---
+		// Retry: nil 表示未配置，从 parent 继承
+		inheritedRetry := false
+		inheritedRetryBaseDelay := false
+		inheritedRetryMaxDelay := false
+		inheritedRetryJitter := false
+
+		if child.Retry == nil && parent.Retry != nil {
+			v := *parent.Retry
+			child.Retry = &v
+			child.RetryCount = v
+			inheritedRetry = true
+		}
+		if strings.TrimSpace(child.RetryBaseDelay) == "" && strings.TrimSpace(parent.RetryBaseDelay) != "" {
+			child.RetryBaseDelay = parent.RetryBaseDelay
+			inheritedRetryBaseDelay = true
+		}
+		if strings.TrimSpace(child.RetryMaxDelay) == "" && strings.TrimSpace(parent.RetryMaxDelay) != "" {
+			child.RetryMaxDelay = parent.RetryMaxDelay
+			inheritedRetryMaxDelay = true
+		}
+		if child.RetryJitter == nil && parent.RetryJitter != nil {
+			v := *parent.RetryJitter
+			child.RetryJitter = &v
+			child.RetryJitterValue = v
+			inheritedRetryJitter = true
+		}
+
 		// --- 元数据配置 ---
 		// Category: 必填字段，但子通道可能想继承
 		if child.Category == "" {
@@ -1649,6 +1954,53 @@ func (c *AppConfig) applyParentInheritance() error {
 				"model", child.Model,
 				"slow_latency", child.SlowLatencyDuration,
 				"timeout", child.TimeoutDuration)
+		}
+
+		// ===== 重试 Duration 字段修复 =====
+		// 重试配置继承后需重新解析 Duration（与 Interval/SlowLatency/Timeout 同理）
+		if inheritedRetry {
+			// RetryCount 已在继承时直接赋值，无需额外解析
+			_ = inheritedRetry // 消除 unused 警告
+		}
+
+		if inheritedRetryBaseDelay {
+			trimmed := strings.TrimSpace(child.RetryBaseDelay)
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析继承的 retry_base_delay 失败: %w",
+					i, child.Provider, child.Service, child.Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 继承的 retry_base_delay 必须 > 0",
+					i, child.Provider, child.Service, child.Channel)
+			}
+			child.RetryBaseDelayDuration = d
+		}
+
+		if inheritedRetryMaxDelay {
+			trimmed := strings.TrimSpace(child.RetryMaxDelay)
+			d, err := time.ParseDuration(trimmed)
+			if err != nil {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 解析继承的 retry_max_delay 失败: %w",
+					i, child.Provider, child.Service, child.Channel, err)
+			}
+			if d <= 0 {
+				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 继承的 retry_max_delay 必须 > 0",
+					i, child.Provider, child.Service, child.Channel)
+			}
+			child.RetryMaxDelayDuration = d
+		}
+
+		if inheritedRetryJitter {
+			// RetryJitterValue 已在继承时直接赋值，无需额外解析
+			_ = inheritedRetryJitter // 消除 unused 警告
+		}
+
+		// 继承后重新检查：max >= base
+		if (inheritedRetryBaseDelay || inheritedRetryMaxDelay) &&
+			child.RetryMaxDelayDuration < child.RetryBaseDelayDuration {
+			return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): 继承后 retry_max_delay 必须 >= retry_base_delay",
+				i, child.Provider, child.Service, child.Channel)
 		}
 
 		// 注意：以下字段不继承（有特殊约束）：

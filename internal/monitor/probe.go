@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -46,7 +47,7 @@ func NewProber(storage storage.Storage) *Prober {
 	}
 }
 
-// Probe 执行单次探测
+// Probe 执行单次探测（支持可配置重试）
 func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeResult {
 	result := &ProbeResult{
 		Provider:  cfg.Provider,
@@ -68,22 +69,7 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 	ctx, cancel = context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// 准备请求体（去除首尾空白，某些 API 对此敏感）
-	reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(cfg.Body)))
-	req, err := http.NewRequestWithContext(ctx, cfg.Method, cfg.URL, reqBody)
-	if err != nil {
-		result.Error = fmt.Errorf("创建请求失败: %w", err)
-		result.Status = 0
-		result.SubStatus = storage.SubStatusNetworkError
-		return result
-	}
-
-	// 设置Headers（已处理过占位符）
-	for k, v := range cfg.Headers {
-		req.Header.Set(k, v)
-	}
-
-	// 获取对应provider的客户端（考虑代理配置）
+	// 获取对应 provider 的客户端（考虑代理配置）
 	client, err := p.clientPool.GetClient(cfg.Provider, cfg.Proxy)
 	if err != nil {
 		result.Error = fmt.Errorf("获取 HTTP 客户端失败: %w", err)
@@ -92,107 +78,250 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 		return result
 	}
 
-	// 发送请求并计时
-	start := time.Now()
-	resp, err := client.Do(req)
-	latency := int(time.Since(start).Milliseconds())
-	result.Latency = latency
-
-	if err != nil {
-		// 极少数情况下 err != nil 但 resp != nil，需要关闭 body，避免资源泄漏
-		if resp != nil && resp.Body != nil {
-			_ = resp.Body.Close()
-		}
-		// 超时/取消：仍归类为 network_error，但错误信息更明确，便于排查与统计
-		if errors.Is(err, context.DeadlineExceeded) {
-			err = fmt.Errorf("请求超时(%v): %w", timeout, err)
-		} else if errors.Is(err, context.Canceled) {
-			err = fmt.Errorf("请求取消: %w", err)
-		}
-		logger.Error("probe", "请求失败",
-			"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", err)
-		result.Error = err
-		result.Status = 0
-		result.SubStatus = storage.SubStatusNetworkError
-		return result
+	// 重试配置：从 config 获取（已在 Normalize 阶段下发到 monitor 级别）
+	maxAttempts := cfg.RetryCount + 1 // RetryCount 是额外重试次数，总尝试次数 = 1 + RetryCount
+	if maxAttempts < 1 {
+		maxAttempts = 1
 	}
-	defer resp.Body.Close()
-
-	// 记录 HTTP 状态码
-	result.HttpCode = resp.StatusCode
-
-	// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
-	var bodyBytes []byte
-	if cfg.SuccessContains != "" {
-		data, readErr := io.ReadAll(resp.Body)
-		switch {
-		case readErr == nil:
-			bodyBytes = data
-		case isTolerableReadError(readErr):
-			// 可容忍的传输错误（EOF、HTTP/2 流错误等），已读内容仍可用于匹配
-			bodyBytes = data
-			logger.Debug("probe", "读取响应体遇到可容忍错误，使用已读数据",
-				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr, "bytes", len(data))
-		default:
-			logger.Warn("probe", "读取响应体失败",
-				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
-		}
-
-		// gzip 解压：当 Content-Encoding 包含 gzip 时，手动解压响应体
-		// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
-		bodyBytes = decompressGzipIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
-	} else {
-		_, _ = io.Copy(io.Discard, resp.Body)
+	baseDelay := cfg.RetryBaseDelayDuration
+	if baseDelay <= 0 {
+		baseDelay = 200 * time.Millisecond
+	}
+	maxDelay := cfg.RetryMaxDelayDuration
+	if maxDelay <= 0 {
+		maxDelay = 2 * time.Second
+	}
+	jitter := cfg.RetryJitterValue
+	if jitter < 0 {
+		jitter = 0
+	}
+	if jitter > 1 {
+		jitter = 1
 	}
 
-	// 判定状态（先按 HTTP/延迟，再根据响应内容做二次判断）
-	status, subStatus := p.determineStatus(resp.StatusCode, latency, cfg.SlowLatencyDuration)
-	result.Status = status
-	result.SubStatus = subStatus
-	result.Status, result.SubStatus = evaluateStatus(result.Status, result.SubStatus, bodyBytes, cfg.SuccessContains)
+	// 累计延迟（所有 attempt 的延迟总和）
+	var totalLatency int
+	// 实际执行的 attempt 次数（用于最终日志）
+	var actualAttempts int
+	// 保存最后一次的响应体（用于最终诊断日志）
+	var lastBodyBytes []byte
 
-	// 当探测结果不可用时，输出诊断信息便于排查
+	// 重试循环（使用标签以便从 select 中正确跳出）
+retryLoop:
+	for attempt := 0; attempt < maxAttempts; attempt++ {
+		actualAttempts = attempt + 1
+
+		// 检查 context 是否已超时/取消
+		if ctx.Err() != nil {
+			// 超时或取消，不再重试
+			if attempt == 0 {
+				// 首次尝试就超时/取消，设置错误
+				if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+					result.Error = fmt.Errorf("请求超时(%v): %w", timeout, ctx.Err())
+				} else {
+					result.Error = fmt.Errorf("请求取消: %w", ctx.Err())
+				}
+				result.Status = 0
+				result.SubStatus = storage.SubStatusNetworkError
+			}
+			// 否则保留上一次尝试的结果
+			break retryLoop
+		}
+
+		// 准备请求体（去除首尾空白，某些 API 对此敏感）
+		reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(cfg.Body)))
+		req, err := http.NewRequestWithContext(ctx, cfg.Method, cfg.URL, reqBody)
+		if err != nil {
+			result.Error = fmt.Errorf("创建请求失败: %w", err)
+			result.Status = 0
+			result.SubStatus = storage.SubStatusNetworkError
+			// 请求创建失败是配置问题，重试无意义
+			break retryLoop
+		}
+
+		// 设置 Headers（已处理过占位符）
+		for k, v := range cfg.Headers {
+			req.Header.Set(k, v)
+		}
+
+		// 发送请求并计时
+		start := time.Now()
+		resp, err := client.Do(req)
+		latency := int(time.Since(start).Milliseconds())
+		totalLatency += latency
+
+		if err != nil {
+			// 极少数情况下 err != nil 但 resp != nil，需要关闭 body，避免资源泄漏
+			drainAndClose(resp)
+
+			// 超时/取消：不重试（总超时已到，继续重试无意义）
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				if errors.Is(err, context.DeadlineExceeded) {
+					err = fmt.Errorf("请求超时(%v): %w", timeout, err)
+				} else {
+					err = fmt.Errorf("请求取消: %w", err)
+				}
+				logger.Error("probe", "请求失败（不重试）",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+					"attempt", attempt+1, "max_attempts", maxAttempts, "error", err)
+				result.Error = err
+				result.Status = 0
+				result.SubStatus = storage.SubStatusNetworkError
+				result.Latency = totalLatency
+				break retryLoop // 超时不重试
+			}
+
+			// 其他网络错误，设置结果并继续重试
+			logger.Error("probe", "请求失败",
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+				"attempt", attempt+1, "max_attempts", maxAttempts, "error", err)
+			result.Error = err
+			result.Status = 0
+			result.SubStatus = storage.SubStatusNetworkError
+			result.Latency = totalLatency
+			result.HttpCode = 0
+			lastBodyBytes = nil // 网络错误无响应体
+
+			// 检查是否需要重试
+			if attempt+1 < maxAttempts {
+				delay := computeRetryDelay(attempt, baseDelay, maxDelay, jitter)
+				logger.Info("probe", "准备重试",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+					"attempt", attempt+1, "next_attempt", attempt+2, "delay_ms", delay.Milliseconds())
+
+				// 等待退避时间，同时监听 context
+				select {
+				case <-ctx.Done():
+					// 超时，停止重试
+					break retryLoop
+				case <-time.After(delay):
+					// 继续下一次重试
+					continue
+				}
+			}
+			continue
+		}
+
+		// 记录 HTTP 状态码
+		result.HttpCode = resp.StatusCode
+
+		// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
+		var bodyBytes []byte
+		if cfg.SuccessContains != "" {
+			data, readErr := io.ReadAll(resp.Body)
+			switch {
+			case readErr == nil:
+				bodyBytes = data
+			case isTolerableReadError(readErr):
+				// 可容忍的传输错误（EOF、HTTP/2 流错误等），已读内容仍可用于匹配
+				bodyBytes = data
+				logger.Debug("probe", "读取响应体遇到可容忍错误，使用已读数据",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr, "bytes", len(data))
+			default:
+				logger.Warn("probe", "读取响应体失败",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
+			}
+
+			// gzip 解压：当 Content-Encoding 包含 gzip 时，手动解压响应体
+			// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
+			bodyBytes = decompressGzipIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
+		} else {
+			_, _ = io.Copy(io.Discard, resp.Body)
+		}
+		_ = resp.Body.Close()
+
+		// 保存响应体用于最终诊断
+		lastBodyBytes = bodyBytes
+
+		// 判定状态（先按 HTTP/延迟，再根据响应内容做二次判断）
+		status, subStatus := p.determineStatus(resp.StatusCode, latency, cfg.SlowLatencyDuration)
+		result.Status = status
+		result.SubStatus = subStatus
+		result.Status, result.SubStatus = evaluateStatus(result.Status, result.SubStatus, bodyBytes, cfg.SuccessContains)
+		result.Latency = totalLatency
+		result.Error = nil
+
+		// 检查是否需要重试
+		// 重试条件：status=0（红色）且非超时
+		if result.Status == 0 && attempt+1 < maxAttempts {
+			// 输出诊断信息（重试前输出）
+			p.logFailedProbe(cfg, result, bodyBytes)
+
+			delay := computeRetryDelay(attempt, baseDelay, maxDelay, jitter)
+			logger.Info("probe", "探测失败，准备重试",
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+				"attempt", attempt+1, "next_attempt", attempt+2, "status", result.Status, "sub_status", result.SubStatus,
+				"http_code", result.HttpCode, "delay_ms", delay.Milliseconds())
+
+			// 等待退避时间，同时监听 context
+			select {
+			case <-ctx.Done():
+				// 超时，停止重试，保留当前结果
+				break retryLoop
+			case <-time.After(delay):
+				// 继续下一次重试
+				continue
+			}
+		}
+
+		// 成功（绿色/黄色）或已达最大重试次数，退出循环
+		break retryLoop
+	}
+
+	// 最终诊断日志（仅在最终结果为红色时输出）
 	if result.Status == 0 {
-		const maxSnippetLen = 512 // 防止日志过长
+		// 输出诊断信息（使用保存的最后一次响应体）
+		p.logFailedProbe(cfg, result, lastBodyBytes)
 
-		// content_mismatch 特殊处理：即便响应体为空/仅空白，也输出诊断信息
-		if result.SubStatus == storage.SubStatusContentMismatch {
-			aggText := aggregateResponseText(bodyBytes)
-			trimmed := strings.TrimSpace(aggText)
-
-			if trimmed == "" {
-				// body_bytes > 0 但 agg_len = 0 说明聚合器未能提取文本（如二进制/不识别格式）
-				logger.Warn("probe", "内容校验失败：响应体为空或无法提取文本",
-					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
-					"body_bytes", len(bodyBytes), "agg_len", len(aggText), "keyword_len", len(cfg.SuccessContains))
-			} else {
-				snippet := trimmed
-				if len(snippet) > maxSnippetLen {
-					snippet = snippet[:maxSnippetLen] + "... (truncated)"
-				}
-				logger.Warn("probe", "内容校验失败：未包含预期关键字",
-					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
-					"body_bytes", len(bodyBytes), "keyword_len", len(cfg.SuccessContains), "snippet", snippet)
-			}
-		} else if len(bodyBytes) > 0 {
-			// 其他红色状态：保持原有行为，在有响应体时输出片段
-			snippet := strings.TrimSpace(aggregateResponseText(bodyBytes))
-			if snippet != "" {
-				if len(snippet) > maxSnippetLen {
-					snippet = snippet[:maxSnippetLen] + "... (truncated)"
-				}
-				logger.Warn("probe", "响应片段",
-					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "snippet", snippet)
-			}
-		}
+		logger.Warn("probe", "探测最终失败",
+			"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+			"actual_attempts", actualAttempts, "max_attempts", maxAttempts,
+			"total_latency_ms", result.Latency, "status", result.Status, "sub_status", result.SubStatus,
+			"http_code", result.HttpCode)
 	}
 
 	// 日志（不打印敏感信息）
 	logger.Info("probe", "探测完成",
 		"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
-		"code", resp.StatusCode, "latency_ms", latency, "status", result.Status, "sub_status", result.SubStatus)
+		"code", result.HttpCode, "latency_ms", result.Latency, "status", result.Status, "sub_status", result.SubStatus)
 
 	return result
+}
+
+// logFailedProbe 输出探测失败的诊断信息
+func (p *Prober) logFailedProbe(cfg *config.ServiceConfig, result *ProbeResult, bodyBytes []byte) {
+	const maxSnippetLen = 512 // 防止日志过长
+
+	// content_mismatch 特殊处理：即便响应体为空/仅空白，也输出诊断信息
+	if result.SubStatus == storage.SubStatusContentMismatch {
+		aggText := aggregateResponseText(bodyBytes)
+		trimmed := strings.TrimSpace(aggText)
+
+		if trimmed == "" {
+			// body_bytes > 0 但 agg_len = 0 说明聚合器未能提取文本（如二进制/不识别格式）
+			logger.Warn("probe", "内容校验失败：响应体为空或无法提取文本",
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+				"body_bytes", len(bodyBytes), "agg_len", len(aggText), "keyword_len", len(cfg.SuccessContains))
+		} else {
+			snippet := trimmed
+			if len(snippet) > maxSnippetLen {
+				snippet = snippet[:maxSnippetLen] + "... (truncated)"
+			}
+			logger.Warn("probe", "内容校验失败：未包含预期关键字",
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+				"body_bytes", len(bodyBytes), "keyword_len", len(cfg.SuccessContains), "snippet", snippet)
+		}
+	} else if len(bodyBytes) > 0 {
+		// 其他红色状态：保持原有行为，在有响应体时输出片段
+		snippet := strings.TrimSpace(aggregateResponseText(bodyBytes))
+		if snippet != "" {
+			if len(snippet) > maxSnippetLen {
+				snippet = snippet[:maxSnippetLen] + "... (truncated)"
+			}
+			logger.Warn("probe", "响应片段",
+				"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "snippet", snippet)
+		}
+	}
 }
 
 // evaluateStatus 在基础状态上叠加响应内容匹配规则
@@ -516,4 +645,57 @@ func isTolerableReadError(err error) bool {
 	}
 
 	return false
+}
+
+// computeRetryDelay 计算指数退避延迟
+// 公式: delay = min(maxDelay, baseDelay * 2^retryIndex) * (1 ± jitter)
+// retryIndex 从 0 开始（首次重试 retryIndex=0）
+// 注意：最终结果会再次 cap 到 maxDelay，确保不超过上限
+func computeRetryDelay(retryIndex int, baseDelay, maxDelay time.Duration, jitter float64) time.Duration {
+	// 指数退避：baseDelay * 2^retryIndex
+	delay := baseDelay
+	for i := 0; i < retryIndex; i++ {
+		delay *= 2
+		if delay > maxDelay {
+			delay = maxDelay
+			break
+		}
+	}
+
+	// 上限保护
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+
+	// 应用抖动：delay * (1 ± jitter)
+	if jitter > 0 {
+		// 生成 [-jitter, +jitter] 范围的随机偏移
+		jitterRange := float64(delay) * jitter
+		offset := (rand.Float64()*2 - 1) * jitterRange // [-jitterRange, +jitterRange]
+		delay = time.Duration(float64(delay) + offset)
+	}
+
+	// 确保延迟不为负
+	if delay < 0 {
+		delay = baseDelay
+	}
+
+	// 抖动后再次 cap 到 maxDelay，确保最终结果不超过上限
+	if delay > maxDelay {
+		delay = maxDelay
+	}
+
+	return delay
+}
+
+// drainAndClose 排空响应体并关闭，便于连接复用
+// 当重试时需要释放上一次响应的资源
+func drainAndClose(resp *http.Response) {
+	if resp == nil || resp.Body == nil {
+		return
+	}
+	// 限制读取量，防止恶意大响应阻塞
+	const maxDrainBytes = 64 * 1024
+	_, _ = io.CopyN(io.Discard, resp.Body, maxDrainBytes)
+	_ = resp.Body.Close()
 }

@@ -78,6 +78,37 @@ type ServiceConfig struct {
 	// 优先级：monitor.timeout > timeout_by_service > 全局 timeout
 	TimeoutDuration time.Duration `yaml:"-" json:"-"`
 
+	// 通道级重试次数（可选，覆盖 retry_by_service 和全局 retry）
+	// 0 表示不重试；该字段表示"额外重试次数"，不包含首次尝试
+	// 使用 *int 以区分"未设置(nil)"和"显式设置为 0"
+	Retry *int `yaml:"retry" json:"retry,omitempty"`
+
+	// 解析后的重试次数（内部使用）
+	// 优先级：monitor.retry > retry_by_service > 全局 retry
+	RetryCount int `yaml:"-" json:"-"`
+
+	// 通道级退避基准间隔（可选，覆盖 retry_base_delay_by_service 和全局 retry_base_delay）
+	// 支持 Go duration 格式，例如 "200ms"、"500ms"
+	RetryBaseDelay string `yaml:"retry_base_delay" json:"retry_base_delay,omitempty"`
+
+	// 解析后的退避基准间隔（内部使用）
+	RetryBaseDelayDuration time.Duration `yaml:"-" json:"-"`
+
+	// 通道级退避最大间隔（可选，覆盖 retry_max_delay_by_service 和全局 retry_max_delay）
+	// 支持 Go duration 格式，例如 "2s"、"5s"
+	RetryMaxDelay string `yaml:"retry_max_delay" json:"retry_max_delay,omitempty"`
+
+	// 解析后的退避最大间隔（内部使用）
+	RetryMaxDelayDuration time.Duration `yaml:"-" json:"-"`
+
+	// 通道级抖动比例（可选，覆盖 retry_jitter_by_service 和全局 retry_jitter）
+	// 取值范围 0-1，0 表示无抖动
+	// 使用 *float64 以区分"未设置(nil)"和"显式设置为 0"
+	RetryJitter *float64 `yaml:"retry_jitter" json:"retry_jitter,omitempty"`
+
+	// 解析后的抖动比例（内部使用）
+	RetryJitterValue float64 `yaml:"-" json:"-"`
+
 	// 解析后的巡检间隔（可选，为空时使用全局 interval）
 	IntervalDuration time.Duration `yaml:"-" json:"-"`
 
