@@ -61,7 +61,11 @@ type StatusQueryChannel struct {
 	Status    string `json:"status"`               // up/down/degraded
 	LatencyMs int    `json:"latency_ms,omitempty"` // 毫秒
 	UpdatedAt string `json:"updated_at,omitempty"` // RFC3339 格式
-	Board     string `json:"board,omitempty"`      // hot/cold（用于订阅校验等场景）
+	// Board: channel 级别的活跃性折叠结果（仅用于订阅校验等场景）
+	// 注意：这是二值结果（hot/cold），不等同于 /api/status 中逐监测项返回的 board (hot|secondary|cold)
+	// - hot: 该 channel 仍有活跃监测项（包含配置为 hot/secondary 的项）
+	// - cold: 该 channel 下（排除 disabled）全部为 cold
+	Board string `json:"board,omitempty"`
 }
 
 // ===== 常量 =====
@@ -326,7 +330,12 @@ type serviceTarget struct {
 
 // expandQueryTargets 根据配置展开查询目标
 // 支持 service/channel 为空时查询所有匹配项
-// boardsEnabled: 是否启用热板/冷板功能，启用时计算 channel 级别的 board 状态
+// boardsEnabled: 是否启用热板/冷板功能
+//
+// Board 计算规则（channel 级别的活跃性折叠）：
+// - 仅当 boards 启用且该 channel 下（排除 disabled）全为 cold 时，返回 "cold"
+// - 其他情况（包括 hot/secondary 混合、仅 secondary 等）都返回 "hot"
+// 注意：这是二值活跃性结果，不是完整的 board 枚举（不返回 secondary）
 func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q StatusQuery) ([]serviceTarget, *StatusQueryErrorObject) {
 	queryProvider := strings.ToLower(strings.TrimSpace(q.Provider))
 	queryService := strings.ToLower(strings.TrimSpace(q.Service))
@@ -381,9 +390,9 @@ func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q S
 		channelMap := make(map[string]*channelInfo)             // key: lowercase channel
 		modelSetByChannel := make(map[string]map[string]string) // chLower -> modelLower -> original model
 
-		// board 统计：记录每个 channel 下是否有 hot/cold model
+		// board 统计：记录每个 channel 下是否有 hot/secondary/cold model
 		type boardStat struct {
-			hasHot  bool
+			hasHot  bool // hot 或 secondary 都视为活跃
 			hasCold bool
 		}
 		boardStatByChannel := make(map[string]*boardStat) // chLower -> board stat
@@ -407,7 +416,7 @@ func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q S
 				if boardLower == "cold" {
 					boardStatByChannel[chLower].hasCold = true
 				} else {
-					// 空值或 "hot" 都视为 hot
+					// 空值、"hot" 或 "secondary" 都视为活跃（hasHot）
 					boardStatByChannel[chLower].hasHot = true
 				}
 			}

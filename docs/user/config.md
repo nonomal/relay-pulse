@@ -66,7 +66,7 @@ monitors:
     sponsor: "团队自有"         # 赞助者（必填）
     sponsor_level: "advanced"  # 赞助等级（可选）: basic/advanced/enterprise
     channel: "vip"             # 业务通道（可选）
-    board: "hot"               # 板块（可选）: hot（默认）或 cold
+    board: "hot"               # 板块（可选）: hot（默认）、secondary 或 cold
     price_min: 0.05            # 参考倍率下限（可选）
     price_max: 0.2             # 参考倍率（可选）: 显示为 "0.125 / 0.05~0.2"
     listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
@@ -208,45 +208,62 @@ sponsor_pin:
    - 用户点击任意排序按钮后，置顶效果失效
    - 刷新页面后，置顶效果恢复
 
-### 热板/冷板配置
+### 板块配置（主板/副板/冷板）
 
-用于将监测项分为"热板"（正常监测）和"冷板"（暂停监测，仅展示历史数据）两类，适用于：
-- 服务商质量长期波动，移入冷板保留历史供对比
-- 渠道/节点下线，停止监测避免误报，保留审计数据
-- 监测项规模增长，低价值项入冷板降低 API 调用量
+用于将监测项分为三类板块，适用于不同生命周期阶段的通道管理：
+
+| 板块 | 说明 | 探测 | 适用场景 |
+|------|------|------|----------|
+| **主板 (hot)** | 活跃稳定的通道 | ✅ 正常探测 | 默认板块，稳定运行的服务 |
+| **副板 (secondary)** | 观察期通道 | ✅ 正常探测 | 新上线通道、短期不稳定待观察 |
+| **冷板 (cold)** | 归档通道 | ❌ 停止探测 | 长期不可用、已下线的历史通道 |
 
 ```yaml
 # 全局配置
 boards:
-  enabled: true           # 是否启用热板/冷板功能（默认 false）
+  enabled: true           # 是否启用板块功能（默认 false）
 
 # 监测项配置
 monitors:
+  # 主板（默认）
   - provider: "88code"
     service: "cc"
-    board: "cold"              # 板块类型：hot（默认）或 cold
+    # board 不配置或配置为 "hot"，默认在主板
+    # ...
+
+  # 副板：新上线或观察期通道
+  - provider: "newprovider"
+    service: "cc"
+    board: "secondary"         # 副板：继续探测，单独展示
+    # ...
+
+  # 冷板：归档通道
+  - provider: "oldprovider"
+    service: "cc"
+    board: "cold"              # 冷板：停止探测，仅展示历史
     cold_reason: "该渠道长期不稳定，先归档节省探测资源"  # 归档原因（可选）
-    # ... 其他配置
+    # ...
 ```
 
 #### `boards.enabled`
 - **类型**: boolean
 - **默认值**: `false`
-- **说明**: 是否启用热板/冷板功能；禁用时所有监测项均视为热板
+- **说明**: 是否启用板块功能；禁用时所有监测项均视为主板，前端不显示板块切换器
 
 #### 监测项 `board`
 - **类型**: string
 - **默认值**: `"hot"`
-- **可选值**: `"hot"`, `"cold"`
+- **可选值**: `"hot"`, `"secondary"`, `"cold"`
 - **说明**: 监测项所属板块
-  - `hot`: 热板，正常监测，实时更新数据
+  - `hot`: 主板，正常监测，实时更新数据（默认）
+  - `secondary`: 副板，正常监测，用于新上线或观察期通道
   - `cold`: 冷板，停止监测，仅展示历史数据
 
 #### 监测项 `cold_reason`
 - **类型**: string
 - **默认值**: `""`（空）
 - **说明**: 移入冷板的原因说明（仅用于 `board: cold` 的监测项）
-- **约束**: 仅当 `board: cold` 时有效；如果在热板项中配置，启动时会输出警告并自动清空
+- **约束**: 仅当 `board: cold` 时有效；如果在非冷板项中配置，启动时会输出警告并自动清空
 
 #### 与现有机制的关系
 
@@ -254,13 +271,35 @@ monitors:
 |------|-----|-----|-----|------|
 | `disabled: true` | ❌ | ❌ | ❌ | 彻底禁用 |
 | `hidden: true` | ✅ | ✅ | ❌ | 临时隐藏但继续监测 |
-| `board: cold` | ❌ | ❌ | ✅ | **展示历史但不探测** |
+| `board: hot` | ✅ | ✅ | ✅ | **主板，正常监测** |
+| `board: secondary` | ✅ | ✅ | ✅ | **副板，观察期监测** |
+| `board: cold` | ❌ | ❌ | ✅ | **冷板，展示历史但不探测** |
 
 #### 前端交互
 
-- 当 `boards.enabled: true` 时，控制栏显示热板/冷板切换按钮（火焰/雪花图标）
-- 切换到冷板时，页面顶部显示提示："冷板监测项已暂停探测，仅展示历史数据"
-- URL 支持 `?board=cold` 参数用于分享冷板链接
+- 当 `boards.enabled: true` 时，控制栏显示板块下拉菜单（带图标）
+  - 🔥 主板 (Hot) - 活跃稳定的通道
+  - 📊 副板 (Secondary) - 新上线或观察期通道
+  - ❄️ 冷板 (Cold) - 归档的历史通道
+  - 🌐 全部 (All) - 显示所有板块
+- 切换到冷板时，页面顶部显示提示："冷板监测项已暂停探测"
+- URL 支持 `?board=hot|secondary|cold|all` 参数用于分享链接
+
+#### API 查询参数
+
+```bash
+# 查询主板（默认）
+curl "http://localhost:8080/api/status?board=hot"
+
+# 查询副板
+curl "http://localhost:8080/api/status?board=secondary"
+
+# 查询冷板
+curl "http://localhost:8080/api/status?board=cold"
+
+# 查询所有板块
+curl "http://localhost:8080/api/status?board=all"
+```
 
 #### `max_concurrency`
 - **类型**: integer
@@ -1075,8 +1114,10 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 
 ##### `service`
 - **类型**: string
-- **说明**: 服务类型标识
-- **示例**: `"gpt-4"`, `"claude"`, `"cc"`, `"cx"`
+- **说明**: 服务类型标识（必填）
+- **推荐值**: `"cc"`（Claude Code）, `"cx"`（其他 LLM 服务）, `"gm"`（Google Gemini）
+- **示例**: `"cc"`, `"cx"`, `"gm"`, `"gpt-4"`, `"claude-3"` 等
+- **注意**: 前端筛选系统优先识别 cc/cx/gm，其他值也支持但不会被前端特殊处理
 
 ##### `category`
 - **类型**: string

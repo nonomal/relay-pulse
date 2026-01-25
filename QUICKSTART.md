@@ -371,6 +371,110 @@ logging:
 
 ---
 
+## 新功能：副板系统 & 配置生成器
+
+### 副板系统（Secondary Board）
+
+RelayPulse 现在支持三层板块系统，用于管理不同生命周期的监测通道：
+
+| 板块 | 说明 | 探测 | 适用场景 |
+|------|------|------|----------|
+| **主板 (hot)** | 活跃稳定的通道 | ✅ | 默认板块，稳定运行的服务 |
+| **副板 (secondary)** | 观察期通道 | ✅ | 新上线通道、短期不稳定待观察 |
+| **冷板 (cold)** | 归档通道 | ❌ | 长期不可用、已下线的历史通道 |
+
+**启用副板功能**：
+
+编辑 `config.yaml`，添加或修改：
+
+```yaml
+boards:
+  enabled: true  # 启用板块功能
+```
+
+**配置示例**：
+
+```yaml
+monitors:
+  # 主板：稳定运行的服务
+  - provider: "openai"
+    service: "gpt-4"
+    board: "hot"
+    # ...
+
+  # 副板：新上线或观察期通道
+  - provider: "newprovider"
+    service: "api"
+    board: "secondary"
+    # ...
+
+  # 冷板：已下线的历史通道
+  - provider: "oldprovider"
+    service: "api"
+    board: "cold"
+    cold_reason: "该渠道长期不稳定，已归档"
+    # ...
+```
+
+**前端交互**：
+- 控制栏显示板块下拉菜单（带图标）
+- 支持 `?board=hot|secondary|cold|all` URL 参数
+- 切换到冷板时显示提示信息
+
+### 配置生成器（genconfig）
+
+快速生成监测配置的 CLI 工具，支持 7 个预定义模板。
+
+**列出所有模板**：
+
+```bash
+go run ./cmd/genconfig -list
+```
+
+**快速生成配置**：
+
+```bash
+# 生成 OpenAI 配置
+go run ./cmd/genconfig -mode template -template openai -output config.yaml
+
+# 生成 Anthropic 配置
+go run ./cmd/genconfig -mode template -template anthropic -output config.yaml
+
+# 生成 Gemini 配置
+go run ./cmd/genconfig -mode template -template gemini -output config.yaml
+
+# 生成多模型配置（父子关系示例）
+go run ./cmd/genconfig -mode template -template multi-model -output config.yaml
+```
+
+**追加新的监测项**：
+
+```bash
+# 追加 Cohere 配置
+go run ./cmd/genconfig -mode template -template cohere -output config.yaml -append
+```
+
+**交互式配置**：
+
+```bash
+go run ./cmd/genconfig -mode interactive
+```
+
+按照提示输入全局配置和监测项信息。
+
+**可用模板**：
+- `openai` - OpenAI GPT-4
+- `anthropic` - Anthropic Claude
+- `gemini` - Google Gemini
+- `cohere` - Cohere
+- `mistral` - Mistral AI
+- `multi-model` - 多模型配置（父子关系）
+- `custom` - 自定义 API
+
+详细文档：[cmd/genconfig/README.md](cmd/genconfig/README.md)
+
+---
+
 ## 更多文档
 
 - **项目入口**: [README.md](README.md)

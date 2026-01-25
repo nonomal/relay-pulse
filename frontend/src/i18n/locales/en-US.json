@@ -104,7 +104,10 @@
     },
     "boards": {
       "hot": "Hot",
+      "secondary": "Secondary",
       "cold": "Cold",
+      "all": "All",
+      "selectBoard": "Select board",
       "switchToHot": "Switch to hot board",
       "switchToCold": "Switch to cold board",
       "coldNotice": "Cold board monitors are paused"

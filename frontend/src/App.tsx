@@ -71,7 +71,7 @@ function App() {
   const {
     timeRange,
     timeFilter,      // 每日时段过滤
-    board,           // 板块：hot/cold
+    board,           // 板块：hot/secondary/cold/all
     filterProvider,
     filterService,
     filterChannel,

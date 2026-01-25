@@ -111,13 +111,14 @@ func TestFilterMonitorsBoard(t *testing.T) {
 
 	monitors := []config.ServiceConfig{
 		{Provider: "hot-provider", Service: "cc", Board: "hot", Disabled: false, Hidden: false},
+		{Provider: "secondary-provider", Service: "cc", Board: "secondary", Disabled: false, Hidden: false},
 		{Provider: "cold-provider", Service: "cc", Board: "cold", ColdReason: "测试冷板原因", Disabled: false, Hidden: false},
 	}
 
 	t.Run("boards未启用：返回全部", func(t *testing.T) {
 		result := h.filterMonitors(monitors, "all", "all", "hot", false, false)
-		if len(result) != 2 {
-			t.Errorf("boards未启用时应返回全部，期望 2 个，实际返回 %d 个", len(result))
+		if len(result) != 3 {
+			t.Errorf("boards未启用时应返回全部，期望 3 个，实际返回 %d 个", len(result))
 		}
 	})
 
@@ -128,6 +129,25 @@ func TestFilterMonitorsBoard(t *testing.T) {
 		}
 		if len(result) > 0 && result[0].Provider != "hot-provider" {
 			t.Errorf("期望返回 hot-provider，实际返回 %s", result[0].Provider)
+		}
+		// secondary 必须与 hot 分离：hot 查询不应包含 secondary
+		for _, m := range result {
+			if m.Board == "secondary" {
+				t.Errorf("boards启用+hot 时不应返回 secondary 项，返回了 provider=%s", m.Provider)
+			}
+		}
+	})
+
+	t.Run("boards启用+secondary：只返回副板", func(t *testing.T) {
+		result := h.filterMonitors(monitors, "all", "all", "secondary", true, false)
+		if len(result) != 1 {
+			t.Errorf("期望返回 1 个副板监测项，实际返回 %d 个", len(result))
+		}
+		if len(result) > 0 && result[0].Provider != "secondary-provider" {
+			t.Errorf("期望返回 secondary-provider，实际返回 %s", result[0].Provider)
+		}
+		if len(result) > 0 && result[0].Board != "secondary" {
+			t.Errorf("期望 board 为 'secondary'，实际返回 %s", result[0].Board)
 		}
 	})
 
@@ -146,8 +166,18 @@ func TestFilterMonitorsBoard(t *testing.T) {
 
 	t.Run("boards启用+all：返回全部", func(t *testing.T) {
 		result := h.filterMonitors(monitors, "all", "all", "all", true, false)
-		if len(result) != 2 {
-			t.Errorf("board=all时应返回全部，期望 2 个，实际返回 %d 个", len(result))
+		if len(result) != 3 {
+			t.Errorf("board=all时应返回全部，期望 3 个，实际返回 %d 个", len(result))
+		}
+		// 应包含 hot/secondary/cold 三种板块
+		seen := map[string]bool{}
+		for _, m := range result {
+			seen[m.Board] = true
+		}
+		for _, b := range []string{"hot", "secondary", "cold"} {
+			if !seen[b] {
+				t.Errorf("board=all 时应包含 %s 项，但未找到", b)
+			}
 		}
 	})
 }

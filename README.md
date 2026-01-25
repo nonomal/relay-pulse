@@ -94,8 +94,6 @@ go run cmd/server/main.go
 | ⚙️ 配置监测项      | [配置手册](docs/user/config.md) |
 | 🤝 参与贡献        | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
-> 以上 3–4 个是项目维护方优先保证更新的「核心文档」。`AGENTS.md`、`CLAUDE.md` 主要供 AI 助手使用，通常不需要人类维护。
-
 ---
 
 ### 核心文档（建议优先阅读）
@@ -167,6 +165,67 @@ curl http://localhost:8080/api/version
 - 每次请求的时间基准不同，时间桶边界会随之微调
 - 服务商排名始终反映**最近 24 小时**的真实可用率
 - 如需固定时间点数据用于集成，建议按固定频率（如每小时整点）采样
+
+### 状态查询 API（StatusQuery）
+
+用于快速查询特定 provider/service/channel 的当前状态，适合订阅校验、告警集成等场景。
+
+```bash
+# 单查：查询 provider 的所有 service/channel
+curl "http://localhost:8080/api/status/query?provider=88code"
+
+# 单查：查询特定 service
+curl "http://localhost:8080/api/status/query?provider=88code&service=cc"
+
+# 单查：查询特定 channel
+curl "http://localhost:8080/api/status/query?provider=88code&service=cc&channel=vip"
+
+# 多查：紧凑格式（最多 20 组）
+curl "http://localhost:8080/api/status/query?q=88code/cc/vip&q=anthropic/cc"
+
+# 批量查询（POST，最多 50 组）
+curl -X POST http://localhost:8080/api/status/batch \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queries": [
+      {"provider": "88code", "service": "cc", "channel": "vip"},
+      {"provider": "anthropic", "service": "cc"}
+    ]
+  }'
+```
+
+**响应格式**：
+```json
+{
+  "as_of": "2024-01-15T10:30:00Z",
+  "results": [
+    {
+      "query": {"provider": "88code", "service": "cc", "channel": "vip"},
+      "provider": "88code",
+      "services": [
+        {
+          "name": "cc",
+          "channels": [
+            {
+              "name": "vip",
+              "status": "up",
+              "latency_ms": 234,
+              "updated_at": "2024-01-15T10:29:45Z",
+              "board": "hot"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Board 字段说明**：
+- `board` 是 channel 级别的**活跃性折叠结果**（仅二值：`hot` 或 `cold`）
+- `hot`：该 channel 仍有活跃监测项（包含配置为 `hot` 或 `secondary` 的项）
+- `cold`：该 channel 下（排除 disabled）全部为 `cold`
+- 注意：这与 `/api/status` 中逐监测项返回的 `board` (hot|secondary|cold) 不同
 
 > 🔧 API 参考章节正在整理，以上端点示例即当前权威来源。
 

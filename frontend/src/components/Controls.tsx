@@ -1,13 +1,14 @@
 import { useMemo } from 'react';
-import { Filter, LayoutGrid, List, X, Clock, AlignStartVertical, Star, Flame, Snowflake } from 'lucide-react';
+import { Filter, LayoutGrid, List, X, Clock, AlignStartVertical, Star } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getTimeRanges } from '../constants';
 import { MultiSelect } from './MultiSelect';
 import { TimeFilterPicker } from './TimeFilterPicker';
 import { SubscribeButton } from './SubscribeButton';
+import { BoardSwitcher } from './BoardSwitcher';
 import { RefreshButton } from './RefreshButton';
 import type { MultiSelectOption } from './MultiSelect';
-import type { ViewMode, ProviderOption, ChannelOption, Board } from '../types';
+import type { ViewMode, ProviderOption, ChannelOption, BoardFilter } from '../types';
 
 interface ControlsProps {
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
@@ -20,7 +21,7 @@ interface ControlsProps {
   timeRange: string;
   timeAlign: string;         // 时间对齐模式：空=动态窗口, "hour"=整点对齐
   timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
-  board: Board;              // 当前板块：hot/cold
+  board: BoardFilter;        // 当前板块：hot/secondary/cold/all
   boardsEnabled: boolean;    // 板块功能是否启用
   viewMode: ViewMode;
   loading: boolean;
@@ -42,7 +43,7 @@ interface ControlsProps {
   onTimeRangeChange: (range: string) => void;
   onTimeAlignChange: (align: string) => void;       // 切换时间对齐模式
   onTimeFilterChange: (filter: string | null) => void; // 切换每日时段过滤
-  onBoardChange: (board: Board) => void;            // 切换板块
+  onBoardChange: (board: BoardFilter) => void;      // 切换板块
   onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
   onToggleAutoRefresh?: () => void; // 切换自动刷新开关
@@ -235,21 +236,8 @@ export function Controls({
 
           <div className="w-px h-5 bg-muted mx-1"></div>
 
-          {/* 板块切换（单按钮模式，点击切换热板/冷板） */}
-          {boardsEnabled && (
-            <>
-              <button
-                type="button"
-                onClick={() => onBoardChange(board === 'hot' ? 'cold' : 'hot')}
-                className="p-2 h-8 rounded-lg border border-default/50 shadow-sm transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none text-secondary hover:text-primary hover:bg-muted/50"
-                title={board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
-                aria-label={board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
-              >
-                {board === 'hot' ? <Flame size={16} aria-hidden="true" /> : <Snowflake size={16} aria-hidden="true" />}
-              </button>
-              <div className="w-px h-5 bg-muted mx-1"></div>
-            </>
-          )}
+          {/* 板块切换（自定义组件） */}
+          <BoardSwitcher board={board} onBoardChange={onBoardChange} enabled={boardsEnabled} />
 
           {/* 视图切换（仅桌面端显示） */}
           {!isMobile && (
@@ -412,19 +400,33 @@ export function Controls({
                 </span>
               </button>
 
-              {/* 板块切换（移动端） */}
+              {/* 板块切换（移动端自定义组件） */}
               {boardsEnabled && (
-                <button
-                  type="button"
-                  onClick={() => onBoardChange(board === 'hot' ? 'cold' : 'hot')}
-                  className="flex items-center justify-center gap-2 w-full py-3 rounded-lg transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none bg-elevated text-secondary hover:text-primary hover:bg-muted/50 border border-default/50"
-                  title={board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
-                >
-                  {board === 'hot' ? <Flame size={16} aria-hidden="true" /> : <Snowflake size={16} aria-hidden="true" />}
-                  <span className="font-medium">
-                    {board === 'hot' ? t('controls.boards.switchToCold') : t('controls.boards.switchToHot')}
-                  </span>
-                </button>
+                <div className="w-full">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-default/20">
+                    <span className="text-sm text-secondary">{t('controls.boards.selectBoard')}</span>
+                  </div>
+                  <div className="flex gap-2 p-4">
+                    {(['hot', 'secondary', 'cold', 'all'] as BoardFilter[]).map((b) => (
+                      <button
+                        key={b}
+                        onClick={() => {
+                          onBoardChange(b);
+                          onFilterDrawerClose?.();
+                        }}
+                        className={`
+                          flex-1 h-12 flex items-center justify-center rounded-lg
+                          transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none
+                          ${board === b ? 'bg-accent/20 text-accent border border-accent' : 'bg-elevated/50 text-primary border border-default/50 hover:bg-muted/50'}
+                        `}
+                        aria-label={t(`controls.boards.${b}`)}
+                        title={t(`controls.boards.${b}`)}
+                      >
+                        <BoardSwitcher.Icon board={b} size={18} />
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {/* 订阅通知按钮（移动端） */}

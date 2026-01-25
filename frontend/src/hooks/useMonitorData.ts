@@ -11,7 +11,7 @@ import type {
   ChannelOption,
   SponsorLevel,
   SponsorPinConfig,
-  Board,
+  BoardFilter,
   MonitorResult,
 } from '../types';
 import { STATUS_MAP } from '../types';
@@ -457,7 +457,7 @@ interface UseMonitorDataOptions {
   timeRange: string;
   timeAlign?: string;        // 时间对齐模式：空=动态滑动窗口, "hour"=整点对齐
   timeFilter?: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
-  board?: Board;             // 板块过滤：hot/cold（默认 hot）
+  board?: BoardFilter;       // 板块过滤：hot/secondary/cold/all（默认 hot）
   filterService: string[];   // 多选服务，空数组表示"全部"
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
   filterChannel: string[];   // 多选通道，空数组表示"全部"

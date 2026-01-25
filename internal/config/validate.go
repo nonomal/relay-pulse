@@ -308,10 +308,10 @@ func (c *AppConfig) validateMonitorFields() error {
 		// Board 枚举检查（可选字段，空值视为 hot）
 		normalizedBoard := strings.ToLower(strings.TrimSpace(m.Board))
 		switch normalizedBoard {
-		case "", "hot", "cold":
+		case "", "hot", "secondary", "cold":
 			// 有效值
 		default:
-			return fmt.Errorf("monitor[%d]: board '%s' 无效，必须是 hot/cold（或留空）", i, m.Board)
+			return fmt.Errorf("monitor[%d]: board '%s' 无效，必须是 hot/secondary/cold（或留空）", i, m.Board)
 		}
 		// 注意：cold_reason 的有效性检查在 Normalize() 中进行（非致命，仅警告并清空）
 

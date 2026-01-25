@@ -103,9 +103,12 @@
       "noFavorites": "暂无收藏项"
     },
     "boards": {
-      "hot": "热板",
+      "hot": "主板",
+      "secondary": "副板",
       "cold": "冷板",
-      "switchToHot": "切换到热板",
+      "all": "全部",
+      "selectBoard": "选择板块",
+      "switchToHot": "切换到主板",
       "switchToCold": "切换到冷板",
       "coldNotice": "冷板监测项已暂停探测"
     },

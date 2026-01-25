@@ -76,3 +76,4 @@ server
 # 归档输出文件（运行时生成，不应提交）
 archive/probe_history_*.csv
 archive/probe_history_*.csv.gz
+genconfig

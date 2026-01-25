@@ -103,8 +103,11 @@
       "noFavorites": "お気に入りなし"
     },
     "boards": {
-      "hot": "ホット",
+      "hot": "メイン",
+      "secondary": "サブ",
       "cold": "コールド",
+      "all": "すべて",
+      "selectBoard": "ボードを選択",
       "switchToHot": "ホットボードに切り替え",
       "switchToCold": "コールドボードに切り替え",
       "coldNotice": "コールドボードの監視項目は一時停止中です"

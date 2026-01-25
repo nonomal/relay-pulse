@@ -41,8 +41,19 @@ export interface CurrentStatus {
 // 赞助商等级类型
 export type SponsorLevel = 'basic' | 'advanced' | 'enterprise';
 
-// 板块类型
-export type Board = 'hot' | 'cold';
+// 板块实际值（来自 API 响应的监测项/监测组字段）
+// 注意：'all' 仅用于过滤参数，不应出现在实际数据中
+export type BoardValue = 'hot' | 'secondary' | 'cold';
+
+// 板块过滤参数（URL/UI/API 查询）
+export type BoardFilter = BoardValue | 'all';
+
+/**
+ * @deprecated 为保持向后兼容保留。新代码请使用：
+ * - BoardValue：实际板块值（API 响应/数据模型）
+ * - BoardFilter：过滤参数（URL/UI/API 查询）
+ */
+export type Board = BoardFilter;
 
 // 板块配置（来自 API meta）
 export interface BoardsConfig {
@@ -96,7 +107,7 @@ export interface MonitorResult {
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
   channel_name?: string;               // Channel 显示名称（可选）
-  board: Board;                        // 板块：hot/cold
+  board: BoardValue;                   // 板块：hot/secondary/cold
   cold_reason?: string;                // 冷板原因（仅 cold 有值）
   probe_url?: string;                  // 探测端点 URL（脱敏后）
   template_name?: string;              // 请求体模板名称（如有）
@@ -159,7 +170,7 @@ export interface ProcessedMonitorData {
   listedDays?: number | null;          // 收录天数
   channel?: string;                    // 业务通道标识
   channelName?: string;                // Channel 显示名称
-  board: Board;                        // 板块：hot/cold
+  board: BoardValue;                   // 板块：hot/secondary/cold
   coldReason?: string;                 // 冷板原因（仅 cold 有值）
   probeUrl?: string;                   // 探测端点 URL（脱敏后）
   templateName?: string;               // 请求体模板名称（如有）
@@ -297,7 +308,7 @@ export interface MonitorGroup {
   listed_days?: number;
   channel: string;
   channel_name?: string;
-  board: Board;
+  board: BoardValue;
   cold_reason?: string;
   probe_url?: string;
   template_name?: string;

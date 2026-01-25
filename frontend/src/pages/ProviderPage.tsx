@@ -14,7 +14,7 @@ import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
 import { EmptyFavorites } from '../components/EmptyFavorites';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
-import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData, ChannelOption, Board } from '../types';
+import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData, ChannelOption, BoardFilter } from '../types';
 
 // localStorage key for time align preference (shared with App.tsx)
 const STORAGE_KEY_TIME_ALIGN = 'relay-pulse-time-align';
@@ -53,11 +53,11 @@ export default function ProviderPage() {
   // 规范化 provider slug
   const normalizedProvider = canonicalize(provider);
 
-  // 板块状态（从 URL 读取，支持冷板查看）
+  // 板块状态（从 URL 读取，支持 hot/secondary/cold/all）
   const rawBoard = searchParams.get('board');
-  const board: Board = (rawBoard === 'hot' || rawBoard === 'cold') ? rawBoard : 'hot';
+  const board: BoardFilter = (rawBoard === 'hot' || rawBoard === 'secondary' || rawBoard === 'cold' || rawBoard === 'all') ? rawBoard : 'hot';
 
-  const setBoard = useCallback((value: Board) => {
+  const setBoard = useCallback((value: BoardFilter) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (value === 'hot') {
