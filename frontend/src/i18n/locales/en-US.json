@@ -148,9 +148,15 @@
       "priceRatio": "Price Ratio",
       "priceRatioUnit": "¥/$",
       "listedDays": "Listed Days",
+      "listedDaysLine1": "Listed",
+      "listedDaysLine2": "Days",
       "status": "Current status",
+      "statusLine1": "Current",
+      "statusLine2": "status",
       "uptime": "Uptime",
       "lastCheck": "Last check",
+      "lastCheckLine1": "Last",
+      "lastCheckLine2": "check",
       "trend": "Quality trend"
     },
     "sorting": {

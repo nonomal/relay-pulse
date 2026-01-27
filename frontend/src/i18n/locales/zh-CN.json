@@ -148,9 +148,15 @@
       "priceRatio": "参考倍率",
       "priceRatioUnit": "¥/$",
       "listedDays": "收录天数",
+      "listedDaysLine1": "收录",
+      "listedDaysLine2": "天数",
       "status": "当前状态",
+      "statusLine1": "当前",
+      "statusLine2": "状态",
       "uptime": "可用率",
       "lastCheck": "最后监测",
+      "lastCheckLine1": "最后",
+      "lastCheckLine2": "监测",
       "trend": "质量趋势"
     },
     "sorting": {

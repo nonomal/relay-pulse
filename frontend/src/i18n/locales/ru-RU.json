@@ -148,9 +148,15 @@
       "priceRatio": "Цен. коэф.",
       "priceRatioUnit": "¥/$",
       "listedDays": "Дней в списке",
+      "listedDaysLine1": "Дней",
+      "listedDaysLine2": "",
       "status": "Статус",
+      "statusLine1": "Статус",
+      "statusLine2": "",
       "uptime": "Доступн.",
       "lastCheck": "Проверка",
+      "lastCheckLine1": "Проверка",
+      "lastCheckLine2": "",
       "trend": "Тренд качества"
     },
     "sorting": {

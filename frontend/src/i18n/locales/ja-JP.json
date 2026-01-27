@@ -148,9 +148,15 @@
       "priceRatio": "参考倍率",
       "priceRatioUnit": "¥/$",
       "listedDays": "掲載日数",
+      "listedDaysLine1": "掲載",
+      "listedDaysLine2": "日数",
       "status": "現在の状態",
+      "statusLine1": "現在の",
+      "statusLine2": "状態",
       "uptime": "稼働率",
       "lastCheck": "最終チェック",
+      "lastCheckLine1": "最終",
+      "lastCheckLine2": "チェック",
       "trend": "品質トレンド"
     },
     "sorting": {

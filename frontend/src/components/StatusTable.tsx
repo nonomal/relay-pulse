@@ -504,25 +504,33 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('listedDays')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('listedDays'))}
               tabIndex={0}
               role="button"
             >
               <div className="flex items-center">
-                {t('table.headers.listedDays')} <SortIcon columnKey="listedDays" />
+                <div className="flex flex-col leading-tight max-w-[4.5rem]">
+                  <span>{t('table.headers.listedDaysLine1')}</span>
+                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.listedDaysLine2')}</span>
+                </div>
+                <SortIcon columnKey="listedDays" />
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('currentStatus')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('currentStatus'))}
               tabIndex={0}
               role="button"
             >
               <div className="flex items-center">
-                {t('table.headers.status')} <SortIcon columnKey="currentStatus" />
+                <div className="flex flex-col leading-tight max-w-[4rem]">
+                  <span>{t('table.headers.statusLine1')}</span>
+                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.statusLine2')}</span>
+                </div>
+                <SortIcon columnKey="currentStatus" />
               </div>
             </th>
             <th
@@ -537,14 +545,18 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('latency')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('latency'))}
               tabIndex={0}
               role="button"
             >
               <div className="flex items-center">
-                {t('table.headers.lastCheck')} <SortIcon columnKey="latency" />
+                <div className="flex flex-col leading-tight max-w-[4rem]">
+                  <span>{t('table.headers.lastCheckLine1')}</span>
+                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.lastCheckLine2')}</span>
+                </div>
+                <SortIcon columnKey="latency" />
               </div>
             </th>
             <th className="pl-2 pr-4 py-3 font-medium w-[360px] min-w-[320px]">
