@@ -78,6 +78,7 @@ func createTransport(proxyURL string) (http.RoundTripper, error) {
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
+		DisableCompression:  false,
 		DisableKeepAlives:   false,
 	}
 

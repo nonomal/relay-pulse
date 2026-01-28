@@ -3,6 +3,8 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
+	"compress/zlib"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -11,6 +13,9 @@ import (
 	"os"
 	"strings"
 	"time"
+
+	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 
 	"monitor/internal/config"
 )
@@ -146,7 +151,7 @@ func main() {
 		Timeout: 120 * time.Second, // 流式响应可能较长
 		Transport: &http.Transport{
 			Proxy:              http.ProxyFromEnvironment,
-			DisableCompression: true, // 禁用自动解压缩
+			DisableCompression: false, // 允许自动解压缩
 		},
 	}
 	resp, err := client.Do(req)
@@ -161,14 +166,34 @@ func main() {
 	fmt.Println()
 	fmt.Printf("📥 响应 (HTTP %d, %dms):\n", resp.StatusCode, latency.Milliseconds())
 
+	// 打印响应 headers
+	if *verbose {
+		fmt.Println("📥 响应 Headers:")
+		for k, v := range resp.Header {
+			fmt.Printf("    %s: %s\n", k, v)
+		}
+		fmt.Println()
+	}
+
+	// 使用带缓冲的 reader，便于魔术头识别与后续 Peek
+	rawReader := bufio.NewReader(resp.Body)
+
+	decodedBody, decodeClose, decodeErr := decodeResponseBody(resp, rawReader)
+	if decodeErr != nil && *verbose {
+		fmt.Printf("⚠️  响应解压失败，使用原始响应体: %v\n", decodeErr)
+	}
+	if decodeClose != nil {
+		defer decodeClose()
+	}
+
+	// 使用 bufio.Reader 包装，支持 Peek 检测
+	bufferedBody := bufio.NewReader(decodedBody)
+
 	// 检测是否为 SSE 流式响应
 	// 1. 优先根据 Content-Type 判断
 	// 2. 某些服务端可能未正确设置 Content-Type，使用启发式检测作为 fallback
 	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
 	isSSE := strings.Contains(contentType, "text/event-stream")
-
-	// 使用 bufio.Reader 包装，支持 Peek 检测
-	bufferedBody := bufio.NewReader(resp.Body)
 
 	// 启发式检测：如果 Content-Type 不是 SSE，尝试 peek 开头内容
 	if !isSSE {
@@ -214,6 +239,7 @@ func main() {
 			fmt.Printf("❌ 读取响应失败: %v\n", readErr)
 			os.Exit(1)
 		}
+		respBody = brotliFallbackIfNeeded(resp, respBody, *verbose)
 		respStr = string(respBody)
 		if len(respStr) > 500 && !*verbose {
 			fmt.Println(respStr[:500] + "...")
@@ -489,4 +515,103 @@ func assembleMessage(base map[string]any, contents []map[string]any, delta map[s
 	}
 
 	return "{}"
+}
+
+// decodeResponseBody 根据 Content-Encoding 或魔术头解压响应体，返回解压后的 reader 和可选的关闭函数。
+func decodeResponseBody(resp *http.Response, reader *bufio.Reader) (io.Reader, func(), error) {
+	encoding := strings.ToLower(resp.Header.Get("Content-Encoding"))
+
+	switch {
+	case strings.Contains(encoding, "br"):
+		return brotli.NewReader(reader), nil, nil
+	case strings.Contains(encoding, "zstd"):
+		decoder, err := zstd.NewReader(reader)
+		if err != nil {
+			return reader, nil, err
+		}
+		return decoder, func() { decoder.Close() }, nil
+	case strings.Contains(encoding, "gzip"):
+		gr, err := gzip.NewReader(reader)
+		if err != nil {
+			return reader, nil, err
+		}
+		return gr, func() { _ = gr.Close() }, nil
+	case strings.Contains(encoding, "deflate"):
+		zr, err := zlib.NewReader(reader)
+		if err != nil {
+			return reader, nil, err
+		}
+		return zr, func() { _ = zr.Close() }, nil
+	default:
+		// 兜底：Content-Encoding 为空时，根据魔术头判断 gzip/zstd
+		if peeked, err := reader.Peek(4); err == nil && len(peeked) > 0 {
+			if len(peeked) >= 2 && peeked[0] == 0x1f && peeked[1] == 0x8b {
+				gr, err := gzip.NewReader(reader)
+				if err != nil {
+					return reader, nil, err
+				}
+				return gr, func() { _ = gr.Close() }, nil
+			}
+			if len(peeked) >= 4 && peeked[0] == 0x28 && peeked[1] == 0xB5 && peeked[2] == 0x2F && peeked[3] == 0xFD {
+				decoder, err := zstd.NewReader(reader)
+				if err != nil {
+					return reader, nil, err
+				}
+				return decoder, func() { decoder.Close() }, nil
+			}
+		}
+		return reader, nil, nil
+	}
+}
+
+func brotliFallbackIfNeeded(resp *http.Response, data []byte, verbose bool) []byte {
+	if len(data) == 0 {
+		return data
+	}
+	if strings.TrimSpace(resp.Header.Get("Content-Encoding")) != "" {
+		return data
+	}
+	if !looksBinary(data) {
+		return data
+	}
+
+	decoded, err := tryDecompressBrotli(data)
+	if err != nil {
+		if verbose {
+			fmt.Printf("ℹ️  Brotli 兜底解压失败，保留原始响应体: %v\n", err)
+		}
+		return data
+	}
+	if verbose {
+		fmt.Println("ℹ️  已应用 Brotli 兜底解压")
+	}
+	return decoded
+}
+
+func tryDecompressBrotli(data []byte) ([]byte, error) {
+	reader := brotli.NewReader(bytes.NewReader(data))
+	return io.ReadAll(reader)
+}
+
+func looksBinary(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+
+	sample := data
+	if len(sample) > 2048 {
+		sample = sample[:2048]
+	}
+
+	var nonPrintable int
+	for _, b := range sample {
+		if b == 0x00 {
+			return true
+		}
+		if b < 0x09 || (b > 0x0D && b < 0x20) {
+			nonPrintable++
+		}
+	}
+
+	return float64(nonPrintable)/float64(len(sample)) > 0.2
 }
