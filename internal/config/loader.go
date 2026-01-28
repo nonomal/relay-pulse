@@ -33,6 +33,26 @@ func (l *Loader) SetDBProvider(provider *DBConfigProvider) {
 	l.dbProvider = provider
 }
 
+// LoadBootstrap 仅加载启动引导配置（storage、config_source 等）
+// 不验证完整配置，用于初始化存储和判断配置模式
+// 注意：会应用环境变量覆盖以支持 MONITOR_STORAGE_* 等配置
+func (l *Loader) LoadBootstrap(filename string) (*AppConfig, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	var cfg AppConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	// 应用环境变量覆盖（支持 MONITOR_STORAGE_TYPE、MONITOR_POSTGRES_* 等）
+	cfg.ApplyEnvOverrides()
+
+	return &cfg, nil
+}
+
 // Load 加载并验证配置文件
 // 根据 config_source 字段决定加载方式：
 // - yaml（默认）: 完全从 YAML 文件加载

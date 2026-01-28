@@ -18,13 +18,13 @@ import (
 )
 
 // AdminHandler 管理 API 处理器
-// 使用 *SQLiteStorage 而非 Storage 接口，因为配置管理方法只在 SQLiteStorage 上定义
+// 使用 AdminStorage 接口，支持 SQLite 和 PostgreSQL
 type AdminHandler struct {
-	storage *storage.SQLiteStorage
+	storage storage.AdminStorage
 }
 
 // NewAdminHandler 创建管理 API 处理器
-func NewAdminHandler(store *storage.SQLiteStorage) *AdminHandler {
+func NewAdminHandler(store storage.AdminStorage) *AdminHandler {
 	return &AdminHandler{
 		storage: store,
 	}

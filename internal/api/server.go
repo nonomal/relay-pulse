@@ -250,8 +250,8 @@ func (s *Server) RegisterAnnouncementsHandler(handler gin.HandlerFunc) {
 }
 
 // RegisterAdminHandler 注册管理 API 处理器
-// 在 main.go 中初始化后调用，需要 *storage.SQLiteStorage 类型
-func (s *Server) RegisterAdminHandler(store *storage.SQLiteStorage) {
+// 在 main.go 中初始化后调用，接受 AdminStorage 接口
+func (s *Server) RegisterAdminHandler(store storage.AdminStorage) {
 	adminHandler := NewAdminHandler(store)
 
 	// 创建管理 API 路由组，带认证中间件

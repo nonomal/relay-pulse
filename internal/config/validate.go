@@ -33,45 +33,56 @@ func newValidateContext() *validateContext {
 // Validate 验证配置合法性
 // 注意：此方法有副作用，会预处理子通道的 provider/service/channel 继承
 func (c *AppConfig) Validate() error {
-	if len(c.Monitors) == 0 {
-		return fmt.Errorf("至少需要配置一个监测项")
+	// 数据库模式允许空监测项列表（可通过管理 API 添加）
+	hasMonitors := len(c.Monitors) > 0
+	configSource := strings.ToLower(strings.TrimSpace(c.ConfigSource))
+
+	if !hasMonitors {
+		if configSource != ConfigSourceDatabase {
+			return fmt.Errorf("至少需要配置一个监测项")
+		}
+		// 数据库模式：空监测项列表，跳过监测项相关校验
+		logger.Warn("config", "数据库模式但未配置任何监测项，可通过管理 API 添加")
 	}
 
-	// 0. 预处理：子项的 provider/service/channel 从 parent 路径继承
-	if err := c.preprocessParentInheritance(); err != nil {
-		return err
+	// 以下校验仅在有监测项时执行
+	if hasMonitors {
+		// 0. 预处理：子项的 provider/service/channel 从 parent 路径继承
+		if err := c.preprocessParentInheritance(); err != nil {
+			return err
+		}
+
+		// 1. 四元组唯一性检查
+		ctx := newValidateContext()
+		if err := c.validateMonitorUniqueness(ctx); err != nil {
+			return err
+		}
+
+		// 2-4. 父子约束校验：收集引用、构建索引、验证存在性
+		if err := c.buildAndValidateParentGraph(ctx); err != nil {
+			return err
+		}
+
+		// 5. 循环引用检测
+		if err := c.validateNoCycles(ctx); err != nil {
+			return err
+		}
+
+		// 5.5 多父层警告
+		c.warnMultipleParentLayers()
+
+		// 6. 监测项字段校验
+		if err := c.validateMonitorFields(); err != nil {
+			return err
+		}
 	}
 
-	// 1. 四元组唯一性检查
-	ctx := newValidateContext()
-	if err := c.validateMonitorUniqueness(ctx); err != nil {
-		return err
-	}
-
-	// 2-4. 父子约束校验：收集引用、构建索引、验证存在性
-	if err := c.buildAndValidateParentGraph(ctx); err != nil {
-		return err
-	}
-
-	// 5. 循环引用检测
-	if err := c.validateNoCycles(ctx); err != nil {
-		return err
-	}
-
-	// 5.5 多父层警告
-	c.warnMultipleParentLayers()
-
-	// 6. 监测项字段校验
-	if err := c.validateMonitorFields(); err != nil {
-		return err
-	}
-
-	// 7. Provider 配置校验
+	// 7. Provider 配置校验（始终执行，即使 monitors 为空）
 	if err := c.validateProviderConfigs(); err != nil {
 		return err
 	}
 
-	// 8. Badge 配置校验
+	// 8. Badge 配置校验（始终执行，即使 monitors 为空）
 	if err := c.validateBadgeConfigs(); err != nil {
 		return err
 	}

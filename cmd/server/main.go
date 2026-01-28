@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -66,24 +67,15 @@ func main() {
 	// 创建配置加载器
 	loader := config.NewLoader()
 
-	// 初始加载配置
-	cfg, err := loader.Load(configFile)
+	// 第一阶段：加载启动引导配置（获取 storage 和 config_source）
+	bootstrapCfg, err := loader.LoadBootstrap(configFile)
 	if err != nil {
-		logger.Error("main", "无法加载配置文件", "error", err)
+		logger.Error("main", "无法加载启动配置", "error", err)
 		os.Exit(1)
 	}
 
-	logger.Info("main", "配置加载完成",
-		"monitors", len(cfg.Monitors),
-		"interval", cfg.Interval,
-		"max_concurrency", cfg.MaxConcurrency,
-		"stagger_probes", cfg.StaggerProbes,
-		"slow_latency", cfg.SlowLatency,
-		"degraded_weight", cfg.DegradedWeight,
-	)
-
 	// 初始化存储（支持 SQLite 和 PostgreSQL）
-	store, err := storage.New(&cfg.Storage)
+	store, err := storage.New(&bootstrapCfg.Storage)
 	if err != nil {
 		logger.Error("main", "初始化存储失败", "error", err)
 		os.Exit(1)
@@ -94,6 +86,45 @@ func main() {
 		logger.Error("main", "初始化数据库失败", "error", err)
 		os.Exit(1)
 	}
+
+	// 如果是数据库模式，设置 DBConfigProvider
+	configSource := strings.ToLower(strings.TrimSpace(bootstrapCfg.ConfigSource))
+	if configSource == "" {
+		configSource = "yaml"
+	}
+	if configSource == config.ConfigSourceDatabase {
+		// 根据存储类型创建适配器
+		var adminStorage config.AdminConfigStorage
+		switch s := store.(type) {
+		case *storage.SQLiteStorage:
+			adminStorage = storage.NewAdminConfigAdapter(s)
+		case *storage.PostgresStorage:
+			adminStorage = storage.NewPostgresAdminConfigAdapter(s)
+		default:
+			logger.Error("main", "存储类型不支持配置管理模式", "type", bootstrapCfg.Storage.Type)
+			os.Exit(1)
+		}
+		dbProvider := config.NewDBConfigProvider(adminStorage)
+		loader.SetDBProvider(dbProvider)
+		logger.Info("main", "已启用数据库配置模式")
+	}
+
+	// 第二阶段：加载完整配置
+	cfg, err := loader.Load(configFile)
+	if err != nil {
+		logger.Error("main", "无法加载配置文件", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("main", "配置加载完成",
+		"config_source", configSource,
+		"monitors", len(cfg.Monitors),
+		"interval", cfg.Interval,
+		"max_concurrency", cfg.MaxConcurrency,
+		"stagger_probes", cfg.StaggerProbes,
+		"slow_latency", cfg.SlowLatency,
+		"degraded_weight", cfg.DegradedWeight,
+	)
 
 	// 自动迁移旧数据的 channel
 	if err := store.MigrateChannelData(buildChannelMigrationMappings(cfg.Monitors)); err != nil {
@@ -178,6 +209,21 @@ func main() {
 
 	// 创建API服务器
 	server := api.NewServer(store, cfg, "8080")
+
+	// 注册管理 API（如果已启用数据库配置模式，adminStorage 在前面已创建）
+	if configSource == config.ConfigSourceDatabase {
+		// 根据存储类型获取 AdminStorage
+		var adminStore storage.AdminStorage
+		switch s := store.(type) {
+		case *storage.SQLiteStorage:
+			adminStore = s
+		case *storage.PostgresStorage:
+			adminStore = s
+		}
+		if adminStore != nil {
+			server.RegisterAdminHandler(adminStore)
+		}
+	}
 
 	// 初始化自助测试管理器（如果启用）
 	var selfTestMgr *selftest.TestJobManager

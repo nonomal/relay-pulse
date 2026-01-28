@@ -176,6 +176,11 @@ func (s *PostgresStorage) Init() error {
 		return err
 	}
 
+	// 配置管理相关表（admin 后台）
+	if err := s.initAdminConfigTables(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
