@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
 // AdminConfigStorage 配置管理存储接口
@@ -204,8 +205,8 @@ type MonitorConfigPayload struct {
 	Hidden         bool   `json:"hidden,omitempty"`
 	HiddenReason   string `json:"hidden_reason,omitempty"`
 
-	// 导入时保留的环境变量名（元数据）
-	ImportedEnvVar string `json:"_imported_env_var,omitempty"`
+	// 自定义环境变量名（用于环境变量覆盖）
+	EnvVarName string `json:"env_var_name,omitempty"`
 }
 
 // GlobalSettingsPayload 全局设置 JSON 结构
@@ -328,6 +329,7 @@ func (p *DBConfigProvider) convertMonitorConfig(_ context.Context, mc *MonitorCo
 		DisabledReason:  payload.DisabledReason,
 		Hidden:          payload.Hidden,
 		HiddenReason:    payload.HiddenReason,
+		EnvVarName:      payload.EnvVarName,
 	}
 
 	// 如果有显示名称配置，优先使用
@@ -375,26 +377,65 @@ func (p *DBConfigProvider) loadAPIKey(monitorID int64) (string, error) {
 
 // LoadGlobalSettings 从数据库加载全局设置
 func (p *DBConfigProvider) LoadGlobalSettings(ctx context.Context) (*GlobalSettingsPayload, error) {
+	// 初始化默认值
+	payload := &GlobalSettingsPayload{
+		Interval:       "1m",
+		SlowLatency:    "5s",
+		Timeout:        "10s",
+		DegradedWeight: 0.7,
+	}
+
+	// 尝试读取旧格式（单个 "global" JSON 对象）
 	setting, err := p.storage.GetGlobalSetting("global")
 	if err != nil {
 		return nil, fmt.Errorf("加载全局设置失败: %w", err)
 	}
-	if setting == nil {
-		// 返回默认值
-		return &GlobalSettingsPayload{
-			Interval:       "1m",
-			SlowLatency:    "5s",
-			Timeout:        "10s",
-			DegradedWeight: 0.7,
-		}, nil
+	if setting != nil {
+		if err := json.Unmarshal([]byte(setting.Value), payload); err != nil {
+			return nil, fmt.Errorf("解析全局设置失败: %w", err)
+		}
+		return payload, nil
 	}
 
-	var payload GlobalSettingsPayload
-	if err := json.Unmarshal([]byte(setting.Value), &payload); err != nil {
-		return nil, fmt.Errorf("解析全局设置失败: %w", err)
+	// 新格式：分别读取每个设置
+	if s, _ := p.storage.GetGlobalSetting("interval"); s != nil && s.Value != "" {
+		payload.Interval = s.Value
+	}
+	if s, _ := p.storage.GetGlobalSetting("slow_latency"); s != nil && s.Value != "" {
+		payload.SlowLatency = s.Value
+	}
+	if s, _ := p.storage.GetGlobalSetting("timeout"); s != nil && s.Value != "" {
+		payload.Timeout = s.Value
+	}
+	if s, _ := p.storage.GetGlobalSetting("degraded_weight"); s != nil && s.Value != "" {
+		if v, err := strconv.ParseFloat(s.Value, 64); err == nil {
+			payload.DegradedWeight = v
+		}
+	}
+	if s, _ := p.storage.GetGlobalSetting("enable_badges"); s != nil && s.Value == "true" {
+		payload.EnableBadges = true
 	}
 
-	return &payload, nil
+	// SponsorPin 配置
+	if s, _ := p.storage.GetGlobalSetting("sponsor_pin_enabled"); s != nil && s.Value == "true" {
+		enabled := true
+		payload.SponsorPin.Enabled = &enabled
+	}
+	if s, _ := p.storage.GetGlobalSetting("sponsor_pin_max_pinned"); s != nil && s.Value != "" {
+		if v, err := strconv.Atoi(s.Value); err == nil {
+			payload.SponsorPin.MaxPinned = v
+		}
+	}
+	if s, _ := p.storage.GetGlobalSetting("sponsor_pin_min_uptime"); s != nil && s.Value != "" {
+		if v, err := strconv.ParseFloat(s.Value, 64); err == nil {
+			payload.SponsorPin.MinUptime = v
+		}
+	}
+	if s, _ := p.storage.GetGlobalSetting("sponsor_pin_min_level"); s != nil && s.Value != "" {
+		payload.SponsorPin.MinLevel = SponsorLevel(s.Value)
+	}
+
+	return payload, nil
 }
 
 // LoadProviderPolicies 从数据库加载 Provider 策略

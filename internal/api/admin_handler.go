@@ -886,6 +886,11 @@ func (h *AdminHandler) ListProviderPolicies(c *gin.Context) {
 		return
 	}
 
+	// 确保返回空数组而不是 null
+	if policies == nil {
+		policies = []*storage.ProviderPolicy{}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"data": policies})
 }
 
@@ -1101,6 +1106,11 @@ func (h *AdminHandler) ListBadgeBindings(c *gin.Context) {
 		logger.FromContext(c.Request.Context(), "api").Error("列出徽标绑定失败", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "查询失败"})
 		return
+	}
+
+	// 确保返回空数组而不是 null
+	if bindings == nil {
+		bindings = []*storage.BadgeBinding{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{"data": bindings})
@@ -1506,6 +1516,71 @@ func (h *AdminHandler) ImportConfig(c *gin.Context) {
 		return
 	}
 
+	// 解析 body 中的 !include 指令（使用当前工作目录）
+	if err := cfg.ResolveBodyIncludes("."); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("解析 body include 失败: %v", err)})
+		return
+	}
+
+	// 导入全局配置
+	globalSettingsImported := 0
+	if cfg.Interval != "" {
+		if err := h.storage.SetGlobalSetting("interval", cfg.Interval); err == nil {
+			globalSettingsImported++
+		}
+	}
+	if cfg.SlowLatency != "" {
+		if err := h.storage.SetGlobalSetting("slow_latency", cfg.SlowLatency); err == nil {
+			globalSettingsImported++
+		}
+	}
+	if cfg.Timeout != "" {
+		if err := h.storage.SetGlobalSetting("timeout", cfg.Timeout); err == nil {
+			globalSettingsImported++
+		}
+	}
+	if cfg.DegradedWeight > 0 {
+		if err := h.storage.SetGlobalSetting("degraded_weight", fmt.Sprintf("%.2f", cfg.DegradedWeight)); err == nil {
+			globalSettingsImported++
+		}
+	}
+	// 板块配置
+	if cfg.Boards.Enabled {
+		if err := h.storage.SetGlobalSetting("boards_enabled", "true"); err == nil {
+			globalSettingsImported++
+		}
+	}
+	// 赞助商置顶配置
+	if cfg.SponsorPin.Enabled != nil && *cfg.SponsorPin.Enabled {
+		if err := h.storage.SetGlobalSetting("sponsor_pin_enabled", "true"); err == nil {
+			globalSettingsImported++
+		}
+		if cfg.SponsorPin.MaxPinned > 0 {
+			if err := h.storage.SetGlobalSetting("sponsor_pin_max_pinned", fmt.Sprintf("%d", cfg.SponsorPin.MaxPinned)); err == nil {
+				globalSettingsImported++
+			}
+		}
+		if cfg.SponsorPin.MinUptime > 0 {
+			if err := h.storage.SetGlobalSetting("sponsor_pin_min_uptime", fmt.Sprintf("%.1f", cfg.SponsorPin.MinUptime)); err == nil {
+				globalSettingsImported++
+			}
+		}
+		if cfg.SponsorPin.MinLevel != "" {
+			if err := h.storage.SetGlobalSetting("sponsor_pin_min_level", string(cfg.SponsorPin.MinLevel)); err == nil {
+				globalSettingsImported++
+			}
+		}
+	}
+	// 徽标功能
+	if cfg.EnableBadges {
+		if err := h.storage.SetGlobalSetting("enable_badges", "true"); err == nil {
+			globalSettingsImported++
+		}
+	}
+	if globalSettingsImported > 0 {
+		logger.FromContext(c.Request.Context(), "api").Info("导入全局配置完成", "count", globalSettingsImported)
+	}
+
 	// 导入徽标定义（在导入监测项之前）
 	var badgesCreated, badgesSkipped int
 	var badgeErrors []string
@@ -1751,9 +1826,9 @@ func buildMonitorConfigFromServiceConfig(monitor config.ServiceConfig) (*storage
 		payload["badges"] = monitor.Badges
 	}
 
-	// 记录原始 env_var_name 便于追溯
+	// 保存 env_var_name（用于环境变量覆盖）
 	if monitor.EnvVarName != "" {
-		payload["_imported_env_var"] = monitor.EnvVarName
+		payload["env_var_name"] = monitor.EnvVarName
 	}
 
 	configBlob, err := json.Marshal(payload)
@@ -1894,6 +1969,9 @@ func buildServiceConfigFromMonitorConfig(cfg *storage.MonitorConfig) (*config.Se
 		}
 		if v, ok := payload["retry_jitter"].(float64); ok {
 			monitor.RetryJitter = &v
+		}
+		if v, ok := payload["env_var_name"].(string); ok {
+			monitor.EnvVarName = v
 		}
 	}
 
