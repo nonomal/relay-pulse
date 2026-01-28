@@ -100,7 +100,7 @@ func (s *SQLiteStorage) initAdminConfigTables(ctx context.Context) error {
 		// badge_definitions 徽标定义表
 		`CREATE TABLE IF NOT EXISTS badge_definitions (
 			id TEXT PRIMARY KEY,
-			kind TEXT NOT NULL CHECK (kind IN ('sponsor','risk','feature','info')),
+			kind TEXT NOT NULL CHECK (kind IN ('source','sponsor','risk','feature','info')),
 			weight INTEGER NOT NULL DEFAULT 0,
 			label_i18n TEXT NOT NULL,
 			tooltip_i18n TEXT,

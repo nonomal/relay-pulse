@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"monitor/internal/logger"
 )
 
 // ===== 配置管理表初始化 (PostgreSQL) =====
@@ -95,7 +97,7 @@ func (s *PostgresStorage) initAdminConfigTables(ctx context.Context) error {
 		// badge_definitions 徽标定义表
 		`CREATE TABLE IF NOT EXISTS badge_definitions (
 			id TEXT PRIMARY KEY,
-			kind TEXT NOT NULL CHECK (kind IN ('sponsor','risk','feature','info')),
+			kind TEXT NOT NULL CHECK (kind IN ('source','sponsor','risk','feature','info')),
 			weight INTEGER NOT NULL DEFAULT 0,
 			label_i18n TEXT NOT NULL,
 			tooltip_i18n TEXT,
@@ -173,6 +175,11 @@ func (s *PostgresStorage) initAdminConfigTables(ctx context.Context) error {
 		}
 	}
 
+	// 迁移：更新 badge_definitions 的 kind 约束（支持 'source' 类型）
+	if err := s.migrateBadgeKindConstraint(ctx); err != nil {
+		return fmt.Errorf("迁移 badge_definitions 约束失败: %w", err)
+	}
+
 	// 初始化默认数据
 	now := time.Now().Unix()
 	if err := s.seedConfigMeta(ctx, now); err != nil {
@@ -248,6 +255,49 @@ func (s *PostgresStorage) seedBoardConfigs(ctx context.Context, now int64) error
 			return fmt.Errorf("初始化 board_configs 失败: %w", err)
 		}
 	}
+	return nil
+}
+
+// migrateBadgeKindConstraint 迁移 badge_definitions 的 kind 约束
+// 确保约束包含 'source' 类型（用于已有数据库的在线迁移）
+func (s *PostgresStorage) migrateBadgeKindConstraint(ctx context.Context) error {
+	// 检查约束定义是否已包含 'source'
+	var constraintDef string
+	err := s.pool.QueryRow(ctx, `
+		SELECT pg_get_constraintdef(c.oid)
+		FROM pg_constraint c
+		JOIN pg_class t ON c.conrelid = t.oid
+		WHERE t.relname = 'badge_definitions'
+		  AND c.conname = 'badge_definitions_kind_check'
+	`).Scan(&constraintDef)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			// 约束不存在（新表由 CREATE TABLE 创建时已包含正确约束）
+			return nil
+		}
+		return fmt.Errorf("查询约束定义失败: %w", err)
+	}
+
+	// 如果约束已包含 'source'，无需迁移
+	if strings.Contains(constraintDef, "'source'") {
+		return nil
+	}
+
+	// 旧约束不包含 'source'，执行迁移
+	logger.Info("storage", "迁移 badge_definitions.kind 约束: 添加 'source' 类型支持")
+
+	// 删除旧约束并添加新约束
+	_, err = s.pool.Exec(ctx, `
+		ALTER TABLE badge_definitions DROP CONSTRAINT IF EXISTS badge_definitions_kind_check;
+		ALTER TABLE badge_definitions ADD CONSTRAINT badge_definitions_kind_check
+			CHECK (kind IN ('source','sponsor','risk','feature','info'));
+	`)
+	if err != nil {
+		return fmt.Errorf("更新约束失败: %w", err)
+	}
+
+	logger.Info("storage", "badge_definitions.kind 约束迁移完成")
 	return nil
 }
 

@@ -127,6 +127,12 @@ func (c *AppConfig) preprocessParentInheritance() error {
 	return nil
 }
 
+// PreprocessForImport 预处理配置用于导入
+// 公开方法，供 Admin API 导入时调用，确保子通道继承父级的 provider/service/channel
+func (c *AppConfig) PreprocessForImport() error {
+	return c.preprocessParentInheritance()
+}
+
 // validateMonitorUniqueness 检查四元组唯一性 (provider/service/channel/model)
 func (c *AppConfig) validateMonitorUniqueness(ctx *validateContext) error {
 	for _, m := range c.Monitors {

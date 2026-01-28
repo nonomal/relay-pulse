@@ -29,6 +29,7 @@ const (
 type BadgeKind string
 
 const (
+	BadgeKindSource  BadgeKind = "source" // 标识来源（如 用户Key/官方Key）
 	BadgeKindSponsor BadgeKind = "sponsor"
 	BadgeKindRisk    BadgeKind = "risk"
 	BadgeKindFeature BadgeKind = "feature"

@@ -304,7 +304,7 @@ function DefForm({
   onCancel: () => void;
 }) {
   const [id, setId] = useState('');
-  const [kind, setKind] = useState<'sponsor' | 'risk' | 'feature' | 'info'>('info');
+  const [kind, setKind] = useState<'source' | 'sponsor' | 'risk' | 'feature' | 'info'>('info');
   const [weight] = useState(0);
   const [labelZh, setLabelZh] = useState('');
   const [labelEn, setLabelEn] = useState('');
@@ -336,6 +336,7 @@ function DefForm({
             onChange={(e) => setKind(e.target.value as typeof kind)}
             className="w-full px-3 py-2 bg-elevated border border-muted rounded-md text-primary text-sm focus:outline-none focus:ring-2 focus:ring-accent/50"
           >
+            <option value="source">source</option>
             <option value="info">info</option>
             <option value="feature">feature</option>
             <option value="risk">risk</option>

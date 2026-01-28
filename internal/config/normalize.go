@@ -554,7 +554,7 @@ func (c *AppConfig) normalizeStorageConfig() error {
 
 	// DB 侧 timeline 聚合相关验证
 	if c.EnableDBTimelineAgg {
-		if c.Storage.Type != "postgres" {
+		if c.Storage.Type != "postgres" && c.Storage.Type != "postgresql" {
 			logger.Warn("config", "enable_db_timeline_agg 仅支持 PostgreSQL，将自动回退到应用层聚合", "storage_type", c.Storage.Type)
 		}
 		if !c.EnableBatchQuery {
@@ -562,7 +562,8 @@ func (c *AppConfig) normalizeStorageConfig() error {
 		}
 	}
 
-	if c.Storage.Type == "postgres" {
+	// 同时支持 "postgres" 和 "postgresql"（与 storage/factory.go 一致）
+	if c.Storage.Type == "postgres" || c.Storage.Type == "postgresql" {
 		if c.Storage.Postgres.Port == 0 {
 			c.Storage.Postgres.Port = 5432
 		}

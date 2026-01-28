@@ -1004,10 +1004,10 @@ func (h *AdminHandler) CreateBadgeDefinition(c *gin.Context) {
 	}
 	kind := storage.BadgeKind(strings.ToLower(kindRaw))
 	switch kind {
-	case storage.BadgeKindSponsor, storage.BadgeKindRisk, storage.BadgeKindFeature, storage.BadgeKindInfo:
+	case storage.BadgeKindSource, storage.BadgeKindSponsor, storage.BadgeKindRisk, storage.BadgeKindFeature, storage.BadgeKindInfo:
 	default:
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无效的 kind: %s (支持: sponsor/risk/feature/info)", kindRaw),
+			"error": fmt.Sprintf("无效的 kind: %s (支持: source/sponsor/risk/feature/info)", kindRaw),
 		})
 		return
 	}
@@ -1497,6 +1497,12 @@ func (h *AdminHandler) ImportConfig(c *gin.Context) {
 	var cfg config.AppConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("YAML 解析失败: %v", err)})
+		return
+	}
+
+	// 预处理父子继承（子通道从 parent 继承 provider/service/channel）
+	if err := cfg.PreprocessForImport(); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("配置预处理失败: %v", err)})
 		return
 	}
 

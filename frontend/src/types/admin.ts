@@ -149,7 +149,7 @@ export interface CreateProviderPolicyRequest {
 
 export interface BadgeDefinition {
   id: string;
-  kind: 'sponsor' | 'risk' | 'feature' | 'info';
+  kind: 'source' | 'sponsor' | 'risk' | 'feature' | 'info';
   weight: number;
   label_i18n: Record<string, string>;
   tooltip_i18n?: Record<string, string>;
@@ -161,7 +161,7 @@ export interface BadgeDefinition {
 
 export interface CreateBadgeDefinitionRequest {
   id: string;
-  kind: 'sponsor' | 'risk' | 'feature' | 'info';
+  kind: 'source' | 'sponsor' | 'risk' | 'feature' | 'info';
   weight?: number;
   label_i18n: Record<string, string>;
   tooltip_i18n?: Record<string, string>;

@@ -50,7 +50,39 @@ func (l *Loader) LoadBootstrap(filename string) (*AppConfig, error) {
 	// 应用环境变量覆盖（支持 MONITOR_STORAGE_TYPE、MONITOR_POSTGRES_* 等）
 	cfg.ApplyEnvOverrides()
 
+	// 规范化存储配置默认值（storage.New 需要完整配置）
+	cfg.normalizeStorageDefaults()
+
 	return &cfg, nil
+}
+
+// normalizeStorageDefaults 规范化存储配置的默认值
+// 仅设置 storage.New() 需要的最小默认值，完整规范化在 Normalize() 中进行
+func (c *AppConfig) normalizeStorageDefaults() {
+	if c.Storage.Type == "" {
+		c.Storage.Type = "sqlite"
+	}
+	if c.Storage.Type == "sqlite" && c.Storage.SQLite.Path == "" {
+		c.Storage.SQLite.Path = "monitor.db"
+	}
+	// 同时支持 "postgres" 和 "postgresql"（与 storage/factory.go 一致）
+	if c.Storage.Type == "postgres" || c.Storage.Type == "postgresql" {
+		if c.Storage.Postgres.Port == 0 {
+			c.Storage.Postgres.Port = 5432
+		}
+		if c.Storage.Postgres.SSLMode == "" {
+			c.Storage.Postgres.SSLMode = "disable"
+		}
+		if c.Storage.Postgres.MaxOpenConns == 0 {
+			c.Storage.Postgres.MaxOpenConns = 25
+		}
+		if c.Storage.Postgres.MaxIdleConns == 0 {
+			c.Storage.Postgres.MaxIdleConns = 5
+		}
+		if c.Storage.Postgres.ConnMaxLifetime == "" {
+			c.Storage.Postgres.ConnMaxLifetime = "1h"
+		}
+	}
 }
 
 // Load 加载并验证配置文件
