@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
+	"compress/zlib"
 	"context"
 	"encoding/json"
 	"errors"
@@ -13,6 +14,9 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
 
 	"monitor/internal/config"
 	"monitor/internal/logger"
@@ -222,9 +226,9 @@ retryLoop:
 					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
 			}
 
-			// gzip 解压：当 Content-Encoding 包含 gzip 时，手动解压响应体
+			// 内容解压：根据 Content-Encoding 处理 br/zstd/gzip/deflate
 			// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
-			bodyBytes = decompressGzipIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
+			bodyBytes = decompressBodyIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
 		} else {
 			_, _ = io.Copy(io.Discard, resp.Body)
 		}
@@ -358,24 +362,80 @@ func evaluateStatus(baseStatus int, baseSubStatus storage.SubStatus, body []byte
 	return baseStatus, baseSubStatus
 }
 
-// decompressGzipIfNeeded 检测并解压 gzip 压缩的响应体
-// 当 Content-Encoding 包含 gzip 时进行解压，失败则保留原始数据
-// 额外检测 gzip 魔术头（0x1f 0x8b）作为兜底，处理服务器漏写 Content-Encoding 的情况
-func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service, channel, model string) []byte {
+// decompressBodyIfNeeded 根据 Content-Encoding 解压响应体，失败则保留原始数据。
+// 支持 br/zstd/gzip/deflate，并保留 gzip/zstd 魔术头兜底处理。
+func decompressBodyIfNeeded(resp *http.Response, data []byte, provider, service, channel, model string) []byte {
 	if len(data) == 0 {
 		return data
 	}
 
-	// 检查是否需要解压：Content-Encoding 声明 gzip 或数据以 gzip 魔术头开始
 	contentEncoding := strings.ToLower(resp.Header.Get("Content-Encoding"))
-	isGzipHeader := strings.Contains(contentEncoding, "gzip")
-	isGzipMagic := len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
 
-	if !isGzipHeader && !isGzipMagic {
+	switch {
+	case strings.Contains(contentEncoding, "br"):
+		return decompressBrotli(data, provider, service, channel, model, true)
+	case strings.Contains(contentEncoding, "zstd"):
+		return decompressZstd(data, provider, service, channel, model)
+	case strings.Contains(contentEncoding, "gzip"):
+		return decompressGzip(data, provider, service, channel, model)
+	case strings.Contains(contentEncoding, "deflate"):
+		return decompressDeflate(data, provider, service, channel, model)
+	default:
+		// 兜底：服务端未声明 Content-Encoding 时，检查魔术头
+		if isGzipMagic(data) {
+			return decompressGzip(data, provider, service, channel, model)
+		}
+		if isZstdMagic(data) {
+			return decompressZstd(data, provider, service, channel, model)
+		}
+		if looksBinary(data) {
+			return decompressBrotli(data, provider, service, channel, model, false)
+		}
+	}
+
+	return data
+}
+
+func decompressBrotli(data []byte, provider, service, channel, model string, logError bool) []byte {
+	reader := brotli.NewReader(bytes.NewReader(data))
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		if logError {
+			logger.Warn("probe", "br 解压失败，使用原始响应体",
+				"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
+		}
 		return data
 	}
 
-	// 创建 gzip reader
+	logger.Debug("probe", "br 解压成功",
+		"provider", provider, "service", service, "channel", channel, "model", model,
+		"compressed_size", len(data), "decompressed_size", len(decompressed))
+	return decompressed
+}
+
+func decompressZstd(data []byte, provider, service, channel, model string) []byte {
+	decoder, err := zstd.NewReader(bytes.NewReader(data))
+	if err != nil {
+		logger.Warn("probe", "zstd 解压初始化失败，使用原始响应体",
+			"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
+		return data
+	}
+	defer decoder.Close()
+
+	decompressed, err := io.ReadAll(decoder)
+	if err != nil {
+		logger.Warn("probe", "zstd 解压读取失败，使用原始响应体",
+			"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
+		return data
+	}
+
+	logger.Debug("probe", "zstd 解压成功",
+		"provider", provider, "service", service, "channel", channel, "model", model,
+		"compressed_size", len(data), "decompressed_size", len(decompressed))
+	return decompressed
+}
+
+func decompressGzip(data []byte, provider, service, channel, model string) []byte {
 	gr, err := gzip.NewReader(bytes.NewReader(data))
 	if err != nil {
 		logger.Warn("probe", "gzip 解压初始化失败，使用原始响应体",
@@ -384,7 +444,6 @@ func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service,
 	}
 	defer gr.Close()
 
-	// 读取解压后的数据
 	decompressed, err := io.ReadAll(gr)
 	if err != nil {
 		logger.Warn("probe", "gzip 解压读取失败，使用原始响应体",
@@ -395,8 +454,60 @@ func decompressGzipIfNeeded(resp *http.Response, data []byte, provider, service,
 	logger.Debug("probe", "gzip 解压成功",
 		"provider", provider, "service", service, "channel", channel, "model", model,
 		"compressed_size", len(data), "decompressed_size", len(decompressed))
-
 	return decompressed
+}
+
+func decompressDeflate(data []byte, provider, service, channel, model string) []byte {
+	reader, err := zlib.NewReader(bytes.NewReader(data))
+	if err != nil {
+		logger.Warn("probe", "deflate 解压初始化失败，使用原始响应体",
+			"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
+		return data
+	}
+	defer reader.Close()
+
+	decompressed, err := io.ReadAll(reader)
+	if err != nil {
+		logger.Warn("probe", "deflate 解压读取失败，使用原始响应体",
+			"provider", provider, "service", service, "channel", channel, "model", model, "error", err)
+		return data
+	}
+
+	logger.Debug("probe", "deflate 解压成功",
+		"provider", provider, "service", service, "channel", channel, "model", model,
+		"compressed_size", len(data), "decompressed_size", len(decompressed))
+	return decompressed
+}
+
+func isGzipMagic(data []byte) bool {
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+}
+
+func isZstdMagic(data []byte) bool {
+	return len(data) >= 4 && data[0] == 0x28 && data[1] == 0xB5 && data[2] == 0x2F && data[3] == 0xFD
+}
+
+func looksBinary(data []byte) bool {
+	if len(data) == 0 {
+		return false
+	}
+
+	sample := data
+	if len(sample) > 2048 {
+		sample = sample[:2048]
+	}
+
+	var nonPrintable int
+	for _, b := range sample {
+		if b == 0x00 {
+			return true
+		}
+		if b < 0x09 || (b > 0x0D && b < 0x20) {
+			nonPrintable++
+		}
+	}
+
+	return float64(nonPrintable)/float64(len(sample)) > 0.2
 }
 
 // determineStatus 根据HTTP状态码和延迟判定监测状态
