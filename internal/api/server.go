@@ -65,8 +65,8 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 
 	corsConfig := cors.Config{
 		AllowOrigins:     allowedOrigins,
-		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID", "Accept-Encoding"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID", "Accept-Encoding", "X-Config-Token"},
 		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: false,
 		MaxAge:           12 * time.Hour,
@@ -247,6 +247,59 @@ func (s *Server) GetHandler() *Handler {
 func (s *Server) RegisterAnnouncementsHandler(handler gin.HandlerFunc) {
 	s.router.GET("/api/announcements", handler)
 	logger.Info("api", "公告 API 已注册", "path", "/api/announcements")
+}
+
+// RegisterAdminHandler 注册管理 API 处理器
+// 在 main.go 中初始化后调用，需要 *storage.SQLiteStorage 类型
+func (s *Server) RegisterAdminHandler(store *storage.SQLiteStorage) {
+	adminHandler := NewAdminHandler(store)
+
+	// 创建管理 API 路由组，带认证中间件
+	adminGroup := s.router.Group("/api/admin")
+	adminGroup.Use(AdminAuthMiddleware())
+
+	// 监测项管理 API
+	adminGroup.GET("/monitors", adminHandler.ListMonitors)
+	adminGroup.POST("/monitors", adminHandler.CreateMonitor)
+	adminGroup.GET("/monitors/:id", adminHandler.GetMonitor)
+	adminGroup.PUT("/monitors/:id", adminHandler.UpdateMonitor)
+	adminGroup.PATCH("/monitors/:id/status", adminHandler.UpdateMonitorStatus)
+	adminGroup.DELETE("/monitors/:id", adminHandler.DeleteMonitor)
+	adminGroup.POST("/monitors/:id/restore", adminHandler.RestoreMonitor)
+	adminGroup.POST("/monitors/batch", adminHandler.BatchMonitors)
+	adminGroup.GET("/monitors/:id/history", adminHandler.GetMonitorHistory)
+
+	// 全局审计日志 API
+	adminGroup.GET("/audits", adminHandler.ListAudits)
+
+	// Provider 策略管理 API
+	adminGroup.GET("/policies", adminHandler.ListProviderPolicies)
+	adminGroup.POST("/policies", adminHandler.CreateProviderPolicy)
+	adminGroup.DELETE("/policies/:id", adminHandler.DeleteProviderPolicy)
+
+	// Badge 管理 API
+	adminGroup.GET("/badges/definitions", adminHandler.ListBadgeDefinitions)
+	adminGroup.POST("/badges/definitions", adminHandler.CreateBadgeDefinition)
+	adminGroup.DELETE("/badges/definitions/:id", adminHandler.DeleteBadgeDefinition)
+	adminGroup.GET("/badges/bindings", adminHandler.ListBadgeBindings)
+	adminGroup.POST("/badges/bindings", adminHandler.CreateBadgeBinding)
+	adminGroup.DELETE("/badges/bindings/:id", adminHandler.DeleteBadgeBinding)
+
+	// Board 管理 API
+	adminGroup.GET("/boards", adminHandler.ListBoardConfigs)
+
+	// 全局设置 API
+	adminGroup.GET("/settings/:key", adminHandler.GetGlobalSetting)
+	adminGroup.PUT("/settings/:key", adminHandler.SetGlobalSetting)
+
+	// 配置版本 API
+	adminGroup.GET("/config/version", adminHandler.GetConfigVersion)
+
+	// 配置导入导出 API
+	adminGroup.POST("/import", adminHandler.ImportConfig)
+	adminGroup.GET("/export", adminHandler.ExportConfig)
+
+	logger.Info("api", "管理 API 已注册", "path", "/api/admin/*")
 }
 
 // setupStaticFiles 设置静态文件服务（前端）

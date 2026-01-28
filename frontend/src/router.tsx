@@ -7,6 +7,17 @@ const App = lazy(() => import('./App'));
 const ProviderPage = lazy(() => import('./pages/ProviderPage'));
 const SelfTestPage = lazy(() => import('./pages/SelfTestPage').then(m => ({ default: m.SelfTestPage })));
 
+// 管理后台（独立 chunk，不影响主站加载）
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const AdminIndexRedirect = lazy(() => import('./pages/admin/AdminLayout').then(m => ({ default: m.AdminIndexRedirect })));
+const MonitorsPage = lazy(() => import('./pages/admin/MonitorsPage'));
+const PoliciesPage = lazy(() => import('./pages/admin/PoliciesPage'));
+const BadgesPage = lazy(() => import('./pages/admin/BadgesPage'));
+const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
+const MonitorEditPage = lazy(() => import('./pages/admin/MonitorEditPage'));
+const MonitorHistoryPage = lazy(() => import('./pages/admin/MonitorHistoryPage'));
+const AuditsPage = lazy(() => import('./pages/admin/AuditsPage'));
+
 /**
  * 语言布局组件
  *
@@ -114,6 +125,19 @@ export default function AppRouter() {
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
           <Route path="selftest" element={<SelfTestPage />} />
+        </Route>
+
+        {/* 管理后台（不参与 i18n，独立布局） */}
+        <Route path="admin" element={<AdminLayout />}>
+          <Route index element={<AdminIndexRedirect />} />
+          <Route path="monitors" element={<MonitorsPage />} />
+          <Route path="monitors/new" element={<MonitorEditPage />} />
+          <Route path="monitors/:id" element={<MonitorEditPage />} />
+          <Route path="monitors/:id/history" element={<MonitorHistoryPage />} />
+          <Route path="policies" element={<PoliciesPage />} />
+          <Route path="badges" element={<BadgesPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="audits" element={<AuditsPage />} />
         </Route>
 
         {/* 捕获所有未匹配路径，重定向到根 */}

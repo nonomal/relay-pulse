@@ -136,6 +136,11 @@ func (s *SQLiteStorage) Init() error {
 		return err
 	}
 
+	// 配置管理相关表
+	if err := s.initAdminConfigTables(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 

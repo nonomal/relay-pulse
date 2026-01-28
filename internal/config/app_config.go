@@ -138,6 +138,11 @@ type AppConfig struct {
 	// 存储配置
 	Storage StorageConfig `yaml:"storage" json:"storage"`
 
+	// 配置来源（默认 "yaml"，可选 "database"）
+	// - yaml: 完全使用 YAML 配置文件（现有行为不变）
+	// - database: 从数据库加载功能配置（监测项、策略、徽标等）
+	ConfigSource string `yaml:"config_source" json:"config_source"`
+
 	// 公开访问的基础 URL（用于 SEO、sitemap 等）
 	// 默认: https://relaypulse.top
 	// 可通过环境变量 MONITOR_PUBLIC_BASE_URL 覆盖
