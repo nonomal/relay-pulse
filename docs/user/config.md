@@ -1,8 +1,88 @@
 # 配置手册
 
-> **Audience**: 用户 | **Last reviewed**: 2026-01-15
+> **Audience**: 用户 | **Last reviewed**: 2026-01-28
 
 本文档详细说明 Relay Pulse 的配置选项、环境变量和最佳实践。
+
+## 配置来源
+
+Relay Pulse 支持两种配置来源模式：
+
+### YAML 模式（默认）
+
+传统的配置文件模式，所有监测项和功能配置存储在 `config.yaml` 中。
+
+```yaml
+config_source: yaml  # 默认值，可省略
+```
+
+### 数据库模式
+
+将功能配置（监测项、策略、徽标等）存储在数据库中，通过 Web 管理后台进行管理。
+
+```yaml
+config_source: database  # 启用数据库配置管理
+```
+
+**适用场景**：
+- 需要通过 Web 界面管理配置
+- 多人协作管理监测项
+- 需要配置变更审计日志
+- 希望避免编辑 YAML 文件
+
+**注意**：数据库模式下，以下配置仍从 YAML 读取（启动引导配置）：
+- `storage` - 数据库连接配置
+- `config_source` - 配置来源设置
+- 端口、CORS 等运行时配置
+
+## 管理后台
+
+当使用数据库模式时，可通过 Web 管理后台进行配置管理。
+
+### 访问入口
+
+```
+http://localhost:8080/admin
+```
+
+### 环境变量配置
+
+```bash
+# 管理 API Token（必需，用于后台登录认证）
+CONFIG_API_TOKEN=your-secure-token
+
+# 加密密钥（必需，用于 API Key 加密存储）
+# 必须是 32 字节的 Base64 编码字符串
+CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)
+```
+
+**生成加密密钥**：
+```bash
+# 生成 32 字节随机密钥
+openssl rand -base64 32
+```
+
+### 功能模块
+
+| 路径 | 说明 |
+|------|------|
+| `/admin/monitors` | 监测项管理（CRUD、批量操作） |
+| `/admin/policies` | Provider 策略（disabled/hidden/risk） |
+| `/admin/badges` | 徽标定义与绑定 |
+| `/admin/settings` | 全局设置、导入导出 |
+| `/admin/audits` | 配置变更审计日志 |
+
+### 导入导出
+
+在 `/admin/settings` 页面可以：
+- **导出**：将所有监测项导出为 YAML 文件（API Key 脱敏为 `***`）
+- **导入**：从 YAML 文件导入监测项配置（API Key 需通过后台单独设置）
+
+### 热更新
+
+数据库模式支持配置热更新：
+- 后台修改配置后，探测器自动在下个周期使用新配置
+- 无需重启服务
 
 ## 配置文件结构
 
