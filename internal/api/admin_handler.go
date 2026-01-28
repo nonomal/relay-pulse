@@ -1470,7 +1470,7 @@ func maskAPIKey(apiKey string) string {
 
 // ===== 导入导出 API =====
 
-// ImportConfig 导入 YAML 配置（仅监测项）
+// ImportConfig 导入 YAML 配置（徽标定义 + 监测项）
 // POST /api/admin/import
 func (h *AdminHandler) ImportConfig(c *gin.Context) {
 	file, err := c.FormFile("file")
@@ -1489,7 +1489,7 @@ func (h *AdminHandler) ImportConfig(c *gin.Context) {
 
 	data, err := io.ReadAll(stream)
 	if err != nil {
-		logger.FromContext(c.Request.Context(), "api").Error("读取上传内容失败", "error", err)
+		logger.FromContext(c.Request.Context(), "api").Error("读取���传内容失败", "error", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "读取文件失败"})
 		return
 	}
@@ -1506,7 +1506,41 @@ func (h *AdminHandler) ImportConfig(c *gin.Context) {
 		return
 	}
 
+	// 导入徽标定义（在导入监测项之前）
+	var badgesCreated, badgesSkipped int
+	var badgeErrors []string
+	if len(cfg.BadgeDefs) > 0 {
+		for id, badgeDef := range cfg.BadgeDefs {
+			storageBadge := convertBadgeDefToStorage(id, badgeDef)
+			if err := h.storage.CreateBadgeDefinition(storageBadge); err != nil {
+				if strings.Contains(err.Error(), "已存在") {
+					badgesSkipped++
+				} else {
+					badgeErrors = append(badgeErrors, fmt.Sprintf("badge[%s]: %v", id, err))
+				}
+			} else {
+				badgesCreated++
+			}
+		}
+		logger.FromContext(c.Request.Context(), "api").Info("导入徽标定义完成",
+			"created", badgesCreated, "skipped", badgesSkipped, "errors", len(badgeErrors))
+	}
+
 	if len(cfg.Monitors) == 0 {
+		// 如果只有徽标定义，也返回成功
+		if len(cfg.BadgeDefs) > 0 {
+			resp := gin.H{
+				"badges_created": badgesCreated,
+				"badges_skipped": badgesSkipped,
+				"created":        0,
+				"skipped":        0,
+			}
+			if len(badgeErrors) > 0 {
+				resp["badge_errors"] = badgeErrors
+			}
+			c.JSON(http.StatusOK, resp)
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": "配置文件未包含 monitors"})
 		return
 	}
@@ -1550,7 +1584,65 @@ func (h *AdminHandler) ImportConfig(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	// 合并徽标导入结果
+	resp := gin.H{
+		"created": result.Created,
+		"skipped": result.Skipped,
+	}
+	if len(result.Errors) > 0 {
+		resp["errors"] = result.Errors
+	}
+	if len(cfg.BadgeDefs) > 0 {
+		resp["badges_created"] = badgesCreated
+		resp["badges_skipped"] = badgesSkipped
+		if len(badgeErrors) > 0 {
+			resp["badge_errors"] = badgeErrors
+		}
+	}
+	c.JSON(http.StatusOK, resp)
+}
+
+// convertBadgeDefToStorage 将 config.BadgeDef 转换为 storage.BadgeDefinition
+func convertBadgeDefToStorage(id string, def config.BadgeDef) *storage.BadgeDefinition {
+	// 将 config.BadgeKind 映射到 storage.BadgeKind
+	var kind storage.BadgeKind
+	switch def.Kind {
+	case config.BadgeKindSource:
+		kind = storage.BadgeKindSource
+	case config.BadgeKindInfo:
+		kind = storage.BadgeKindInfo
+	case config.BadgeKindFeature:
+		kind = storage.BadgeKindFeature
+	default:
+		kind = storage.BadgeKindInfo
+	}
+
+	// 将 Variant 映射为 Color（前端样式提示）
+	var color string
+	switch def.Variant {
+	case config.BadgeVariantSuccess:
+		color = "success"
+	case config.BadgeVariantWarning:
+		color = "warning"
+	case config.BadgeVariantDanger:
+		color = "danger"
+	case config.BadgeVariantInfo:
+		color = "info"
+	default:
+		color = "default"
+	}
+
+	// 生成简单的 i18n JSON（使用 badge ID 作为占位符，前端会用 i18n key 替换）
+	labelI18n := fmt.Sprintf(`{"zh-CN":"%s","en-US":"%s"}`, id, id)
+
+	return &storage.BadgeDefinition{
+		ID:        id,
+		Kind:      kind,
+		Weight:    def.Weight,
+		LabelI18n: labelI18n,
+		Icon:      def.URL, // URL 暂存到 Icon 字段
+		Color:     color,
+	}
 }
 
 // ExportConfig 导出 YAML 配置
