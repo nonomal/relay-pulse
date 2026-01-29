@@ -96,8 +96,6 @@ func main() {
 		// 根据存储类型创建适配器
 		var adminStorage config.AdminConfigStorage
 		switch s := store.(type) {
-		case *storage.SQLiteStorage:
-			adminStorage = storage.NewAdminConfigAdapter(s)
 		case *storage.PostgresStorage:
 			adminStorage = storage.NewPostgresAdminConfigAdapter(s)
 		default:
@@ -215,8 +213,6 @@ func main() {
 		// 根据存储类型获取 AdminStorage
 		var adminStore storage.AdminStorage
 		switch s := store.(type) {
-		case *storage.SQLiteStorage:
-			adminStore = s
 		case *storage.PostgresStorage:
 			adminStore = s
 		}

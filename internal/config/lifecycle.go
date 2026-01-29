@@ -43,11 +43,6 @@ func (c *AppConfig) ApplyEnvOverrides() {
 		c.Storage.Postgres.SSLMode = envSSL
 	}
 
-	// SQLite 配置环境变量覆盖
-	if envPath := os.Getenv("MONITOR_SQLITE_PATH"); envPath != "" {
-		c.Storage.SQLite.Path = envPath
-	}
-
 	// Events API Token 环境变量覆盖
 	if envToken := os.Getenv("EVENTS_API_TOKEN"); envToken != "" {
 		c.Events.APIToken = envToken

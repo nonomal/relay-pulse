@@ -531,25 +531,11 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 }
 
 // normalizeStorageConfig 规范化存储配置
-// 包括：SQLite/PostgreSQL 配置默认值、连接池参数、retention/archive 配置
+// 包括：PostgreSQL 配置默认值、连接池参数、retention/archive 配置
 func (c *AppConfig) normalizeStorageConfig() error {
 	// 存储配置默认值
 	if c.Storage.Type == "" {
-		c.Storage.Type = "sqlite" // 默认使用 SQLite
-	}
-	if c.Storage.Type == "sqlite" && c.Storage.SQLite.Path == "" {
-		c.Storage.SQLite.Path = "monitor.db" // 默认路径
-	}
-	// SQLite 参数上限保护：默认上限通常为 999，每个 key 需要 4 个参数 (provider, service, channel, model)
-	if c.Storage.Type == "sqlite" && c.EnableBatchQuery {
-		const sqliteMaxParams = 999
-		const keyParams = 4
-		maxKeys := sqliteMaxParams / keyParams
-		if c.BatchQueryMaxKeys > maxKeys {
-			logger.Warn("config", "batch_query_max_keys 超出 SQLite 参数上限，已回退",
-				"value", c.BatchQueryMaxKeys, "sqlite_max_params", sqliteMaxParams, "fallback", maxKeys)
-			c.BatchQueryMaxKeys = maxKeys
-		}
+		c.Storage.Type = "postgres" // 默认使用 PostgreSQL
 	}
 
 	// DB 侧 timeline 聚合相关验证
@@ -600,11 +586,6 @@ func (c *AppConfig) normalizeStorageConfig() error {
 					"max_open_conns", c.Storage.Postgres.MaxOpenConns, "concurrent_query_limit", c.ConcurrentQueryLimit)
 			}
 		}
-	}
-
-	// SQLite 场景下的并发查询警告
-	if c.Storage.Type == "sqlite" && c.EnableConcurrentQuery {
-		logger.Warn("config", "SQLite 使用单连接，并发查询无性能收益，建议关闭 enable_concurrent_query")
 	}
 
 	// 历史数据保留与清理配置

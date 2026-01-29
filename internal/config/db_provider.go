@@ -9,7 +9,7 @@ import (
 
 // AdminConfigStorage 配置管理存储接口
 // 定义在 config 包中以避免与 storage 包的循环依赖
-// 由 storage.SQLiteStorage 实现
+// 由 storage.PostgresStorage 实现
 type AdminConfigStorage interface {
 	// MonitorConfig 相关
 	ListMonitorConfigs(filter *MonitorConfigFilter) ([]*MonitorConfigRecord, int, error)

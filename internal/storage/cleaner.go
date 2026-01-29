@@ -2,14 +2,10 @@ package storage
 
 import (
 	"context"
-	"errors"
 	"math/rand"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"modernc.org/sqlite"
-	sqlite3 "modernc.org/sqlite/lib"
 
 	"monitor/internal/config"
 	"monitor/internal/logger"
@@ -104,7 +100,6 @@ func (c *Cleaner) runCleanup(ctx context.Context) {
 	startTime := time.Now()
 	var totalDeleted int64
 	batchCount := 0
-	backoff := 50 * time.Millisecond
 
 	for batchCount < c.config.MaxBatchesPerRun {
 		select {
@@ -126,24 +121,12 @@ func (c *Cleaner) runCleanup(ctx context.Context) {
 				return
 			}
 
-			// SQLite 锁冲突时指数退避重试（使用类型断言而非字符串匹配）
-			var sqliteErr *sqlite.Error
-			if errors.As(err, &sqliteErr) && sqliteErr.Code() == sqlite3.SQLITE_BUSY {
-				logger.Warn("cleaner", "数据库锁冲突，等待重试",
-					"backoff", backoff,
-					"deleted_so_far", totalDeleted)
-				time.Sleep(backoff)
-				backoff = min(backoff*2, 5*time.Second)
-				continue
-			}
-
 			logger.Error("cleaner", "清理任务失败",
 				"error", err,
 				"deleted", totalDeleted)
 			return
 		}
 
-		backoff = 50 * time.Millisecond // 重置退避
 		totalDeleted += deleted
 		batchCount++
 

@@ -1,7 +1,7 @@
 package storage
 
 // AdminStorage 定义配置管理后台所需的存储操作接口
-// 同时被 SQLiteStorage 和 PostgresStorage 实现
+// 由 PostgresStorage 实现
 type AdminStorage interface {
 	// ===== MonitorConfig CRUD =====
 

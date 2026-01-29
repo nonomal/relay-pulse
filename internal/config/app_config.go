@@ -126,7 +126,6 @@ type AppConfig struct {
 	EnableDBTimelineAgg bool `yaml:"enable_db_timeline_agg" json:"enable_db_timeline_agg"`
 
 	// 批量查询最大 key 数（默认 300）
-	// 注意：SQLite 场景下会自动回退到 249（因为参数上限 999，每 key 需要 4 个参数）
 	BatchQueryMaxKeys int `yaml:"batch_query_max_keys" json:"batch_query_max_keys"`
 
 	// API 响应缓存 TTL 配置（按 period 区分）

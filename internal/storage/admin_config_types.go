@@ -71,8 +71,8 @@ type MonitorConfig struct {
 	Service       string `db:"service" json:"service"`
 	Channel       string `db:"channel" json:"channel"`
 	Model         string `db:"model" json:"model"`
-	Name          string `db:"name" json:"name,omitempty"`             // 可选显示名称
-	Enabled       bool   `db:"enabled" json:"enabled"`                 // SQLite 用 INTEGER, PG 用 BOOLEAN
+	Name          string `db:"name" json:"name,omitempty"` // 可选显示名称
+	Enabled       bool   `db:"enabled" json:"enabled"`
 	ParentKey     string `db:"parent_key" json:"parent_key,omitempty"` // 父配置引用 "provider/service/channel"
 	ConfigBlob    string `db:"config_blob" json:"config_blob"`         // JSON 格式的原始配置
 	SchemaVersion int    `db:"schema_version" json:"schema_version"`   // 配置 schema 版本
@@ -335,6 +335,15 @@ type AuditFilter struct {
 	Until     int64       `json:"until,omitempty"` // Unix 秒
 	Offset    int         `json:"offset,omitempty"`
 	Limit     int         `json:"limit,omitempty"`
+}
+
+// BadgeBindingFilter 徽标绑定查询过滤器
+type BadgeBindingFilter struct {
+	BadgeID  string     `json:"badge_id,omitempty"`
+	Scope    BadgeScope `json:"scope,omitempty"` // global/provider/service/channel
+	Provider string     `json:"provider,omitempty"`
+	Service  string     `json:"service,omitempty"`
+	Channel  string     `json:"channel,omitempty"`
 }
 
 // ConfigVersions 所有 scope 的配置版本

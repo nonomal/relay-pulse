@@ -8,10 +8,7 @@ import (
 
 // StorageConfig 存储配置
 type StorageConfig struct {
-	Type string `yaml:"type" json:"type"` // "sqlite" 或 "postgres"
-
-	// SQLite 配置
-	SQLite SQLiteConfig `yaml:"sqlite" json:"sqlite"`
+	Type string `yaml:"type" json:"type"` // "postgres" 或 "postgresql"
 
 	// PostgreSQL 配置
 	Postgres PostgresConfig `yaml:"postgres" json:"postgres"`
@@ -21,11 +18,6 @@ type StorageConfig struct {
 
 	// 历史数据归档配置（默认禁用）
 	Archive ArchiveConfig `yaml:"archive" json:"archive"`
-}
-
-// SQLiteConfig SQLite 配置
-type SQLiteConfig struct {
-	Path string `yaml:"path" json:"path"` // 数据库文件路径
 }
 
 // PostgresConfig PostgreSQL 配置

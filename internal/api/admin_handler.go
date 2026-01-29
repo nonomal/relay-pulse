@@ -18,7 +18,7 @@ import (
 )
 
 // AdminHandler 管理 API 处理器
-// 使用 AdminStorage 接口，支持 SQLite 和 PostgreSQL
+// 使用 AdminStorage 接口，支持 PostgreSQL
 type AdminHandler struct {
 	storage storage.AdminStorage
 }

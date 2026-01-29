@@ -107,9 +107,14 @@ func GenerateConfig(interval, slowLatency, timeout string, monitors []map[string
 	sb.WriteString("  enabled: true\n")
 	sb.WriteString("\n# 存储配置\n")
 	sb.WriteString("storage:\n")
-	sb.WriteString("  type: \"sqlite\"\n") // 固定值无需转义
-	sb.WriteString("  sqlite:\n")
-	sb.WriteString("    path: \"monitor.db\"\n") // 固定值无需转义
+	sb.WriteString("  type: \"postgres\"\n")
+	sb.WriteString("  postgres:\n")
+	sb.WriteString("    host: \"localhost\"\n")
+	sb.WriteString("    port: 5432\n")
+	sb.WriteString("    user: \"postgres\"\n")
+	sb.WriteString("    password: \"\"\n")
+	sb.WriteString("    database: \"relay_pulse\"\n")
+	sb.WriteString("    sslmode: \"disable\"\n")
 
 	// 监测项
 	sb.WriteString("\n# 监测项列表\n")

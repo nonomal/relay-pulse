@@ -303,7 +303,7 @@ type AggBucketRow struct {
 
 // TimelineAggStorage 为"时间轴聚合下推到数据库"提供的可选能力接口
 //
-// 仅 PostgreSQL 实现；SQLite 不实现该接口，API 层会自动回退到原有逻辑。
+// 由 PostgreSQL 实现
 type TimelineAggStorage interface {
 	// GetTimelineAggBatch 批量获取多个监测项的时间轴 bucket 聚合结果（时间范围）
 	//
@@ -315,7 +315,7 @@ type TimelineAggStorage interface {
 
 // ArchiveStorage 为"历史数据归档"提供的可选能力接口
 //
-// 仅 PostgreSQL 实现（使用 COPY 协议高效导出）；SQLite 可选实现。
+// 由 PostgreSQL 实现（使用 COPY 协议高效导出）
 type ArchiveStorage interface {
 	// ExportDayToWriter 导出指定日期范围的历史记录到 writer
 	// dayStart: 日期开始时间戳（Unix 秒，包含）

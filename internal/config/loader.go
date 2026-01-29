@@ -60,10 +60,7 @@ func (l *Loader) LoadBootstrap(filename string) (*AppConfig, error) {
 // 仅设置 storage.New() 需要的最小默认值，完整规范化在 Normalize() 中进行
 func (c *AppConfig) normalizeStorageDefaults() {
 	if c.Storage.Type == "" {
-		c.Storage.Type = "sqlite"
-	}
-	if c.Storage.Type == "sqlite" && c.Storage.SQLite.Path == "" {
-		c.Storage.SQLite.Path = "monitor.db"
+		c.Storage.Type = "postgres"
 	}
 	// 同时支持 "postgres" 和 "postgresql"（与 storage/factory.go 一致）
 	if c.Storage.Type == "postgres" || c.Storage.Type == "postgresql" {
