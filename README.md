@@ -28,8 +28,15 @@
 - **💸 真实 API 探测** - 消耗真实 Token，拒绝虚假繁荣
 - **📊 可视化矩阵** - 24h/7d/30d 可用率热力图，一眼看穿服务质量
 - **🔄 配置热更新** - 基于 fsnotify，修改配置无需重启
-- **💾 多存储后端** - SQLite（单机）/ PostgreSQL（K8s）
+- **💾 PostgreSQL 存储** - 支持高可用、水平扩展
 - **🐳 云原生友好** - 极小 Docker 镜像，支持水平扩展
+
+### v1.0 新特性
+
+- **👤 用户系统** - GitHub OAuth 登录，支持管理员和普通用户角色
+- **📋 监测模板** - 预定义服务模板，支持多模型配置
+- **📝 自主提交** - 用户可自主提交监测项申请，自测通过后提交审核
+- **🔐 安全增强** - API Key AES-256-GCM 加密，CSRF 防护
 
 ## 🎯 适用场景
 
@@ -100,6 +107,7 @@ go run cmd/server/main.go
 - `README.md`（本文件）：项目总览、特性介绍、快速开始、本地开发说明
 - `QUICKSTART.md`：面向用户的快速部署与常见问题
 - `docs/user/config.md`：配置项说明、环境变量规则、安全实践
+- `docs/user/migration-v1.md`：v1.0 迁移指南（从 v0.x 升级）
 - `CONTRIBUTING.md`：贡献流程、代码规范、提交与 PR 约定
 
 ## 🔧 配置示例
@@ -132,17 +140,28 @@ monitors:
 
 ## 🗄️ 存储后端
 
-| 后端       | 适用场景            | 优点                   |
-|------------|---------------------|------------------------|
-| **SQLite** | 单机部署、开发环境  | 零配置，开箱即用       |
-| **PostgreSQL** | K8s、多副本部署 | 高可用、水平扩展       |
+v1.0 仅支持 PostgreSQL 作为存储后端。
 
 ```bash
-# SQLite（默认）
-docker compose up -d monitor
+# PostgreSQL 部署
+docker compose up -d postgres monitor
+```
 
-# PostgreSQL
-docker compose up -d postgres monitor-pg
+**从 v0.x 升级？** 请参阅 [v1.0 迁移指南](docs/user/migration-v1.md)。
+
+## 🔐 v1.0 环境变量
+
+```bash
+# 必需：加密密钥（用于 API Key 加密存储）
+CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)
+
+# 可选：GitHub OAuth（启用用户系统）
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+GITHUB_CALLBACK_URL=https://your-domain.com/api/auth/github/callback
+
+# 可选：管理 API Token（用于后台认证）
+CONFIG_API_TOKEN=your-secure-token
 ```
 
 ## 📊 API 端点

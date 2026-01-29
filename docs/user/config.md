@@ -1,6 +1,6 @@
 # 配置手册
 
-> **Audience**: 用户 | **Last reviewed**: 2026-01-28
+> **适用对象**: 用户 | **最后更新**: 2026-01-29
 
 本文档详细说明 Relay Pulse 的配置选项、环境变量和最佳实践。
 
@@ -48,13 +48,25 @@ http://localhost:8080/admin
 ### 环境变量配置
 
 ```bash
-# 管理 API Token（必需，用于后台登录认证）
+# 管理 API Token（访问 /admin 后台必需）
+# 前端会从 sessionStorage 读取并注入 X-Config-Token 请求头
 CONFIG_API_TOKEN=your-secure-token
 
 # 加密密钥（必需，用于 API Key 加密存储）
 # 必须是 32 字节的 Base64 编码字符串
 CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)
+
+# GitHub OAuth（v1.0 新增，启用用户系统）
+# 配置后支持 GitHub 登录，与 CONFIG_API_TOKEN 为双认证模式
+GITHUB_CLIENT_ID=your_client_id
+GITHUB_CLIENT_SECRET=your_client_secret
+GITHUB_CALLBACK_URL=https://your-domain.com/api/auth/github/callback
 ```
+
+**认证说明**：
+- `CONFIG_API_TOKEN`：用于管理后台 `/admin/*` 的 Token 认证
+- GitHub OAuth：用于用户系统 `/api/v1/user/*` 的登录认证
+- 两种认证方式独立工作，管理后台需要 Token，用户系统需要 GitHub 登录
 
 **生成加密密钥**：
 ```bash
@@ -62,12 +74,29 @@ CONFIG_ENCRYPTION_KEY=$(openssl rand -base64 32)
 openssl rand -base64 32
 ```
 
+### GitHub OAuth 配置（v1.0）
+
+v1.0 支持通过 GitHub OAuth 登录，启用用户系统后：
+- 用户可通过 GitHub 账号登录
+- 支持 admin（管理员）和 user（普通用户）角色
+- 用户可自主提交监测项申请
+
+**配置步骤**：
+1. 在 [GitHub Developer Settings](https://github.com/settings/developers) 创建 OAuth App
+2. 设置 Callback URL 为 `https://your-domain.com/api/auth/github/callback`
+3. 配置环境变量 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`、`GITHUB_CALLBACK_URL`
+
+详见 [v1.0 迁移指南](migration-v1.md)。
+
 ### 功能模块
 
 | 路径 | 说明 |
 |------|------|
 | `/admin/monitors` | 监测项管理（CRUD、批量操作） |
-| `/admin/policies` | Provider 策略（disabled/hidden/risk） |
+| `/admin/services` | 服务管理（v1.0 新增） |
+| `/admin/templates` | 监测模板管理（v1.0 新增） |
+| `/admin/applications` | 申请审核（v1.0 新增） |
+| `/admin/users` | 用户管理（v1.0 新增） |
 | `/admin/badges` | 徽标定义与绑定 |
 | `/admin/settings` | 全局设置、导入导出 |
 | `/admin/audits` | 配置变更审计日志 |
