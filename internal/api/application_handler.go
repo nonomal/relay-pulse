@@ -125,6 +125,7 @@ type CreateApplicationRequest struct {
 	VendorType   string `json:"vendor_type" binding:"required"`
 	WebsiteURL   string `json:"website_url"`
 	RequestURL   string `json:"request_url" binding:"required"`
+	APIKey       string `json:"api_key"` // API Key（可选，测试时需要）
 }
 
 // CreateApplication 创建申请
@@ -221,6 +222,22 @@ func (h *ApplicationHandler) CreateApplication(c *gin.Context) {
 			"code":  "CREATE_FAILED",
 		})
 		return
+	}
+
+	// 如果提供了 API Key，加密保存
+	if req.APIKey != "" {
+		encResult, err := config.EncryptAPIKey(req.APIKey, int64(app.ID), 0)
+		if err != nil {
+			logger.Error("api", "加密 API Key 失败", "error", err)
+			// 不影响申请创建，继续
+		} else {
+			app.APIKeyEncrypted = encResult.Ciphertext
+			app.APIKeyNonce = encResult.Nonce
+			app.APIKeyVersion = encResult.KeyVersion
+			if err := appStorage.UpdateApplication(c.Request.Context(), app); err != nil {
+				logger.Error("api", "保存 API Key 失败", "error", err)
+			}
+		}
 	}
 
 	c.JSON(http.StatusCreated, gin.H{

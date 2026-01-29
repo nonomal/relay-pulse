@@ -140,9 +140,11 @@ func parseDBURL(dbURL string) (*config.PostgresConfig, error) {
 	}
 
 	cfg := &config.PostgresConfig{
-		Host:     u.Hostname(),
-		Database: strings.TrimPrefix(u.Path, "/"),
-		SSLMode:  "disable",
+		Host:         u.Hostname(),
+		Database:     strings.TrimPrefix(u.Path, "/"),
+		SSLMode:      "disable",
+		MaxOpenConns: 5, // 迁移工具使用较小的连接池
+		MaxIdleConns: 2,
 	}
 
 	// 解析端口
