@@ -407,5 +407,19 @@
     "close": "Закрыть",
     "discussions": "Обсуждения",
     "moreAnnouncements": "Ещё {{count}} объявление(й)"
+  },
+  "auth": {
+    "loginWithGitHub": "Войти через GitHub",
+    "logout": "Выйти",
+    "admin": "Админ",
+    "myApplications": "Мои заявки",
+    "adminPanel": "Панель администратора",
+    "loginRequired": "Требуется вход",
+    "loginRequiredDesc": "Пожалуйста, войдите через GitHub для доступа к этой странице.",
+    "accessDenied": "Доступ запрещён",
+    "accessDeniedDesc": "У вас нет прав для доступа к этой странице. Обратитесь к администратору, если считаете это ошибкой.",
+    "accountDisabled": "Аккаунт отключён",
+    "accountDisabledDesc": "Ваш аккаунт был отключён. Обратитесь к администратору за помощью.",
+    "backToHome": "На главную"
   }
 }

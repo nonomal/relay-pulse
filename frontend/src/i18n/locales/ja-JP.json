@@ -407,5 +407,19 @@
     "close": "閉じる",
     "discussions": "ディスカッション",
     "moreAnnouncements": "他 {{count}} 件のお知らせ"
+  },
+  "auth": {
+    "loginWithGitHub": "GitHub でログイン",
+    "logout": "ログアウト",
+    "admin": "管理者",
+    "myApplications": "マイ申請",
+    "adminPanel": "管理パネル",
+    "loginRequired": "ログインが必要です",
+    "loginRequiredDesc": "このページにアクセスするには、GitHub アカウントでログインしてください。",
+    "accessDenied": "アクセス拒否",
+    "accessDeniedDesc": "このページにアクセスする権限がありません。問題がある場合は管理者にお問い合わせください。",
+    "accountDisabled": "アカウント無効",
+    "accountDisabledDesc": "アカウントが無効になっています。サポートが必要な場合は管理者にお問い合わせください。",
+    "backToHome": "ホームに戻る"
   }
 }

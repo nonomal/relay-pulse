@@ -407,5 +407,19 @@
     "close": "Close",
     "discussions": "Discussions",
     "moreAnnouncements": "{{count}} more announcement(s)"
+  },
+  "auth": {
+    "loginWithGitHub": "Sign in with GitHub",
+    "logout": "Sign out",
+    "admin": "Admin",
+    "myApplications": "My Applications",
+    "adminPanel": "Admin Panel",
+    "loginRequired": "Login Required",
+    "loginRequiredDesc": "Please sign in with your GitHub account to access this page.",
+    "accessDenied": "Access Denied",
+    "accessDeniedDesc": "You do not have permission to access this page. Please contact an administrator if you believe this is an error.",
+    "accountDisabled": "Account Disabled",
+    "accountDisabledDesc": "Your account has been disabled. Please contact an administrator for assistance.",
+    "backToHome": "Back to Home"
   }
 }

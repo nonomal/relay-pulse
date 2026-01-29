@@ -407,5 +407,19 @@
     "close": "关闭",
     "discussions": "讨论",
     "moreAnnouncements": "还有 {{count}} 条公告"
+  },
+  "auth": {
+    "loginWithGitHub": "使用 GitHub 登录",
+    "logout": "退出登录",
+    "admin": "管理员",
+    "myApplications": "我的申请",
+    "adminPanel": "管理后台",
+    "loginRequired": "需要登录",
+    "loginRequiredDesc": "请使用 GitHub 账号登录以访问此页面。",
+    "accessDenied": "无权访问",
+    "accessDeniedDesc": "您没有权限访问此页面。如有疑问，请联系管理员。",
+    "accountDisabled": "账号已禁用",
+    "accountDisabledDesc": "您的账号已被禁用。如需帮助，请联系管理员。",
+    "backToHome": "返回首页"
   }
 }
