@@ -208,6 +208,11 @@ func main() {
 	// 创建API服务器
 	server := api.NewServer(store, cfg, "8080")
 
+	// 注册 v1.0 API（认证、模板、服务、申请等，仅 PostgreSQL 存储支持）
+	if _, ok := store.(*storage.PostgresStorage); ok {
+		server.RegisterV1Routes(store)
+	}
+
 	// 注册管理 API（如果已启用数据库配置模式，adminStorage 在前面已创建）
 	if configSource == config.ConfigSourceDatabase {
 		// 根据存储类型获取 AdminStorage

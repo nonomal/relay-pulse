@@ -82,6 +82,12 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH:-amd64} \
     -X 'monitor/internal/buildinfo.BuildTime=${BUILD_TIME}'" \
     -o /build/monitor ./cmd/server
 
+# 编译迁移工具（v0 → v1 数据库迁移）
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH:-amd64} \
+    go build \
+    -ldflags="-s -w" \
+    -o /build/migrate ./cmd/migrate
+
 # ============================================
 # Stage 3: Runtime (Minimal Image)
 # ============================================
@@ -107,6 +113,7 @@ RUN apk add --no-cache ca-certificates tzdata bash wget
 
 # 从后端 builder 复制二进制文件（前端已嵌入）
 COPY --from=backend-builder /build/monitor /app/monitor
+COPY --from=backend-builder /build/migrate /app/migrate
 
 # 复制默认配置文件作为模板
 COPY config.yaml.example /app/config.yaml.default
