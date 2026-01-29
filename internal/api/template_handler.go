@@ -595,6 +595,16 @@ func (h *TemplateHandler) UpdateTemplateModel(c *gin.Context) {
 		return
 	}
 
+	// 获取路由中的模板 ID
+	templateID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "无效的模板 ID",
+			"code":  "INVALID_ID",
+		})
+		return
+	}
+
 	modelID, err := strconv.Atoi(c.Param("modelId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -614,6 +624,15 @@ func (h *TemplateHandler) UpdateTemplateModel(c *gin.Context) {
 		return
 	}
 	if model == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "模板模型不存在",
+			"code":  "NOT_FOUND",
+		})
+		return
+	}
+
+	// 验证模型属于指定的模板
+	if model.TemplateID != templateID {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "模板模型不存在",
 			"code":  "NOT_FOUND",
@@ -677,6 +696,16 @@ func (h *TemplateHandler) DeleteTemplateModel(c *gin.Context) {
 		return
 	}
 
+	// 获取路由中的模板 ID
+	templateID, err := strconv.Atoi(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "无效的模板 ID",
+			"code":  "INVALID_ID",
+		})
+		return
+	}
+
 	modelID, err := strconv.Atoi(c.Param("modelId"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -696,6 +725,15 @@ func (h *TemplateHandler) DeleteTemplateModel(c *gin.Context) {
 		return
 	}
 	if model == nil {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "模板模型不存在",
+			"code":  "NOT_FOUND",
+		})
+		return
+	}
+
+	// 验证模型属于指定的模板
+	if model.TemplateID != templateID {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "模板模型不存在",
 			"code":  "NOT_FOUND",

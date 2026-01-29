@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"net/http"
 	"strconv"
 	"strings"
@@ -185,19 +186,49 @@ func (h *ApplicationHandler) CreateApplication(c *gin.Context) {
 		return
 	}
 
-	templateID := 0
-	var templateSnapshot json.RawMessage
-	if service.DefaultTemplateID != nil {
-		templateID = *service.DefaultTemplateID
-		// 获取模板快照
-		templateStorage, ok := h.storage.(storage.TemplateStorage)
-		if ok {
-			template, err := templateStorage.GetTemplateWithModels(c.Request.Context(), templateID)
-			if err == nil && template != nil {
-				templateSnapshot, _ = json.Marshal(template)
-			}
-		}
+	// 验证服务是否配置了默认模板
+	if service.DefaultTemplateID == nil || *service.DefaultTemplateID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "该服务未配置默认模板，暂不支持申请",
+			"code":  "NO_DEFAULT_TEMPLATE",
+		})
+		return
 	}
+
+	templateID := *service.DefaultTemplateID
+	var templateSnapshot json.RawMessage
+
+	// 获取模板快照
+	templateStorage, ok := h.storage.(storage.TemplateStorage)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "存储层不支持模板操作",
+			"code":  "STORAGE_NOT_SUPPORTED",
+		})
+		return
+	}
+
+	template, err := templateStorage.GetTemplateWithModels(c.Request.Context(), templateID)
+	if err != nil || template == nil {
+		logger.Error("api", "获取模板失败", "error", err, "template_id", templateID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "默认模板不存在或已被删除",
+			"code":  "TEMPLATE_NOT_FOUND",
+		})
+		return
+	}
+
+	// 验证模板属于该服务
+	if template.ServiceID != req.ServiceID {
+		logger.Error("api", "模板服务不匹配", "template_service", template.ServiceID, "request_service", req.ServiceID)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "默认模板配置错误，请联系管理员",
+			"code":  "TEMPLATE_SERVICE_MISMATCH",
+		})
+		return
+	}
+
+	templateSnapshot, _ = json.Marshal(template)
 
 	now := time.Now().Unix()
 	app := &storage.MonitorApplication{
@@ -1316,6 +1347,12 @@ func (h *ApplicationHandler) createMonitorFromApplication(ctx context.Context, a
 
 	now := time.Now().Unix()
 
+	// 处理模板 ID：0 表示无模板
+	var templateIDPtr *int
+	if app.TemplateID > 0 {
+		templateIDPtr = &app.TemplateID
+	}
+
 	// 创建监测项
 	monitor := &storage.Monitor{
 		Provider:      provider,
@@ -1324,7 +1361,7 @@ func (h *ApplicationHandler) createMonitorFromApplication(ctx context.Context, a
 		ServiceName:   "", // 由模板或服务表获取
 		Channel:       channel,
 		ChannelName:   app.ChannelName,
-		TemplateID:    &app.TemplateID,
+		TemplateID:    templateIDPtr,
 		URL:           app.RequestURL,
 		Enabled:       true,
 		OwnerUserID:   &app.ApplicantUserID,
@@ -1375,7 +1412,12 @@ func (h *ApplicationHandler) createMonitorFromApplication(ctx context.Context, a
 }
 
 // generateProviderID 从名称生成 provider/channel 标识
+// 对于非 ASCII 名称（如中文），使用 FNV-64 hash 作为回退
 func generateProviderID(name string) string {
+	if name == "" {
+		return ""
+	}
+
 	// 转小写，替换空格和特殊字符
 	id := strings.ToLower(name)
 	id = strings.ReplaceAll(id, " ", "-")
@@ -1386,7 +1428,17 @@ func generateProviderID(name string) string {
 			result.WriteRune(r)
 		}
 	}
-	return result.String()
+
+	slug := result.String()
+	// 如果结果为空（全是非 ASCII 字符），使用名称的 FNV-64 hash 作为回退
+	// 使用 64 位 hash 降低碰撞概率
+	if slug == "" {
+		h := fnv.New64a()
+		h.Write([]byte(name))
+		slug = fmt.Sprintf("id-%016x", h.Sum64())
+	}
+
+	return slug
 }
 
 // logAudit 记录审计日志

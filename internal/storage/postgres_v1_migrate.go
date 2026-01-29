@@ -250,18 +250,29 @@ func (s *PostgresStorage) migrateOneMonitorConfig(ctx context.Context, mc *v0Mon
 	} else {
 		// 已存在，合并 model 字段
 		newID = existingID
-		if mc.Model != "" && !strings.Contains(existingModel, mc.Model) {
-			// 追加新 model
-			newModel := existingModel
-			if newModel != "" {
-				newModel += "," + mc.Model
-			} else {
-				newModel = mc.Model
+		mcModel := strings.TrimSpace(mc.Model)
+		if mcModel != "" {
+			// 使用集合比较，避免子串误判
+			existingModels := make(map[string]bool)
+			if existingModel != "" {
+				for _, m := range strings.Split(existingModel, ",") {
+					existingModels[strings.TrimSpace(m)] = true
+				}
 			}
-			updateQuery := `UPDATE monitors SET model = $1, updated_at = $2 WHERE id = $3`
-			_, err = tx.Exec(ctx, updateQuery, newModel, now, newID)
-			if err != nil {
-				return fmt.Errorf("更新 model 失败: %w", err)
+
+			if !existingModels[mcModel] {
+				// 追加新 model
+				newModel := existingModel
+				if newModel != "" {
+					newModel += "," + mcModel
+				} else {
+					newModel = mcModel
+				}
+				updateQuery := `UPDATE monitors SET model = $1, updated_at = $2 WHERE id = $3`
+				_, err = tx.Exec(ctx, updateQuery, newModel, now, newID)
+				if err != nil {
+					return fmt.Errorf("更新 model 失败: %w", err)
+				}
 			}
 		}
 	}

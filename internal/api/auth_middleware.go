@@ -234,6 +234,22 @@ func (m *AuthMiddleware) slidingExpire(c *gin.Context, session *storage.UserSess
 		ctx := c.Request.Context()
 		if err := userStorage.TouchSession(ctx, session.ID); err != nil {
 			logger.Warn("api", "会话续期失败", "session_id", session.ID, "error", err)
+			return
+		}
+
+		// 同时刷新客户端 Cookie（仅当使用 Cookie 认证时）
+		// 检查请求是否通过 Cookie 认证
+		if cookie, err := c.Cookie(SessionCookieName); err == nil && cookie != "" {
+			c.SetSameSite(http.SameSiteLaxMode)
+			c.SetCookie(
+				SessionCookieName,
+				cookie,
+				int(SessionExtendedTTL.Seconds()),
+				"/",
+				"",
+				true, // secure
+				true, // httpOnly
+			)
 		}
 	}
 }

@@ -104,7 +104,8 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 		return
 	}
 
-	// 将 state 存入 cookie
+	// 将 state 存入 cookie（设置 SameSite=Lax 防止 CSRF）
+	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(
 		OAuthStateCookie,
 		state,
@@ -239,7 +240,8 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 		return
 	}
 
-	// 设置会话 cookie
+	// 设置会话 cookie（设置 SameSite=Lax 防止 CSRF）
+	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(
 		SessionCookieName,
 		sessionToken,
@@ -321,7 +323,8 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 		}
 	}
 
-	// 清除 cookie
+	// 清除 cookie（设置 SameSite 保持一致性）
+	c.SetSameSite(http.SameSiteLaxMode)
 	c.SetCookie(SessionCookieName, "", -1, "/", "", true, true)
 
 	c.JSON(http.StatusOK, gin.H{

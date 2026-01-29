@@ -393,13 +393,18 @@ func (s *PostgresStorage) GetSessionByTokenHash(ctx context.Context, tokenHash s
 	return session, nil
 }
 
-// TouchSession 更新会话最后活跃时间
+// TouchSession 更新会话最后活跃时间并延长过期时间
+// 注意：604800 = 7 天（与 SessionExtendedTTL 保持一致）
 func (s *PostgresStorage) TouchSession(ctx context.Context, id string) error {
 	if ctx == nil {
 		ctx = s.ctx
 	}
 
-	query := `UPDATE user_sessions SET last_seen_at = EXTRACT(EPOCH FROM NOW())::BIGINT WHERE id = $1`
+	// 同时更新 last_seen_at 和 expires_at（延长 7 天 = 604800 秒）
+	query := `UPDATE user_sessions SET
+		last_seen_at = EXTRACT(EPOCH FROM NOW())::BIGINT,
+		expires_at = EXTRACT(EPOCH FROM NOW())::BIGINT + 604800
+		WHERE id = $1`
 	_, err := s.pool.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("更新会话活跃时间失败: %w", err)
