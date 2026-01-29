@@ -41,7 +41,7 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 // 构建查询字符串
-function buildQueryString(params: Record<string, unknown>): string {
+function buildQueryString<T extends object>(params: T): string {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== '') {

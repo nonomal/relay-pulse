@@ -103,10 +103,15 @@ func (s *PostgresStorage) initAdminConfigTables(ctx context.Context) error {
 			tooltip_i18n TEXT,
 			icon TEXT,
 			color TEXT,
+			category TEXT,
+			svg_source TEXT,
 			created_at BIGINT NOT NULL,
 			updated_at BIGINT NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_badge_defs_kind ON badge_definitions(kind)`,
+		// 迁移：为已存在的表添加新列
+		`ALTER TABLE badge_definitions ADD COLUMN IF NOT EXISTS category TEXT`,
+		`ALTER TABLE badge_definitions ADD COLUMN IF NOT EXISTS svg_source TEXT`,
 
 		// badge_bindings 徽标绑定表
 		`CREATE TABLE IF NOT EXISTS badge_bindings (
@@ -1047,7 +1052,7 @@ func (s *PostgresStorage) ListBadgeDefinitions() ([]*BadgeDefinition, error) {
 	ctx := s.effectiveCtx()
 
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, kind, weight, label_i18n, tooltip_i18n, icon, color, created_at, updated_at
+		SELECT id, kind, weight, label_i18n, tooltip_i18n, icon, color, category, svg_source, created_at, updated_at
 		FROM badge_definitions ORDER BY weight DESC, id`)
 	if err != nil {
 		return nil, fmt.Errorf("查询徽标定义失败: %w", err)
@@ -1057,11 +1062,18 @@ func (s *PostgresStorage) ListBadgeDefinitions() ([]*BadgeDefinition, error) {
 	var defs []*BadgeDefinition
 	for rows.Next() {
 		var d BadgeDefinition
+		var category, svgSource *string
 		if err := rows.Scan(
 			&d.ID, &d.Kind, &d.Weight, &d.LabelI18n, &d.TooltipI18n, &d.Icon, &d.Color,
-			&d.CreatedAt, &d.UpdatedAt,
+			&category, &svgSource, &d.CreatedAt, &d.UpdatedAt,
 		); err != nil {
 			return nil, fmt.Errorf("扫描徽标定义失败: %w", err)
+		}
+		if category != nil {
+			d.Category = *category
+		}
+		if svgSource != nil {
+			d.SVGSource = *svgSource
 		}
 		defs = append(defs, &d)
 	}
@@ -1086,11 +1098,20 @@ func (s *PostgresStorage) CreateBadgeDefinition(def *BadgeDefinition) error {
 	}
 	defer tx.Rollback(ctx)
 
+	// 处理可选的 category 和 svg_source 字段
+	var category, svgSource *string
+	if def.Category != "" {
+		category = &def.Category
+	}
+	if def.SVGSource != "" {
+		svgSource = &def.SVGSource
+	}
+
 	_, err = tx.Exec(ctx, `
-		INSERT INTO badge_definitions (id, kind, weight, label_i18n, tooltip_i18n, icon, color, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		INSERT INTO badge_definitions (id, kind, weight, label_i18n, tooltip_i18n, icon, color, category, svg_source, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		def.ID, def.Kind, def.Weight, def.LabelI18n, def.TooltipI18n, def.Icon, def.Color,
-		def.CreatedAt, def.UpdatedAt,
+		category, svgSource, def.CreatedAt, def.UpdatedAt,
 	)
 	if err != nil {
 		if strings.Contains(err.Error(), "badge_definitions_pkey") {
@@ -1125,13 +1146,22 @@ func (s *PostgresStorage) UpdateBadgeDefinition(def *BadgeDefinition) error {
 	}
 	defer tx.Rollback(ctx)
 
+	// 处理可选的 category 和 svg_source 字段
+	var category, svgSource *string
+	if def.Category != "" {
+		category = &def.Category
+	}
+	if def.SVGSource != "" {
+		svgSource = &def.SVGSource
+	}
+
 	result, err := tx.Exec(ctx, `
 		UPDATE badge_definitions SET
 			kind = $1, weight = $2, label_i18n = $3, tooltip_i18n = $4,
-			icon = $5, color = $6, updated_at = $7
-		WHERE id = $8`,
+			icon = $5, color = $6, category = $7, svg_source = $8, updated_at = $9
+		WHERE id = $10`,
 		def.Kind, def.Weight, def.LabelI18n, def.TooltipI18n,
-		def.Icon, def.Color, now, def.ID,
+		def.Icon, def.Color, category, svgSource, now, def.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("更新徽标定义失败: %w", err)

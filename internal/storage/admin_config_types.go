@@ -14,6 +14,8 @@ const (
 	AuditActionDelete       AuditAction = "delete"
 	AuditActionRestore      AuditAction = "restore"
 	AuditActionRotateSecret AuditAction = "rotate_secret"
+	AuditActionApprove      AuditAction = "approve" // v1.0: 审核通过
+	AuditActionReject       AuditAction = "reject"  // v1.0: 审核拒绝
 )
 
 // PolicyType Provider 策略类型
@@ -184,14 +186,18 @@ type RiskBadgeData struct {
 // - id 是徽标的唯一标识符（如 "official", "high_frequency"）
 // - label_i18n/tooltip_i18n 是 JSON 格式的多语言文本
 // - weight 用于排序，值越大优先级越高
+// - category 用于分类：sponsor_level/metric/negative/vendor_type
+// - svg_source 存储 SVG 图标源码
 type BadgeDefinition struct {
 	ID          string    `db:"id" json:"id"`                               // 徽标 ID（主键）
 	Kind        BadgeKind `db:"kind" json:"kind"`                           // sponsor/risk/feature/info
 	Weight      int       `db:"weight" json:"weight"`                       // 排序权重
 	LabelI18n   string    `db:"label_i18n" json:"label_i18n"`               // JSON: {"zh-CN":"...", "en-US":"..."}
 	TooltipI18n string    `db:"tooltip_i18n" json:"tooltip_i18n,omitempty"` // JSON: {"zh-CN":"...", "en-US":"..."}
-	Icon        string    `db:"icon" json:"icon,omitempty"`                 // 图标标识
+	Icon        string    `db:"icon" json:"icon,omitempty"`                 // 图标标识（旧字段，保留兼容）
 	Color       string    `db:"color" json:"color,omitempty"`               // 颜色代码
+	Category    string    `db:"category" json:"category,omitempty"`         // 分类：sponsor_level/metric/negative/vendor_type
+	SVGSource   string    `db:"svg_source" json:"svg_source,omitempty"`     // SVG 图标源码
 	CreatedAt   int64     `db:"created_at" json:"created_at"`
 	UpdatedAt   int64     `db:"updated_at" json:"updated_at"`
 }

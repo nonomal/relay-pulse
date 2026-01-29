@@ -22,16 +22,16 @@ func (s *PostgresStorage) CreateApplication(ctx context.Context, app *MonitorApp
 		INSERT INTO monitor_applications (
 			applicant_user_id, service_id, template_id, template_snapshot,
 			provider_name, channel_name, vendor_type, website_url, request_url,
-			api_key_encrypted, api_key_nonce,
+			api_key_encrypted, api_key_nonce, api_key_version,
 			status, reject_reason, reviewer_user_id, reviewed_at, last_test_session_id,
 			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
 		RETURNING id
 	`
 	err := s.pool.QueryRow(ctx, query,
 		app.ApplicantUserID, app.ServiceID, app.TemplateID, app.TemplateSnapshot,
 		app.ProviderName, app.ChannelName, app.VendorType, app.WebsiteURL, app.RequestURL,
-		app.APIKeyEncrypted, app.APIKeyNonce,
+		app.APIKeyEncrypted, app.APIKeyNonce, app.APIKeyVersion,
 		app.Status, app.RejectReason, app.ReviewerUserID, app.ReviewedAt, app.LastTestSessionID,
 		app.CreatedAt, app.UpdatedAt,
 	).Scan(&app.ID)
@@ -50,7 +50,7 @@ func (s *PostgresStorage) GetApplicationByID(ctx context.Context, id int) (*Moni
 	query := `
 		SELECT id, applicant_user_id, service_id, template_id, template_snapshot,
 			provider_name, channel_name, vendor_type, website_url, request_url,
-			api_key_encrypted, api_key_nonce,
+			api_key_encrypted, api_key_nonce, api_key_version,
 			status, reject_reason, reviewer_user_id, reviewed_at, last_test_session_id,
 			created_at, updated_at
 		FROM monitor_applications WHERE id = $1
@@ -59,7 +59,7 @@ func (s *PostgresStorage) GetApplicationByID(ctx context.Context, id int) (*Moni
 	err := s.pool.QueryRow(ctx, query, id).Scan(
 		&app.ID, &app.ApplicantUserID, &app.ServiceID, &app.TemplateID, &app.TemplateSnapshot,
 		&app.ProviderName, &app.ChannelName, &app.VendorType, &app.WebsiteURL, &app.RequestURL,
-		&app.APIKeyEncrypted, &app.APIKeyNonce,
+		&app.APIKeyEncrypted, &app.APIKeyNonce, &app.APIKeyVersion,
 		&app.Status, &app.RejectReason, &app.ReviewerUserID, &app.ReviewedAt, &app.LastTestSessionID,
 		&app.CreatedAt, &app.UpdatedAt,
 	)
@@ -82,15 +82,15 @@ func (s *PostgresStorage) UpdateApplication(ctx context.Context, app *MonitorApp
 		UPDATE monitor_applications SET
 			template_snapshot = $2, provider_name = $3, channel_name = $4,
 			vendor_type = $5, website_url = $6, request_url = $7,
-			api_key_encrypted = $8, api_key_nonce = $9,
-			status = $10, reject_reason = $11, reviewer_user_id = $12, reviewed_at = $13,
-			last_test_session_id = $14, updated_at = $15
+			api_key_encrypted = $8, api_key_nonce = $9, api_key_version = $10,
+			status = $11, reject_reason = $12, reviewer_user_id = $13, reviewed_at = $14,
+			last_test_session_id = $15, updated_at = $16
 		WHERE id = $1
 	`
 	_, err := s.pool.Exec(ctx, query,
 		app.ID, app.TemplateSnapshot, app.ProviderName, app.ChannelName,
 		app.VendorType, app.WebsiteURL, app.RequestURL,
-		app.APIKeyEncrypted, app.APIKeyNonce,
+		app.APIKeyEncrypted, app.APIKeyNonce, app.APIKeyVersion,
 		app.Status, app.RejectReason, app.ReviewerUserID, app.ReviewedAt,
 		app.LastTestSessionID, app.UpdatedAt,
 	)
@@ -178,7 +178,7 @@ func (s *PostgresStorage) ListApplications(ctx context.Context, opts *ListApplic
 	query := fmt.Sprintf(`
 		SELECT id, applicant_user_id, service_id, template_id, template_snapshot,
 			provider_name, channel_name, vendor_type, website_url, request_url,
-			api_key_encrypted, api_key_nonce,
+			api_key_encrypted, api_key_nonce, api_key_version,
 			status, reject_reason, reviewer_user_id, reviewed_at, last_test_session_id,
 			created_at, updated_at
 		FROM monitor_applications %s
@@ -199,7 +199,7 @@ func (s *PostgresStorage) ListApplications(ctx context.Context, opts *ListApplic
 		if err := rows.Scan(
 			&app.ID, &app.ApplicantUserID, &app.ServiceID, &app.TemplateID, &app.TemplateSnapshot,
 			&app.ProviderName, &app.ChannelName, &app.VendorType, &app.WebsiteURL, &app.RequestURL,
-			&app.APIKeyEncrypted, &app.APIKeyNonce,
+			&app.APIKeyEncrypted, &app.APIKeyNonce, &app.APIKeyVersion,
 			&app.Status, &app.RejectReason, &app.ReviewerUserID, &app.ReviewedAt, &app.LastTestSessionID,
 			&app.CreatedAt, &app.UpdatedAt,
 		); err != nil {

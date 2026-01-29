@@ -19,7 +19,8 @@ const (
 // Loader 配置加载器
 type Loader struct {
 	currentConfig *AppConfig
-	dbProvider    *DBConfigProvider // 数据库配置提供者（可选）
+	dbProvider    *DBConfigProvider // 数据库配置提供者（v0，可选）
+	v1Provider    *V1ConfigProvider // v1.0 配置提供者（可选）
 }
 
 // NewLoader 创建配置加载器
@@ -31,6 +32,12 @@ func NewLoader() *Loader {
 // 用于支持 config_source=database 模式
 func (l *Loader) SetDBProvider(provider *DBConfigProvider) {
 	l.dbProvider = provider
+}
+
+// SetV1Provider 设置 v1.0 配置提供者
+// 当设置时，优先使用 v1 monitors 表
+func (l *Loader) SetV1Provider(provider *V1ConfigProvider) {
+	l.v1Provider = provider
 }
 
 // LoadBootstrap 仅加载启动引导配置（storage、config_source 等）
@@ -159,6 +166,23 @@ func (l *Loader) Load(filename string) (*AppConfig, error) {
 // loadFromDatabase 从数据库加载功能配置
 // baseCfg 包含启动引导配置（storage、config_source 等）
 func (l *Loader) loadFromDatabase(ctx context.Context, baseCfg *AppConfig) (*AppConfig, error) {
+	// 优先使用 v1 配置提供者
+	if l.v1Provider != nil {
+		dbCfg, err := l.v1Provider.LoadFullConfig(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("从 v1 表加载配置失败: %w", err)
+		}
+
+		// 如果 v1 有监测项，使用 v1 配置
+		if len(dbCfg.Monitors) > 0 {
+			// 合并启动引导配置
+			mergeBootstrapConfig(dbCfg, baseCfg)
+			return dbCfg, nil
+		}
+		// 否则回退到 v0
+	}
+
+	// 回退到 v0 配置提供者
 	if l.dbProvider == nil {
 		return nil, fmt.Errorf("config_source=database 但未设置数据库配置提供者")
 	}

@@ -272,11 +272,6 @@ func (s *Server) RegisterAdminHandler(store storage.AdminStorage) {
 	// 全局审计日志 API
 	adminGroup.GET("/audits", adminHandler.ListAudits)
 
-	// Provider 策略管理 API
-	adminGroup.GET("/policies", adminHandler.ListProviderPolicies)
-	adminGroup.POST("/policies", adminHandler.CreateProviderPolicy)
-	adminGroup.DELETE("/policies/:id", adminHandler.DeleteProviderPolicy)
-
 	// Badge 管理 API
 	adminGroup.GET("/badges/definitions", adminHandler.ListBadgeDefinitions)
 	adminGroup.POST("/badges/definitions", adminHandler.CreateBadgeDefinition)
@@ -331,6 +326,14 @@ func (s *Server) RegisterV1Routes(store storage.Storage) {
 		// 申请管理（管理员端）
 		applicationHandler := NewApplicationHandler(store)
 		applicationHandler.RegisterAdminRoutes(adminV1Group, authMiddleware)
+
+		// 用户管理（管理员端）
+		userHandler := NewUserHandler(store)
+		userHandler.RegisterRoutes(adminV1Group, authMiddleware)
+
+		// 审计日志（管理员端）
+		auditHandler := NewAuditHandler(store)
+		auditHandler.RegisterRoutes(adminV1Group, authMiddleware)
 	}
 	logger.Info("api", "v1 管理 API 已注册", "path", "/api/v1/admin/*")
 

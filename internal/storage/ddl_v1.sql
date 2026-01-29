@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS monitor_applications (
     -- API Key 安全存储（使用 AES-GCM 加密）
     api_key_encrypted BYTEA,          -- 加密的 API Key
     api_key_nonce BYTEA,              -- 加密随机数
+    api_key_version INT NOT NULL DEFAULT 1, -- 加密密钥版本
 
     -- 状态流转: pending_test → test_failed/test_passed → pending_review → approved/rejected
     status TEXT NOT NULL DEFAULT 'pending_test',
@@ -202,19 +203,22 @@ CREATE TABLE IF NOT EXISTS monitors (
     -- 模板关联（自动跟随模板更新）
     template_id INT REFERENCES monitor_templates(id),
 
-    -- 配置（可覆盖模板配置）
-    url TEXT NOT NULL DEFAULT '',                -- 请求 URL
-    method TEXT NOT NULL DEFAULT 'POST',
-    headers JSONB,                               -- 请求头
-    body JSONB,                                  -- 请求体
-    success_contains TEXT NOT NULL DEFAULT '',   -- 响应检查
-    interval TEXT NOT NULL DEFAULT '1m',
-    timeout TEXT NOT NULL DEFAULT '10s',
-    slow_latency TEXT NOT NULL DEFAULT '5s',
+    -- 配置覆盖（NULL = 继承模板配置）
+    url TEXT NOT NULL DEFAULT '',                -- 请求 URL（必填，不继承）
+    method TEXT,                                 -- 请求方法，NULL = 继承模板
+    headers JSONB,                               -- 请求头（与模板合并）
+    body JSONB,                                  -- 请求体（与模板合并）
+    success_contains TEXT,                       -- 响应检查，NULL = 继承模板
+    interval_override TEXT,                      -- 巡检间隔，NULL = 使用全局/模板默认
+    timeout_override TEXT,                       -- 超时，NULL = 继承模板
+    slow_latency_override TEXT,                  -- 慢响应阈值，NULL = 继承模板
 
     -- 状态
     enabled BOOLEAN NOT NULL DEFAULT true,
     board_id INT,                                -- 板块
+
+    -- 元数据（存储 category/sponsor/price 等可选信息）
+    metadata JSONB,                              -- {"category":"tier1", "sponsor":"xxx", ...}
 
     -- 用户提交相关
     owner_user_id UUID REFERENCES users(id),     -- 用户提交的监测项

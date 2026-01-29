@@ -89,6 +89,8 @@ type BadgeDefinitionRecord struct {
 	TooltipI18n string
 	Icon        string
 	Color       string
+	Category    string // sponsor_level/metric/negative/vendor_type
+	SVGSource   string // SVG 图标源码
 }
 
 // BadgeBindingFilter 徽标绑定查询过滤器

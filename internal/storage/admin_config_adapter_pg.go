@@ -116,6 +116,8 @@ func (a *PostgresAdminConfigAdapter) ListBadgeDefinitions() ([]*config.BadgeDefi
 			TooltipI18n: b.TooltipI18n,
 			Icon:        b.Icon,
 			Color:       b.Color,
+			Category:    b.Category,
+			SVGSource:   b.SVGSource,
 		}
 	}
 

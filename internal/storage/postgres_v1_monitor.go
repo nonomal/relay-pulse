@@ -22,18 +22,18 @@ func (s *PostgresStorage) CreateMonitor(ctx context.Context, monitor *Monitor) e
 		INSERT INTO monitors (
 			provider, provider_name, service, service_name, channel, channel_name, model,
 			template_id, url, method, headers, body, success_contains,
-			interval, timeout, slow_latency, enabled, board_id,
-			owner_user_id, vendor_type, website_url, application_id,
+			interval_override, timeout_override, slow_latency_override, enabled, board_id,
+			metadata, owner_user_id, vendor_type, website_url, application_id,
 			created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
 		RETURNING id
 	`
 	err := s.pool.QueryRow(ctx, query,
 		monitor.Provider, monitor.ProviderName, monitor.Service, monitor.ServiceName,
 		monitor.Channel, monitor.ChannelName, monitor.Model,
 		monitor.TemplateID, monitor.URL, monitor.Method, monitor.Headers, monitor.Body, monitor.SuccessContains,
-		monitor.Interval, monitor.Timeout, monitor.SlowLatency, monitor.Enabled, monitor.BoardID,
-		monitor.OwnerUserID, monitor.VendorType, monitor.WebsiteURL, monitor.ApplicationID,
+		monitor.IntervalOverride, monitor.TimeoutOverride, monitor.SlowLatencyOverride, monitor.Enabled, monitor.BoardID,
+		monitor.Metadata, monitor.OwnerUserID, monitor.VendorType, monitor.WebsiteURL, monitor.ApplicationID,
 		monitor.CreatedAt, monitor.UpdatedAt,
 	).Scan(&monitor.ID)
 	if err != nil {
@@ -51,8 +51,8 @@ func (s *PostgresStorage) GetMonitorByID(ctx context.Context, id int) (*Monitor,
 	query := `
 		SELECT id, provider, provider_name, service, service_name, channel, channel_name, model,
 			template_id, url, method, headers, body, success_contains,
-			interval, timeout, slow_latency, enabled, board_id,
-			owner_user_id, vendor_type, website_url, application_id,
+			interval_override, timeout_override, slow_latency_override, enabled, board_id,
+			metadata, owner_user_id, vendor_type, website_url, application_id,
 			created_at, updated_at
 		FROM monitors WHERE id = $1
 	`
@@ -61,8 +61,8 @@ func (s *PostgresStorage) GetMonitorByID(ctx context.Context, id int) (*Monitor,
 		&monitor.ID, &monitor.Provider, &monitor.ProviderName, &monitor.Service, &monitor.ServiceName,
 		&monitor.Channel, &monitor.ChannelName, &monitor.Model,
 		&monitor.TemplateID, &monitor.URL, &monitor.Method, &monitor.Headers, &monitor.Body, &monitor.SuccessContains,
-		&monitor.Interval, &monitor.Timeout, &monitor.SlowLatency, &monitor.Enabled, &monitor.BoardID,
-		&monitor.OwnerUserID, &monitor.VendorType, &monitor.WebsiteURL, &monitor.ApplicationID,
+		&monitor.IntervalOverride, &monitor.TimeoutOverride, &monitor.SlowLatencyOverride, &monitor.Enabled, &monitor.BoardID,
+		&monitor.Metadata, &monitor.OwnerUserID, &monitor.VendorType, &monitor.WebsiteURL, &monitor.ApplicationID,
 		&monitor.CreatedAt, &monitor.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -83,8 +83,8 @@ func (s *PostgresStorage) GetMonitorByKey(ctx context.Context, provider, service
 	query := `
 		SELECT id, provider, provider_name, service, service_name, channel, channel_name, model,
 			template_id, url, method, headers, body, success_contains,
-			interval, timeout, slow_latency, enabled, board_id,
-			owner_user_id, vendor_type, website_url, application_id,
+			interval_override, timeout_override, slow_latency_override, enabled, board_id,
+			metadata, owner_user_id, vendor_type, website_url, application_id,
 			created_at, updated_at
 		FROM monitors WHERE provider = $1 AND service = $2 AND channel = $3
 	`
@@ -93,8 +93,8 @@ func (s *PostgresStorage) GetMonitorByKey(ctx context.Context, provider, service
 		&monitor.ID, &monitor.Provider, &monitor.ProviderName, &monitor.Service, &monitor.ServiceName,
 		&monitor.Channel, &monitor.ChannelName, &monitor.Model,
 		&monitor.TemplateID, &monitor.URL, &monitor.Method, &monitor.Headers, &monitor.Body, &monitor.SuccessContains,
-		&monitor.Interval, &monitor.Timeout, &monitor.SlowLatency, &monitor.Enabled, &monitor.BoardID,
-		&monitor.OwnerUserID, &monitor.VendorType, &monitor.WebsiteURL, &monitor.ApplicationID,
+		&monitor.IntervalOverride, &monitor.TimeoutOverride, &monitor.SlowLatencyOverride, &monitor.Enabled, &monitor.BoardID,
+		&monitor.Metadata, &monitor.OwnerUserID, &monitor.VendorType, &monitor.WebsiteURL, &monitor.ApplicationID,
 		&monitor.CreatedAt, &monitor.UpdatedAt,
 	)
 	if err == pgx.ErrNoRows {
@@ -116,15 +116,15 @@ func (s *PostgresStorage) UpdateMonitor(ctx context.Context, monitor *Monitor) e
 		UPDATE monitors SET
 			provider_name = $2, service_name = $3, channel_name = $4, model = $5,
 			template_id = $6, url = $7, method = $8, headers = $9, body = $10, success_contains = $11,
-			interval = $12, timeout = $13, slow_latency = $14, enabled = $15, board_id = $16,
-			vendor_type = $17, website_url = $18, updated_at = $19
+			interval_override = $12, timeout_override = $13, slow_latency_override = $14, enabled = $15, board_id = $16,
+			metadata = $17, vendor_type = $18, website_url = $19, updated_at = $20
 		WHERE id = $1
 	`
 	_, err := s.pool.Exec(ctx, query,
 		monitor.ID, monitor.ProviderName, monitor.ServiceName, monitor.ChannelName, monitor.Model,
 		monitor.TemplateID, monitor.URL, monitor.Method, monitor.Headers, monitor.Body, monitor.SuccessContains,
-		monitor.Interval, monitor.Timeout, monitor.SlowLatency, monitor.Enabled, monitor.BoardID,
-		monitor.VendorType, monitor.WebsiteURL, monitor.UpdatedAt,
+		monitor.IntervalOverride, monitor.TimeoutOverride, monitor.SlowLatencyOverride, monitor.Enabled, monitor.BoardID,
+		monitor.Metadata, monitor.VendorType, monitor.WebsiteURL, monitor.UpdatedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("更新监测项失败: %w", err)
@@ -220,8 +220,8 @@ func (s *PostgresStorage) ListMonitors(ctx context.Context, opts *ListMonitorsOp
 	query := fmt.Sprintf(`
 		SELECT id, provider, provider_name, service, service_name, channel, channel_name, model,
 			template_id, url, method, headers, body, success_contains,
-			interval, timeout, slow_latency, enabled, board_id,
-			owner_user_id, vendor_type, website_url, application_id,
+			interval_override, timeout_override, slow_latency_override, enabled, board_id,
+			metadata, owner_user_id, vendor_type, website_url, application_id,
 			created_at, updated_at
 		FROM monitors %s
 		ORDER BY created_at DESC
@@ -242,8 +242,8 @@ func (s *PostgresStorage) ListMonitors(ctx context.Context, opts *ListMonitorsOp
 			&monitor.ID, &monitor.Provider, &monitor.ProviderName, &monitor.Service, &monitor.ServiceName,
 			&monitor.Channel, &monitor.ChannelName, &monitor.Model,
 			&monitor.TemplateID, &monitor.URL, &monitor.Method, &monitor.Headers, &monitor.Body, &monitor.SuccessContains,
-			&monitor.Interval, &monitor.Timeout, &monitor.SlowLatency, &monitor.Enabled, &monitor.BoardID,
-			&monitor.OwnerUserID, &monitor.VendorType, &monitor.WebsiteURL, &monitor.ApplicationID,
+			&monitor.IntervalOverride, &monitor.TimeoutOverride, &monitor.SlowLatencyOverride, &monitor.Enabled, &monitor.BoardID,
+			&monitor.Metadata, &monitor.OwnerUserID, &monitor.VendorType, &monitor.WebsiteURL, &monitor.ApplicationID,
 			&monitor.CreatedAt, &monitor.UpdatedAt,
 		); err != nil {
 			return nil, 0, fmt.Errorf("扫描监测项数据失败: %w", err)
@@ -259,23 +259,24 @@ func (s *PostgresStorage) ListMonitors(ctx context.Context, opts *ListMonitorsOp
 
 // monitorUpdatableFields 监测项可更新字段白名单
 var monitorUpdatableFields = map[string]bool{
-	"provider_name":    true,
-	"service_name":     true,
-	"channel_name":     true,
-	"model":            true,
-	"template_id":      true,
-	"url":              true,
-	"method":           true,
-	"headers":          true,
-	"body":             true,
-	"success_contains": true,
-	"interval":         true,
-	"timeout":          true,
-	"slow_latency":     true,
-	"enabled":          true,
-	"board_id":         true,
-	"vendor_type":      true,
-	"website_url":      true,
+	"provider_name":         true,
+	"service_name":          true,
+	"channel_name":          true,
+	"model":                 true,
+	"template_id":           true,
+	"url":                   true,
+	"method":                true,
+	"headers":               true,
+	"body":                  true,
+	"success_contains":      true,
+	"interval_override":     true,
+	"timeout_override":      true,
+	"slow_latency_override": true,
+	"enabled":               true,
+	"board_id":              true,
+	"metadata":              true,
+	"vendor_type":           true,
+	"website_url":           true,
 }
 
 // BatchUpdateMonitors 批量更新监测项
@@ -426,4 +427,164 @@ func (s *PostgresStorage) GetNewIDByLegacyKey(ctx context.Context, provider, ser
 		return 0, fmt.Errorf("获取新 ID 失败: %w", err)
 	}
 	return newID, nil
+}
+
+// =====================================================
+// V1ConfigProvider 存储接口实现
+// =====================================================
+
+// V1MonitorWithTemplate 带模板数据的监测项（供 config.V1ConfigProvider 使用）
+type V1MonitorWithTemplate struct {
+	// 监测项基础信息
+	ID           int
+	Provider     string
+	ProviderName string
+	Service      string
+	ServiceName  string
+	Channel      string
+	ChannelName  string
+	Model        string
+
+	// 模板关联
+	TemplateID *int
+
+	// 监测项配置
+	URL             string
+	Method          *string
+	Headers         []byte
+	Body            []byte
+	SuccessContains *string
+
+	// 时间配置覆盖
+	IntervalOverride    *string
+	TimeoutOverride     *string
+	SlowLatencyOverride *string
+
+	// 状态
+	Enabled bool
+	BoardID *int
+
+	// 元数据
+	Metadata    []byte
+	OwnerUserID *string
+	VendorType  string
+	WebsiteURL  string
+
+	// 时间戳
+	CreatedAt int64
+	UpdatedAt int64
+
+	// 关联的模板数据
+	TemplateServiceID          *string
+	TemplateName               *string
+	TemplateSlug               *string
+	TemplateRequestMethod      *string
+	TemplateBaseRequestHeaders []byte
+	TemplateBaseRequestBody    []byte
+	TemplateBaseResponseChecks []byte
+	TemplateTimeoutMs          *int
+	TemplateSlowLatencyMs      *int
+}
+
+// ListEnabledMonitorsWithTemplatesInternal 查询所有启用的监测项（含模板数据）
+// 供 v1_config_adapter 调用
+func (s *PostgresStorage) ListEnabledMonitorsWithTemplatesInternal(ctx context.Context) ([]*V1MonitorWithTemplate, error) {
+	if ctx == nil {
+		ctx = s.ctx
+	}
+
+	query := `
+		SELECT
+			m.id, m.provider, m.provider_name, m.service, m.service_name,
+			m.channel, m.channel_name, m.model,
+			m.template_id,
+			m.url, m.method, m.headers, m.body, m.success_contains,
+			m.interval_override, m.timeout_override, m.slow_latency_override,
+			m.enabled, m.board_id,
+			m.metadata, m.owner_user_id, m.vendor_type, m.website_url,
+			m.created_at, m.updated_at,
+			-- 模板字段（LEFT JOIN）
+			t.service_id, t.name, t.slug,
+			t.request_method, t.base_request_headers, t.base_request_body, t.base_response_checks,
+			t.timeout_ms, t.slow_latency_ms
+		FROM monitors m
+		LEFT JOIN monitor_templates t ON m.template_id = t.id
+		WHERE m.enabled = true
+		ORDER BY m.service, m.provider, m.channel
+	`
+
+	rows, err := s.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("查询 v1 监测项失败: %w", err)
+	}
+	defer rows.Close()
+
+	var result []*V1MonitorWithTemplate
+	for rows.Next() {
+		m := &V1MonitorWithTemplate{}
+		err := rows.Scan(
+			&m.ID, &m.Provider, &m.ProviderName, &m.Service, &m.ServiceName,
+			&m.Channel, &m.ChannelName, &m.Model,
+			&m.TemplateID,
+			&m.URL, &m.Method, &m.Headers, &m.Body, &m.SuccessContains,
+			&m.IntervalOverride, &m.TimeoutOverride, &m.SlowLatencyOverride,
+			&m.Enabled, &m.BoardID,
+			&m.Metadata, &m.OwnerUserID, &m.VendorType, &m.WebsiteURL,
+			&m.CreatedAt, &m.UpdatedAt,
+			// 模板字段
+			&m.TemplateServiceID, &m.TemplateName, &m.TemplateSlug,
+			&m.TemplateRequestMethod, &m.TemplateBaseRequestHeaders,
+			&m.TemplateBaseRequestBody, &m.TemplateBaseResponseChecks,
+			&m.TemplateTimeoutMs, &m.TemplateSlowLatencyMs,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描 v1 监测项数据失败: %w", err)
+		}
+		result = append(result, m)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历 v1 监测项数据失败: %w", err)
+	}
+
+	return result, nil
+}
+
+// GetMonitorSecretByV1ID 按 v1 监测项 ID 获取 API Key 密文
+// v1 monitors 表的 API Key 存储在 monitor_secrets 表，使用 monitors.id 作为外键
+func (s *PostgresStorage) GetMonitorSecretByV1ID(ctx context.Context, monitorID int) (*MonitorSecretRecord, error) {
+	if ctx == nil {
+		ctx = s.ctx
+	}
+
+	// 注意：v1 使用 monitors.id 作为 monitor_id
+	// 需要确保 monitor_secrets 表支持 v1 的 ID
+	query := `
+		SELECT monitor_id, api_key_ciphertext, api_key_nonce, key_version, enc_version
+		FROM monitor_secrets
+		WHERE monitor_id = $1
+	`
+	record := &MonitorSecretRecord{}
+	err := s.pool.QueryRow(ctx, query, monitorID).Scan(
+		&record.MonitorID,
+		&record.APIKeyCiphertext,
+		&record.APIKeyNonce,
+		&record.KeyVersion,
+		&record.EncVersion,
+	)
+	if err == pgx.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("获取 v1 监测项密钥失败: %w", err)
+	}
+	return record, nil
+}
+
+// MonitorSecretRecord API Key 密文记录（复用现有类型）
+type MonitorSecretRecord struct {
+	MonitorID        int64
+	APIKeyCiphertext []byte
+	APIKeyNonce      []byte
+	KeyVersion       int
+	EncVersion       int
 }

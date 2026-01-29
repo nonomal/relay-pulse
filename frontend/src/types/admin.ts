@@ -155,6 +155,8 @@ export interface BadgeDefinition {
   tooltip_i18n?: Record<string, string>;
   icon?: string;
   color?: string;
+  category?: string;
+  svg_source?: string;
   created_at: number;
   updated_at: number;
 }
@@ -167,6 +169,8 @@ export interface CreateBadgeDefinitionRequest {
   tooltip_i18n?: Record<string, string>;
   icon?: string;
   color?: string;
+  category?: string;
+  svg_source?: string;
 }
 
 export type BadgeScope = 'global' | 'provider' | 'service' | 'channel';

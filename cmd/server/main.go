@@ -98,6 +98,11 @@ func main() {
 		switch s := store.(type) {
 		case *storage.PostgresStorage:
 			adminStorage = storage.NewPostgresAdminConfigAdapter(s)
+
+			// 同时创建 v1 配置适配器
+			v1Adapter := storage.NewPostgresV1ConfigAdapter(s)
+			v1Provider := config.NewV1ConfigProvider(v1Adapter)
+			loader.SetV1Provider(v1Provider)
 		default:
 			logger.Error("main", "存储类型不支持配置管理模式", "type", bootstrapCfg.Storage.Type)
 			os.Exit(1)

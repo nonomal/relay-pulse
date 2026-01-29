@@ -1041,6 +1041,8 @@ func (h *AdminHandler) CreateBadgeDefinition(c *gin.Context) {
 		TooltipI18n: tooltipI18n,
 		Icon:        strings.TrimSpace(req.Icon),
 		Color:       strings.TrimSpace(req.Color),
+		Category:    strings.TrimSpace(req.Category),
+		SVGSource:   strings.TrimSpace(req.SVGSource),
 	}
 
 	if err := h.storage.CreateBadgeDefinition(badge); err != nil {
@@ -2048,6 +2050,8 @@ type CreateBadgeDefinitionRequest struct {
 	TooltipI18n json.RawMessage `json:"tooltip_i18n"`
 	Icon        string          `json:"icon"`
 	Color       string          `json:"color"`
+	Category    string          `json:"category"`   // sponsor_level/metric/negative/vendor_type
+	SVGSource   string          `json:"svg_source"` // SVG 图标源码
 }
 
 // CreateBadgeBindingRequest 创建徽标绑定请求

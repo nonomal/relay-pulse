@@ -15,7 +15,6 @@ const MyApplications = lazy(() => import('./pages/user/MyApplications'));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminIndexRedirect = lazy(() => import('./pages/admin/AdminLayout').then(m => ({ default: m.AdminIndexRedirect })));
 const MonitorsPage = lazy(() => import('./pages/admin/MonitorsPage'));
-const PoliciesPage = lazy(() => import('./pages/admin/PoliciesPage'));
 const BadgesPage = lazy(() => import('./pages/admin/BadgesPage'));
 const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
 const MonitorEditPage = lazy(() => import('./pages/admin/MonitorEditPage'));
@@ -146,7 +145,6 @@ export default function AppRouter() {
           <Route path="users" element={<UsersPage />} />
           <Route path="templates" element={<TemplatesPage />} />
           <Route path="services" element={<ServicesPage />} />
-          <Route path="policies" element={<PoliciesPage />} />
           <Route path="badges" element={<BadgesPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="audits" element={<AuditsPage />} />

@@ -4,7 +4,6 @@ import { Helmet } from 'react-helmet-async';
 import {
   LayoutDashboard,
   Monitor,
-  Shield,
   Award,
   Settings,
   LogOut,
@@ -26,7 +25,6 @@ const NAV_ITEMS = [
   { to: '/admin/users', icon: Users, label: '用户管理' },
   { to: '/admin/templates', icon: Layers, label: '模板管理' },
   { to: '/admin/services', icon: Server, label: '服务管理' },
-  { to: '/admin/policies', icon: Shield, label: 'Provider 策略' },
   { to: '/admin/badges', icon: Award, label: 'Badge 管理' },
   { to: '/admin/settings', icon: Settings, label: '全局设置' },
   { to: '/admin/audits', icon: FileText, label: '审计日志' },

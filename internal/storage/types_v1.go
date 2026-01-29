@@ -111,31 +111,49 @@ type MonitorTemplateModel struct {
 
 // Monitor 监测项（替代 MonitorConfig）
 type Monitor struct {
-	ID              int             `json:"id"`
-	Provider        string          `json:"provider"`                   // 服务商标识
-	ProviderName    string          `json:"provider_name,omitempty"`    // 服务商显示名称
-	Service         string          `json:"service"`                    // 服务标识
-	ServiceName     string          `json:"service_name,omitempty"`     // 服务显示名称
-	Channel         string          `json:"channel,omitempty"`          // 通道标识
-	ChannelName     string          `json:"channel_name,omitempty"`     // 通道显示名称
-	Model           string          `json:"model,omitempty"`            // 模型标识（可多个，逗号分隔）
-	TemplateID      *int            `json:"template_id"`                // 关联模板
-	URL             string          `json:"url,omitempty"`              // 请求 URL
-	Method          string          `json:"method"`                     // 请求方法
-	Headers         json.RawMessage `json:"headers,omitempty"`          // 请求头
-	Body            json.RawMessage `json:"body,omitempty"`             // 请求体
-	SuccessContains string          `json:"success_contains,omitempty"` // 响应检查
-	Interval        string          `json:"interval"`                   // 探测间隔
-	Timeout         string          `json:"timeout"`                    // 超时时间
-	SlowLatency     string          `json:"slow_latency"`               // 慢请求阈值
-	Enabled         bool            `json:"enabled"`                    // 是否启用
-	BoardID         *int            `json:"board_id"`                   // 板块 ID
-	OwnerUserID     *string         `json:"owner_user_id"`              // 所有者用户 ID
-	VendorType      string          `json:"vendor_type,omitempty"`      // merchant/individual
-	WebsiteURL      string          `json:"website_url,omitempty"`      // 官网地址
-	ApplicationID   *int            `json:"application_id"`             // 关联申请
-	CreatedAt       int64           `json:"created_at"`
-	UpdatedAt       int64           `json:"updated_at"`
+	ID                  int             `json:"id"`
+	Provider            string          `json:"provider"`                        // 服务商标识
+	ProviderName        string          `json:"provider_name,omitempty"`         // 服务商显示名称
+	Service             string          `json:"service"`                         // 服务标识
+	ServiceName         string          `json:"service_name,omitempty"`          // 服务显示名称
+	Channel             string          `json:"channel,omitempty"`               // 通道标识
+	ChannelName         string          `json:"channel_name,omitempty"`          // 通道显示名称
+	Model               string          `json:"model,omitempty"`                 // 模型标识（可多个，逗号分隔）
+	TemplateID          *int            `json:"template_id"`                     // 关联模板
+	URL                 string          `json:"url,omitempty"`                   // 请求 URL（必填）
+	Method              *string         `json:"method,omitempty"`                // 请求方法，NULL = 继承模板
+	Headers             json.RawMessage `json:"headers,omitempty"`               // 请求头（与模板合并）
+	Body                json.RawMessage `json:"body,omitempty"`                  // 请求体（与模板合并）
+	SuccessContains     *string         `json:"success_contains,omitempty"`      // 响应检查，NULL = 继承模板
+	IntervalOverride    *string         `json:"interval_override,omitempty"`     // 巡检间隔覆盖
+	TimeoutOverride     *string         `json:"timeout_override,omitempty"`      // 超时覆盖
+	SlowLatencyOverride *string         `json:"slow_latency_override,omitempty"` // 慢响应阈值覆盖
+	Enabled             bool            `json:"enabled"`                         // 是否启用
+	BoardID             *int            `json:"board_id"`                        // 板块 ID
+	Metadata            json.RawMessage `json:"metadata,omitempty"`              // 元数据（category, sponsor, price 等）
+	OwnerUserID         *string         `json:"owner_user_id"`                   // 所有者用户 ID
+	VendorType          string          `json:"vendor_type,omitempty"`           // merchant/individual
+	WebsiteURL          string          `json:"website_url,omitempty"`           // 官网地址
+	ApplicationID       *int            `json:"application_id"`                  // 关联申请
+	CreatedAt           int64           `json:"created_at"`
+	UpdatedAt           int64           `json:"updated_at"`
+}
+
+// MonitorMetadata 监测项元数据（存储在 metadata JSONB 字段）
+type MonitorMetadata struct {
+	Category     string   `json:"category,omitempty"`      // 官转/Tier 分类
+	Sponsor      string   `json:"sponsor,omitempty"`       // 赞助商名称
+	SponsorURL   string   `json:"sponsor_url,omitempty"`   // 赞助商链接
+	SponsorLevel string   `json:"sponsor_level,omitempty"` // 赞助级别
+	ProviderURL  string   `json:"provider_url,omitempty"`  // 官网链接
+	ProviderSlug string   `json:"provider_slug,omitempty"` // 服务商别名
+	PriceMin     *float64 `json:"price_min,omitempty"`     // 最低价
+	PriceMax     *float64 `json:"price_max,omitempty"`     // 最高价
+	ListedSince  string   `json:"listed_since,omitempty"`  // 收录日期
+	Hidden       bool     `json:"hidden,omitempty"`        // 是否隐藏
+	HiddenReason string   `json:"hidden_reason,omitempty"` // 隐藏原因
+	ColdReason   string   `json:"cold_reason,omitempty"`   // 冷板原因
+	Badges       []string `json:"badges,omitempty"`        // 徽标 ID 列表
 }
 
 // MonitorIDMapping 监测项 ID 映射（迁移用）
@@ -186,6 +204,7 @@ type MonitorApplication struct {
 	RequestURL        string            `json:"request_url"`          // API 端点 URL
 	APIKeyEncrypted   []byte            `json:"-"`                    // 加密的 API Key（不序列化）
 	APIKeyNonce       []byte            `json:"-"`                    // 加密随机数（不序列化）
+	APIKeyVersion     int               `json:"-"`                    // API Key 加密版本（不序列化）
 	Status            ApplicationStatus `json:"status"`               // 状态
 	RejectReason      string            `json:"reject_reason"`        // 拒绝原因
 	ReviewerUserID    *string           `json:"reviewer_user_id"`     // 审核人用户 ID
