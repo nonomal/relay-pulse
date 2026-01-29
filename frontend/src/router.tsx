@@ -7,6 +7,10 @@ const App = lazy(() => import('./App'));
 const ProviderPage = lazy(() => import('./pages/ProviderPage'));
 const SelfTestPage = lazy(() => import('./pages/SelfTestPage').then(m => ({ default: m.SelfTestPage })));
 
+// 用户页面（v1.0）
+const ApplicationWizard = lazy(() => import('./pages/user/ApplicationWizard'));
+const MyApplications = lazy(() => import('./pages/user/MyApplications'));
+
 // 管理后台（独立 chunk，不影响主站加载）
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminIndexRedirect = lazy(() => import('./pages/admin/AdminLayout').then(m => ({ default: m.AdminIndexRedirect })));
@@ -17,6 +21,8 @@ const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
 const MonitorEditPage = lazy(() => import('./pages/admin/MonitorEditPage'));
 const MonitorHistoryPage = lazy(() => import('./pages/admin/MonitorHistoryPage'));
 const AuditsPage = lazy(() => import('./pages/admin/AuditsPage'));
+const ApplicationsPage = lazy(() => import('./pages/admin/ApplicationsPage'));
+const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
 
 /**
  * 语言布局组件
@@ -134,10 +140,18 @@ export default function AppRouter() {
           <Route path="monitors/new" element={<MonitorEditPage />} />
           <Route path="monitors/:id" element={<MonitorEditPage />} />
           <Route path="monitors/:id/history" element={<MonitorHistoryPage />} />
+          <Route path="applications" element={<ApplicationsPage />} />
+          <Route path="users" element={<UsersPage />} />
           <Route path="policies" element={<PoliciesPage />} />
           <Route path="badges" element={<BadgesPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="audits" element={<AuditsPage />} />
+        </Route>
+
+        {/* 用户页面（v1.0，需要登录） */}
+        <Route path="user">
+          <Route path="applications" element={<MyApplications />} />
+          <Route path="applications/new" element={<ApplicationWizard />} />
         </Route>
 
         {/* 捕获所有未匹配路径，重定向到根 */}
