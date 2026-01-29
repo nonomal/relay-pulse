@@ -73,12 +73,12 @@ func (h *ServiceHandler) ListServices(c *gin.Context) {
 
 // CreateServiceRequest 创建服务请求
 type CreateServiceRequest struct {
-	ID                string `json:"id" binding:"required"`
-	Name              string `json:"name" binding:"required"`
-	IconSVG           string `json:"icon_svg"`
-	DefaultTemplateID *int   `json:"default_template_id"`
-	Status            string `json:"status"`
-	SortOrder         int    `json:"sort_order"`
+	ID                string  `json:"id" binding:"required"`
+	Name              string  `json:"name" binding:"required"`
+	IconSVG           *string `json:"icon_svg"`
+	DefaultTemplateID *int    `json:"default_template_id"`
+	Status            string  `json:"status"`
+	SortOrder         int     `json:"sort_order"`
 }
 
 // CreateService 创建服务
@@ -245,7 +245,7 @@ func (h *ServiceHandler) UpdateService(c *gin.Context) {
 		service.Name = *req.Name
 	}
 	if req.IconSVG != nil {
-		service.IconSVG = *req.IconSVG
+		service.IconSVG = req.IconSVG
 	}
 	if req.DefaultTemplateID != nil {
 		service.DefaultTemplateID = req.DefaultTemplateID

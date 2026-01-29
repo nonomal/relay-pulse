@@ -56,14 +56,14 @@ type UserSession struct {
 
 // Service 服务类型（如 Claude Code, Codex, Gemini）
 type Service struct {
-	ID                string `json:"id"`                  // 服务标识：cc, cx, gm
-	Name              string `json:"name"`                // 显示名称
-	IconSVG           string `json:"icon_svg,omitempty"`  // SVG 图标源码
-	DefaultTemplateID *int   `json:"default_template_id"` // 默认模板 ID
-	Status            string `json:"status"`              // active/disabled
-	SortOrder         int    `json:"sort_order"`          // 排序顺序
-	CreatedAt         int64  `json:"created_at"`
-	UpdatedAt         int64  `json:"updated_at"`
+	ID                string  `json:"id"`                  // 服务标识：cc, cx, gm
+	Name              string  `json:"name"`                // 显示名称
+	IconSVG           *string `json:"icon_svg,omitempty"`  // SVG 图标源码（可为空）
+	DefaultTemplateID *int    `json:"default_template_id"` // 默认模板 ID
+	Status            string  `json:"status"`              // active/disabled
+	SortOrder         int     `json:"sort_order"`          // 排序顺序
+	CreatedAt         int64   `json:"created_at"`
+	UpdatedAt         int64   `json:"updated_at"`
 }
 
 // =====================================================
