@@ -23,6 +23,8 @@ const MonitorHistoryPage = lazy(() => import('./pages/admin/MonitorHistoryPage')
 const AuditsPage = lazy(() => import('./pages/admin/AuditsPage'));
 const ApplicationsPage = lazy(() => import('./pages/admin/ApplicationsPage'));
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
+const TemplatesPage = lazy(() => import('./pages/admin/TemplatesPage'));
+const ServicesPage = lazy(() => import('./pages/admin/ServicesPage'));
 
 /**
  * 语言布局组件
@@ -142,6 +144,8 @@ export default function AppRouter() {
           <Route path="monitors/:id/history" element={<MonitorHistoryPage />} />
           <Route path="applications" element={<ApplicationsPage />} />
           <Route path="users" element={<UsersPage />} />
+          <Route path="templates" element={<TemplatesPage />} />
+          <Route path="services" element={<ServicesPage />} />
           <Route path="policies" element={<PoliciesPage />} />
           <Route path="badges" element={<BadgesPage />} />
           <Route path="settings" element={<SettingsPage />} />
