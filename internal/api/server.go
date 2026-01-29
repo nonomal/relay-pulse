@@ -340,6 +340,43 @@ func (s *Server) RegisterV1Routes(store storage.Storage) {
 		// 申请管理（用户端）
 		applicationHandler := NewApplicationHandler(store)
 		applicationHandler.RegisterUserRoutes(userGroup, authMiddleware)
+
+		// 模板查询（用户端，只读）
+		userGroup.GET("/templates", authMiddleware.RequireAuth(), func(c *gin.Context) {
+			templateStorage, ok := store.(storage.TemplateStorage)
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "存储层不支持模板管理",
+					"code":  "STORAGE_NOT_SUPPORTED",
+				})
+				return
+			}
+
+			// 解析查询参数
+			opts := &storage.ListTemplatesOptions{
+				ServiceID:  c.Query("service_id"),
+				WithModels: c.Query("with_models") == "true",
+			}
+			if isDefault := c.Query("is_default"); isDefault != "" {
+				val := isDefault == "true"
+				opts.IsDefault = &val
+			}
+
+			templates, total, err := templateStorage.ListTemplates(c.Request.Context(), opts)
+			if err != nil {
+				logger.Error("api", "查询模板列表失败", "error", err)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "查询模板列表失败",
+					"code":  "LIST_FAILED",
+				})
+				return
+			}
+
+			c.JSON(http.StatusOK, gin.H{
+				"data":  templates,
+				"total": total,
+			})
+		})
 	}
 	logger.Info("api", "v1 用户 API 已注册", "path", "/api/v1/user/*")
 
