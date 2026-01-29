@@ -1323,18 +1323,33 @@ func (h *ApplicationHandler) createMonitorFromApplication(ctx context.Context, a
 	}
 
 	// 保存 API Key 到 monitor_secrets（如果有的话）
-	if len(app.APIKeyEncrypted) > 0 {
+	// 注意：API Key 使用 app.ID 作为 AAD 加密，需要重新加密为 monitor.ID
+	if len(app.APIKeyEncrypted) > 0 && len(app.APIKeyNonce) > 0 && app.APIKeyVersion > 0 {
 		secretStorage, ok := h.storage.(storage.AdminStorage)
-		if ok {
-			if err := secretStorage.SetMonitorSecret(
-				int64(monitor.ID),
-				app.APIKeyEncrypted,
-				app.APIKeyNonce,
-				app.APIKeyVersion,
-				1, // encVersion: AES-256-GCM
-			); err != nil {
-				logger.Warn("api", "保存监测项密钥失败", "error", err, "monitor_id", monitor.ID)
-				// 不影响监测项创建，继续
+		if !ok {
+			logger.Warn("api", "存储层不支持 AdminStorage，无法保存监测项密钥", "monitor_id", monitor.ID)
+		} else {
+			// 先用 app.ID 解密
+			apiKey, err := config.DecryptAPIKey(app.APIKeyEncrypted, app.APIKeyNonce, int64(app.ID), app.APIKeyVersion)
+			if err != nil {
+				logger.Error("api", "解密申请 API Key 失败", "error", err, "application_id", app.ID)
+				// 这是严重错误，但不影响监测项创建
+			} else {
+				// 用 monitor.ID 重新加密
+				encResult, err := config.EncryptAPIKey(apiKey, int64(monitor.ID), 0)
+				if err != nil {
+					logger.Error("api", "重新加密 API Key 失败", "error", err, "monitor_id", monitor.ID)
+				} else {
+					if err := secretStorage.SetMonitorSecret(
+						int64(monitor.ID),
+						encResult.Ciphertext,
+						encResult.Nonce,
+						encResult.KeyVersion,
+						encResult.EncVersion,
+					); err != nil {
+						logger.Error("api", "保存监测项密钥失败", "error", err, "monitor_id", monitor.ID)
+					}
+				}
 			}
 		}
 	}

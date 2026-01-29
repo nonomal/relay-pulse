@@ -51,21 +51,29 @@ func splitSQLStatements(sql string) []string {
 	inString := false
 	inDollarQuote := false
 	dollarTag := ""
-	prevChar := rune(0)
 
-	for i, char := range sql {
+	runes := []rune(sql)
+	for i := 0; i < len(runes); i++ {
+		char := runes[i]
 		current.WriteRune(char)
 
 		// 处理单引号字符串
+		// SQL 中 '' 表示转义的单引号，不改变 inString 状态
 		if char == '\'' && !inDollarQuote {
-			if prevChar != '\'' && prevChar != '\\' {
+			if i+1 < len(runes) && runes[i+1] == '\'' {
+				// 这是 '' 转义序列，写入下一个引号并跳过
+				current.WriteRune(runes[i+1])
+				i++
+				// 不改变 inString 状态
+			} else {
+				// 普通单引号，切换字符串状态
 				inString = !inString
 			}
 		}
 
 		// 处理 $$ 或 $tag$ 美元引用
 		if char == '$' && !inString {
-			remaining := sql[i:]
+			remaining := string(runes[i:])
 			if !inDollarQuote {
 				// 查找开始的美元引用
 				tag := extractDollarTag(remaining)
@@ -90,8 +98,6 @@ func splitSQLStatements(sql string) []string {
 			}
 			current.Reset()
 		}
-
-		prevChar = char
 	}
 
 	// 处理最后一个语句（可能没有分号）
