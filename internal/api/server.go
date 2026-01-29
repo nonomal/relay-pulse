@@ -302,6 +302,76 @@ func (s *Server) RegisterAdminHandler(store storage.AdminStorage) {
 	logger.Info("api", "管理 API 已注册", "path", "/api/admin/*")
 }
 
+// RegisterV1Routes 注册 v1.0 API 路由
+// 包括认证、服务管理、模板管理、申请管理等
+func (s *Server) RegisterV1Routes(store storage.Storage) {
+	// 创建认证中间件
+	authMiddleware := NewAuthMiddleware(store)
+
+	// 认证 API（无需登录）
+	authHandler := NewAuthHandler(store)
+	if authHandler.IsConfigured() {
+		authHandler.RegisterRoutes(s.router.Group("/api"))
+		logger.Info("api", "认证 API 已注册", "path", "/api/auth/*")
+	} else {
+		logger.Warn("api", "GitHub OAuth 未配置，认证 API 未启用")
+	}
+
+	// v1 管理员 API（需要 v1 认证）
+	adminV1Group := s.router.Group("/api/v1/admin")
+	{
+		// 服务管理
+		serviceHandler := NewServiceHandler(store)
+		serviceHandler.RegisterRoutes(adminV1Group, authMiddleware)
+
+		// 模板管理
+		templateHandler := NewTemplateHandler(store)
+		templateHandler.RegisterRoutes(adminV1Group, authMiddleware)
+
+		// 申请管理（管理员端）
+		applicationHandler := NewApplicationHandler(store)
+		applicationHandler.RegisterAdminRoutes(adminV1Group, authMiddleware)
+	}
+	logger.Info("api", "v1 管理 API 已注册", "path", "/api/v1/admin/*")
+
+	// v1 用户 API（需要登录）
+	userGroup := s.router.Group("/api/v1/user")
+	{
+		// 申请管理（用户端）
+		applicationHandler := NewApplicationHandler(store)
+		applicationHandler.RegisterUserRoutes(userGroup, authMiddleware)
+	}
+	logger.Info("api", "v1 用户 API 已注册", "path", "/api/v1/user/*")
+
+	// 公开 API（无需登录）
+	publicGroup := s.router.Group("/api/v1/public")
+	{
+		// 服务列表（只读）
+		publicGroup.GET("/services", func(c *gin.Context) {
+			serviceStorage, ok := store.(storage.ServiceStorage)
+			if !ok {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "存储层不支持服务管理",
+				})
+				return
+			}
+			services, err := serviceStorage.ListServices(c.Request.Context(), &storage.ListServicesOptions{
+				Status: "active",
+			})
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "获取服务列表失败",
+				})
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"data": services,
+			})
+		})
+	}
+	logger.Info("api", "v1 公开 API 已注册", "path", "/api/v1/public/*")
+}
+
 // setupStaticFiles 设置静态文件服务（前端）
 func setupStaticFiles(router *gin.Engine, handler *Handler) {
 	// 获取嵌入的前端文件系统
