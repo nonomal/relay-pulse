@@ -545,10 +545,3 @@ func (s *PostgresStorage) ListAuditLogs(ctx context.Context, opts *ListAuditLogs
 
 	return logs, total, nil
 }
-
-// MigrateFromV0 从 v0 迁移数据到 v1
-// 该方法将在 Task #5 中实现
-func (s *PostgresStorage) MigrateFromV0(ctx context.Context) error {
-	// TODO: 在 Task #5 中实现
-	return fmt.Errorf("MigrateFromV0 尚未实现")
-}
