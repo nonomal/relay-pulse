@@ -243,3 +243,96 @@ export interface ImportResult {
   skipped: number;
   errors?: string[];
 }
+
+// ===== v1.0 用户管理 =====
+
+export interface AdminUser {
+  id: string;
+  github_id: number;
+  username: string;
+  avatar_url?: string;
+  email?: string;
+  role: 'admin' | 'user';
+  status: 'active' | 'disabled';
+  created_at: number;
+  updated_at: number;
+}
+
+export interface UserListParams {
+  role?: string;
+  status?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface UpdateUserRequest {
+  role?: 'admin' | 'user';
+  status?: 'active' | 'disabled';
+}
+
+// ===== v1.0 申请管理 =====
+
+export type ApplicationStatus =
+  | 'pending_test'
+  | 'test_passed'
+  | 'test_failed'
+  | 'pending_review'
+  | 'approved'
+  | 'rejected';
+
+export interface AdminApplication {
+  id: number;
+  applicant_user_id: string;
+  applicant?: AdminUser;
+  service_id: string;
+  template_id: number;
+  provider_name: string;
+  channel_name?: string;
+  vendor_type: 'merchant' | 'individual';
+  website_url?: string;
+  request_url: string;
+  status: ApplicationStatus;
+  reject_reason?: string;
+  reviewer_user_id?: string;
+  reviewer?: AdminUser;
+  reviewed_at?: number;
+  last_test_session_id?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface ApplicationListParams {
+  status?: ApplicationStatus;
+  service_id?: string;
+  applicant_user_id?: string;
+  offset?: number;
+  limit?: number;
+}
+
+export interface ReviewApplicationRequest {
+  reject_reason?: string;
+}
+
+// ===== v1.0 审计日志 =====
+
+export interface AdminAuditLog {
+  id: number;
+  user_id?: string;
+  user?: AdminUser;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  changes?: Record<string, unknown>;
+  ip_address?: string;
+  user_agent?: string;
+  created_at: number;
+}
+
+export interface AdminAuditListParams {
+  user_id?: string;
+  action?: string;
+  resource_type?: string;
+  resource_id?: string;
+  offset?: number;
+  limit?: number;
+}

@@ -11,6 +11,8 @@ import {
   Menu,
   X,
   FileText,
+  Users,
+  ClipboardList,
 } from 'lucide-react';
 import { useAdminAuth } from '../../hooks/admin/useAdminAuth';
 import type { AdminOutletContext } from '../../hooks/admin/useAdminContext';
@@ -18,6 +20,8 @@ import type { AdminOutletContext } from '../../hooks/admin/useAdminContext';
 /** 侧边栏导航项 */
 const NAV_ITEMS = [
   { to: '/admin/monitors', icon: Monitor, label: '监测项管理' },
+  { to: '/admin/applications', icon: ClipboardList, label: '申请管理' },
+  { to: '/admin/users', icon: Users, label: '用户管理' },
   { to: '/admin/policies', icon: Shield, label: 'Provider 策略' },
   { to: '/admin/badges', icon: Award, label: 'Badge 管理' },
   { to: '/admin/settings', icon: Settings, label: '全局设置' },
