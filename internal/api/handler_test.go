@@ -1,6 +1,7 @@
 package api
 
 import (
+	"math"
 	"testing"
 	"time"
 
@@ -231,4 +232,314 @@ func TestParseTimeRange7d30dDayAlign(t *testing.T) {
 			t.Errorf("30d 应忽略 align=hour 参数，使用 day 对齐，实际 endTime=%v", endTime30d)
 		}
 	})
+}
+
+// --- availabilityWeight ---
+
+func TestAvailabilityWeight(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		weight float64
+		want   float64
+	}{
+		{"green", 1, 0.7, 1.0},
+		{"yellow_default", 2, 0.7, 0.7},
+		{"yellow_custom", 2, 0.5, 0.5},
+		{"red", 0, 0.7, 0.0},
+		{"gray", -1, 0.7, 0.0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := availabilityWeight(tc.status, tc.weight)
+			if got != tc.want {
+				t.Errorf("availabilityWeight(%d, %f) = %f, want %f", tc.status, tc.weight, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestStatusToAvailability(t *testing.T) {
+	cases := []struct {
+		name   string
+		status int
+		weight float64
+		want   float64
+	}{
+		{"green", 1, 0.7, 100.0},
+		{"yellow", 2, 0.7, 70.0},
+		{"red", 0, 0.7, 0.0},
+		{"gray", -1, 0.7, -1.0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := statusToAvailability(tc.status, tc.weight)
+			if got != tc.want {
+				t.Errorf("statusToAvailability(%d, %f) = %f, want %f", tc.status, tc.weight, got, tc.want)
+			}
+		})
+	}
+}
+
+// --- availability calculation in buildTimeline ---
+
+func TestBuildTimelineAvailability(t *testing.T) {
+	h := &Handler{
+		config: &config.AppConfig{DegradedWeight: 0.7},
+	}
+	now := time.Now()
+
+	tests := []struct {
+		name             string
+		records          []*storage.ProbeRecord
+		degradedWeight   float64
+		wantAvailability float64 // expected availability percentage
+	}{
+		{
+			name: "all_green",
+			records: []*storage.ProbeRecord{
+				{Status: 1, Latency: 100, Timestamp: now.Unix()},
+				{Status: 1, Latency: 100, Timestamp: now.Unix()},
+			},
+			degradedWeight:   0.7,
+			wantAvailability: 100.0, // (1.0+1.0)/2 * 100
+		},
+		{
+			name: "all_red",
+			records: []*storage.ProbeRecord{
+				{Status: 0, Latency: 100, Timestamp: now.Unix()},
+				{Status: 0, Latency: 100, Timestamp: now.Unix()},
+			},
+			degradedWeight:   0.7,
+			wantAvailability: 0.0,
+		},
+		{
+			name: "all_yellow_default_weight",
+			records: []*storage.ProbeRecord{
+				{Status: 2, Latency: 100, Timestamp: now.Unix()},
+				{Status: 2, Latency: 100, Timestamp: now.Unix()},
+			},
+			degradedWeight:   0.7,
+			wantAvailability: 70.0, // (0.7+0.7)/2 * 100
+		},
+		{
+			name: "mixed_green_yellow_red",
+			records: []*storage.ProbeRecord{
+				{Status: 1, Latency: 100, Timestamp: now.Unix()}, // weight 1.0
+				{Status: 2, Latency: 200, Timestamp: now.Unix()}, // weight 0.7
+				{Status: 0, Latency: 300, Timestamp: now.Unix()}, // weight 0.0
+			},
+			degradedWeight: 0.7,
+			// (1.0 + 0.7 + 0.0) / 3 * 100 = 56.666...
+			wantAvailability: (1.0 + 0.7 + 0.0) / 3.0 * 100,
+		},
+		{
+			name: "custom_degraded_weight",
+			records: []*storage.ProbeRecord{
+				{Status: 2, Latency: 100, Timestamp: now.Unix()},
+			},
+			degradedWeight:   0.5,
+			wantAvailability: 50.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			timeline := h.buildTimeline(tt.records, now, "24h", tt.degradedWeight, nil)
+
+			var avail float64 = -1
+			for _, point := range timeline {
+				if point.Status != -1 {
+					avail = point.Availability
+					break
+				}
+			}
+
+			if math.Abs(avail-tt.wantAvailability) > 0.01 {
+				t.Errorf("availability: want %.2f, got %.2f", tt.wantAvailability, avail)
+			}
+		})
+	}
+}
+
+// --- status counts in buildTimeline ---
+
+func TestBuildTimelineStatusCounts(t *testing.T) {
+	h := &Handler{
+		config: &config.AppConfig{DegradedWeight: 0.7},
+	}
+	now := time.Now()
+
+	records := []*storage.ProbeRecord{
+		{Status: 1, SubStatus: storage.SubStatusNone, Latency: 100, Timestamp: now.Unix()},
+		{Status: 1, SubStatus: storage.SubStatusNone, Latency: 100, Timestamp: now.Unix()},
+		{Status: 2, SubStatus: storage.SubStatusSlowLatency, Latency: 500, Timestamp: now.Unix()},
+		{Status: 0, SubStatus: storage.SubStatusServerError, HttpCode: 500, Latency: 50, Timestamp: now.Unix()},
+		{Status: 0, SubStatus: storage.SubStatusRateLimit, HttpCode: 429, Latency: 30, Timestamp: now.Unix()},
+	}
+
+	timeline := h.buildTimeline(records, now, "24h", 0.7, nil)
+
+	var counts storage.StatusCounts
+	for _, point := range timeline {
+		if point.Status != -1 {
+			counts = point.StatusCounts
+			break
+		}
+	}
+
+	if counts.Available != 2 {
+		t.Errorf("Available: want 2, got %d", counts.Available)
+	}
+	if counts.Degraded != 1 {
+		t.Errorf("Degraded: want 1, got %d", counts.Degraded)
+	}
+	if counts.Unavailable != 2 {
+		t.Errorf("Unavailable: want 2, got %d", counts.Unavailable)
+	}
+	if counts.SlowLatency != 1 {
+		t.Errorf("SlowLatency: want 1, got %d", counts.SlowLatency)
+	}
+	if counts.ServerError != 1 {
+		t.Errorf("ServerError: want 1, got %d", counts.ServerError)
+	}
+	if counts.RateLimit != 1 {
+		t.Errorf("RateLimit: want 1, got %d", counts.RateLimit)
+	}
+}
+
+// --- empty records ---
+
+func TestBuildTimelineEmptyRecords(t *testing.T) {
+	h := &Handler{
+		config: &config.AppConfig{DegradedWeight: 0.7},
+	}
+	now := time.Now()
+
+	timeline := h.buildTimeline(nil, now, "24h", 0.7, nil)
+
+	if len(timeline) != 24 {
+		t.Fatalf("expected 24 buckets for 24h period, got %d", len(timeline))
+	}
+
+	for i, point := range timeline {
+		if point.Status != -1 {
+			t.Errorf("bucket %d: expected status -1 (missing), got %d", i, point.Status)
+		}
+		if point.Availability != -1 {
+			t.Errorf("bucket %d: expected availability -1, got %f", i, point.Availability)
+		}
+	}
+}
+
+// --- cache ---
+
+func TestStatusCache(t *testing.T) {
+	cache := newStatusCache(100*time.Millisecond, 10)
+
+	// Miss then fill
+	data, err := cache.loadWithTTL("key1", 100*time.Millisecond, func() ([]byte, error) {
+		return []byte("value1"), nil
+	})
+	if err != nil {
+		t.Fatalf("loadWithTTL: %v", err)
+	}
+	if string(data) != "value1" {
+		t.Errorf("want value1, got %s", string(data))
+	}
+
+	// Hit from cache (loader should not be called)
+	data2, err := cache.loadWithTTL("key1", 100*time.Millisecond, func() ([]byte, error) {
+		t.Fatal("loader should not be called on cache hit")
+		return nil, nil
+	})
+	if err != nil {
+		t.Fatalf("loadWithTTL: %v", err)
+	}
+	if string(data2) != "value1" {
+		t.Errorf("want value1, got %s", string(data2))
+	}
+
+	// Wait for expiration
+	time.Sleep(150 * time.Millisecond)
+
+	data3, err := cache.loadWithTTL("key1", 100*time.Millisecond, func() ([]byte, error) {
+		return []byte("value2"), nil
+	})
+	if err != nil {
+		t.Fatalf("loadWithTTL after expiry: %v", err)
+	}
+	if string(data3) != "value2" {
+		t.Errorf("want value2 after expiry, got %s", string(data3))
+	}
+}
+
+func TestStatusCacheClear(t *testing.T) {
+	cache := newStatusCache(10*time.Second, 10)
+
+	_, _ = cache.loadWithTTL("key1", 10*time.Second, func() ([]byte, error) {
+		return []byte("v1"), nil
+	})
+
+	cache.clear()
+
+	// After clear, loader should be called again
+	called := false
+	_, _ = cache.loadWithTTL("key1", 10*time.Second, func() ([]byte, error) {
+		called = true
+		return []byte("v2"), nil
+	})
+	if !called {
+		t.Error("loader should be called after cache clear")
+	}
+}
+
+// --- incrementStatusCount ---
+
+func TestIncrementStatusCount(t *testing.T) {
+	var counts storage.StatusCounts
+
+	incrementStatusCount(&counts, 1, storage.SubStatusNone, 200)
+	incrementStatusCount(&counts, 2, storage.SubStatusSlowLatency, 200)
+	incrementStatusCount(&counts, 0, storage.SubStatusServerError, 500)
+	incrementStatusCount(&counts, 0, storage.SubStatusAuthError, 401)
+	incrementStatusCount(&counts, 0, storage.SubStatusInvalidRequest, 400)
+	incrementStatusCount(&counts, 0, storage.SubStatusRateLimit, 429)
+	incrementStatusCount(&counts, 0, storage.SubStatusClientError, 404)
+	incrementStatusCount(&counts, 0, storage.SubStatusNetworkError, 0)
+	incrementStatusCount(&counts, 0, storage.SubStatusContentMismatch, 200)
+
+	if counts.Available != 1 {
+		t.Errorf("Available: want 1, got %d", counts.Available)
+	}
+	if counts.Degraded != 1 {
+		t.Errorf("Degraded: want 1, got %d", counts.Degraded)
+	}
+	if counts.Unavailable != 7 {
+		t.Errorf("Unavailable: want 7, got %d", counts.Unavailable)
+	}
+	if counts.SlowLatency != 1 {
+		t.Errorf("SlowLatency: want 1, got %d", counts.SlowLatency)
+	}
+	if counts.ServerError != 1 {
+		t.Errorf("ServerError: want 1, got %d", counts.ServerError)
+	}
+	if counts.AuthError != 1 {
+		t.Errorf("AuthError: want 1, got %d", counts.AuthError)
+	}
+	if counts.InvalidRequest != 1 {
+		t.Errorf("InvalidRequest: want 1, got %d", counts.InvalidRequest)
+	}
+	if counts.RateLimit != 1 {
+		t.Errorf("RateLimit: want 1, got %d", counts.RateLimit)
+	}
+	if counts.ClientError != 1 {
+		t.Errorf("ClientError: want 1, got %d", counts.ClientError)
+	}
+	if counts.NetworkError != 1 {
+		t.Errorf("NetworkError: want 1, got %d", counts.NetworkError)
+	}
+	if counts.ContentMismatch != 1 {
+		t.Errorf("ContentMismatch: want 1, got %d", counts.ContentMismatch)
+	}
 }

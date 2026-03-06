@@ -1,10 +1,24 @@
 package monitor
 
 import (
+	"bytes"
+	"compress/gzip"
+	"compress/zlib"
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/andybalholm/brotli"
+	"github.com/klauspost/compress/zstd"
+
+	"monitor/internal/config"
 	"monitor/internal/storage"
 )
+
+// --- existing evaluateStatus tests ---
 
 func TestEvaluateStatusWithoutSuccessContains(t *testing.T) {
 	t.Parallel()
@@ -99,4 +113,433 @@ func TestEvaluateStatusWithGeminiSSENoEventLine(t *testing.T) {
 	if subStatus != storage.SubStatusNone {
 		t.Fatalf("expected SubStatusNone, got %s", subStatus)
 	}
+}
+
+// --- determineStatus ---
+
+func TestDetermineStatus(t *testing.T) {
+	t.Parallel()
+
+	prober := NewProber(nil)
+	slow := 100 * time.Millisecond
+
+	cases := []struct {
+		name       string
+		code       int
+		latency    int
+		wantStatus int
+		wantSub    storage.SubStatus
+	}{
+		{"200_fast", 200, 50, 1, storage.SubStatusNone},
+		{"200_slow", 200, 200, 2, storage.SubStatusSlowLatency},
+		{"200_at_threshold", 200, 100, 1, storage.SubStatusNone}, // equal to threshold, not exceeding
+		{"201_created", 201, 10, 1, storage.SubStatusNone},       // other 2xx
+		{"204_no_content", 204, 10, 1, storage.SubStatusNone},    // other 2xx
+		{"301_redirect", 301, 10, 1, storage.SubStatusNone},      // 3xx
+		{"302_redirect", 302, 10, 1, storage.SubStatusNone},      // 3xx
+		{"400_bad_request", 400, 10, 0, storage.SubStatusInvalidRequest},
+		{"401_unauthorized", 401, 10, 0, storage.SubStatusAuthError},
+		{"403_forbidden", 403, 10, 0, storage.SubStatusAuthError},
+		{"404_not_found", 404, 10, 0, storage.SubStatusClientError},
+		{"418_teapot", 418, 10, 0, storage.SubStatusClientError},
+		{"429_rate_limit", 429, 10, 0, storage.SubStatusRateLimit},
+		{"500_internal", 500, 10, 0, storage.SubStatusServerError},
+		{"502_bad_gateway", 502, 10, 0, storage.SubStatusServerError},
+		{"503_unavailable", 503, 10, 0, storage.SubStatusServerError},
+		{"100_continue", 100, 10, 0, storage.SubStatusClientError},
+		{"0_unknown", 0, 10, 0, storage.SubStatusClientError},
+		{"200_no_slow_config", 200, 9999, 1, storage.SubStatusNone}, // slowLatency=0 means no threshold
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			sl := slow
+			if tc.name == "200_no_slow_config" {
+				sl = 0
+			}
+			status, sub := prober.determineStatus(tc.code, tc.latency, sl)
+			if status != tc.wantStatus {
+				t.Errorf("status: want %d, got %d", tc.wantStatus, status)
+			}
+			if sub != tc.wantSub {
+				t.Errorf("subStatus: want %q, got %q", tc.wantSub, sub)
+			}
+		})
+	}
+}
+
+// --- computeRetryDelay ---
+
+func TestComputeRetryDelay_ExponentialBackoff(t *testing.T) {
+	t.Parallel()
+
+	base := 100 * time.Millisecond
+	max := 800 * time.Millisecond
+
+	// No jitter → deterministic
+	if got := computeRetryDelay(0, base, max, 0); got != 100*time.Millisecond {
+		t.Errorf("index=0: want 100ms, got %v", got)
+	}
+	if got := computeRetryDelay(1, base, max, 0); got != 200*time.Millisecond {
+		t.Errorf("index=1: want 200ms, got %v", got)
+	}
+	if got := computeRetryDelay(2, base, max, 0); got != 400*time.Millisecond {
+		t.Errorf("index=2: want 400ms, got %v", got)
+	}
+	if got := computeRetryDelay(3, base, max, 0); got != 800*time.Millisecond {
+		t.Errorf("index=3: want 800ms (maxDelay), got %v", got)
+	}
+	if got := computeRetryDelay(10, base, max, 0); got != 800*time.Millisecond {
+		t.Errorf("index=10: want 800ms (capped), got %v", got)
+	}
+}
+
+func TestComputeRetryDelay_Jitter(t *testing.T) {
+	t.Parallel()
+
+	base := 200 * time.Millisecond
+	max := 2 * time.Second
+	jitter := 0.2
+
+	// Run multiple times to verify range
+	for i := 0; i < 50; i++ {
+		got := computeRetryDelay(1, base, max, jitter)
+		// index=1 → 400ms ±20% → [320ms, 480ms]
+		lo := time.Duration(float64(400*time.Millisecond) * 0.8)
+		hi := time.Duration(float64(400*time.Millisecond) * 1.2)
+		if got < lo || got > hi {
+			t.Fatalf("jitter: want [%v, %v], got %v", lo, hi, got)
+		}
+	}
+}
+
+// --- decompression ---
+
+func TestDecompressBody(t *testing.T) {
+	t.Parallel()
+
+	payload := []byte("hello decompression test")
+	gzData := mustGzip(t, payload)
+	brData := mustBrotli(t, payload)
+	zstdData := mustZstd(t, payload)
+	deflData := mustDeflate(t, payload)
+
+	cases := []struct {
+		name     string
+		data     []byte
+		encoding string
+		want     []byte
+	}{
+		{"gzip_header", gzData, "gzip", payload},
+		{"gzip_magic_no_header", gzData, "", payload},
+		{"brotli", brData, "br", payload},
+		{"zstd", zstdData, "zstd", payload},
+		{"deflate", deflData, "deflate", payload},
+		{"plain_text", payload, "", payload},
+		{"empty_body", []byte{}, "", []byte{}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &http.Response{Header: make(http.Header)}
+			if tc.encoding != "" {
+				resp.Header.Set("Content-Encoding", tc.encoding)
+			}
+			got := decompressBodyIfNeeded(resp, tc.data, "p", "s", "c", "m")
+			if !bytes.Equal(got, tc.want) {
+				t.Errorf("want %q, got %q", tc.want, got)
+			}
+		})
+	}
+}
+
+// --- magic byte helpers ---
+
+func TestIsGzipMagic(t *testing.T) {
+	t.Parallel()
+
+	if !isGzipMagic([]byte{0x1f, 0x8b, 0x00}) {
+		t.Error("expected gzip magic detected")
+	}
+	if isGzipMagic([]byte{0x00, 0x00}) {
+		t.Error("false positive for non-gzip data")
+	}
+	if isGzipMagic([]byte{0x1f}) {
+		t.Error("should not detect with only 1 byte")
+	}
+}
+
+func TestIsZstdMagic(t *testing.T) {
+	t.Parallel()
+
+	if !isZstdMagic([]byte{0x28, 0xB5, 0x2F, 0xFD, 0x00}) {
+		t.Error("expected zstd magic detected")
+	}
+	if isZstdMagic([]byte{0x28, 0xB5, 0x2F}) {
+		t.Error("should not detect with 3 bytes")
+	}
+}
+
+func TestLooksBinary(t *testing.T) {
+	t.Parallel()
+
+	if looksBinary([]byte("hello world")) {
+		t.Error("plain text should not look binary")
+	}
+	if !looksBinary([]byte{0x00, 0x01, 0x02}) {
+		t.Error("null bytes should look binary")
+	}
+	if looksBinary(nil) {
+		t.Error("nil should not look binary")
+	}
+}
+
+// --- Probe integration with httptest ---
+
+func newTestCfg(url string) config.ServiceConfig {
+	return config.ServiceConfig{
+		Provider:            "test-provider",
+		Service:             "test-service",
+		Channel:             "test-ch",
+		Model:               "test-model",
+		URL:                 url,
+		Method:              http.MethodGet,
+		Headers:             map[string]string{},
+		SlowLatencyDuration: 200 * time.Millisecond,
+		TimeoutDuration:     2 * time.Second,
+	}
+}
+
+func TestProbe_200OK(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("pong"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.SuccessContains = "pong"
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 1 {
+		t.Errorf("want status 1, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+	if result.HttpCode != 200 {
+		t.Errorf("want httpCode 200, got %d", result.HttpCode)
+	}
+}
+
+func TestProbe_500ServerError(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(500)
+		_, _ = w.Write([]byte("internal error"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 0 {
+		t.Errorf("want status 0, got %d", result.Status)
+	}
+	if result.SubStatus != storage.SubStatusServerError {
+		t.Errorf("want subStatus server_error, got %s", result.SubStatus)
+	}
+}
+
+func TestProbe_429RateLimit(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(429)
+		_, _ = w.Write([]byte("rate limited"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 0 || result.SubStatus != storage.SubStatusRateLimit {
+		t.Errorf("want (0, rate_limit), got (%d, %s)", result.Status, result.SubStatus)
+	}
+}
+
+func TestProbe_RetrySuccess(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	var attempts int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		n := atomic.AddInt32(&attempts, 1)
+		if n == 1 {
+			w.WriteHeader(500)
+			_, _ = w.Write([]byte("error"))
+			return
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("pong"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.SuccessContains = "pong"
+	cfg.RetryCount = 2
+	cfg.RetryBaseDelayDuration = 1 * time.Millisecond
+	cfg.RetryMaxDelayDuration = 5 * time.Millisecond
+	cfg.RetryJitterValue = 0
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 1 {
+		t.Errorf("want status 1 after retry, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+	if got := atomic.LoadInt32(&attempts); got != 2 {
+		t.Errorf("want 2 attempts, got %d", got)
+	}
+}
+
+func TestProbe_Timeout(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.TimeoutDuration = 50 * time.Millisecond
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 0 {
+		t.Errorf("want status 0 on timeout, got %d", result.Status)
+	}
+	if result.SubStatus != storage.SubStatusNetworkError {
+		t.Errorf("want subStatus network_error, got %s", result.SubStatus)
+	}
+}
+
+func TestProbe_ContextCancel(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		time.Sleep(5 * time.Second)
+		w.WriteHeader(200)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately
+
+	cfg := newTestCfg(srv.URL)
+	result := prober.Probe(ctx, &cfg)
+	if result.Status != 0 {
+		t.Errorf("want status 0 on cancelled context, got %d", result.Status)
+	}
+}
+
+func TestProbe_ContentMismatch(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`{"result":"wrong"}`))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.SuccessContains = "pong"
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 0 || result.SubStatus != storage.SubStatusContentMismatch {
+		t.Errorf("want (0, content_mismatch), got (%d, %s)", result.Status, result.SubStatus)
+	}
+}
+
+func TestProbe_POST(t *testing.T) {
+	prober := NewProber(nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(405)
+			return
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.Method = http.MethodPost
+	cfg.Body = `{"test": true}`
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 1 {
+		t.Errorf("want status 1 for POST, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+}
+
+// --- compression test helpers ---
+
+func mustGzip(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := gzip.NewWriter(&buf)
+	if _, err := w.Write(data); err != nil {
+		t.Fatalf("gzip write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("gzip close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func mustBrotli(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := brotli.NewWriter(&buf)
+	if _, err := w.Write(data); err != nil {
+		t.Fatalf("brotli write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("brotli close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func mustZstd(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w, err := zstd.NewWriter(&buf)
+	if err != nil {
+		t.Fatalf("zstd writer: %v", err)
+	}
+	if _, err := w.Write(data); err != nil {
+		t.Fatalf("zstd write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("zstd close: %v", err)
+	}
+	return buf.Bytes()
+}
+
+func mustDeflate(t *testing.T, data []byte) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	w := zlib.NewWriter(&buf)
+	if _, err := w.Write(data); err != nil {
+		t.Fatalf("deflate write: %v", err)
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("deflate close: %v", err)
+	}
+	return buf.Bytes()
 }
