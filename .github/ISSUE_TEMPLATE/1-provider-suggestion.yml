@@ -114,6 +114,8 @@ body:
           required: true
         - label: 我会在提交 Issue 后，通过邮箱 prehisle@gmail.com 单独发送真实 API Key，并在邮件中附上本 Issue 链接
           required: true
+        - label: 我同意所提供的 API Key 将用于可用性监测（连通性、延迟）和质量监测（响应内容校验）目的
+          required: true
 
   - type: textarea
     id: additional-info
