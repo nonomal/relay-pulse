@@ -91,7 +91,8 @@ body:
           #   App = 官方合作应用（Notion 等集成）
           #
           # 示例：O-API, O-Web, O-AWS, O-GCP, R-自定义名, M-自定义名
-          channel: "O-[简写]"
+          # 不确定渠道类型？填 M（混合）即可
+          channel: "M-[简写]"
 
           # [必填] 实际调用的 API Key
           # 此处可使用 sk-xxxx... 掩码，真实 Key 请通过邮箱提供
