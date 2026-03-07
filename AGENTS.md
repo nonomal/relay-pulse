@@ -18,8 +18,9 @@
 - 为避免文档碎片化，AI 不应随意新增顶层文档；如确有必要，应与用户确认后再创建，并优先复用现有结构（例如在 `README` 中扩展 FAQ，而不是再建新的说明文件）。
 
 ## 项目结构与模块组织
-- `cmd/server/main.go` 为 HTTP/API 入口，负责初始化配置、存储、调度和监测模块。
-- 核心后端代码位于 `internal/`：`config`（配置）、`monitor`（探测）、`scheduler`（调度）、`storage`（存储）、`api`（HTTP 服务）。
+- `cmd/server/main.go` 为 HTTP/API 入口；`cmd/verify/` 为单项验证 CLI；`cmd/genconfig/` 为配置生成器。
+- 核心后端代码位于 `internal/`（10 个包）：`config`（配置管理，22 文件）、`api`（HTTP 服务）、`monitor`（探测）、`scheduler`（调度）、`storage`（SQLite/PostgreSQL + 归档/清理）、`events`（状态变更检测）、`selftest`（用户自助测试）、`announcements`（公告服务）、`buildinfo`（版本信息）、`logger`（结构化日志）。
+- `notifier/` 为独立 Go 模块（独立 go.mod），负责 Telegram/QQ 通知推送。
 - 前端代码在 `frontend/`（React + Vite + Tailwind），打包产物通过脚本嵌入到 `internal/api/frontend`。
 - 根目录下存放 `config.yaml` 及 `config.*.example.yaml`，部署相关文件在 `deploy/`，Docker 相关在 `Dockerfile` 与 `docker-compose*.yaml`。
 - 面向人类的说明文档集中在 `README.md`、`QUICKSTART.md`、`docs/user/config.md`、`CONTRIBUTING.md`；更早期的安装/架构/运维文档已迁移到 `archive/docs/`。

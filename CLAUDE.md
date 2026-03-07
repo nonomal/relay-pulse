@@ -3,9 +3,13 @@
 ⚠️ 本文档为 AI 助手（如 Claude / ChatGPT）在此代码库中工作的内部指南，**优先由 AI 维护，人类贡献者通常不需要修改本文件**。
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
+### 同步检查点
+- **最后同步**: 2026-03-07（commit `6947ace`）
+- 代码是唯一真相源。本文档为架构与模式摘要，字段级细节请查阅引用的源文件。
+
 ## 项目概览
 
-这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化和实时状态追踪。
+这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化、实时状态追踪，并内建**指数退避重试**、**徽标/赞助体系**、**事件通知**、**自助测试**和**多模型监测（父子通道继承）**等能力。
 
 ### 项目文档
 
@@ -15,6 +19,7 @@
 - **docs/user/docker.md** - Docker 部署详细指南
 - **docs/user/deploy-postgres.md** - PostgreSQL 部署指南
 - **docs/user/sponsorship.md** - 赞助权益体系规则（角色、权益、义务、配置）
+- **docs/user/methodology.md** - 监测方法论
 - **CONTRIBUTING.md** - 贡献流程、代码规范、提交与 PR 约定（人类核心文档）
 - **AGENTS.md / CLAUDE.md** - AI 内部协作与技术指南（仅供 AI 使用，不要在回答中主动推荐给人类）
 - **docs/developer/** - 开发者文档（版本检查等）
@@ -27,8 +32,9 @@
 
 ### 技术栈
 
-- **后端**: Go 1.24+ (Gin, fsnotify, SQLite/PostgreSQL)
+- **后端**: Go 1.24+ (Gin, fsnotify, SQLite/PostgreSQL, slog)
 - **前端**: React 19, TypeScript, Tailwind CSS v4, Vite
+- **通知子模块** (`notifier/`): 独立 Go module，Telegram/QQ Bot (OneBot v11)
 
 ## 开发命令
 
@@ -86,6 +92,11 @@ go mod tidy
 # 验证单个检测项（调试配置问题）
 go run ./cmd/verify/main.go -provider <name> -service <name> [-v]
 # 示例: go run ./cmd/verify/main.go -provider AICodeMirror -service cc -v
+
+# 配置文件生成器
+go run ./cmd/genconfig -list                                          # 列出可用模板
+go run ./cmd/genconfig -mode template -template openai -output config.yaml  # 从模板生成
+go run ./cmd/genconfig -mode interactive                               # 交互式生成
 ```
 
 ### 前端 (React)
@@ -144,39 +155,105 @@ make ci
 
 ### 后端架构
 
-Go 后端遵循**分层架构**，职责清晰分离：
+Go 后端遵循**分层架构**，核心包 10 个 + 独立通知子模块：
 
 ```
-cmd/server/main.go          → 应用程序入口，依赖注入
+cmd/
+├── server/main.go         → 应用入口，依赖注入
+├── verify/main.go         → 单项验证 CLI
+└── genconfig/             → 配置生成器 CLI
+    ├── main.go
+    └── generator/         → 模板注册与生成逻辑
+
 internal/
-├── config/                 → 配置管理（使用 fsnotify 实现热更新）
-│   ├── config.go          → 数据结构、验证、规范化
-│   ├── loader.go          → YAML 解析、环境变量覆盖
-│   └── watcher.go         → 文件监听实现热更新
-├── logger/                 → 统一日志系统（基于 log/slog）
-│   └── logger.go          → 结构化日志、request_id 支持
-├── storage/               → 存储抽象层
-│   ├── storage.go         → 接口定义
-│   ├── common.go          → 公共工具函数
-│   └── sqlite.go          → SQLite 实现 (modernc.org/sqlite)
-├── monitor/               → 监测逻辑
-│   ├── client.go          → HTTP 客户端池管理
-│   └── probe.go           → 健康检查探测逻辑
+├── config/                → 配置管理（22 文件，按职责拆分）
+│   ├── app_config.go     → AppConfig 全局设置
+│   ├── monitor.go        → ServiceConfig 监测项字段
+│   ├── storage_config.go → StorageConfig / RetentionConfig / ArchiveConfig
+│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig
+│   ├── external.go       → GitHubConfig / AnnouncementsConfig / CacheTTLConfig
+│   ├── badges.go         → BadgeDef / BadgeRef / ResolvedBadge / RiskBadge
+│   ├── enums.go          → SponsorLevel / BadgeKind / BadgeVariant
+│   ├── parent_inheritance.go → 父子通道配置继承
+│   ├── normalize*.go     → 归一化与默认值填充
+│   ├── validate.go       → 校验规则
+│   ├── loader.go         → YAML 解析 + .env 加载
+│   ├── dotenv.go         → .env 文件支持
+│   ├── watcher.go        → fsnotify 热更新
+│   ├── lifecycle.go      → Clone / ApplyEnvOverrides
+│   └── helpers.go        → 工具函数
+├── logger/                → 结构化日志（slog）
+│   └── logger.go
+├── buildinfo/             → 版本/commit/构建元数据注入
+│   └── buildinfo.go
+├── storage/               → 存储抽象层（7 源文件 + 测试）
+│   ├── storage.go        → Storage / TimelineAggStorage / ArchiveStorage 接口
+│   ├── factory.go        → Factory: SQLite/PostgreSQL 选择
+│   ├── sqlite.go         → SQLite 实现 (modernc.org/sqlite)
+│   ├── postgres.go       → PostgreSQL 实现
+│   ├── common.go         → 共享工具函数
+│   ├── cleaner.go        → Retention 数据清理
+│   └── archiver.go       → 每日 CSV/CSV.GZ 归档导出
+├── monitor/               → 探测执行
+│   ├── client.go         → HTTP 客户端池（含 proxy 支持）
+│   └── probe.go          → 健康检查 + 指数退避重试
 ├── scheduler/             → 任务调度
-│   └── scheduler.go       → 周期性健康检查、并发执行
-└── api/                   → HTTP API 层
-    ├── handler.go         → 请求处理器、查询参数处理、TimeFilter 时段过滤
-    ├── time_filter_test.go → TimeFilter 单元测试
-    └── server.go          → Gin 服务器设置、中间件、CORS
+│   └── scheduler.go      → 周期探测、并发控制、错峰分散
+├── events/                → 状态变更检测（4 源文件 + 测试）
+│   ├── types.go          → 事件类型定义
+│   ├── detector.go       → 模型级状态机（DOWN/UP 阈值）
+│   ├── channel_detector.go → 通道级聚合检测
+│   └── service.go        → 事件服务编排
+├── selftest/              → 用户自助测试（9 文件）
+│   ├── manager.go        → 任务生命周期管理
+│   ├── prober.go         → 测试执行引擎
+│   ├── job.go            → 任务状态机
+│   ├── test_types.go     → 预定义测试类型注册
+│   ├── limiter.go        → IP 限流
+│   ├── signature.go      → 请求签名校验
+│   ├── ssrf_guard.go     → SSRF 防护
+│   ├── safe_http_client.go → 沙箱化 HTTP 客户端
+│   └── errors.go         → 错误类型
+├── announcements/         → GitHub Discussions 公告（3 文件）
+│   ├── fetcher.go        → GraphQL 拉取
+│   ├── service.go        → 轮询 + 缓存
+│   └── handler.go        → API 处理器
+└── api/                   → HTTP API 层（11 文件）
+    ├── server.go         → Gin 服务器、中间件、CORS、安全头
+    ├── handler.go        → /api/status 主处理器、缓存、singleflight
+    ├── status_query_handler.go → /api/status/query + POST /api/status/batch
+    ├── events_handler.go → /api/events 与 /api/events/latest
+    ├── selftest_handler.go → /api/selftest/* 端点
+    ├── monitor_groups.go → 多模型分组构建（parent/child 层级）
+    ├── meta.go           → SSR meta 标签注入（SEO）
+    └── *_test.go         → 多个测试文件
+
+notifier/                  → 独立通知子模块（独立 go.mod）
+├── cmd/notifier/main.go  → 通知服务入口
+└── internal/
+    ├── config/           → 通知专属配置
+    ├── poller/           → 事件轮询
+    ├── notifier/         → 消息分发编排
+    ├── sender/           → 通用发送器抽象
+    ├── telegram/         → Telegram Bot
+    ├── qq/               → QQ Bot (OneBot v11)
+    ├── screenshot/       → 截图服务
+    ├── validator/        → 订阅验证
+    ├── storage/          → 订阅持久化
+    └── api/              → Webhook/回调服务
 ```
 
 **核心设计原则：**
-1. **基于接口的设计**: `storage.Storage` 接口允许切换不同实现
+1. **接口 + Factory 模式**: `storage.Storage` 接口 + `storage.Factory` 支持 SQLite/PostgreSQL 切换
 2. **并发安全**: 所有共享状态使用 `sync.RWMutex` 或 `sync.Mutex`
 3. **热更新**: 配置变更触发回调，无需重启即可更新运行时状态
 4. **优雅关闭**: Context 传播确保资源清理
-5. **HTTP 客户端池**: 通过 `monitor.ClientPool` 复用连接
-6. **结构化日志**: 统一使用 `logger` 包，支持 request_id 链路追踪
+5. **HTTP 客户端池**: `monitor.ClientPool` 复用连接、管理 proxy
+6. **结构化日志**: 统一 `logger` 包，支持 request_id 追踪
+7. **Parent-child 继承**: 多模型监测通过 `parent` 字段继承公共配置
+8. **事件驱动通知**: `events.Detector` 基于阈值状态机生成 UP/DOWN 事件
+9. **指数退避重试**: `retry_*` + jitter 统一控制失败重试节奏
+10. **功能开关分层**: boards/badges/selftest/events/announcements 可按需启用
 
 ### 日志系统
 
@@ -211,37 +288,76 @@ time=2024-01-15T10:30:00.000Z level=INFO msg=消息 app=relay-pulse component=ap
 4. 各组件使用锁原子性地更新状态
 5. 调度器立即使用新配置触发探测周期
 
-**环境变量覆盖**: API 密钥可通过 `MONITOR_<PROVIDER>_<SERVICE>_API_KEY` 设置（大写，`-` → `_`）
+**环境变量覆盖**: API 密钥可通过 `MONITOR_<PROVIDER>_<SERVICE>_<CHANNEL>_API_KEY`（优先）或 `MONITOR_<PROVIDER>_<SERVICE>_API_KEY` 设置（大写，`-` → `_`）。也可通过 `env_var_name` 自定义变量名。
 
 ### 前端架构
 
-React SPA，基于组件的结构：
+React SPA，采用嵌套路由布局（`LanguageLayout` + `Outlet`），28+ 组件、10 hooks、10+ utils：
 
 ```
 frontend/src/
-├── components/            → UI 组件（StatusCard、StatusTable、Tooltip 等）
-├── hooks/                 → 自定义 Hooks（useMonitorData 用于 API 数据获取）
-├── i18n/                  → 国际化配置
-│   ├── index.ts          → i18n 配置、语言检测器、语言映射
-│   └── locales/          → 翻译文件（zh-CN, en-US, ru-RU, ja-JP）
-├── types/                 → TypeScript 类型定义
-├── constants/             → 应用常量（API URLs、时间周期）
-├── utils/                 → 工具函数
-│   ├── mediaQuery.ts     → 响应式断点管理（统一的 matchMedia API）
-│   ├── heatmapAggregator.ts → 热力图数据聚合
-│   └── color.ts          → 颜色工具函数
-├── App.tsx               → 主应用组件
-├── router.tsx            → 路由配置（语言路径前缀）
-└── main.tsx              → 应用入口（BrowserRouter、HelmetProvider）
+├── pages/                     → 路由级页面
+│   ├── ProviderPage.tsx      → 服务商详情页 (/p/:provider)
+│   └── SelfTestPage.tsx      → 自助测试页 (/selftest)
+├── components/                → UI 组件（28+ 文件）
+│   ├── Header / Footer / Controls → 布局与导航
+│   ├── StatusTable / StatusCard   → 数据展示（桌面表格/移动卡片）
+│   ├── HeatmapBlock / LayeredHeatmapBlock → 热力图（单层/多模型）
+│   ├── Tooltip / StatusDot        → 状态详情与指示器
+│   ├── BoardSwitcher              → 热板/副板/冷板切换
+│   ├── AnnouncementsBanner        → 公告横幅
+│   ├── SelfTestForm / TestStatusCard / TestResultPanel → 自测功能
+│   ├── FavoriteButton / EmptyFavorites → 收藏功能
+│   ├── MultiSelect / TimeFilterPicker / RefreshButton → 交互控件
+│   ├── MultiModelIndicator        → 多模型状态指示
+│   ├── ThemeSwitcher / FlagIcon / ServiceIcon → 主题与图标
+│   ├── ExternalLink / ExternalLinkModal → 外链安全
+│   ├── CommunityMenu / SubscribeButton / Toast → 社区与通知
+│   ├── icons/TelegramIcon.tsx     → 图标
+│   └── badges/                    → 徽标子系统（8 文件）
+│       ├── BadgeCell / GenericBadge / BadgeTooltip
+│       ├── CategoryBadge / SponsorBadge / PublicBadge
+│       ├── FrequencyIndicator / RiskBadge
+│       └── index.ts
+├── hooks/                     → 自定义 Hooks（10 文件）
+│   ├── useMonitorData.ts     → API 轮询与数据管理
+│   ├── useFavorites.ts       → 收藏持久化 (localStorage)
+│   ├── useSelfTest.ts        → 自测任务生命周期
+│   ├── useAnnouncements.ts   → 公告轮询
+│   ├── useVersionInfo.ts     → 版本检测
+│   ├── useSyncLanguage.ts    → URL ↔ i18n 语言同步
+│   ├── useUrlState.ts        → URL 查询参数状态
+│   ├── useSeoMeta.ts         → 动态 SEO meta
+│   ├── useBadgeTooltip.ts    → 徽标 tooltip 逻辑
+│   └── useTheme.ts           → 主题状态管理
+├── utils/                     → 工具函数（10+ 文件）
+│   ├── sortMonitors.ts       → 监测项排序逻辑
+│   ├── heatmapAggregator.ts  → 热力图数据聚合
+│   ├── color.ts              → 颜色工具（渐变、HSL）
+│   ├── mediaQuery.ts         → 响应式断点管理
+│   ├── badgeUtils.ts         → 徽标渲染工具
+│   ├── format.ts             → 数字/日期格式化
+│   ├── analytics.ts          → 分析追踪
+│   ├── share.ts              → 分享功能
+│   └── mockMonitor.ts        → 开发用 mock 数据
+├── i18n/                      → 国际化（配置 + 翻译资源）
+├── types/                     → TypeScript 类型定义
+├── constants/                 → 应用常量
+├── styles/themes/             → 主题 CSS 文件
+├── App.tsx                    → 主仪表盘页面
+├── router.tsx                 → 路由配置（嵌套布局）
+└── main.tsx                   → 应用入口
 ```
 
 **关键模式：**
-- **自定义 Hooks**: `useMonitorData` 封装 API 轮询逻辑
-- **TypeScript**: 使用 `types/` 中的接口实现完整类型安全
-- **Tailwind CSS**: Tailwind v4 实用优先的样式
-- **组件组合**: 小型、可复用组件
-- **响应式设计**: 移动优先，使用 matchMedia API 实现稳定断点检测
-- **国际化**: react-i18next + react-router-dom 实现 URL 路径多语言
+- **嵌套路由**: `LanguageLayout` 负责语言同步，`Outlet` 渲染子页面（App / ProviderPage / SelfTestPage）
+- **自定义 Hooks**: `useMonitorData` / `useSelfTest` / `useAnnouncements` 等分离数据逻辑
+- **徽标/赞助子系统**: `badges/` 组件 + `badgeUtils` + `useBadgeTooltip`
+- **多模型展示**: `LayeredHeatmapBlock` + `MultiModelIndicator` 处理父子通道
+- **TypeScript**: `types/` 中的接口实现完整类型安全
+- **Tailwind CSS**: v4 实用优先的样式
+- **响应式设计**: 统一断点管理 + matchMedia API
+- **国际化**: react-i18next + react-router-dom URL 路径多语言
 - **主题系统**: 4 套主题 + 语义化 CSS 变量
 
 ### 主题系统
@@ -327,159 +443,42 @@ frontend/src/
 
 **支持的语言**:
 - 🇨🇳 **中文** (zh-CN) - 默认语言，路径 `/`
-- 🇺🇸 **English** (en-US) - 路径 `/en/`（简化）
-- 🇷🇺 **Русский** (ru-RU) - 路径 `/ru/`（简化）
-- 🇯🇵 **日本語** (ja-JP) - 路径 `/ja/`（简化）
+- 🇺🇸 **English** (en-US) - 路径 `/en/`
+- 🇷🇺 **Русский** (ru-RU) - 路径 `/ru/`
+- 🇯🇵 **日本語** (ja-JP) - 路径 `/ja/`
 
 **技术实现**:
-1. **react-i18next**: 核心翻译框架，支持嵌套 JSON、参数插值
-2. **react-router-dom v6**: 基于简化路径前缀的语言路由（`/en/*`、`/ru/*`、`/ja/*`）
-3. **react-helmet-async**: 动态更新 `<title>` 和 `<meta name="description">` 支持 SEO
-4. **i18next-browser-languagedetector**: 自动检测语言（localStorage > 浏览器语言）
+1. **react-i18next** + **i18next-browser-languagedetector**: 翻译框架与语言检测
+2. **react-router-dom v6**: 嵌套路由布局（`LanguageLayout` + `Outlet`）
+3. **react-helmet-async**: 动态 `<title>` / `<meta>` SEO
+4. **useSyncLanguage**: URL 前缀 ↔ i18n 状态同步
 
 **设计原则**:
-- **URL 简洁性**: 使用简化语言码（`/en/` 而非 `/en-US/`）提升美观性
-- **内部完整性**: 内部仍使用完整 locale（`en-US`）兼容 i18next
-- **类型安全**: 使用类型守卫 `isSupportedLanguage` 确保类型正确性
+- **URL 简洁性**: 使用简化语言码（`/en/` 而非 `/en-US/`）
+- **内部完整性**: 内部使用完整 locale（`en-US`）兼容 i18next
+- **类型安全**: `isSupportedLanguage` 类型守卫确保正确性
 - **路由分层**: `/api/*`、`/health` 等技术路径不参与 i18n
 
-**路由策略**:
-```typescript
-// router.tsx
-<Routes>
-  {/* 中文默认路径（无前缀） */}
-  <Route path="/" element={<LanguageWrapper />} />
-
-  {/* 简化语言前缀路径 */}
-  <Route path="/en/*" element={<LanguageWrapper pathLang="en" />} />
-  <Route path="/ru/*" element={<LanguageWrapper pathLang="ru" />} />
-  <Route path="/ja/*" element={<LanguageWrapper pathLang="ja" />} />
-
-  {/* 捕获所有未匹配路径 */}
-  <Route path="*" element={<Navigate to="/" replace />} />
-</Routes>
-```
-
 **核心映射** (`i18n/index.ts`):
+
+| URL 前缀 | Locale | 说明 |
+|----------|--------|------|
+| (空) | zh-CN | 中文默认，根路径 |
+| en | en-US | `/en/` → en-US |
+| ru | ru-RU | `/ru/` → ru-RU |
+| ja | ja-JP | `/ja/` → ja-JP |
+
+**路由策略** (`router.tsx`):
+- 根路径 `/` 使用检测语言（localStorage > 浏览器语言，默认 zh-CN）
+- 语言前缀路径 `/en`、`/ru`、`/ja` 进入 `LanguageLayout`，通过 `Outlet` 渲染子页面
+- 每个语言布局下包含三个子路由：`index`（App）、`p/:provider`（ProviderPage）、`selftest`（SelfTestPage）
+- 语言归一化：`normalizeLanguage()` 将浏览器语言码（如 `en`）映射到完整 locale（`en-US`）
+
+**翻译文件** (`i18n/locales/*.json`): 嵌套 JSON 结构，覆盖 `meta/common/header/controls/table/status/subStatus/tooltip/footer/accessibility` 等命名空间。
+
+**工厂模式 - 动态注入翻译到常量** (`constants/index.ts`):
 ```typescript
-// URL 路径前缀 → 语言编码
-export const PATH_LANGUAGE_MAP: Record<string, SupportedLanguage> = {
-  '': 'zh-CN',   // 根路径默认中文
-  en: 'en-US',   // /en/ → en-US
-  ru: 'ru-RU',   // /ru/ → ru-RU
-  ja: 'ja-JP',   // /ja/ → ja-JP
-};
-
-// 语言编码 → URL 路径前缀（反向映射）
-export const LANGUAGE_PATH_MAP: Record<SupportedLanguage, string> = {
-  'zh-CN': '',   // 中文无前缀
-  'en-US': 'en', // en-US → /en/
-  'ru-RU': 'ru', // ru-RU → /ru/
-  'ja-JP': 'ja', // ja-JP → /ja/
-};
-
-// 类型守卫：确保类型安全
-export const isSupportedLanguage = (lng: string): lng is SupportedLanguage =>
-  (SUPPORTED_LANGUAGES as readonly string[]).includes(lng);
-
-// 语言归一化：处理浏览器语言码
-export const normalizeLanguage = (lng: string): SupportedLanguage => {
-  // 完整匹配（如 'en-US'、'zh-CN'）
-  if (isSupportedLanguage(lng)) {
-    return lng;
-  }
-
-  // 处理无地区码的语言（提取前缀）
-  const prefix = lng.split('-')[0].toLowerCase();
-
-  switch (prefix) {
-    case 'zh':
-      return 'zh-CN'; // 中文 → 简体中文
-    case 'en':
-      return 'en-US'; // 英文 → 美国英语
-    case 'ru':
-      return 'ru-RU'; // 俄语
-    case 'ja':
-      return 'ja-JP'; // 日语
-    default:
-      return 'zh-CN'; // 默认中文
-  }
-};
-```
-
-**语言切换逻辑** (`Header.tsx`):
-```typescript
-const handleLanguageChange = (newLang: SupportedLanguage) => {
-  const rawLang = i18n.language;
-  const currentLang: SupportedLanguage = isSupportedLanguage(rawLang) ? rawLang : 'zh-CN';
-
-  let newPath = location.pathname;
-  const queryString = location.search + location.hash;
-
-  // 移除当前语言前缀（如果有）
-  const currentPrefix = LANGUAGE_PATH_MAP[currentLang];
-  if (currentPrefix && newPath.startsWith(`/${currentPrefix}`)) {
-    newPath = newPath.substring(`/${currentPrefix}`.length) || '/';
-  }
-
-  // 添加新语言前缀（中文除外）
-  const newPrefix = LANGUAGE_PATH_MAP[newLang];
-  if (newPrefix) {
-    newPath = `/${newPrefix}${newPath === '/' ? '' : newPath}`;
-  }
-
-  navigate(newPath + queryString);  // 保留查询参数和 hash
-};
-```
-
-**语言检测策略**:
-```typescript
-// i18n 配置（i18n/index.ts）
-i18n
-  .use(initReactI18next)
-  .use(LanguageDetector)
-  .init({
-    detection: {
-      order: ['localStorage', 'navigator'],  // 优先级
-      caches: ['localStorage'],
-      lookupLocalStorage: 'i18nextLng',
-      // 语言归一化：将浏览器语言标准化
-      convertDetectedLanguage: (lng) => normalizeLanguage(lng),
-    },
-    // ...
-  });
-```
-
-**优势**:
-- 浏览器设置为 `en` 时自动映射为 `en-US`
-- 浏览器设置为 `zh` 时自动映射为 `zh-CN`
-- 提升首次访问时的语言检测准确性
-
-**URL 路径语言同步** (`router.tsx` 中的 `LanguageWrapper`):
-- URL 路径前缀由 react-router 匹配并传递给 `LanguageWrapper`
-- `LanguageWrapper` 负责将 URL 语言同步到 i18next
-- 根路径 `/` 使用 localStorage 或浏览器语言（无强制中文）
-- 特定语言路径（`/en/`、`/ru/`、`/ja/`）强制使用对应语言
-
-**翻译文件结构** (`i18n/locales/*.json`):
-```json
-{
-  "meta": { "title": "...", "description": "..." },
-  "common": { "loading": "...", "error": "...", ... },
-  "header": { "tagline": "...", "stats": {...}, ... },
-  "controls": { "filters": {...}, "timeRanges": {...}, ... },
-  "table": { "headers": {...}, "sorting": {...}, "category": {...}, ... },
-  "status": { "available": "...", "degraded": "...", ... },
-  "subStatus": { "slow_latency": "...", "rate_limit": "...", ... },
-  "tooltip": { "uptime": "...", "latency": "...", ... },
-  "footer": { "disclaimer": {...}, ... },
-  "accessibility": { "uptimeBlock": "...", ... }
-}
-```
-
-**工厂模式** - 动态注入翻译到常量 (`constants/index.ts`):
-```typescript
-// 向后兼容：保留原有静态导出
+// 静态版本（向后兼容）
 export const TIME_RANGES: TimeRange[] = [
   { id: '24h', label: '近24小时', points: 24, unit: 'hour' },
   // ...
@@ -490,64 +489,17 @@ export const getTimeRanges = (t: TFunction): TimeRange[] => [
   { id: '24h', label: t('controls.timeRanges.24h'), points: 24, unit: 'hour' },
   // ...
 ];
-
-// 组件中使用
-const { t } = useTranslation();
-const timeRanges = getTimeRanges(t);  // 动态翻译
 ```
 
-**SEO 支持**:
-
-**静态 HTML** (`index.html`):
-```html
-<!-- 使用英文作为默认，更适合国际化和 SEO -->
-<meta name="description" content="RelayPulse - Monitor availability, latency, and sponsored routes of LLM relay services worldwide..." />
-<title>RelayPulse - Availability monitoring for LLM relay services</title>
-```
-
-**动态更新** (`App.tsx`):
-```typescript
-import { Helmet } from 'react-helmet-async';
-
-function App() {
-  const { t, i18n } = useTranslation();
-
-  return (
-    <>
-      <Helmet>
-        <html lang={i18n.language} />
-        <title>{t('meta.title')}</title>
-        <meta name="description" content={t('meta.description')} />
-      </Helmet>
-      {/* ... */}
-    </>
-  );
-}
-```
-
-**策略说明**:
-- `index.html` 使用**英文**作为默认（利于 SEO 和国际化）
-- React 渲染后，Helmet 会根据检测/选择的语言动态更新
-- 每个语言版本都有完整的 meta 标签翻译
-
-**覆盖范围**: 100% UI 文本（9/9 组件）
-- ✅ App.tsx - meta 标签
-- ✅ Header.tsx - 语言切换、tagline、统计
-- ✅ Footer.tsx - 免责声明
-- ✅ Controls.tsx - 筛选器、时间范围、视图切换
-- ✅ StatusTable.tsx - 表头、排序、分类标签、详情
-- ✅ StatusCard.tsx - 可用率标签、时间标签
-- ✅ Tooltip.tsx - 状态标签、子状态细分
-- ✅ HeatmapBlock.tsx - 无障碍 aria-label
-- ✅ constants/index.ts - 状态配置、时间范围
+**i18n 规范**: 所有用户可见文本使用 `t()` 函数。新增组件时确保所有字符串走 i18n。
 
 ### 响应式断点系统
 
 前端采用**统一的媒体查询管理系统**（`utils/mediaQuery.ts`），确保断点检测的一致性和浏览器兼容性：
 
 **断点定义** (`BREAKPOINTS`):
-- **mobile**: `< 768px` - Tooltip 底部 Sheet vs 悬浮提示
-- **tablet**: `< 960px` - StatusTable 卡片视图 vs 表格 + 热力图聚合
+- **mobile**: `< 768px`（`max-width: 767px`） - Tooltip 底部 Sheet vs 悬浮提示
+- **tablet**: `< 1024px`（`max-width: 1023px`，与 Tailwind `lg` 断点一致） - StatusTable 卡片视图 vs 表格 + 热力图聚合
 
 **设计原则：**
 1. **使用 matchMedia API**：替代 `resize` 事件监听，避免高频触发
@@ -560,7 +512,6 @@ function App() {
 ```typescript
 import { createMediaQueryEffect } from '../utils/mediaQuery';
 
-// 在组件中检测断点
 useEffect(() => {
   const cleanup = createMediaQueryEffect('mobile', (isMobile) => {
     setIsMobile(isMobile);
@@ -570,8 +521,8 @@ useEffect(() => {
 ```
 
 **响应式行为：**
-| 组件 | < 768px (mobile) | < 960px (tablet) | ≥ 960px (desktop) |
-|------|------------------|------------------|-------------------|
+| 组件 | < 768px (mobile) | < 1024px (tablet) | ≥ 1024px (desktop) |
+|------|------------------|-------------------|---------------------|
 | Tooltip | 底部 Sheet | 底部 Sheet | 悬浮提示 |
 | StatusTable | 卡片列表 | 卡片列表 | 完整表格 |
 | HeatmapBlock | 点击触发，禁用悬停 | 点击触发 | 悬停显示 |
@@ -579,11 +530,16 @@ useEffect(() => {
 
 ### 数据流
 
-1. **Scheduler** (`scheduler.Scheduler`) 运行周期性健康检查
-2. **Monitor** (`monitor.Probe`) 向配置的端点执行 HTTP 请求
-3. 结果保存到 **Storage** (`storage.SQLiteStorage`)
-4. **API** (`api.Handler`) 通过 `/api/status` 提供历史数据
-5. **Frontend** 轮询 `/api/status` 并渲染可视化
+1. **配置加载**: `config.Loader` 读取 YAML + .env + 环境变量覆盖，执行规范化、父子继承与校验
+2. **调度计划**: `scheduler.Scheduler` 根据 `interval` / `max_concurrency` / `stagger_probes` 构建周期任务
+3. **探测执行**: `monitor.Probe` 组装 headers/body/proxy，发起 HTTP 探测
+4. **重试退避**: 失败时按 `retry_*` 参数执行指数退避 + jitter 重试
+5. **存储写入**: `storage.Factory` 选择 SQLite/Postgres，写入探测结果
+6. **归档与清理**: `storage.Archiver` 每日导出 CSV/CSV.GZ；`storage.Cleaner` 按 retention 清理过期数据
+7. **事件检测**: `events.Detector` 基于连续计数阈值生成 UP/DOWN 事件
+8. **API 聚合**: `api.Handler` 执行批量/并发查询，组装 `data + groups + meta` 并通过 singleflight 缓存
+9. **前端渲染**: `useMonitorData` 轮询 `/api/status`，展示 boards/badges/多模型热力图
+10. **通知派发**: `notifier` 独立进程轮询 `/api/events`，推送 Telegram/QQ 通知
 
 ### 状态码系统
 
@@ -651,47 +607,71 @@ HTTP 响应
 
 ## 配置管理
 
-### 配置文件结构
+配置入口为 `config.yaml`，结构定义于 `internal/config/*.go`。完整字段文档见 `docs/user/config.md`。
 
-```yaml
-interval: "1m"         # 全局探测频率（Go duration 格式）
-slow_latency: "5s"     # 慢请求黄灯阈值
-timeout: "10s"         # 请求超时时间（默认 10s）
-degraded_weight: 0.7   # 黄色状态的可用率权重（0-1，默认 0.7，可选）
+### AppConfig 全局设置
 
-# 按服务类型覆盖（可选）
-slow_latency_by_service:
-  cc: "15s"            # Claude Code 服务允许更长延迟
-  gm: "3s"             # Gemini 服务要求更快
-timeout_by_service:
-  cc: "30s"            # Claude Code 服务允许更长超时
+来源：`internal/config/app_config.go`
 
-monitors:
-  - provider: "88code"
-    provider_name: "88Code 官方"  # 可选：UI 显示名称（未配置时使用 provider）
-    service: "cc"
-    service_name: "Claude Code"   # 可选：UI 显示名称（未配置时使用 service）
-    channel: "vip3"
-    channel_name: "VIP 3 通道"    # 可选：UI 显示名称（未配置时使用 channel）
-    interval: "30s"    # 可选：覆盖全局 interval（高频付费监测）
-    slow_latency: "20s"  # 可选：覆盖 slow_latency_by_service 和全局值
-    timeout: "45s"       # 可选：覆盖 timeout_by_service 和全局值
-    url: "https://api.88code.com/v1/chat/completions"
-    method: "POST"
-    api_key: "sk-xxx"  # 可通过 MONITOR_88CODE_CC_API_KEY 覆盖
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-    body: |
-      {"model": "claude-3-opus", "messages": [...]}
-    success_contains: "optional_keyword"  # 语义验证（可选）
-```
+| 分组 | 关键字段 | 说明 |
+|------|----------|------|
+| 探测节奏 | `interval`、`slow_latency`、`timeout` + `*_by_service` 变体 | 全局巡检频率与阈值，优先级：monitor > by_service > global |
+| 重试退避 | `retry`、`retry_base_delay`（默认 200ms）、`retry_max_delay`（默认 2s）、`retry_jitter`（默认 0.2）+ `*_by_service` 变体 | 指数退避重试，`retry` 表示额外重试次数 |
+| 运行时 | `degraded_weight`（默认 0.7）、`max_concurrency`（默认 10，-1 无限）、`stagger_probes`（默认 true） | 可用率权重与并发控制 |
+| 查询优化 | `enable_concurrent_query`、`concurrent_query_limit`、`enable_batch_query`、`enable_db_timeline_agg`、`batch_query_max_keys` | API 层数据库查询优化 |
+| 缓存 | `cache_ttl`（按 period 区分，90m/24h=10s，7d/30d=60s） | API 响应缓存 |
+| Provider 策略 | `disabled_providers`、`hidden_providers`、`risk_providers` | 批量禁用/隐藏/风险标记 |
+| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold） | 热板/副板/冷板功能 |
+| 展示控制 | `expose_channel_details`、`channel_details_providers`、`public_base_url` | 通道技术细节暴露 |
+| 赞助/徽标 | `sponsor_pin`、`enable_badges`、`badge_definitions`、`badge_providers` | 置顶与徽标体系 |
+| 功能模块 | `selftest`、`events`、`announcements`、`github` | 自测/事件/公告/GitHub 配置 |
+| 存储 | `storage`（含 type/sqlite/postgres/retention/archive） | 数据库与数据生命周期 |
 
-**配置优先级**: `monitor` > `by_service` > `global`（适用于 slow_latency 和 timeout）
+### ServiceConfig 监测项设置
 
+来源：`internal/config/monitor.go`
 
-**模板占位符**: `{{API_KEY}}` 在 headers 和 body 中会被替换。
+| 分组 | 关键字段 | 说明 |
+|------|----------|------|
+| 身份标识 | `provider`、`service`、`channel`、`provider_slug`、`provider_url` | PSC 三元组 + URL slug |
+| 显示名称 | `provider_name`、`service_name`、`channel_name` | UI 显示名称（可选，未配置时回退到标识字段） |
+| 业务属性 | `category`（commercial/public）、`sponsor`、`sponsor_url`、`sponsor_level`、`price_min`、`price_max`、`listed_since` | 分类、赞助与倍率 |
+| 多模型 | `model`（模型名称）、`parent`（格式 `provider/service/channel`） | 父子通道继承体系 |
+| 生命周期 | `disabled`/`disabled_reason`、`hidden`/`hidden_reason`、`board`（hot/secondary/cold）、`cold_reason` | 停用/隐藏/板块控制 |
+| 探测配置 | `url`、`method`、`headers`、`body`、`success_contains`、`api_key`、`proxy`、`env_var_name` | HTTP 探测参数 |
+| 覆盖配置 | `interval`、`slow_latency`、`timeout`、`retry`、`retry_base_delay`、`retry_max_delay`、`retry_jitter` | 监测项级覆盖全局设置 |
+| 徽标 | `badges`（BadgeRef 数组）、`risks`（由 risk_providers 自动注入） | 徽标引用与风险标签 |
+
+**配置优先级**: `monitor` > `by_service` > `global`（适用于 slow_latency、timeout、retry 等所有分级配置）
+
+**模板占位符**: `{{API_KEY}}` 和 `{{MODEL}}` 在 headers 和 body 中会被自动替换。
 
 **引用文件**: 对于大型请求体，使用 `body: "!include data/filename.json"`（必须在 `data/` 目录下）。
+
+### 存储配置
+
+来源：`internal/config/storage_config.go`
+
+- **类型选择**: `storage.type`（`sqlite` 默认 / `postgres`），由 `storage.Factory` 自动选择实现
+- **SQLite**: `storage.sqlite.path`（默认 `monitor.db`）
+- **PostgreSQL**: `storage.postgres.{host,port,user,password,database,sslmode,max_open_conns,max_idle_conns,conn_max_lifetime}`
+- **数据保留** (`storage.retention`): `enabled`、`days`（默认 36）、`cleanup_interval`（默认 1h）、`batch_size`（默认 10000）、`max_batches_per_run`（默认 100）、`startup_delay`（默认 1m）、`jitter`（默认 0.2）
+- **数据归档** (`storage.archive`): `enabled`、`schedule_hour`（UTC，默认 3）、`output_dir`（默认 ./archive）、`format`（csv/csv.gz，默认 csv.gz）、`archive_days`（默认 35）、`backfill_days`（默认 7）、`keep_days`（默认 365，0=永久）
+
+详见 `docs/user/deploy-postgres.md`。
+
+### 功能模块配置
+
+来源：`internal/config/features.go`、`internal/config/external.go`
+
+| 模块 | 关键字段 | 说明 |
+|------|----------|------|
+| SelfTest | `enabled`、`max_concurrent`、`max_queue_size`、`job_timeout`、`result_ttl`、`rate_limit_per_minute`、`signature_secret` | 用户自助测试 |
+| Events | `enabled`、`mode`（model/channel）、`down_threshold`、`up_threshold`、`channel_down_threshold`、`channel_count_mode`、`api_token` | 状态变更事件 |
+| SponsorPin | `enabled`、`max_pinned`、`service_count`、`min_uptime`、`min_level` | 赞助商置顶（详见 `docs/user/sponsorship.md`） |
+| Boards | `enabled` | 热板/副板/冷板三层系统 |
+| Announcements | `enabled`、`owner`、`repo`、`category_name`、`poll_interval`、`window_hours`、`max_items`、`api_max_age` | GitHub Discussions 公告 |
+| GitHub | `token`、`proxy`、`timeout` | GitHub API 通用配置（公告功能依赖） |
 
 ### 热更新测试
 
@@ -710,38 +690,61 @@ vim config.yaml
 
 ## API 端点
 
-```bash
-# 健康检查
-curl http://localhost:8080/health
+来源：`internal/api/server.go:156-248`
 
-# 获取状态（默认 24h）
-curl http://localhost:8080/api/status
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET/HEAD | `/health` | 健康检查 |
+| GET | `/api/status` | 主监测数据（含时间线） |
+| GET | `/api/status/query` | 轻量状态查询 |
+| POST | `/api/status/batch` | 批量状态查询 |
+| GET | `/api/events` | 状态变更事件（游标分页，强制鉴权，未配置 token 返回 503） |
+| GET | `/api/events/latest` | 最新事件 ID（强制鉴权） |
+| POST | `/api/selftest` | 创建自测任务（IP 限流） |
+| GET | `/api/selftest/config` | 自测配置信息 |
+| GET | `/api/selftest/types` | 可用测试类型列表 |
+| GET | `/api/selftest/:id` | 查询自测结果 |
+| GET | `/api/announcements` | GitHub 公告列表 |
+| GET | `/api/version` | 构建版本信息 |
+| GET | `/sitemap.xml` | 动态站点地图 |
+| GET | `/robots.txt` | 爬虫规则 |
 
-# 查询参数：
-# - period: "90m", "24h", "7d", "30d" (默认: "24h")
-# - align: 时间对齐模式，"hour"=整点对齐 (可选)
-# - time_filter: 每日时段过滤，格式 HH:MM-HH:MM (UTC)，仅 7d/30d 可用
-# - provider: 按 provider 名称过滤
-# - service: 按 service 名称过滤
-curl "http://localhost:8080/api/status?period=7d&provider=88code"
+**/api/status 查询参数**:
+- `period`: `90m` / `24h`（默认，`1d` 为别名）/ `7d` / `30d`
+- `align`: `hour`（整点对齐，可选）
+- `time_filter`: `HH:MM-HH:MM`（UTC 时段过滤，仅 7d/30d 可用，支持跨午夜）
+- `provider` / `service`: 按名称过滤
+- `board`: `hot` / `secondary` / `cold` / `all`（板块过滤）
+- `include_hidden`: 调试用，包含隐藏项
 
-# 时段过滤示例：只看工作时间 (09:00-17:00 UTC)
-curl "http://localhost:8080/api/status?period=7d&time_filter=09:00-17:00"
-
-# 跨午夜时段示例：晚高峰 (22:00-04:00 UTC，跨越午夜)
-curl "http://localhost:8080/api/status?period=30d&time_filter=22:00-04:00"
-```
-
-**响应格式**:
+**/api/status 响应结构**:
 ```json
 {
-  "meta": {"period": "24h", "count": 3},
+  "meta": {
+    "period": "24h",
+    "timeline_mode": "aggregated",
+    "count": 3,
+    "slow_latency_ms": 5000,
+    "enable_badges": true,
+    "sponsor_pin": { "enabled": true, "max_pinned": 3, "..." : "..." },
+    "boards": { "enabled": true },
+    "all_monitor_ids": ["provider-service-channel"]
+  },
   "data": [
     {
       "provider": "88code",
       "service": "cc",
-      "current_status": {"status": 1, "latency": 234, "timestamp": 1735559123},
-      "timeline": [{"time": "14:30", "status": 1, "latency": 234}, ...]
+      "channel": "vip3",
+      "current_status": { "status": 1, "latency": 234, "timestamp": 1735559123 },
+      "timeline": [{ "time": "14:30", "status": 1, "latency": 234 }]
+    }
+  ],
+  "groups": [
+    {
+      "provider": "88code",
+      "service": "cc",
+      "channel": "vip3",
+      "layers": [{ "model": "claude-4-opus", "timeline": [...] }]
     }
   ]
 }
@@ -752,14 +755,34 @@ curl "http://localhost:8080/api/status?period=30d&time_filter=22:00-04:00"
 ### 后端测试
 
 - 测试文件与源文件放在一起（`*_test.go`）
-- 关键测试文件：`internal/config/config_test.go`、`internal/monitor/probe_test.go`、`internal/api/time_filter_test.go`
+- 关键测试文件：
+  - `internal/config/config_test.go` - 配置解析与规范化
+  - `internal/config/parent_inheritance_test.go` - 父子继承
+  - `internal/config/concurrency_test.go` - 并发安全
+  - `internal/config/disabled_test.go` - 禁用逻辑
+  - `internal/config/proxy_test.go` - 代理配置
+  - `internal/monitor/probe_test.go` - 探测逻辑
+  - `internal/events/detector_test.go` - 事件检测
+  - `internal/storage/sqlite_test.go` - SQLite 存储
+  - `internal/api/handler_test.go` - API 处理器
+  - `internal/api/time_filter_test.go` - 时段过滤
+  - `internal/api/disabled_filter_test.go` - 禁用过滤
+  - `internal/api/meta_test.go` - Meta 注入
+  - `internal/scheduler/scheduler_test.go` - 调度器核心
+  - `internal/scheduler/stagger_test.go` - 错峰分散
+  - `internal/scheduler/grouping_test.go` - 分组逻辑
+  - `internal/scheduler/disabled_test.go` - 禁用逻辑
 - 使用 `go test -v` 查看详细输出
 
 ### 前端测试
 
 - 测试框架：Vitest
 - 测试文件：`frontend/src/utils/*.test.ts`
-- 关键测试：`sortMonitors.test.ts` - 排序逻辑单元测试（主排序、二级延迟排序、边界情况）
+- 关键测试：
+  - `sortMonitors.test.ts` - 排序逻辑（主排序、二级延迟排序、边界情况）
+  - `badgeUtils.test.ts` - 徽标工具
+  - `heatmapAggregator.test.ts` - 热力图聚合
+  - `color.test.ts` - 颜色工具
 
 ```bash
 cd frontend
@@ -823,6 +846,26 @@ Closes #42
 
 对于只读配置访问，始终使用 `RLock()/RUnlock()`。
 
+### Storage Factory 与驱动选择
+
+`storage.Factory` 根据 `storage.type` 选择 SQLite 或 PostgreSQL 实现。新增存储驱动时先实现 `storage.Storage` 接口，再在 Factory 中注册。
+
+### Parent-child 继承
+
+父通道定义公共配置（url/headers/body 等），子通道通过 `model` + `parent`（格式 `provider/service/channel`）继承。继承逻辑集中在 `internal/config/parent_inheritance.go`，校验确保父通道存在。
+
+### 指数退避重试
+
+`retry` 表示**额外重试次数**（不含首次尝试）。退避公式：`min(base_delay * 2^attempt, max_delay) + random_jitter`。配置见 `internal/config/app_config.go`，实现见 `internal/monitor/probe.go`。
+
+### 事件状态机与鉴权
+
+`events.Detector` 使用连续计数阈值防止状态抖动（flapping）：连续 N 次不可用才触发 DOWN，连续 M 次恢复才触发 UP。`/api/events*` 端点**强制鉴权**：未配置 `api_token` 时返回 503 拒绝所有请求；已配置时需要 `Authorization: Bearer <token>`。
+
+### 批量查询优化
+
+7d/30d 等长周期查询可通过 `enable_batch_query` 将 N 个监测项的 2N 次数据库往返降为 2 次。配合 `enable_db_timeline_agg`（仅 PostgreSQL）可将聚合计算下推到数据库层。回退链路：batch → concurrent → serial。
+
 ### SQLite 并发
 
 使用 WAL 模式（`_journal_mode=WAL`）允许写入时并发读取。连接 DSN：`file:monitor.db?_journal_mode=WAL`
@@ -864,3 +907,21 @@ export MONITOR_DUCKCODING_CC_API_KEY="sk-duck-key"
 - 每次提交代码前记得检测, 是否有变动需要同步到文档
 - 在commit前应先进行代码格式检查
 - 每次任务完成后, 别急着提交, 应该找codex评审通过后再提交
+
+## 同步检查清单
+
+更新本文档时，核对以下关键同步点：
+
+- [ ] 更新顶部"同步检查点"的日期和 commit
+- [ ] 后端架构树 vs `internal/` + `cmd/` 实际目录：`find internal/ -type f -name "*.go" | sort`
+- [ ] AppConfig 字段 vs `internal/config/app_config.go` struct tags
+- [ ] ServiceConfig 字段 vs `internal/config/monitor.go` struct tags
+- [ ] API 路由表 vs `internal/api/server.go` 中 `router.GET/POST` 注册
+- [ ] API 响应结构 vs `internal/api/handler.go` JSON 序列化
+- [ ] 前端组件列表 vs `frontend/src/components/` 目录
+- [ ] 前端 hooks 列表 vs `frontend/src/hooks/` 目录
+- [ ] 前端 utils 列表 vs `frontend/src/utils/` 目录
+- [ ] 前端 pages 列表 vs `frontend/src/pages/` 目录
+- [ ] 断点值 vs `frontend/src/utils/mediaQuery.ts` BREAKPOINTS 常量
+- [ ] 测试文件列表 vs 实际 `*_test.go` 和 `*.test.ts` 文件
+- [ ] Notifier 子模块结构 vs `notifier/` 目录
