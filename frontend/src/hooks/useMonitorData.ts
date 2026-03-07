@@ -50,10 +50,22 @@ function formatProviderLabel(value?: string): string {
 // 自动轮询间隔（毫秒）- 与后端探测频率 interval: "1m" 保持一致
 const POLL_INTERVAL_MS = 60_000;
 
-// 有效的赞助商等级列表（运行时校验）
-const SPONSOR_LEVELS: readonly SponsorLevel[] = ['basic', 'advanced', 'enterprise'];
-const normalizeSponsorLevel = (level?: string): SponsorLevel | undefined =>
-  SPONSOR_LEVELS.includes(level as SponsorLevel) ? (level as SponsorLevel) : undefined;
+// 有效的赞助等级列表（运行时校验）
+const SPONSOR_LEVELS: readonly SponsorLevel[] = ['public', 'signal', 'pulse', 'beacon', 'backbone', 'core'];
+// 旧值兼容映射（持续 1 个版本周期）
+const DEPRECATED_SPONSOR_MAP: Record<string, SponsorLevel> = {
+  basic: 'pulse',
+  advanced: 'backbone',
+  enterprise: 'core',
+};
+const normalizeSponsorLevel = (level?: string): SponsorLevel | undefined => {
+  if (!level) return undefined;
+  const normalized = level.trim().toLowerCase();
+  if (SPONSOR_LEVELS.includes(normalized as SponsorLevel)) {
+    return normalized as SponsorLevel;
+  }
+  return DEPRECATED_SPONSOR_MAP[normalized];
+};
 
 // 映射状态计数，提供默认值以向后兼容
 const mapStatusCounts = (counts?: StatusCounts): StatusCounts => ({

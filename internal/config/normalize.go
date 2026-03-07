@@ -410,35 +410,34 @@ func (c *AppConfig) normalizeGlobalDefaults() error {
 // normalizeFeatureConfigs 规范化功能模块配置
 // 包括：sponsor_pin, selftest, events, github, announcements
 func (c *AppConfig) normalizeFeatureConfigs() error {
-	// 赞助商置顶配置默认值
+	// 赞助通道置顶配置默认值
 	if c.SponsorPin.MaxPinned == 0 {
 		c.SponsorPin.MaxPinned = 3
-	}
-	if c.SponsorPin.ServiceCount == 0 {
-		c.SponsorPin.ServiceCount = 3
 	}
 	if c.SponsorPin.MinUptime == 0 {
 		c.SponsorPin.MinUptime = 95.0
 	}
 	if c.SponsorPin.MinLevel == "" {
-		c.SponsorPin.MinLevel = SponsorLevelBasic
+		c.SponsorPin.MinLevel = SponsorLevelBeacon
 	}
-	// 验证赞助商置顶配置
+	// 旧值兼容迁移（持续 1 个版本周期）
+	if migrated, ok := c.SponsorPin.MinLevel.DeprecatedToNew(); ok {
+		logger.Warn("config", "sponsor_pin.min_level 使用已废弃的赞助等级，已自动迁移",
+			"old", c.SponsorPin.MinLevel, "new", migrated)
+		c.SponsorPin.MinLevel = migrated
+	}
+	// 验证赞助通道置顶配置
 	if c.SponsorPin.MaxPinned < 0 {
 		logger.Warn("config", "sponsor_pin.max_pinned 无效，已回退默认值", "value", c.SponsorPin.MaxPinned, "default", 3)
 		c.SponsorPin.MaxPinned = 3
-	}
-	if c.SponsorPin.ServiceCount < 1 {
-		logger.Warn("config", "sponsor_pin.service_count 无效，已回退默认值", "value", c.SponsorPin.ServiceCount, "default", 3)
-		c.SponsorPin.ServiceCount = 3
 	}
 	if c.SponsorPin.MinUptime < 0 || c.SponsorPin.MinUptime > 100 {
 		logger.Warn("config", "sponsor_pin.min_uptime 超出范围，已回退默认值", "value", c.SponsorPin.MinUptime, "default", 95.0)
 		c.SponsorPin.MinUptime = 95.0
 	}
 	if !c.SponsorPin.MinLevel.IsValid() || c.SponsorPin.MinLevel == SponsorLevelNone {
-		logger.Warn("config", "sponsor_pin.min_level 无效，已回退默认值", "value", c.SponsorPin.MinLevel, "default", SponsorLevelBasic)
-		c.SponsorPin.MinLevel = SponsorLevelBasic
+		logger.Warn("config", "sponsor_pin.min_level 无效，已回退默认值", "value", c.SponsorPin.MinLevel, "default", SponsorLevelBeacon)
+		c.SponsorPin.MinLevel = SponsorLevelBeacon
 	}
 
 	// 自助测试配置默认值与解析（确保运行期与 /api/selftest/config 一致）

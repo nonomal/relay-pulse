@@ -47,12 +47,12 @@ channel_details_providers:    # provider 级覆盖
   - provider: "sensitive-provider"
     expose: false              # 隐藏该 provider 的技术细节
 
-# 赞助商置顶配置
+# 赞助通道置顶配置
 sponsor_pin:
   enabled: true          # 是否启用置顶功能
   max_pinned: 3          # 最多置顶数量
   min_uptime: 95.0       # 最低可用率要求
-  min_level: "basic"     # 最低赞助级别
+  min_level: "beacon"    # 最低赞助级别
 
 # 热板/冷板配置
 boards:
@@ -81,7 +81,7 @@ monitors:
     service: "cc"              # 服务类型（必填）
     category: "commercial"     # 分类（必填）: commercial 或 public
     sponsor: "团队自有"         # 赞助者（必填）
-    sponsor_level: "advanced"  # 赞助等级（可选）: basic/advanced/enterprise
+    sponsor_level: "beacon"    # 赞助等级（可选）: public/signal/pulse/beacon/backbone/core
     channel: "vip"             # 业务通道（可选）
     board: "hot"               # 板块（可选）: hot（默认）、secondary 或 cold
     price_min: 0.05            # 参考倍率下限（可选）
@@ -228,69 +228,53 @@ actual_delay = delay + jitter
 - 第 1 次重试: 200ms + 随机 0~40ms
 - 第 2 次重试: 400ms + 随机 0~80ms
 
-### 赞助商置顶配置
+### 赞助通道置顶配置
 
-用于在页面初始加载时置顶符合条件的赞助商监测项，用户点击任意排序按钮后置顶失效，刷新页面恢复。
+用于在页面初始加载时置顶符合条件的赞助通道，用户点击任意排序按钮后置顶失效，刷新页面恢复。
 
 ```yaml
 sponsor_pin:
   enabled: true           # 是否启用置顶功能（默认 true）
   max_pinned: 3           # 最多置顶数量（默认 3）
-  service_count: 3        # 服务数量（用于按服务商计算置顶配额；默认 3）
   min_uptime: 95.0        # 最低可用率要求（默认 95%）
-  min_level: "basic"      # 最低赞助级别（默认 basic）
+  min_level: "beacon"     # 最低赞助级别（默认 beacon）
 ```
 
 #### `sponsor_pin.enabled`
 - **类型**: boolean
 - **默认值**: `true`
-- **说明**: 是否启用赞助商置顶功能
+- **说明**: 是否启用赞助通道置顶功能
 
 #### `sponsor_pin.max_pinned`
 - **类型**: integer
 - **默认值**: `3`
-- **说明**: 最多置顶的赞助商数量（全局硬上限）
-
-#### `sponsor_pin.service_count`
-- **类型**: integer
-- **默认值**: `3`
-- **约束**: 必须 ≥ 1
-- **说明**: 固定配置的"支持的服务数量"，用于按服务商计算置顶配额
-- **配额规则**:
-  - `enterprise`（顶级）：最多 `service_count` 个通道
-  - `advanced`（高级）：最多 `max(1, service_count - 1)` 个通道
-  - `basic`（基础）：最多 `1` 个通道
+- **说明**: 最多置顶的通道数量（全局硬上限）
 
 #### `sponsor_pin.min_uptime`
 - **类型**: float
 - **默认值**: `95.0`
-- **说明**: 置顶的最低可用率要求（百分比），低于此值的赞助商不会被置顶
+- **说明**: 置顶的最低可用率要求（百分比），低于此值的通道不会被置顶
 
 #### `sponsor_pin.min_level`
 - **类型**: string
-- **默认值**: `"basic"`
-- **可选值**: `"basic"`, `"advanced"`, `"enterprise"`
-- **说明**: 置顶的最低赞助级别，级别低于此值的赞助商不会被置顶
-- **级别权重**: `enterprise` > `advanced` > `basic`
+- **默认值**: `"beacon"`
+- **可选值**: `"public"`, `"signal"`, `"pulse"`, `"beacon"`, `"backbone"`, `"core"`
+- **说明**: 置顶的最低赞助级别，级别低于此值的通道不会被置顶
+- **级别权重**: `core` > `backbone` > `beacon` > `pulse` > `signal` > `public`
 
 #### 置顶规则
 
-1. **置顶条件**: 监测项必须同时满足以下条件才会被置顶：
+1. **置顶条件**: 通道必须同时满足以下条件才会被置顶：
    - 有 `sponsor_level` 配置
    - 无风险标记（`risks` 数组为空或未配置）
    - 可用率 ≥ `min_uptime`
    - 赞助级别 ≥ `min_level`
 
-2. **配额与排序规则**:
-   - 置顶配额按服务商（`provider`）计算：
-     - `enterprise`（顶级）：最多 `service_count` 个通道
-     - `advanced`（高级）：最多 `max(1, service_count - 1)` 个通道
-     - `basic`（基础）：最多 `1` 个通道
-   - 置顶项按赞助级别排序（`enterprise` > `advanced` > `basic`）
+2. **排序规则**:
+   - 按赞助级别降序排序（`core` > `backbone` > `beacon`）
    - 同级别按可用率降序排序
    - 同可用率按响应延迟升序排序（低延迟优先）
-   - 同一服务商同一服务类型最多置顶 1 个（`provider + service` 去重）
-   - 最终置顶数量仍受 `max_pinned` 全局截断限制
+   - 最终置顶数量受 `max_pinned` 全局截断限制
    - 其余项按可用率降序排序
 
 3. **视觉效果**: 置顶项显示对应徽标颜色的淡色背景（5% 透明度）
@@ -1253,14 +1237,19 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 
 ##### `sponsor_level`
 - **类型**: string
-- **说明**: 赞助商等级徽章（可选），在前端显示对应图标
+- **说明**: 赞助等级（可选，按通道赞助），在前端显示对应图标
+- **注意**: 按通道赞助语义，`sponsor_level` 不会从父通道继承，必须显式配置
 - **有效值**:
   | 值 | 名称 | 图标 | 说明 |
   |---|---|---|---|
-  | `basic` | 节点支持 | 🔻 | 已赞助高频监测资源 |
-  | `advanced` | 核心服务商 | ⬢ | 多线路深度监测 |
-  | `enterprise` | 全球伙伴 | 💠 | RelayPulse 顶级赞助商 |
-- **示例**: `"advanced"`
+  | `public` | 公益链路 | 🛡️ | 公益服务商，免费接入监测 |
+  | `signal` | 信号链路 | · | 个人用户通道 |
+  | `pulse` | 脉冲链路 | ◆ | 基础服务商通道 |
+  | `beacon` | 信标链路 | 🔺 | 商业赞助通道，高频监测 |
+  | `backbone` | 骨干链路 | ⬢ | 商业进阶通道 |
+  | `core` | 核心链路 | 💠 | 最高级赞助通道 |
+- **向后兼容**: `basic`→`pulse`, `advanced`→`backbone`, `enterprise`→`core`（自动迁移 + 日志警告）
+- **示例**: `"beacon"`
 
 ##### `channel`
 - **类型**: string
@@ -1304,7 +1293,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
   model: "claude-sonnet-4-20250514"  # 父层必须配置 model
   category: "commercial"
   sponsor: "团队"
-  sponsor_level: "advanced"
+  sponsor_level: "backbone"
   url: "https://api.88code.com/v1/chat/completions"
   method: "POST"
   headers:
@@ -1575,7 +1564,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 
 ### 徽标系统配置
 
-用于在监测项上显示各类信息徽标（如赞助商等级、分类标签、风险警告、监测频率、API Key 来源等）。
+用于在监测项上显示各类信息徽标（如赞助等级、分类标签、风险警告、监测频率、API Key 来源等）。
 
 #### `enable_badges`
 - **类型**: boolean
@@ -1587,7 +1576,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 - **影响范围**: 此开关控制以下所有徽标类型：
   | 徽标类型 | 说明 | `enable_badges: false` 时 |
   |---------|------|--------------------------|
-  | 赞助商徽标 | basic/advanced/enterprise 等级 | 隐藏 |
+  | 赞助徽标 | public/signal/pulse/beacon/backbone/core 等级 | 隐藏 |
   | 分类标签 | 公益站「益」标签 | 隐藏 |
   | 风险徽标 | 风险警告标识 | 隐藏 |
   | 监测频率 | 监测间隔指示器 | 隐藏 |
@@ -1917,7 +1906,7 @@ risk_providers:
 
 - 风险标签会自动注入到匹配 provider 的**所有**监测项的 `risks` 字段
 - 前端以红色 `danger` 样式展示风险徽标
-- 有风险标记的监测项**不会被赞助商置顶**（`sponsor_pin` 规则排除有 risks 的项）
+- 有风险标记的监测项**不会被赞助通道置顶**（`sponsor_pin` 规则排除有 risks 的项）
 - 与 `hidden_providers`、`disabled_providers` 独立生效，可同时配置
 
 ## 环境变量覆盖

@@ -19,7 +19,7 @@ type ServiceConfig struct {
 	Category       string            `yaml:"category" json:"category"`                   // 分类：commercial（商业站）或 public（公益站）
 	Sponsor        string            `yaml:"sponsor" json:"sponsor"`                     // 赞助者：提供 API Key 的个人或组织
 	SponsorURL     string            `yaml:"sponsor_url" json:"sponsor_url"`             // 赞助者链接（可选）
-	SponsorLevel   SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助商等级：basic/advanced/enterprise（可选）
+	SponsorLevel   SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助等级：public/signal/pulse/beacon/backbone/core（可选，按通道赞助）
 	PriceMin       *float64          `yaml:"price_min" json:"price_min"`                 // 参考倍率下限（可选，如 0.05）
 	PriceMax       *float64          `yaml:"price_max" json:"price_max"`                 // 参考倍率（可选，如 0.2）
 	Risks          []RiskBadge       `yaml:"-" json:"risks,omitempty"`                   // 风险徽标（由 risk_providers 自动注入，不在此配置）

@@ -38,8 +38,8 @@ export interface CurrentStatus {
   timestamp: number;
 }
 
-// 赞助商等级类型
-export type SponsorLevel = 'basic' | 'advanced' | 'enterprise';
+// 赞助等级类型（通道级）
+export type SponsorLevel = 'public' | 'signal' | 'pulse' | 'beacon' | 'backbone' | 'core';
 
 // 板块实际值（来自 API 响应的监测项/监测组字段）
 // 注意：'all' 仅用于过滤参数，不应出现在实际数据中
@@ -60,11 +60,10 @@ export interface BoardsConfig {
   enabled: boolean;
 }
 
-// 赞助商置顶配置（来自 API meta）
+// 赞助通道置顶配置（来自 API meta）
 export interface SponsorPinConfig {
   enabled: boolean;
   max_pinned: number;
-  service_count?: number; // 固定配置值：服务数量（用于配额计算；可选以兼容旧后端）
   min_uptime: number;
   min_level: SponsorLevel;
 }
@@ -99,7 +98,7 @@ export interface MonitorResult {
   category: 'commercial' | 'public';  // 分类：commercial（商业站）或 public（公益站）
   sponsor: string;                     // 赞助者
   sponsor_url?: string;                // 赞助者链接
-  sponsor_level?: SponsorLevel;        // 赞助商等级：basic/advanced/enterprise
+  sponsor_level?: SponsorLevel;        // 赞助等级：public/signal/pulse/beacon/backbone/core
   risks?: RiskBadge[];                 // 风险徽标数组
   badges?: GenericBadge[];             // 通用徽标数组
   price_min?: number;                  // 参考倍率下限

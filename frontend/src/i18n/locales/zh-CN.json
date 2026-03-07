@@ -272,17 +272,29 @@
   },
   "badges": {
     "sponsor": {
-      "basic": {
-        "name": "节点支持",
-        "tooltip": "已赞助单通道高频监测资源"
+      "public": {
+        "name": "公益链路",
+        "tooltip": "公益服务商，免费接入监测"
       },
-      "advanced": {
-        "name": "核心服务商",
-        "tooltip": "已赞助多通道高频监测资源"
+      "signal": {
+        "name": "信号链路",
+        "tooltip": "个人用户通道"
       },
-      "enterprise": {
-        "name": "全球伙伴",
-        "tooltip": "RelayPulse 顶级赞助商，助力开源运营"
+      "pulse": {
+        "name": "脉冲链路",
+        "tooltip": "基础服务商通道"
+      },
+      "beacon": {
+        "name": "信标链路",
+        "tooltip": "商业赞助通道，高频监测"
+      },
+      "backbone": {
+        "name": "骨干链路",
+        "tooltip": "商业进阶通道，更高频率监测"
+      },
+      "core": {
+        "name": "核心链路",
+        "tooltip": "最高级赞助通道，核心基础设施级保障"
       }
     },
     "risk": {

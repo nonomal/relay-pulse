@@ -41,16 +41,16 @@ describe('calculateBadgeScore', () => {
   });
 
   it('adds sponsor weight', () => {
-    const item = mockItem({ sponsorLevel: 'enterprise' as SponsorLevel });
-    expect(calculateBadgeScore(item)).toBe(SPONSOR_WEIGHTS.enterprise);
+    const item = mockItem({ sponsorLevel: 'core' as SponsorLevel });
+    expect(calculateBadgeScore(item)).toBe(SPONSOR_WEIGHTS.core);
   });
 
   it('combines category and sponsor', () => {
     const item = mockItem({
       category: 'public',
-      sponsorLevel: 'basic' as SponsorLevel,
+      sponsorLevel: 'pulse' as SponsorLevel,
     });
-    expect(calculateBadgeScore(item)).toBe(CATEGORY_WEIGHTS.public + SPONSOR_WEIGHTS.basic);
+    expect(calculateBadgeScore(item)).toBe(CATEGORY_WEIGHTS.public + SPONSOR_WEIGHTS.pulse);
   });
 
   it('subtracts risk weight', () => {
@@ -63,10 +63,10 @@ describe('calculateBadgeScore', () => {
   it('combines all badge types', () => {
     const item = mockItem({
       category: 'public',
-      sponsorLevel: 'advanced' as SponsorLevel,
+      sponsorLevel: 'backbone' as SponsorLevel,
       risks: [{ label: 'r1' }] as ProcessedMonitorData['risks'],
     });
-    const expected = CATEGORY_WEIGHTS.public + SPONSOR_WEIGHTS.advanced + RISK_WEIGHT;
+    const expected = CATEGORY_WEIGHTS.public + SPONSOR_WEIGHTS.backbone + RISK_WEIGHT;
     expect(calculateBadgeScore(item)).toBe(expected);
   });
 
@@ -98,12 +98,12 @@ describe('hasAnyBadge', () => {
   });
 
   it('returns true when sponsor level is set', () => {
-    const item = mockItem({ sponsorLevel: 'basic' as SponsorLevel });
+    const item = mockItem({ sponsorLevel: 'beacon' as SponsorLevel });
     expect(hasAnyBadge(item)).toBe(true);
   });
 
   it('returns false for sponsor when showSponsor is false', () => {
-    const item = mockItem({ sponsorLevel: 'basic' as SponsorLevel });
+    const item = mockItem({ sponsorLevel: 'beacon' as SponsorLevel });
     expect(hasAnyBadge(item, { showSponsor: false })).toBe(false);
   });
 

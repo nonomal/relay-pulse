@@ -302,7 +302,7 @@ func (c *AppConfig) validateMonitorFields() error {
 
 		// SponsorLevel 枚举检查（可选字段，空值有效）
 		if !m.SponsorLevel.IsValid() {
-			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 basic/advanced/enterprise 之一（或留空）", i, m.SponsorLevel)
+			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 public/signal/pulse/beacon/backbone/core 之一（或留空）", i, m.SponsorLevel)
 		}
 
 		// Board 枚举检查（可选字段，空值视为 hot）

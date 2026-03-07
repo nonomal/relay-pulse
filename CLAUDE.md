@@ -668,7 +668,7 @@ HTTP 响应
 |------|----------|------|
 | SelfTest | `enabled`、`max_concurrent`、`max_queue_size`、`job_timeout`、`result_ttl`、`rate_limit_per_minute`、`signature_secret` | 用户自助测试 |
 | Events | `enabled`、`mode`（model/channel）、`down_threshold`、`up_threshold`、`channel_down_threshold`、`channel_count_mode`、`api_token` | 状态变更事件 |
-| SponsorPin | `enabled`、`max_pinned`、`service_count`、`min_uptime`、`min_level` | 赞助商置顶（详见 `docs/user/sponsorship.md`） |
+| SponsorPin | `enabled`、`max_pinned`、`min_uptime`、`min_level` | 赞助通道置顶（详见 `docs/user/sponsorship.md`） |
 | Boards | `enabled` | 热板/副板/冷板三层系统 |
 | Announcements | `enabled`、`owner`、`repo`、`category_name`、`poll_interval`、`window_hours`、`max_items`、`api_max_age` | GitHub Discussions 公告 |
 | GitHub | `token`、`proxy`、`timeout` | GitHub API 通用配置（公告功能依赖） |

@@ -180,6 +180,17 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 		// 标准化 category 为小写（与 Validate 的 isValidCategory 保持一致）
 		c.Monitors[i].Category = strings.ToLower(strings.TrimSpace(c.Monitors[i].Category))
 
+		// 旧赞助等级兼容迁移（持续 1 个版本周期）
+		if migrated, ok := c.Monitors[i].SponsorLevel.DeprecatedToNew(); ok {
+			logger.Warn("config", "monitor 使用已废弃的赞助等级，已自动迁移",
+				"monitor_index", i,
+				"provider", c.Monitors[i].Provider,
+				"service", c.Monitors[i].Service,
+				"channel", c.Monitors[i].Channel,
+				"old", c.Monitors[i].SponsorLevel, "new", migrated)
+			c.Monitors[i].SponsorLevel = migrated
+		}
+
 		// 规范化 URLs：去除首尾空格和末尾的 /
 		c.Monitors[i].ProviderURL = strings.TrimRight(strings.TrimSpace(c.Monitors[i].ProviderURL), "/")
 		c.Monitors[i].SponsorURL = strings.TrimRight(strings.TrimSpace(c.Monitors[i].SponsorURL), "/")

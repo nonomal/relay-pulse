@@ -279,7 +279,7 @@ type MonitorResult struct {
 	Category      string                 `json:"category"`                // 分类：commercial（商业站）或 public（公益站）
 	Sponsor       string                 `json:"sponsor"`                 // 赞助者
 	SponsorURL    string                 `json:"sponsor_url"`             // 赞助者链接
-	SponsorLevel  config.SponsorLevel    `json:"sponsor_level,omitempty"` // 赞助商等级：basic/advanced/enterprise
+	SponsorLevel  config.SponsorLevel    `json:"sponsor_level,omitempty"` // 赞助等级：public/signal/pulse/beacon/backbone/core
 	Risks         []config.RiskBadge     `json:"risks,omitempty"`         // 风险徽标数组
 	Badges        []config.ResolvedBadge `json:"badges,omitempty"`        // 通用徽标数组
 	PriceMin      *float64               `json:"price_min,omitempty"`     // 参考倍率下限
@@ -497,11 +497,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		"slow_latency_ms": slowLatencyMs,
 		"enable_badges":   enableBadges,
 		"sponsor_pin": gin.H{
-			"enabled":       sponsorPin.IsEnabled(),
-			"max_pinned":    sponsorPin.MaxPinned,
-			"service_count": sponsorPin.ServiceCount,
-			"min_uptime":    sponsorPin.MinUptime,
-			"min_level":     sponsorPin.MinLevel,
+			"enabled":    sponsorPin.IsEnabled(),
+			"max_pinned": sponsorPin.MaxPinned,
+			"min_uptime": sponsorPin.MinUptime,
+			"min_level":  sponsorPin.MinLevel,
 		},
 		"boards": gin.H{
 			"enabled": boardsEnabled,

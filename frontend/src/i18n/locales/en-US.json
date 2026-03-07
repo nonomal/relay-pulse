@@ -272,17 +272,29 @@
   },
   "badges": {
     "sponsor": {
-      "basic": {
-        "name": "Node Supporter",
-        "tooltip": "Sponsored single-channel high-frequency monitoring"
+      "public": {
+        "name": "Public",
+        "tooltip": "Public welfare provider, free monitoring"
       },
-      "advanced": {
-        "name": "Core Provider",
-        "tooltip": "Sponsored multi-channel high-frequency monitoring"
+      "signal": {
+        "name": "Signal",
+        "tooltip": "Individual user channel"
       },
-      "enterprise": {
-        "name": "Global Partner",
-        "tooltip": "RelayPulse top sponsor, powering open source operations"
+      "pulse": {
+        "name": "Pulse",
+        "tooltip": "Standard provider channel"
+      },
+      "beacon": {
+        "name": "Beacon",
+        "tooltip": "Commercial sponsor, high-frequency monitoring"
+      },
+      "backbone": {
+        "name": "Backbone",
+        "tooltip": "Advanced commercial sponsor"
+      },
+      "core": {
+        "name": "Core",
+        "tooltip": "Top-tier sponsor, core infrastructure monitoring"
       }
     },
     "risk": {

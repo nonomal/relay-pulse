@@ -272,17 +272,29 @@
   },
   "badges": {
     "sponsor": {
-      "basic": {
-        "name": "ノードサポーター",
-        "tooltip": "スポンサー提供：単一チャネル高頻度監視"
+      "public": {
+        "name": "パブリック",
+        "tooltip": "公益プロバイダー、無料監視"
       },
-      "advanced": {
-        "name": "コアプロバイダー",
-        "tooltip": "スポンサー提供：複数チャネル高頻度監視"
+      "signal": {
+        "name": "シグナル",
+        "tooltip": "個人ユーザーチャネル"
       },
-      "enterprise": {
-        "name": "グローバルパートナー",
-        "tooltip": "RelayPulseトップスポンサー、オープンソース運営を支援"
+      "pulse": {
+        "name": "パルス",
+        "tooltip": "基本プロバイダーチャネル"
+      },
+      "beacon": {
+        "name": "ビーコン",
+        "tooltip": "商業スポンサーチャネル、高頻度監視"
+      },
+      "backbone": {
+        "name": "バックボーン",
+        "tooltip": "上級商業スポンサー、より高頻度な監視"
+      },
+      "core": {
+        "name": "コア",
+        "tooltip": "最上位スポンサー、コアインフラ監視"
       }
     },
     "risk": {

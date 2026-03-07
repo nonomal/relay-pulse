@@ -91,10 +91,8 @@ degraded_weight: 0.7
 sponsor_pin:
   enabled: true           # 是否启用置顶功能（默认 true）
   max_pinned: 3           # 最多置顶数量（默认 3）
-  service_count: 3        # 服务数量（固定配置值，用于按赞助商计算置顶配额；默认 3）
-                          # 配额规则：enterprise=service_count, advanced=max(1,service_count-1), basic=1
   min_uptime: 95.0        # 最低可用率要求（默认 95%）
-  min_level: "basic"      # 最低赞助级别：basic/advanced/enterprise（默认 basic）
+  min_level: "beacon"     # 最低赞助级别：public/signal/pulse/beacon/backbone/core（默认 beacon）
 
 # ============================================
 # 热板/冷板功能配置
@@ -255,7 +253,7 @@ monitors:
     category: "commercial"  # 必填：商业站(commercial) 或 公益站(public)
     sponsor: "团队自有"      # 必填：提供 API Key 的赞助者
     sponsor_url: "https://example.com/sponsor"  # 可选：赞助者链接
-    sponsor_level: "enterprise"    # 可选：赞助商等级 basic(🔻节点支持)/advanced(⬢核心服务商)/enterprise(💠全球伙伴)
+    sponsor_level: "beacon"        # 可选：赞助等级 public/signal/pulse/beacon(🔺)/backbone(⬢)/core(💠)
     channel: "vip-channel"  # 业务通道标识（可选），用于分类和过滤
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"

@@ -169,11 +169,10 @@ func (c *AppConfig) Clone() *AppConfig {
 		BadgeDefs:                       make(map[string]BadgeDef, len(c.BadgeDefs)),
 		BadgeProviders:                  make([]BadgeProviderConfig, len(c.BadgeProviders)),
 		SponsorPin: SponsorPinConfig{
-			Enabled:      sponsorPinEnabledPtr,
-			MaxPinned:    c.SponsorPin.MaxPinned,
-			ServiceCount: c.SponsorPin.ServiceCount,
-			MinUptime:    c.SponsorPin.MinUptime,
-			MinLevel:     c.SponsorPin.MinLevel,
+			Enabled:   sponsorPinEnabledPtr,
+			MaxPinned: c.SponsorPin.MaxPinned,
+			MinUptime: c.SponsorPin.MinUptime,
+			MinLevel:  c.SponsorPin.MinLevel,
 		},
 		SelfTest:      c.SelfTest,      // SelfTest 是值类型，直接复制
 		Events:        c.Events,        // Events 是值类型，直接复制

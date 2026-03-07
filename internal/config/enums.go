@@ -1,22 +1,44 @@
 package config
 
-// SponsorLevel 赞助商等级
+// SponsorLevel 赞助等级（通道级）
 type SponsorLevel string
 
 const (
-	SponsorLevelNone       SponsorLevel = ""           // 无赞助徽章
-	SponsorLevelBasic      SponsorLevel = "basic"      // 🔻 节点支持 (Node Supporter)
-	SponsorLevelAdvanced   SponsorLevel = "advanced"   // ⬢ 核心服务商 (Core Provider)
-	SponsorLevelEnterprise SponsorLevel = "enterprise" // 💠 全球伙伴 (Global Partner)
+	SponsorLevelNone     SponsorLevel = ""         // 无赞助标识
+	SponsorLevelPublic   SponsorLevel = "public"   // 🛡️ 公益链路 (Public)
+	SponsorLevelSignal   SponsorLevel = "signal"   // · 信号链路 (Signal)
+	SponsorLevelPulse    SponsorLevel = "pulse"    // ◆ 脉冲链路 (Pulse)
+	SponsorLevelBeacon   SponsorLevel = "beacon"   // 🔺 信标链路 (Beacon)
+	SponsorLevelBackbone SponsorLevel = "backbone" // ⬢ 骨干链路 (Backbone)
+	SponsorLevelCore     SponsorLevel = "core"     // 💠 核心链路 (Core)
 )
 
-// IsValid 检查赞助商等级是否有效
+// IsValid 检查赞助等级是否有效（含旧值兼容）
 func (s SponsorLevel) IsValid() bool {
 	switch s {
-	case SponsorLevelNone, SponsorLevelBasic, SponsorLevelAdvanced, SponsorLevelEnterprise:
+	case SponsorLevelNone,
+		SponsorLevelPublic, SponsorLevelSignal, SponsorLevelPulse,
+		SponsorLevelBeacon, SponsorLevelBackbone, SponsorLevelCore:
 		return true
 	default:
-		return false
+		// 旧值兼容：basic/advanced/enterprise 仍视为有效
+		_, ok := s.DeprecatedToNew()
+		return ok
+	}
+}
+
+// DeprecatedToNew 将旧赞助等级映射为新等级（向后兼容，持续 1 个版本周期）
+// 返回 (新等级, 是否为旧值)
+func (s SponsorLevel) DeprecatedToNew() (SponsorLevel, bool) {
+	switch s {
+	case "basic":
+		return SponsorLevelPulse, true
+	case "advanced":
+		return SponsorLevelBackbone, true
+	case "enterprise":
+		return SponsorLevelCore, true
+	default:
+		return s, false
 	}
 }
 

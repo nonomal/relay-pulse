@@ -1,6 +1,6 @@
 # Binary (root directory only)
 /monitor
-
+/testenv
 # Database
 *.db
 *.db-shm

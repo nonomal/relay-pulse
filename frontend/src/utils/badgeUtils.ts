@@ -13,11 +13,14 @@ export const CATEGORY_WEIGHTS: Record<string, number> = {
   commercial: 0,   // 商业站
 };
 
-// 赞助商等级权重（正向）
+// 赞助等级权重（正向，通道级）
 export const SPONSOR_WEIGHTS: Record<SponsorLevel, number> = {
-  enterprise: 100,  // 全球伙伴
-  advanced: 50,     // 核心服务商
-  basic: 20,        // 节点支持
+  core: 100,      // 核心链路
+  backbone: 80,   // 骨干链路
+  beacon: 60,     // 信标链路
+  pulse: 40,      // 脉冲链路
+  signal: 20,     // 信号链路
+  public: 10,     // 公益链路
 };
 
 // 风险徽标权重（负向）

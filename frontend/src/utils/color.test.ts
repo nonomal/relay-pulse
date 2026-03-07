@@ -120,16 +120,20 @@ describe('sponsorLevelToBorderClass', () => {
     expect(sponsorLevelToBorderClass('')).toBe('');
   });
 
-  it('returns basic class', () => {
-    expect(sponsorLevelToBorderClass('basic')).toBe('border-l-2 border-sponsor-basic');
+  it('returns beacon class', () => {
+    expect(sponsorLevelToBorderClass('beacon')).toBe('border-l-2 border-sponsor-beacon');
   });
 
-  it('returns advanced class', () => {
-    expect(sponsorLevelToBorderClass('advanced')).toBe('border-l-2 border-sponsor-advanced');
+  it('returns backbone class', () => {
+    expect(sponsorLevelToBorderClass('backbone')).toBe('border-l-2 border-sponsor-backbone');
   });
 
-  it('returns enterprise class', () => {
-    expect(sponsorLevelToBorderClass('enterprise')).toBe('border-l-2 border-sponsor-enterprise');
+  it('returns core class', () => {
+    expect(sponsorLevelToBorderClass('core')).toBe('border-l-2 border-sponsor-core');
+  });
+
+  it('returns public class', () => {
+    expect(sponsorLevelToBorderClass('public')).toBe('border-l-2 border-sponsor-public');
   });
 
   it('returns empty for unknown level', () => {
@@ -142,16 +146,16 @@ describe('sponsorLevelToCardBorderColor', () => {
     expect(sponsorLevelToCardBorderColor()).toBeUndefined();
   });
 
-  it('returns HSL for basic', () => {
-    expect(sponsorLevelToCardBorderColor('basic')).toBe('hsl(152 76% 39% / 0.4)');
+  it('returns HSL for pulse', () => {
+    expect(sponsorLevelToCardBorderColor('pulse')).toBe('hsl(152 76% 39% / 0.4)');
   });
 
-  it('returns HSL for advanced', () => {
-    expect(sponsorLevelToCardBorderColor('advanced')).toBe('hsl(187 92% 42% / 0.4)');
+  it('returns HSL for beacon', () => {
+    expect(sponsorLevelToCardBorderColor('beacon')).toBe('hsl(187 92% 42% / 0.4)');
   });
 
-  it('returns HSL for enterprise', () => {
-    expect(sponsorLevelToCardBorderColor('enterprise')).toBe('hsl(43 96% 56% / 0.4)');
+  it('returns HSL for core', () => {
+    expect(sponsorLevelToCardBorderColor('core')).toBe('hsl(43 96% 56% / 0.4)');
   });
 
   it('returns undefined for unknown level', () => {
@@ -164,16 +168,16 @@ describe('sponsorLevelToPinnedBgClass', () => {
     expect(sponsorLevelToPinnedBgClass()).toBe('');
   });
 
-  it('returns basic bg class', () => {
-    expect(sponsorLevelToPinnedBgClass('basic')).toBe('bg-sponsor-basic');
+  it('returns beacon bg class', () => {
+    expect(sponsorLevelToPinnedBgClass('beacon')).toBe('bg-sponsor-beacon');
   });
 
-  it('returns advanced bg class', () => {
-    expect(sponsorLevelToPinnedBgClass('advanced')).toBe('bg-sponsor-advanced');
+  it('returns backbone bg class', () => {
+    expect(sponsorLevelToPinnedBgClass('backbone')).toBe('bg-sponsor-backbone');
   });
 
-  it('returns enterprise bg class', () => {
-    expect(sponsorLevelToPinnedBgClass('enterprise')).toBe('bg-sponsor-enterprise');
+  it('returns core bg class', () => {
+    expect(sponsorLevelToPinnedBgClass('core')).toBe('bg-sponsor-core');
   });
 
   it('returns empty for unknown level', () => {

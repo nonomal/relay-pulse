@@ -110,17 +110,26 @@
   .fill-accent\/80 { fill: hsl(var(--accent) / 0.8); }
   .fill-muted { fill: hsl(var(--text-muted)); }
 
-  /* 赞助商色 - 固定颜色，不随主题变化（品牌一致性） */
-  /* basic: emerald-500, advanced: cyan-500, enterprise: amber-400 */
-  .border-sponsor-basic { border-left-color: hsl(152 76% 39% / 0.4); }
-  .border-sponsor-advanced { border-left-color: hsl(187 92% 42% / 0.4); }
-  .border-sponsor-enterprise { border-left-color: hsl(43 96% 56% / 0.4); }
-  .bg-sponsor-basic { background-color: hsl(152 76% 39% / 0.05); }
-  .bg-sponsor-advanced { background-color: hsl(187 92% 42% / 0.05); }
-  .bg-sponsor-enterprise { background-color: hsl(43 96% 56% / 0.05); }
-  .fill-sponsor-basic { fill: hsl(152 76% 39% / 0.8); }
-  .fill-sponsor-advanced { fill: hsl(187 92% 42% / 0.8); }
-  .fill-sponsor-enterprise { fill: hsl(43 96% 56%); }
+  /* 赞助等级色 - 固定颜色，不随主题变化（品牌一致性） */
+  /* public: slate, signal: sky, pulse: emerald, beacon: cyan, backbone: amber, core: gold */
+  .border-sponsor-public { border-left-color: hsl(215 16% 55% / 0.35); }
+  .border-sponsor-signal { border-left-color: hsl(199 89% 48% / 0.4); }
+  .border-sponsor-pulse { border-left-color: hsl(152 76% 39% / 0.4); }
+  .border-sponsor-beacon { border-left-color: hsl(187 92% 42% / 0.4); }
+  .border-sponsor-backbone { border-left-color: hsl(38 92% 50% / 0.4); }
+  .border-sponsor-core { border-left-color: hsl(43 96% 56% / 0.4); }
+  .bg-sponsor-public { background-color: hsl(215 16% 55% / 0.04); }
+  .bg-sponsor-signal { background-color: hsl(199 89% 48% / 0.05); }
+  .bg-sponsor-pulse { background-color: hsl(152 76% 39% / 0.05); }
+  .bg-sponsor-beacon { background-color: hsl(187 92% 42% / 0.05); }
+  .bg-sponsor-backbone { background-color: hsl(38 92% 50% / 0.05); }
+  .bg-sponsor-core { background-color: hsl(43 96% 56% / 0.05); }
+  .fill-sponsor-public { fill: hsl(215 16% 55% / 0.7); }
+  .fill-sponsor-signal { fill: hsl(199 89% 48% / 0.8); }
+  .fill-sponsor-pulse { fill: hsl(152 76% 39% / 0.8); }
+  .fill-sponsor-beacon { fill: hsl(187 92% 42% / 0.8); }
+  .fill-sponsor-backbone { fill: hsl(38 92% 50% / 0.8); }
+  .fill-sponsor-core { fill: hsl(43 96% 56%); }
 
   /* 服务类型色 */
   .bg-service-cc { background-color: hsl(var(--service-cc) / 0.1); }

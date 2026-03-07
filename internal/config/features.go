@@ -46,8 +46,8 @@ type EventsConfig struct {
 	APIToken string `yaml:"api_token" json:"-"`
 }
 
-// SponsorPinConfig 赞助商置顶配置
-// 用于在页面初始加载时置顶符合条件的赞助商监测项
+// SponsorPinConfig 赞助通道置顶配置
+// 用于在页面初始加载时置顶符合条件的赞助通道
 type SponsorPinConfig struct {
 	// 是否启用置顶功能（默认 true）
 	Enabled *bool `yaml:"enabled" json:"enabled"`
@@ -55,14 +55,10 @@ type SponsorPinConfig struct {
 	// 最多置顶数量（默认 3，0 表示禁用）
 	MaxPinned int `yaml:"max_pinned" json:"max_pinned"`
 
-	// 服务数量（固定配置值，用于计算赞助商置顶配额；默认 3）
-	// enterprise: service_count 个, advanced: max(1, service_count-1) 个, basic: 1 个
-	ServiceCount int `yaml:"service_count" json:"service_count"`
-
 	// 最低可用率要求（默认 95.0，百分比 0-100）
 	MinUptime float64 `yaml:"min_uptime" json:"min_uptime"`
 
-	// 最低赞助级别（默认 "basic"，可选 basic/advanced/enterprise）
+	// 最低赞助级别（默认 "beacon"，可选 public/signal/pulse/beacon/backbone/core）
 	MinLevel SponsorLevel `yaml:"min_level" json:"min_level"`
 }
 

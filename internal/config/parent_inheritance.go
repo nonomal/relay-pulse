@@ -192,9 +192,7 @@ func inheritMeta(child, parent *ServiceConfig) {
 	if child.SponsorURL == "" {
 		child.SponsorURL = parent.SponsorURL
 	}
-	if child.SponsorLevel == "" {
-		child.SponsorLevel = parent.SponsorLevel
-	}
+	// 注意：SponsorLevel 不继承——按通道赞助语义，必须显式配置，避免隐式放大赞助范围
 	// Provider 相关元数据
 	if child.ProviderURL == "" {
 		child.ProviderURL = parent.ProviderURL
