@@ -30,9 +30,9 @@ docker-compose restart
 
 ### 3. 访问服务
 
-- **Web 界面**: http://localhost:8080
-- **API 端点**: http://localhost:8080/api/status
-- **健康检查**: http://localhost:8080/health
+- **Web 界面**: http://localhost（默认端口 80）
+- **API 端点**: http://localhost/api/status
+- **健康检查**: http://localhost/health
 
 ## 架构说明
 
@@ -125,12 +125,14 @@ vim config.yaml
 
 ## 端口映射
 
-默认映射 `8080:8080`，如需修改：
+默认映射 `80:8080`（本地 80 端口映射到容器内 8080 端口），如需修改：
 
 ```yaml
 ports:
   - "3000:8080"  # 本地 3000 映射到容器 8080
 ```
+
+> **注意**: `docker-compose.pg.yaml`（PostgreSQL 部署）默认映射为 `8081:8080`。
 
 ## 健康检查
 
@@ -141,7 +143,7 @@ ports:
 docker-compose ps
 
 # 手动健康检查
-curl http://localhost:8080/health
+curl http://localhost/health
 ```
 
 ## 故障排查
@@ -165,8 +167,8 @@ docker-compose ps
 # 查看日志
 docker-compose logs -f monitor
 
-# 检查端口占用
-lsof -i :8080
+# 检查端口占用（默认端口 80）
+lsof -i :80
 ```
 
 ### 配置未生效
@@ -224,9 +226,19 @@ docker-compose up -d
 ### PostgreSQL
 
 ```bash
-# 使用 PostgreSQL 配置
+# 1. 准备环境变量文件
+cp .env.pg.example .env.pg
+vim .env.pg  # 编辑数据库密码等配置
+
+# 2. 启动 PostgreSQL 部署（端口 8081）
 docker-compose -f docker-compose.pg.yaml up -d
+
+# 3. 访问服务
+# Web 界面: http://localhost:8081
+# API: http://localhost:8081/api/status
 ```
+
+详细的 PostgreSQL 部署说明请参见 [PostgreSQL 部署指南](deploy-postgres.md)。
 
 ## 技术细节
 

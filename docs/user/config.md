@@ -1,6 +1,6 @@
 # 配置手册
 
-> **Audience**: 用户 | **Last reviewed**: 2026-01-15
+> **Audience**: 用户 | **Last reviewed**: 2026-03-07
 
 本文档详细说明 Relay Pulse 的配置选项、环境变量和最佳实践。
 
@@ -23,6 +23,23 @@ slow_latency_by_service:
 timeout_by_service:
   cc: "30s"              # Claude Code 服务允许更长超时
   gm: "10s"              # Gemini 服务超时较短
+
+# 重试配置（可选）
+retry: 2                 # 额外重试次数（默认 0，不重试）
+retry_base_delay: "200ms"  # 退避基准间隔
+retry_max_delay: "2s"      # 退避最大间隔
+retry_jitter: 0.2          # 抖动比例（0-1）
+retry_by_service:
+  cc: 3                  # Claude Code 允许更多重试
+retry_base_delay_by_service:
+  cc: "500ms"
+
+# 风险服务商配置（可选）
+risk_providers:
+  - provider: "risky-provider"
+    risks:
+      - label: "跑路风险"
+        discussion_url: "https://github.com/org/repo/discussions/123"
 
 # 通道技术细节暴露配置（可选）
 expose_channel_details: true  # 是否在 API 中返回 probe_url/template_name（默认 true）
@@ -136,6 +153,80 @@ monitors:
 - **默认值**: `0.7`
 - **说明**: 黄色状态在可用率统计中的权重，合法范围 0-1；填 0 视为未配置，使用默认值 0.7
 - **计算公式**: `可用率 = (绿色次数 × 1.0 + 黄色次数 × degraded_weight) / 总次数 × 100`
+
+### 重试配置
+
+当探测失败时，系统可按指数退避策略进行重试。重试配置支持全局、按服务类型和按监测项三级覆盖。
+
+**优先级**: `monitor` > `by_service` > `global`
+
+```yaml
+# 全局重试配置
+retry: 2                    # 额外重试次数（默认 0，不重试）
+retry_base_delay: "200ms"   # 退避基准间隔（默认 200ms）
+retry_max_delay: "2s"       # 退避最大间隔（默认 2s）
+retry_jitter: 0.2           # 抖动比例，0-1（默认 0.2，0 表示无抖动）
+
+# 按服务类型覆盖
+retry_by_service:
+  cc: 3                     # Claude Code 允许更多重试
+  gm: 1
+retry_base_delay_by_service:
+  cc: "500ms"
+retry_max_delay_by_service:
+  cc: "5s"
+retry_jitter_by_service:
+  cc: 0.3
+
+# 监测项级覆盖（在 monitors 内配置）
+monitors:
+  - provider: "example"
+    service: "cc"
+    retry: 3                # 覆盖全局和 by_service
+    retry_base_delay: "1s"
+    retry_max_delay: "10s"
+    retry_jitter: 0.5
+    # ...
+```
+
+#### `retry`
+- **类型**: integer
+- **默认值**: `0`（不重试）
+- **说明**: 额外重试次数，**不含首次尝试**。设为 2 表示最多尝试 3 次（1 次原始 + 2 次重试）
+- **类型区分**: 使用 `*int` 指针，区分"未设置"（继承上级）和"显式设为 0"（不重试）
+
+#### `retry_base_delay`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"200ms"`
+- **说明**: 指数退避的基准间隔。第 N 次重试的延迟 = `min(base_delay × 2^N, max_delay) + random_jitter`
+
+#### `retry_max_delay`
+- **类型**: string (Go duration 格式)
+- **默认值**: `"2s"`
+- **说明**: 退避延迟的上限，防止重试间隔无限增长
+
+#### `retry_jitter`
+- **类型**: float
+- **默认值**: `0.2`
+- **说明**: 抖动比例（0-1），在计算的退避间隔基础上增加随机偏移。0 表示无抖动，1 表示最大 100% 的随机偏移
+- **类型区分**: 使用 `*float64` 指针，区分"未设置"（继承上级）和"显式设为 0"（无抖动）
+
+#### `*_by_service` 变体
+- `retry_by_service`、`retry_base_delay_by_service`、`retry_max_delay_by_service`、`retry_jitter_by_service`
+- **类型**: map（服务类型 → 对应值）
+- **说明**: 按服务类型覆盖全局设置，key 不区分大小写
+
+#### 退避公式
+
+```
+delay = min(base_delay × 2^attempt, max_delay)
+jitter = delay × random(0, jitter_ratio)
+actual_delay = delay + jitter
+```
+
+例如 `retry=2, base_delay=200ms, max_delay=2s, jitter=0.2`：
+- 第 1 次重试: 200ms + 随机 0~40ms
+- 第 2 次重试: 400ms + 随机 0~80ms
 
 ### 赞助商置顶配置
 
@@ -1798,6 +1889,36 @@ monitors:
 | 数据存储 | ❌ 不存储 | ✅ 继续存储 |
 | API 返回 | ❌ 永不返回 | ❌ 默认不返回，可用 `include_hidden=true` 查看 |
 | 适用场景 | 商家跑路、服务永久关闭 | 临时整改、待观察 |
+
+### 风险服务商配置
+
+用于标记存在风险的服务商。风险标签会自动继承到该服务商的所有监测项，在前端以红色风险徽标展示。
+
+```yaml
+risk_providers:
+  - provider: "risky-provider"       # provider 名称（需精确匹配 monitors 中的 provider）
+    risks:
+      - label: "跑路风险"             # 简短标签（前端红色徽标显示）
+        discussion_url: "https://github.com/org/repo/discussions/123"  # 讨论链接（可选）
+      - label: "资金安全存疑"
+```
+
+#### `risk_providers[].provider`
+- **类型**: string
+- **说明**: 服务商名称，需与 `monitors` 中的 `provider` 字段精确匹配
+
+#### `risk_providers[].risks`
+- **类型**: RiskBadge 数组
+- **字段**:
+  - `label` (string，必填): 风险简短标签，如"跑路风险"、"资金安全存疑"
+  - `discussion_url` (string，可选): 关联的 GitHub Discussion 链接，用户点击风险徽标可跳转
+
+#### 行为说明
+
+- 风险标签会自动注入到匹配 provider 的**所有**监测项的 `risks` 字段
+- 前端以红色 `danger` 样式展示风险徽标
+- 有风险标记的监测项**不会被赞助商置顶**（`sponsor_pin` 规则排除有 risks 的项）
+- 与 `hidden_providers`、`disabled_providers` 独立生效，可同时配置
 
 ## 环境变量覆盖
 
