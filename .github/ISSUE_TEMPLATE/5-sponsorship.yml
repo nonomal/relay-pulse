@@ -1,0 +1,126 @@
+name: 💎 赞助相关申请/申诉
+description: 赞助等级申请/升级、续期、权益争议、负向徽标申诉
+title: "[赞助] "
+labels: ["sponsorship", "triage"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢您支持 RelayPulse！
+
+        本模板覆盖：**赞助等级申请/升级、续期、权益争议、负向徽标申诉**。
+        赞助权益说明请参阅：[赞助权益体系](https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md)。
+
+        📧 **联系邮箱**：prehisle@gmail.com
+        - 赞助申请、续期、对账等事宜请通过邮箱沟通
+        - 请勿在 Issue 中提交 API Key、支付凭证或个人敏感信息
+
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: 事项类型
+      description: 请选择最符合的赞助事项
+      options:
+        - 赞助等级申请/升级
+        - 赞助续期
+        - 权益争议（徽标/置顶/监测频率等未生效）
+        - 负向徽标申诉
+        - 其他
+    validations:
+      required: true
+
+  - type: input
+    id: sponsor_name
+    attributes:
+      label: 赞助方名称
+      description: 赞助方个人/组织名称
+      placeholder: 例如：Example Team / 张三
+    validations:
+      required: true
+
+  - type: input
+    id: service_name
+    attributes:
+      label: 服务商/项目名称
+      placeholder: 例如：ExampleCloud / example.com
+    validations:
+      required: true
+
+  - type: input
+    id: channel_id
+    attributes:
+      label: 通道标识（channel）
+      description: 对应配置中的 channel 标识（如不确定可留空）
+      placeholder: 例如：cc-Example-VIP
+
+  - type: dropdown
+    id: current_level
+    attributes:
+      label: 当前赞助等级
+      options:
+        - 尚未赞助
+        - 公益链路（public）
+        - 信号链路（signal）
+        - 脉冲链路（pulse）
+        - 信标链路（beacon）
+        - 骨干链路（backbone）
+        - 核心链路（core）
+    validations:
+      required: true
+
+  - type: dropdown
+    id: target_level
+    attributes:
+      label: 期望赞助等级
+      description: 续期/升级请填写；权益争议或徽标申诉请选择"不适用"
+      options:
+        - 不适用
+        - 公益链路（public）
+        - 信号链路（signal）
+        - 脉冲链路（pulse）
+        - 信标链路（beacon）
+        - 骨干链路（backbone）
+        - 核心链路（core）
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: 事项说明
+      description: 请详细说明需求、争议点或申诉理由
+      placeholder: |
+        - 申请/升级/续期说明：
+        - 权益争议点或负向徽标背景：
+        - 期望的处理结果：
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 相关证明材料（可选）
+      description: 提供可公开验证的证据或截图
+      placeholder: |
+        - 官方公告链接：
+        - 监测截图：
+
+  - type: input
+    id: contact
+    attributes:
+      label: 联系邮箱
+      description: 用于对接赞助事宜或补充材料
+      placeholder: name@company.com
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: 确认事项
+      options:
+        - label: 我确认已阅读[赞助权益体系](https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md)并理解对应规则
+          required: true
+        - label: 我不会在 Issue 中提交 API Key、支付凭证或其他敏感信息
+          required: true

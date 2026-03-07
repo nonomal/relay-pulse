@@ -14,6 +14,7 @@ body:
         ## 重要说明
         - RelayPulse 为自动化技术监测与信息展示工具；展示结果可能存在误差或延迟，不构成任何法律结论或官方认定。
         - 请勿在此提交任何敏感信息（如 API Key、密码、未公开的个人信息）。
+        - 如需**下架/隐藏展示**，请使用 [服务商下架申请](https://github.com/prehisle/relay-pulse/issues/new?template=4-delist-request.yml) 模板。
 
         RelayPulse provides automated technical monitoring and information display. Results may be delayed or inaccurate and do not constitute legal conclusions.
 
@@ -33,7 +34,6 @@ body:
         - 数据错误（Incorrect data）
         - 状态误判（Incorrect status）
         - 标记/分类不准确（Incorrect tag/classification）
-        - 需要下架/隐藏展示（Removal / De-list request）
         - 其他（Other）
     validations:
       required: true

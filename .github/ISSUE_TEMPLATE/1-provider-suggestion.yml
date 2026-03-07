@@ -17,12 +17,29 @@ body:
 
         ✅ **提交前建议**：建议先使用 [API 自助测试](/selftest) 验证端点可用性，确认返回结果包含预期关键字（如 "pong"）。
 
+        💎 **赞助等级**：不同等级对应不同的监测频率与权益，详见 [赞助权益体系](https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md)。
+
   - type: input
     id: provider-name
     attributes:
       label: 服务商名称
       description: 请提供服务商的正式名称
       placeholder: 例如：DeepSeek、Moonshot AI
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sponsor_level
+    attributes:
+      label: 赞助等级（sponsor_level）
+      description: 请选择对应的赞助等级，详见赞助权益体系文档
+      options:
+        - 公益链路（public）
+        - 信号链路（signal）
+        - 脉冲链路（pulse）— 默认等级
+        - 信标链路（beacon）
+        - 骨干链路（backbone）
+        - 核心链路（core）
     validations:
       required: true
 
