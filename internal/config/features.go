@@ -70,9 +70,34 @@ func (c *SponsorPinConfig) IsEnabled() bool {
 	return *c.Enabled
 }
 
+// BoardAutoMoveConfig 基于 7 天可用率在 hot/secondary 间自动移板的配置
+// 仅 hot ↔ secondary，不涉及 cold（cold 停止探测，无法自判回升）
+type BoardAutoMoveConfig struct {
+	// 是否启用自动移板（默认 false）
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// 降级阈值：hot 板可用率低于此值 → secondary（默认 50.0，百分比 0-100）
+	ThresholdDown float64 `yaml:"threshold_down" json:"threshold_down"`
+
+	// 升级阈值：secondary 板可用率达到此值 → hot（默认 55.0，高于 down 以防抖）
+	ThresholdUp float64 `yaml:"threshold_up" json:"threshold_up"`
+
+	// 评估间隔（默认 "30m"）
+	CheckInterval string `yaml:"check_interval" json:"check_interval"`
+
+	// 最少探测次数，不足则不判断（新服务商保护，默认 10）
+	MinProbes int `yaml:"min_probes" json:"min_probes"`
+
+	// 解析后的运行时字段
+	CheckIntervalDuration time.Duration `yaml:"-" json:"-"`
+}
+
 // BoardsConfig 热板/冷板功能配置
 // 用于将监测项分为热板（正常监测）和冷板（停止监测，仅展示历史）
 type BoardsConfig struct {
 	// 是否启用热板/冷板功能（默认 false，保持向后兼容）
 	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// 自动移板配置（基于 7 天可用率在 hot/secondary 间切换）
+	AutoMove BoardAutoMoveConfig `yaml:"auto_move" json:"auto_move"`
 }

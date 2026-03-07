@@ -10,6 +10,7 @@ import (
 
 	"monitor/internal/announcements"
 	"monitor/internal/api"
+	"monitor/internal/automove"
 	"monitor/internal/buildinfo"
 	"monitor/internal/config"
 	"monitor/internal/events"
@@ -176,8 +177,19 @@ func main() {
 
 	sched.Start(ctx, cfg)
 
+	// 创建自动移板服务（始终创建，内部根据 enabled 决定是否实际评估）
+	autoMover := automove.NewService(store, cfg)
+	autoMover.Start(ctx)
+	if cfg.Boards.Enabled && cfg.Boards.AutoMove.Enabled {
+		logger.Info("main", "自动移板服务已启用",
+			"threshold_down", cfg.Boards.AutoMove.ThresholdDown,
+			"threshold_up", cfg.Boards.AutoMove.ThresholdUp,
+			"check_interval", cfg.Boards.AutoMove.CheckInterval,
+			"min_probes", cfg.Boards.AutoMove.MinProbes)
+	}
+
 	// 创建API服务器
-	server := api.NewServer(store, cfg, "8080")
+	server := api.NewServer(store, cfg, "8080", autoMover)
 
 	// 初始化自助测试管理器（如果启用）
 	var selfTestMgr *selftest.TestJobManager
@@ -269,6 +281,7 @@ func main() {
 		// 配置热更新回调
 		sched.UpdateConfig(newCfg)
 		server.UpdateConfig(newCfg)
+		autoMover.UpdateConfig(newCfg)
 		// 重新运行 channel 迁移（支持运行时添加 channel）
 		if err := store.MigrateChannelData(buildChannelMigrationMappings(newCfg.Monitors)); err != nil {
 			logger.Warn("main", "热更新时 channel 迁移失败", "error", err)
@@ -310,6 +323,10 @@ func main() {
 
 	// 停止调度器
 	sched.Stop()
+
+	// 停止自动移板服务
+	autoMover.Stop()
+	logger.Info("main", "自动移板服务已关闭")
 
 	// 停止自助测试管理器（如果启用）
 	if selfTestMgr != nil {

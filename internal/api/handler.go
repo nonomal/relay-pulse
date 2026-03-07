@@ -16,6 +16,7 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 
+	"monitor/internal/automove"
 	"monitor/internal/config"
 	"monitor/internal/logger"
 	"monitor/internal/selftest"
@@ -245,14 +246,16 @@ type Handler struct {
 	cfgMu       sync.RWMutex             // 保护config的并发访问
 	cache       *statusCache             // API 响应缓存
 	selfTestMgr *selftest.TestJobManager // 自助测试管理器（可选）
+	autoMover   *automove.Service        // 自动移板服务（可选）
 }
 
 // NewHandler 创建处理器
-func NewHandler(store storage.Storage, cfg *config.AppConfig) *Handler {
+func NewHandler(store storage.Storage, cfg *config.AppConfig, autoMover *automove.Service) *Handler {
 	return &Handler{
-		storage: store,
-		config:  cfg,
-		cache:   newStatusCache(10*time.Second, 100), // 10 秒缓存，最多 100 条
+		storage:   store,
+		config:    cfg,
+		cache:     newStatusCache(10*time.Second, 100), // 10 秒缓存，最多 100 条
+		autoMover: autoMover,
 	}
 }
 
@@ -410,6 +413,9 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	boardsEnabled := h.config.Boards.Enabled
 	h.cfgMu.RUnlock()
 
+	// 应用自动移板 override（运行时覆盖 board 字段，不修改配置）
+	monitors = h.applyBoardOverrides(monitors)
+
 	// 构建 slug -> provider 映射（slug作为provider的路由别名）
 	slugToProvider := make(map[string]string)
 	for _, task := range monitors {
@@ -526,6 +532,33 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	}
 
 	return json.Marshal(result)
+}
+
+// applyBoardOverrides 将自动移板 override 应用到监测项列表。
+// 浅拷贝 slice，仅覆盖被移板监测项的 Board 字段。
+func (h *Handler) applyBoardOverrides(monitors []config.ServiceConfig) []config.ServiceConfig {
+	if h.autoMover == nil {
+		return monitors
+	}
+	// 一次性加载 override 快照，保证同一次请求内的一致性
+	overrides := h.autoMover.Overrides()
+	if len(overrides) == 0 {
+		return monitors
+	}
+	copied := make([]config.ServiceConfig, len(monitors))
+	copy(copied, monitors)
+	for i := range copied {
+		key := storage.MonitorKey{
+			Provider: copied[i].Provider,
+			Service:  copied[i].Service,
+			Channel:  copied[i].Channel,
+			Model:    copied[i].Model,
+		}
+		if board, ok := overrides[key]; ok {
+			copied[i].Board = board
+		}
+	}
+	return copied
 }
 
 // filterMonitors 过滤并去重监测项

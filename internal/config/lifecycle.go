@@ -162,7 +162,7 @@ func (c *AppConfig) Clone() *AppConfig {
 		DisabledProviders:               make([]DisabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:                 make([]HiddenProviderConfig, len(c.HiddenProviders)),
 		RiskProviders:                   make([]RiskProviderConfig, len(c.RiskProviders)),
-		Boards:                          c.Boards, // Boards 是值类型，直接复制
+		Boards:                          c.Boards, // Boards 是值类型（含 AutoMove），直接复制
 		ExposeChannelDetails:            exposeChannelDetailsPtr,
 		ChannelDetailsProviders:         make([]ChannelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
 		EnableBadges:                    c.EnableBadges,

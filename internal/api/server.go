@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"monitor/internal/automove"
 	"monitor/internal/buildinfo"
 	"monitor/internal/config"
 	"monitor/internal/logger"
@@ -38,7 +39,8 @@ type Server struct {
 }
 
 // NewServer 创建服务器
-func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Server {
+// autoMover 可为 nil（未启用自动移板时）
+func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMover *automove.Service) *Server {
 	// 设置gin模式
 	gin.SetMode(gin.ReleaseMode)
 
@@ -150,7 +152,7 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string) *Serve
 	})
 
 	// 创建处理器
-	handler := NewHandler(store, cfg)
+	handler := NewHandler(store, cfg, autoMover)
 
 	// 注册 API 路由
 	router.GET("/api/status", handler.GetStatus)

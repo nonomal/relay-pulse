@@ -410,6 +410,35 @@ func (c *AppConfig) normalizeGlobalDefaults() error {
 // normalizeFeatureConfigs 规范化功能模块配置
 // 包括：sponsor_pin, selftest, events, github, announcements
 func (c *AppConfig) normalizeFeatureConfigs() error {
+	// 自动移板配置默认值与解析
+	if c.Boards.AutoMove.ThresholdDown == 0 {
+		c.Boards.AutoMove.ThresholdDown = 50.0
+	}
+	if c.Boards.AutoMove.ThresholdUp == 0 {
+		c.Boards.AutoMove.ThresholdUp = 55.0
+	}
+	if c.Boards.AutoMove.MinProbes == 0 {
+		c.Boards.AutoMove.MinProbes = 10
+	}
+	if strings.TrimSpace(c.Boards.AutoMove.CheckInterval) == "" {
+		c.Boards.AutoMove.CheckInterval = "30m"
+	}
+	{
+		d, err := time.ParseDuration(strings.TrimSpace(c.Boards.AutoMove.CheckInterval))
+		if err != nil {
+			logger.Warn("config", "boards.auto_move.check_interval 无效，已回退默认值",
+				"value", c.Boards.AutoMove.CheckInterval, "default", "30m")
+			d = 30 * time.Minute
+			c.Boards.AutoMove.CheckInterval = "30m"
+		} else if d <= 0 {
+			logger.Warn("config", "boards.auto_move.check_interval 必须 > 0，已回退默认值",
+				"value", c.Boards.AutoMove.CheckInterval, "default", "30m")
+			d = 30 * time.Minute
+			c.Boards.AutoMove.CheckInterval = "30m"
+		}
+		c.Boards.AutoMove.CheckIntervalDuration = d
+	}
+
 	// 赞助通道置顶配置默认值
 	if c.SponsorPin.MaxPinned == 0 {
 		c.SponsorPin.MaxPinned = 3

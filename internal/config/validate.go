@@ -66,6 +66,11 @@ func (c *AppConfig) Validate() error {
 		return err
 	}
 
+	// 6.5 自动移板配置校验
+	if err := c.validateBoardAutoMove(); err != nil {
+		return err
+	}
+
 	// 7. Provider 配置校验
 	if err := c.validateProviderConfigs(); err != nil {
 		return err
@@ -353,6 +358,36 @@ func (c *AppConfig) validateMonitorFields() error {
 			if err := validateProxyURL(trimmedProxy); err != nil {
 				return fmt.Errorf("monitor[%d]: %w", i, err)
 			}
+		}
+	}
+	return nil
+}
+
+// validateBoardAutoMove 校验自动移板配置
+// 注意：此方法在 Normalize() 之前调用，仅校验 YAML 原始值（不检查 Duration 等解析后字段）
+func (c *AppConfig) validateBoardAutoMove() error {
+	am := c.Boards.AutoMove
+	if !am.Enabled {
+		return nil // 未启用时跳过校验
+	}
+	// 阈值范围校验（0 值视为未配置，Normalize 将填充默认值）
+	if am.ThresholdDown != 0 && (am.ThresholdDown < 0 || am.ThresholdDown > 100) {
+		return fmt.Errorf("boards.auto_move.threshold_down 必须在 0-100 范围内，当前值: %.2f", am.ThresholdDown)
+	}
+	if am.ThresholdUp != 0 && (am.ThresholdUp < 0 || am.ThresholdUp > 100) {
+		return fmt.Errorf("boards.auto_move.threshold_up 必须在 0-100 范围内，当前值: %.2f", am.ThresholdUp)
+	}
+	// 两个都非零时检查关系
+	if am.ThresholdDown != 0 && am.ThresholdUp != 0 && am.ThresholdDown >= am.ThresholdUp {
+		return fmt.Errorf("boards.auto_move.threshold_down(%.2f) 必须小于 threshold_up(%.2f)，中间缓冲带用于防抖", am.ThresholdDown, am.ThresholdUp)
+	}
+	if am.MinProbes < 0 {
+		return fmt.Errorf("boards.auto_move.min_probes 必须 >= 0，当前值: %d", am.MinProbes)
+	}
+	// check_interval 字符串格式校验（Duration 解析在 Normalize 中完成）
+	if ci := strings.TrimSpace(am.CheckInterval); ci != "" {
+		if _, err := time.ParseDuration(ci); err != nil {
+			return fmt.Errorf("boards.auto_move.check_interval 格式无效: %w", err)
 		}
 	}
 	return nil
