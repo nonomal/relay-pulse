@@ -78,11 +78,20 @@ body:
 
           service: "cc"                            # [必填] 服务类型: cc (Claude), cx (Codex), gm (Gemini)
 
-          # [必填] 通道标识，格式：渠道类型-渠道来源
-          # 渠道类型：O(Official 官方) / R(Reverse 逆向) / M(Mixed 混合)
-          # 渠道来源：API 的实际接入方式，如 Anthropic API、AWS Bedrock、Vertex AI 等
-          # 示例：O-Anthropic, O-Bedrock, O-VertexAI, R-Reverse, M-Mixed
-          channel: "O-[渠道来源]"
+          # [必填] 通道标识，格式：渠道类型-渠道来源简写
+          #
+          # 渠道类型：
+          #   O = Official（官方）  R = Reverse（逆向）  M = Mixed（混合）
+          #
+          # 官方渠道来源简写：
+          #   Web = 官方网页订阅（claude.ai Pro/Max 等）
+          #   API = 官方 API 直连（Anthropic API）
+          #   AWS = Amazon Bedrock 托管
+          #   GCP = Google Vertex AI 托管
+          #   App = 官方合作应用（Notion 等集成）
+          #
+          # 示例：O-API, O-Web, O-AWS, O-GCP, R-自定义名, M-自定义名
+          channel: "O-[简写]"
 
           # [必填] 实际调用的 API Key
           # 此处可使用 sk-xxxx... 掩码，真实 Key 请通过邮箱提供
