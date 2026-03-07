@@ -4,7 +4,6 @@
 
 ## 文档列表
 
-- **AGENTS.md** - AI agents 开发笔记
 - **IMPLEMENTATION.md** - 实现细节和技术决策
 - **FINAL_REPORT.md** - 项目总结报告
 - **CODE_REVIEW.md** - 代码审查记录

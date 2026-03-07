@@ -92,6 +92,8 @@ go run cmd/server/main.go
 | 🚀 5 分钟内跑起来  | [QUICKSTART.md](QUICKSTART.md) |
 | 💻 本地开发/调试   | 本文档的「本地开发」章节 |
 | ⚙️ 配置监测项      | [配置手册](docs/user/config.md) |
+| 🔔 配置通知推送    | [notifier/README.md](notifier/README.md)（Telegram/QQ Bot） |
+| 📡 多模型监测      | [配置手册 - 多模型](docs/user/config.md)（parent-child 继承） |
 | 🤝 参与贡献        | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
 ---
@@ -101,6 +103,14 @@ go run cmd/server/main.go
 - `QUICKSTART.md`：面向用户的快速部署与常见问题
 - `docs/user/config.md`：配置项说明、环境变量规则、安全实践
 - `CONTRIBUTING.md`：贡献流程、代码规范、提交与 PR 约定
+
+### 扩展文档
+- [Docker 部署指南](docs/user/docker.md)：高级 Docker 配置（用户/运维）
+- [PostgreSQL 部署指南](docs/user/deploy-postgres.md)：PostgreSQL 部署（运维）
+- [通知子系统](notifier/README.md)：Telegram/QQ Bot 通知推送（用户/运维）
+- [版本检查](docs/developer/version-check.md)：版本信息与检测（运维）
+- [监测方法论](docs/user/methodology.md)：探测原理与数据说明（用户）
+- [赞助权益](docs/user/sponsorship.md)：赞助体系规则（用户）
 
 ## 🔧 配置示例
 
@@ -154,11 +164,24 @@ curl http://localhost:8080/api/status
 # 获取 7 天历史
 curl http://localhost:8080/api/status?period=7d
 
+# 按板块过滤（hot/secondary/cold/all）
+curl http://localhost:8080/api/status?board=hot
+
 # 健康检查
 curl http://localhost:8080/health
 
 # 版本信息
 curl http://localhost:8080/api/version
+
+# 状态变更事件（需 Bearer Token 鉴权，token 通过 events.api_token 或 EVENTS_API_TOKEN 配置）
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/events
+curl -H "Authorization: Bearer <token>" http://localhost:8080/api/events/latest
+
+# 自助测试
+curl http://localhost:8080/api/selftest/types        # 可用测试类型
+curl http://localhost:8080/api/selftest/config        # 测试配置
+curl -X POST http://localhost:8080/api/selftest       # 创建测试任务
+curl http://localhost:8080/api/selftest/<id>           # 查询测试结果
 ```
 
 **时间窗口说明**：API 使用**滑动窗口**设计，`period=24h` 返回"从当前时刻倒推 24 小时"的数据。这意味着：

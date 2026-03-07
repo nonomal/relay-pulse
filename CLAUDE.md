@@ -4,7 +4,7 @@
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
 ### 同步检查点
-- **最后同步**: 2026-03-07（commit `6947ace`）
+- **最后同步**: 2026-03-07（commit `4e655eb`）
 - 代码是唯一真相源。本文档为架构与模式摘要，字段级细节请查阅引用的源文件。
 
 ## 项目概览
@@ -155,7 +155,7 @@ make ci
 
 ### 后端架构
 
-Go 后端遵循**分层架构**，核心包 10 个 + 独立通知子模块：
+Go 后端遵循**分层架构**，核心包 11 个 + 独立通知子模块：
 
 ```
 cmd/
@@ -170,7 +170,7 @@ internal/
 │   ├── app_config.go     → AppConfig 全局设置
 │   ├── monitor.go        → ServiceConfig 监测项字段
 │   ├── storage_config.go → StorageConfig / RetentionConfig / ArchiveConfig
-│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig
+│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig / BoardAutoMoveConfig
 │   ├── external.go       → GitHubConfig / AnnouncementsConfig / CacheTTLConfig
 │   ├── badges.go         → BadgeDef / BadgeRef / ResolvedBadge / RiskBadge
 │   ├── enums.go          → SponsorLevel / BadgeKind / BadgeVariant
@@ -214,6 +214,9 @@ internal/
 │   ├── ssrf_guard.go     → SSRF 防护
 │   ├── safe_http_client.go → 沙箱化 HTTP 客户端
 │   └── errors.go         → 错误类型
+├── automove/              → 自动移板（基于 7 天可用率在 hot ↔ secondary 间切换）
+│   ├── availability.go   → 可用率计算
+│   └── service.go        → 自动移板服务编排
 ├── announcements/         → GitHub Discussions 公告（3 文件）
 │   ├── fetcher.go        → GraphQL 拉取
 │   ├── service.go        → 轮询 + 缓存
@@ -233,8 +236,7 @@ notifier/                  → 独立通知子模块（独立 go.mod）
 └── internal/
     ├── config/           → 通知专属配置
     ├── poller/           → 事件轮询
-    ├── notifier/         → 消息分发编排
-    ├── sender/           → 通用发送器抽象
+    ├── notifier/         → 消息分发编排（含 sender.go 发送器抽象）
     ├── telegram/         → Telegram Bot
     ├── qq/               → QQ Bot (OneBot v11)
     ├── screenshot/       → 截图服务
@@ -254,6 +256,7 @@ notifier/                  → 独立通知子模块（独立 go.mod）
 8. **事件驱动通知**: `events.Detector` 基于阈值状态机生成 UP/DOWN 事件
 9. **指数退避重试**: `retry_*` + jitter 统一控制失败重试节奏
 10. **功能开关分层**: boards/badges/selftest/events/announcements 可按需启用
+11. **自动移板**: `automove.Service` 基于 7 天可用率自动在 hot ↔ secondary 间切换通道
 
 ### 日志系统
 
@@ -621,7 +624,7 @@ HTTP 响应
 | 查询优化 | `enable_concurrent_query`、`concurrent_query_limit`、`enable_batch_query`、`enable_db_timeline_agg`、`batch_query_max_keys` | API 层数据库查询优化 |
 | 缓存 | `cache_ttl`（按 period 区分，90m/24h=10s，7d/30d=60s） | API 响应缓存 |
 | Provider 策略 | `disabled_providers`、`hidden_providers`、`risk_providers` | 批量禁用/隐藏/风险标记 |
-| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold） | 热板/副板/冷板功能 |
+| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_down/up`、`min_probes`、`check_interval`） | 热板/副板/冷板 + 自动移板 |
 | 展示控制 | `expose_channel_details`、`channel_details_providers`、`public_base_url` | 通道技术细节暴露 |
 | 赞助/徽标 | `sponsor_pin`、`enable_badges`、`badge_definitions`、`badge_providers` | 置顶与徽标体系 |
 | 功能模块 | `selftest`、`events`、`announcements`、`github` | 自测/事件/公告/GitHub 配置 |
@@ -772,6 +775,9 @@ vim config.yaml
   - `internal/scheduler/stagger_test.go` - 错峰分散
   - `internal/scheduler/grouping_test.go` - 分组逻辑
   - `internal/scheduler/disabled_test.go` - 禁用逻辑
+  - `internal/automove/availability_test.go` - 自动移板可用率计算
+  - `internal/automove/service_test.go` - 自动移板服务
+  - `cmd/genconfig/generator/generator_test.go` - 配置生成器
 - 使用 `go test -v` 查看详细输出
 
 ### 前端测试

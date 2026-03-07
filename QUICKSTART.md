@@ -135,18 +135,25 @@ docker compose --env-file .env up -d
 
 **环境变量命名规则**：
 
+支持两级和三级格式（三级含 channel，优先级更高）：
+
 ```
-MONITOR_<PROVIDER>_<SERVICE>_API_KEY
+MONITOR_<PROVIDER>_<SERVICE>_<CHANNEL>_API_KEY   # 三级（channel 级，优先）
+MONITOR_<PROVIDER>_<SERVICE>_API_KEY              # 二级（service 级）
 ```
 
 - `<PROVIDER>`: 配置中的 provider 字段（大写，`-` 替换为 `_`）
 - `<SERVICE>`: 配置中的 service 字段（大写，`-` 替换为 `_`）
+- `<CHANNEL>`: 配置中的 channel 字段（大写，`-` 替换为 `_`）
+
+**优先级**：`env_var_name` 自定义变量名 > channel 级 > service 级
 
 **示例**：
 
 | 配置 | 环境变量名 |
 |------|-----------|
 | `provider: "88code"`, `service: "cc"` | `MONITOR_88CODE_CC_API_KEY` |
+| `provider: "88code"`, `service: "cc"`, `channel: "vip"` | `MONITOR_88CODE_CC_VIP_API_KEY` |
 | `provider: "openai"`, `service: "gpt-4"` | `MONITOR_OPENAI_GPT4_API_KEY` |
 | `provider: "anthropic"`, `service: "claude-3"` | `MONITOR_ANTHROPIC_CLAUDE3_API_KEY` |
 
@@ -475,12 +482,27 @@ go run ./cmd/genconfig -mode interactive
 
 ---
 
+## 自助测试（SelfTest）
+
+RelayPulse 内置自助测试功能，允许用户在 Web 界面上临时测试 API 端点的连通性。
+
+**启用方式**：在 `config.yaml` 中添加：
+
+```yaml
+selftest:
+  enabled: true
+```
+
+启用后，访问 Web 界面的 `/selftest` 页面即可使用。详细配置参见 [配置手册](docs/user/config.md)。
+
+---
+
 ## 更多文档
 
 - **项目入口**: [README.md](README.md)
 - **配置手册**: [docs/user/config.md](docs/user/config.md)
+- **通知推送**: [notifier/README.md](notifier/README.md)（Telegram/QQ Bot）
 - **贡献指南**: [CONTRIBUTING.md](CONTRIBUTING.md)
-- **AI 助手技术说明**: [CLAUDE.md](CLAUDE.md)（仅供 AI 使用，人类一般不用维护）
 
 ---
 
