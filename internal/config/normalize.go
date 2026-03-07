@@ -441,7 +441,7 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 
 	// 赞助通道置顶配置默认值
 	if c.SponsorPin.MaxPinned == 0 {
-		c.SponsorPin.MaxPinned = 3
+		c.SponsorPin.MaxPinned = 10
 	}
 	if c.SponsorPin.MinUptime == 0 {
 		c.SponsorPin.MinUptime = 95.0
@@ -457,8 +457,8 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 	}
 	// 验证赞助通道置顶配置
 	if c.SponsorPin.MaxPinned < 0 {
-		logger.Warn("config", "sponsor_pin.max_pinned 无效，已回退默认值", "value", c.SponsorPin.MaxPinned, "default", 3)
-		c.SponsorPin.MaxPinned = 3
+		logger.Warn("config", "sponsor_pin.max_pinned 无效，已回退默认值", "value", c.SponsorPin.MaxPinned, "default", 10)
+		c.SponsorPin.MaxPinned = 10
 	}
 	if c.SponsorPin.MinUptime < 0 || c.SponsorPin.MinUptime > 100 {
 		logger.Warn("config", "sponsor_pin.min_uptime 超出范围，已回退默认值", "value", c.SponsorPin.MinUptime, "default", 95.0)
