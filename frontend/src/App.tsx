@@ -267,6 +267,14 @@ function App() {
     });
   }, [baseData, filterProvider, filterService, filterChannel, filterCategory]);
 
+  // 收藏模式下重新计算状态统计（基于 filteredData 而非全板块数据）
+  const effectiveStats = useMemo(() => {
+    if (!showFavoritesOnly) return stats;
+    const total = filteredData.length;
+    const healthy = filteredData.filter(i => i.currentStatus === 'AVAILABLE').length;
+    return { total, healthy, issues: total - healthy };
+  }, [showFavoritesOnly, stats, filteredData]);
+
   // 动态 Provider 选项：联动筛选 + 保留已选项
   const effectiveProviders = useMemo(() => {
     // 预构建 Set 优化查询性能
@@ -570,7 +578,7 @@ function App() {
           {/* 头部 - 截图模式下隐藏 */}
           {!isScreenshotMode && (
             <Header
-              stats={stats}
+              stats={effectiveStats}
               onFilterClick={() => setShowFilterDrawer(true)}
               onRefresh={handleRefresh}
               loading={loading}
