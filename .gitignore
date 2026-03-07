@@ -1,5 +1,7 @@
 # Binary (root directory only)
 /monitor
+/monitor-bin
+/migrate
 /testenv
 # Database
 *.db
@@ -44,6 +46,7 @@ internal/api/frontend/
 config.yaml
 config.local.yaml
 config.production.yaml  # 生产配置包含真实数据，不提交
+prd.config.yaml
 
 # Environment variables
 .env
