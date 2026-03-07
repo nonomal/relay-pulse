@@ -288,16 +288,25 @@ export function sortMonitorsWithPinning(
     return compareLatency(a.lastCheckLatency, b.lastCheckLatency);
   });
 
-  // 3. 按 max_pinned 截断
-  const pinnedItems = pinnedCandidates.slice(0, pinConfig.max_pinned);
+  // 3. 同一服务商相同服务只置顶一个通道（保留排名最高的）
+  const seenProviderService = new Set<string>();
+  const dedupedCandidates = pinnedCandidates.filter(item => {
+    const key = `${item.providerId}|${item.serviceType}`;
+    if (seenProviderService.has(key)) return false;
+    seenProviderService.add(key);
+    return true;
+  });
+
+  // 4. 按 max_pinned 截断
+  const pinnedItems = dedupedCandidates.slice(0, pinConfig.max_pinned);
 
   const pinnedIds = new Set(pinnedItems.map(item => item.id));
 
-  // 4. 其余项按可用率降序排序
+  // 5. 其余项按可用率降序排序
   const remainingItems = items.filter(item => !pinnedIds.has(item.id));
   const sortedRemaining = sortMonitors(remainingItems, { key: 'uptime', direction: 'desc' });
 
-  // 5. 合并结果，标记置顶项
+  // 6. 合并结果，标记置顶项
   return [
     ...pinnedItems.map(item => ({ ...item, pinned: true })),
     ...sortedRemaining.map(item => ({ ...item, pinned: false })),
