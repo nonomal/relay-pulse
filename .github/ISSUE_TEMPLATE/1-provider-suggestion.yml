@@ -1,6 +1,6 @@
 name: 📋 申请收录
 description: 申请将服务商接入监测
-title: "[申请收录] "
+title: "[申请收录] 中转服务商名称"
 labels: ["enhancement", "provider-suggestion"]
 body:
   - type: markdown
@@ -34,12 +34,13 @@ body:
       label: 赞助等级（sponsor_level）
       description: 请选择对应的赞助等级，详见赞助权益体系文档
       options:
-        - 公益链路（public）
-        - 信号链路（signal）
-        - 脉冲链路（pulse）— 默认等级
-        - 信标链路（beacon）
-        - 骨干链路（backbone）
-        - 核心链路（core）
+        - 公益 - 公益链路（public）
+        - 商业 - 信号链路（signal）
+        - 商业 - 脉冲链路（pulse）— 默认等级
+        - 商业 - 信标链路（beacon）
+        - 商业 - 骨干链路（backbone）
+        - 商业 - 核心链路（core）
+      default: 2
     validations:
       required: true
 
@@ -61,12 +62,11 @@ body:
         填写完成并提交 Issue 后，请务必通过邮箱单独发送真实 API Key：
         - 邮箱：prehisle@gmail.com
       render: yaml
-      placeholder: |
+      value: |
         # ----------------------------------------------------------------
-        # 模板说明：请替换 [] 中的内容，保留引号。
+        # 请直接在此模板上修改 [] 中的内容，保留引号。
         # 注意：请不要在 GitHub Issue 中填写真实 API Key。
-        # 真实 Key 请通过邮箱私下发送：
-        # - 邮箱：prehisle@gmail.com
+        # 真实 Key 请通过邮箱私下发送：prehisle@gmail.com
         # ----------------------------------------------------------------
         - provider: "[服务商名称]"                  # [必填] 例如：DeepSeek, FoxCode
           provider_url: "[服务商官网]"              # [选填] 用于展示来源
@@ -74,19 +74,21 @@ body:
           sponsor: "[赞助者名称]"                   # [必填] 你的名字或组织名
           sponsor_url: "[赞助者链接]"               # [选填] 点击名字跳转的地址 (如 linux.do 帖子)
 
-          category: "commercial"                   # [必填] commercial(商业/付费) 或 public(公益/免费)
+          category: "commercial"                   # [必填] commercial(商业) 或 public(公益)
 
-          service: "cc"                            # [必填] 服务类型: cc (Claude Messages), cx (Codex Responses), gm (Gemini)
-          channel: "cc-[标识]"                     # [必填] 通道唯一标识，例如: cc-FoxCode-VIP
+          service: "cc"                            # [必填] 服务类型: cc (Claude), cx (Codex), gm (Gemini)
+
+          # [必填] 通道标识，格式：渠道类型前缀-渠道名称
+          # 渠道类型：O(Official 官方) / R(Reverse 逆向) / M(Mixed 混合)
+          # 示例：O-FoxCode-VIP, R-DeepSeek, M-Mix渠道
+          channel: "O-[渠道名称]"
 
           # [必填] 实际调用的 API Key
-          # 此处可使用 sk-xxxx... 掩码示例，真实 Key 请通过邮箱提供
+          # 此处可使用 sk-xxxx... 掩码，真实 Key 请通过邮箱提供
           api_key: "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
           # [必填] 接口地址 (注意区分 cc/cx/gm 的后缀)
-          # cc 通常是 /v1/messages
-          # cx 通常是 /v1/responses
-          # gm 通常是 /v1beta/models/{model}:streamGenerateContent?alt=sse
+          # cc → /v1/messages | cx → /v1/responses | gm → /v1beta/models/{model}:streamGenerateContent?alt=sse
           url: "https://api.example.com/v1/messages"
     validations:
       required: true
@@ -101,8 +103,6 @@ body:
           required: true
         - label: 我会在提交 Issue 后，通过邮箱 prehisle@gmail.com 单独发送真实 API Key，并在邮件中附上本 Issue 链接
           required: true
-        - label: （可选）我已使用 /selftest 自助测试验证端点可用性，返回结果包含预期关键字
-          required: false
 
   - type: textarea
     id: additional-info
