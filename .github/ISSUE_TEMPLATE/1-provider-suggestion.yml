@@ -35,7 +35,7 @@ body:
       description: 请选择对应的赞助等级，详见赞助权益体系文档
       options:
         - 公益 - 公益链路（public）
-        - 商业 - 信号链路（signal）
+        - 商业 - 信号链路（signal）- 个人key适用
         - 商业 - 脉冲链路（pulse）— 默认等级
         - 商业 - 信标链路（beacon）
         - 商业 - 骨干链路（backbone）
@@ -43,15 +43,6 @@ body:
       default: 2
     validations:
       required: true
-
-  - type: textarea
-    id: reason
-    attributes:
-      label: 申请理由
-      description: 简要说明申请收录的原因（可选）
-      placeholder: 例如：希望监测该服务商的可用性
-    validations:
-      required: false
 
   - type: textarea
     id: monitor-config-template
@@ -65,8 +56,6 @@ body:
       value: |
         # ----------------------------------------------------------------
         # 请直接在此模板上修改 [] 中的内容，保留引号。
-        # 注意：请不要在 GitHub Issue 中填写真实 API Key。
-        # 真实 Key 请通过邮箱私下发送：prehisle@gmail.com
         # ----------------------------------------------------------------
         - provider: "[服务商名称]"                  # [必填] 例如：DeepSeek, FoxCode
           provider_url: "[服务商官网]"              # [选填] 用于展示来源
@@ -79,21 +68,10 @@ body:
           service: "cc"                            # [必填] 服务类型: cc (Claude), cx (Codex), gm (Gemini)
 
           # [必填] 通道标识，格式：渠道类型-渠道来源简写
-          #
-          # 渠道类型（标准命名）：
-          #   O = 官方渠道 (Official)
-          #   R = 逆向渠道 (Reverse)
-          #   M = 混合渠道 (Mixed) ← 默认，不确定时选此项
-          #
-          # 官方渠道来源简写：
-          #   Web = 官方网页订阅（claude.ai Pro/Max 等）
-          #   API = 官方 API 直连（Anthropic API）
-          #   AWS = Amazon Bedrock 托管
-          #   GCP = Google Vertex AI 托管
-          #   App = 官方合作应用（Notion 等集成）
-          #
-          # 示例：O-API, O-Web, O-AWS, O-GCP, R-自定义名, M-自定义名
-          # 不确定渠道类型？填 M（混合）即可
+          # O = 官方渠道 | R = 逆向渠道 | M = 混合渠道（默认，不确定时选此项）
+          # 官方来源简写：Web / API / AWS / GCP / App
+          # 示例：O-API, O-Web, R-自定义, M-自定义
+          # 详见：https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md#22-通道命名规范
           channel: "M-[简写]"
 
           # [必填] 实际调用的 API Key

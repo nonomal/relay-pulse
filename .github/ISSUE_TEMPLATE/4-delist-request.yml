@@ -1,5 +1,5 @@
-name: 服务商下架申请（De-list / Removal Request）
-description: "申请将某服务/域名从 RelayPulse 中隐藏或停止展示（Target response: 48 hours）"
+name: 服务商下架申请
+description: "申请将某服务/域名从 RelayPulse 中隐藏或停止展示（响应目标：48 小时）"
 title: "[下架申请] <服务名称/域名> - <原因简述>"
 labels: ["delist", "request", "triage"]
 assignees: []
@@ -7,24 +7,20 @@ body:
   - type: markdown
     attributes:
       value: |
-        ## 处理目标 / Response Target
+        ## 处理目标
         我们的目标是在 **48 小时内**响应（受理确认 / 补充材料请求 / 初步处理意见）。节假日或高峰期可能延迟。
-        We aim to respond within **48 hours**. May be delayed during holidays or peak periods.
 
         ## 适用范围
         本模板用于"停止展示/隐藏条目/去索引"等请求。若是数据错误更正，请使用"数据纠错/申诉"模板。
-        This template is for de-list/removal requests. For data corrections, use the correction/appeal template.
 
         ## 重要说明
         - RelayPulse 为自动化技术监测与信息展示工具，不保证实时性与准确性。
         - 请勿提交敏感信息（API Key、密码、个人隐私）。
 
-        RelayPulse is an automated monitoring & info display tool; no secrets or private data.
-
   - type: input
     id: service_name
     attributes:
-      label: 服务商/项目名称（Service/Project Name）
+      label: 服务商/项目名称
       placeholder: "例如：ExampleCloud / example.com"
     validations:
       required: true
@@ -32,60 +28,54 @@ body:
   - type: textarea
     id: items
     attributes:
-      label: 需要下架的条目（Items to remove/de-list）
-      description: |
-        请提供 RelayPulse 内的链接、截图或条目标识（ID/名称/URL）。
-        Provide links, screenshots, or identifiers.
+      label: 需要下架的条目
+      description: 请提供 RelayPulse 内的链接、截图或条目标识（ID/名称/URL）。
       placeholder: |
-        - 链接/Link:
-        - 条目 ID/Item ID:
+        - 链接:
+        - 条目 ID:
     validations:
       required: true
 
   - type: dropdown
     id: reason
     attributes:
-      label: 下架原因（Reason）
+      label: 下架原因
       options:
-        - 权利人/授权代表请求（Rightsholder or authorized representative request）
-        - 误收录/不相关（Incorrect inclusion / not relevant）
-        - 隐私/安全风险（Privacy/Security concerns）
-        - 合规/法律风险（Compliance/Legal concerns）
-        - 其他（Other）
+        - 权利人/授权代表请求
+        - 误收录/不相关
+        - 隐私/安全风险
+        - 合规/法律风险
+        - 其他
     validations:
       required: true
 
   - type: textarea
     id: rationale
     attributes:
-      label: 详细说明（Details）
-      description: |
-        请说明请求的具体原因、期望的处理方式（隐藏/去索引/停止监测），以及是否有替代展示方式建议。
-        Explain the reason, requested action (hide/de-list/stop monitoring), and any alternative display suggestions.
+      label: 详细说明
+      description: 请说明请求的具体原因、期望的处理方式（隐藏/去索引/停止监测），以及是否有替代展示方式建议。
       placeholder: |
-        期望处理/Requested action:
-        原因说明/Reason details:
-        替代建议/Alternatives:
+        期望处理:
+        原因说明:
+        替代建议:
     validations:
       required: true
 
   - type: textarea
     id: authorization
     attributes:
-      label: 权限/代表关系说明（Authorization, if applicable）
-      description: |
-        如你是权利人/授权代表，请说明依据（公开可验证即可；无需提交敏感材料）。
-        If you are a rightsholder/authorized rep, provide publicly verifiable basis (no sensitive docs).
+      label: 权限/代表关系说明
+      description: 如你是权利人/授权代表，请说明依据（公开可验证即可；无需提交敏感材料）。
       placeholder: |
-        - 官方网站声明/Official statement:
-        - 授权说明链接/Authorization link:
+        - 官方网站声明:
+        - 授权说明链接:
     validations:
       required: false
 
   - type: input
     id: contact
     attributes:
-      label: 联系方式（Contact）
+      label: 联系方式
       description: 建议填写可接收邮件的工作邮箱（不要填写 API Key/密码）。
       placeholder: "name@company.com"
     validations:
@@ -94,11 +84,11 @@ body:
   - type: checkboxes
     id: confirmations
     attributes:
-      label: 确认（Confirmations）
+      label: 确认
       options:
-        - label: 我确认我有权提出该下架请求，或已获得充分授权（I am authorized to request）
+        - label: 我确认我有权提出该下架请求，或已获得充分授权
           required: true
-        - label: 我确认提交内容不包含任何敏感信息（No secrets included）
+        - label: 我确认提交内容不包含任何敏感信息
           required: true
-        - label: 我理解 RelayPulse 可能需要合理时间核验与处理（Processing may take reasonable time）
+        - label: 我理解 RelayPulse 可能需要合理时间核验与处理
           required: true
