@@ -104,9 +104,13 @@
     },
     "boards": {
       "hot": "メイン",
+      "hotShort": "メイン",
       "secondary": "サブ",
+      "secondaryShort": "サブ",
       "cold": "コールド",
+      "coldShort": "コールド",
       "all": "すべて",
+      "allShort": "全て",
       "selectBoard": "ボードを選択",
       "switchToHot": "ホットボードに切り替え",
       "switchToCold": "コールドボードに切り替え",

@@ -104,9 +104,13 @@
     },
     "boards": {
       "hot": "Основная",
+      "hotShort": "Осн",
       "secondary": "Вторичная",
+      "secondaryShort": "Доп",
       "cold": "Холодная",
+      "coldShort": "Хол",
       "all": "Все",
+      "allShort": "Все",
       "selectBoard": "Выбрать доску",
       "switchToHot": "Переключить на горячую доску",
       "switchToCold": "Переключить на холодную доску",

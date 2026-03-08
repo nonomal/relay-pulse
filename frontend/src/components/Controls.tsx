@@ -8,7 +8,7 @@ import { SubscribeButton } from './SubscribeButton';
 import { BoardSwitcher } from './BoardSwitcher';
 import { RefreshButton } from './RefreshButton';
 import type { MultiSelectOption } from './MultiSelect';
-import type { ViewMode, ProviderOption, ChannelOption, BoardFilter } from '../types';
+import type { ViewMode, ProviderOption, ChannelOption, BoardFilter, BoardCounts } from '../types';
 
 interface ControlsProps {
   filterProvider: string[];  // 多选服务商，空数组表示"全部"
@@ -23,6 +23,7 @@ interface ControlsProps {
   timeFilter: string | null; // 每日时段过滤：null=全天, "09:00-17:00"=自定义
   board: BoardFilter;        // 当前板块：hot/secondary/cold/all
   boardsEnabled: boolean;    // 板块功能是否启用
+  boardCounts?: BoardCounts; // 各板块通道数量（可选，兼容旧后端）
   viewMode: ViewMode;
   loading: boolean;
   channels: ChannelOption[];  // 通道选项列表
@@ -62,6 +63,7 @@ export function Controls({
   timeFilter,
   board,
   boardsEnabled,
+  boardCounts,
   viewMode,
   loading,
   channels,
@@ -236,8 +238,8 @@ export function Controls({
 
           <div className="w-px h-5 bg-muted mx-1"></div>
 
-          {/* 板块切换（自定义组件） */}
-          <BoardSwitcher board={board} onBoardChange={onBoardChange} enabled={boardsEnabled} />
+          {/* 板块切换（下拉菜单） */}
+          <BoardSwitcher board={board} onBoardChange={onBoardChange} enabled={boardsEnabled} boardCounts={boardCounts} />
 
           {/* 视图切换（仅桌面端显示） */}
           {!isMobile && (
@@ -285,44 +287,45 @@ export function Controls({
         {/* 时间范围选择 */}
         <div className="flex-1 min-w-0 min-[960px]:order-1 relative z-20 bg-surface/40 p-2 rounded-2xl backdrop-blur-md">
           <div className="flex items-center gap-1">
-            {/* 可滚动区域：时间对齐 + 时间范围按钮 */}
+            {/* 可滚动区域：时间范围按钮 */}
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide min-w-0">
-              {/* 时间对齐切换图标（附属于 24h） */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (timeRange === '24h') {
-                    onTimeAlignChange(timeAlign === 'hour' ? '' : 'hour');
-                  }
-                }}
-                disabled={timeRange !== '24h'}
-                title={timeRange === '24h'
-                  ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
-                  : undefined}
-                className={`p-2 rounded-xl transition-all duration-200 flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
-                  timeRange === '24h'
-                    ? 'text-accent hover:bg-elevated cursor-pointer'
-                    : 'text-muted cursor-not-allowed'
-                }`}
-              >
-                {timeAlign === 'hour' ? <AlignStartVertical size={16} /> : <Clock size={16} />}
-              </button>
+              {/* 时间范围按钮（24h 按钮集成时间对齐切换） */}
+              {getTimeRanges(t).map((range) => {
+                const isActive = timeRange === range.id;
+                const is24h = range.id === '24h';
 
-              {/* 时间范围按钮 */}
-              {getTimeRanges(t).map((range) => (
-                <button
-                  type="button"
-                  key={range.id}
-                  onClick={() => onTimeRangeChange(range.id)}
-                  className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
-                    timeRange === range.id
-                      ? 'bg-gradient-button text-inverse shadow-lg shadow-accent/25'
-                      : 'text-secondary hover:text-primary hover:bg-elevated'
-                  }`}
-                >
-                  {range.label}
-                </button>
-              ))}
+                return (
+                  <button
+                    type="button"
+                    key={range.id}
+                    onClick={() => {
+                      if (is24h && isActive) {
+                        // 已选中 24h 时，再次点击切换对齐模式
+                        onTimeAlignChange(timeAlign === 'hour' ? '' : 'hour');
+                      } else {
+                        onTimeRangeChange(range.id);
+                      }
+                    }}
+                    title={is24h && isActive
+                      ? (timeAlign === 'hour' ? t('controls.timeAlign.hourTitle') : t('controls.timeAlign.dynamicTitle'))
+                      : undefined}
+                    className={`px-3 py-2 text-xs font-medium rounded-xl transition-all duration-200 whitespace-nowrap flex-shrink-0 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none ${
+                      isActive
+                        ? 'bg-gradient-button text-inverse shadow-lg shadow-accent/25'
+                        : 'text-secondary hover:text-primary hover:bg-elevated'
+                    }`}
+                  >
+                    <span className="flex items-center gap-1">
+                      {is24h && (
+                        timeAlign === 'hour'
+                          ? <AlignStartVertical size={12} />
+                          : <Clock size={12} />
+                      )}
+                      {range.label}
+                    </span>
+                  </button>
+                );
+              })}
 
               {/* 时段筛选（仅 7d/30d 有效）- 现在在滚动容器内，Portal 确保下拉菜单不被裁剪 */}
               <div className="flex-shrink-0">
@@ -400,31 +403,46 @@ export function Controls({
                 </span>
               </button>
 
-              {/* 板块切换（移动端自定义组件） */}
+              {/* 板块切换（移动端按钮组） */}
               {boardsEnabled && (
                 <div className="w-full">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-default/20">
                     <span className="text-sm text-secondary">{t('controls.boards.selectBoard')}</span>
                   </div>
                   <div className="flex gap-2 p-4">
-                    {(['hot', 'secondary', 'cold', 'all'] as BoardFilter[]).map((b) => (
-                      <button
-                        key={b}
-                        onClick={() => {
-                          onBoardChange(b);
-                          onFilterDrawerClose?.();
-                        }}
-                        className={`
-                          flex-1 h-12 flex items-center justify-center rounded-lg
-                          transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none
-                          ${board === b ? 'bg-accent/20 text-accent border border-accent' : 'bg-elevated/50 text-primary border border-default/50 hover:bg-muted/50'}
-                        `}
-                        aria-label={t(`controls.boards.${b}`)}
-                        title={t(`controls.boards.${b}`)}
-                      >
-                        <BoardSwitcher.Icon board={b} size={18} />
-                      </button>
-                    ))}
+                    {(['hot', 'secondary', 'cold', 'all'] as BoardFilter[]).map((b) => {
+                      const count = boardCounts
+                        ? (b === 'all'
+                          ? boardCounts.hot + boardCounts.secondary + boardCounts.cold
+                          : boardCounts[b as keyof BoardCounts])
+                        : undefined;
+                      return (
+                        <button
+                          key={b}
+                          onClick={() => {
+                            onBoardChange(b);
+                            onFilterDrawerClose?.();
+                          }}
+                          className={`
+                            flex-1 h-12 flex flex-col items-center justify-center gap-0.5 rounded-lg
+                            transition-all duration-200 focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none
+                            ${board === b ? 'bg-accent/20 text-accent border border-accent' : 'bg-elevated/50 text-primary border border-default/50 hover:bg-muted/50'}
+                          `}
+                          aria-label={t(`controls.boards.${b}`)}
+                          title={t(`controls.boards.${b}`)}
+                        >
+                          <div className="flex items-center gap-1">
+                            <BoardSwitcher.Icon board={b} />
+                            <span className="text-xs font-medium">{t(`controls.boards.${b}Short`)}</span>
+                          </div>
+                          {count !== undefined && (
+                            <span className={`text-[10px] tabular-nums ${board === b ? 'text-accent/70' : 'text-secondary'}`}>
+                              {count}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

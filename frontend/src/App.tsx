@@ -113,7 +113,7 @@ function App() {
   // 时间对齐模式（使用 localStorage 持久化，不影响分享链接）
   const [timeAlign, setTimeAlignState] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
-    return localStorage.getItem(STORAGE_KEY_TIME_ALIGN) || '';
+    return localStorage.getItem(STORAGE_KEY_TIME_ALIGN) ?? 'hour';
   });
 
   // 包装 setter 以同步到 localStorage
@@ -177,7 +177,7 @@ function App() {
     });
   };
 
-  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, boardsEnabled, boardsEnabledLoaded, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
+  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, boardsEnabled, boardsEnabledLoaded, boardCounts, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -617,6 +617,7 @@ function App() {
               timeFilter={timeFilter}
               board={board}
               boardsEnabled={boardsEnabled}
+              boardCounts={boardCounts}
               viewMode={viewMode}
               loading={loading}
               channels={effectiveChannels}

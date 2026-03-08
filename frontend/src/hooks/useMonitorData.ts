@@ -12,6 +12,7 @@ import type {
   SponsorLevel,
   SponsorPinConfig,
   BoardFilter,
+  BoardCounts,
   MonitorResult,
 } from '../types';
 import { STATUS_MAP } from '../types';
@@ -501,6 +502,7 @@ export function useMonitorData({
   const [enableBadges, setEnableBadges] = useState<boolean>(true); // 徽标系统总开关（默认启用）
   const [boardsEnabled, setBoardsEnabled] = useState<boolean>(false); // 板块功能开关（默认禁用）
   const [boardsEnabledLoaded, setBoardsEnabledLoaded] = useState<boolean>(false); // 是否已从 API 获取板块开关状态
+  const [boardCounts, setBoardCounts] = useState<BoardCounts | undefined>(undefined); // 各板块通道数量
   const [sponsorPinConfig, setSponsorPinConfig] = useState<SponsorPinConfig | null>(null); // 赞助商置顶配置
   const [allMonitorIds, setAllMonitorIds] = useState<Set<string>>(new Set()); // 全量监控项 ID（用于清理无效收藏）
   const [allMonitorIdsSupported, setAllMonitorIdsSupported] = useState<boolean>(false); // 后端是否支持 all_monitor_ids
@@ -590,6 +592,14 @@ export function useMonitorData({
           // 提取板块功能开关（默认禁用，兼容旧后端）
           setBoardsEnabled(json.meta.boards?.enabled === true);
           setBoardsEnabledLoaded(true);
+
+          // 提取板块计数（兼容旧后端）
+          const counts = json.meta.board_counts;
+          if (counts && typeof counts.hot === 'number' && typeof counts.secondary === 'number' && typeof counts.cold === 'number') {
+            setBoardCounts(counts);
+          } else {
+            setBoardCounts(undefined);
+          }
 
           // 提取全量监控项 ID（用于清理无效收藏，兼容旧后端）
           // 字段缺失时重置为空集，避免保留旧值导致误删
@@ -770,6 +780,7 @@ export function useMonitorData({
     enableBadges,
     boardsEnabled,  // 板块功能开关
     boardsEnabledLoaded,  // 是否已从 API 获取板块开关状态
+    boardCounts,    // 各板块通道数量
     allMonitorIds,  // 全量监控项 ID（用于清理无效收藏）
     allMonitorIdsSupported, // 后端是否支持 all_monitor_ids（用于区分"空列表"和"不支持"）
     refetch: triggerRefetch,

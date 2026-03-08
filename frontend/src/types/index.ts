@@ -60,6 +60,13 @@ export interface BoardsConfig {
   enabled: boolean;
 }
 
+// 板块通道数量（来自 API meta）
+export interface BoardCounts {
+  hot: number;
+  secondary: number;
+  cold: number;
+}
+
 // 赞助通道置顶配置（来自 API meta）
 export interface SponsorPinConfig {
   enabled: boolean;
@@ -125,6 +132,7 @@ export interface ApiResponse {
     enable_badges?: boolean;   // 徽标系统总开关（默认 true）
     sponsor_pin?: SponsorPinConfig;  // 赞助商置顶配置
     boards?: BoardsConfig;     // 板块配置
+    board_counts?: BoardCounts; // 各板块通道数量
     all_monitor_ids?: string[]; // 全量监控项 ID 列表（用于清理无效收藏）
   };
   data: MonitorResult[];

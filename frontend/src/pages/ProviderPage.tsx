@@ -84,7 +84,7 @@ export default function ProviderPage() {
   // 时间对齐模式（使用 localStorage 持久化）
   const [timeAlign, setTimeAlignState] = useState<string>(() => {
     if (typeof window === 'undefined') return '';
-    return localStorage.getItem(STORAGE_KEY_TIME_ALIGN) || '';
+    return localStorage.getItem(STORAGE_KEY_TIME_ALIGN) ?? 'hour';
   });
 
   const setTimeAlign = useCallback((align: string) => {

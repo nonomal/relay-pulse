@@ -491,6 +491,9 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		timelineMode = "raw"
 	}
 
+	// 统计各板块通道数量（基于 override 后的全量配置，排除 disabled/hidden/parent）
+	boardCounts := buildBoardCounts(monitors)
+
 	// 构建全量监控项 ID 列表（用于前端清理无效收藏）
 	// 排除 disabled 和 hidden，但不受 board 过滤影响
 	allMonitorIDs := h.buildAllMonitorIDs(monitors)
@@ -511,6 +514,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 		"boards": gin.H{
 			"enabled": boardsEnabled,
 		},
+		"board_counts":    boardCounts,
 		"all_monitor_ids": allMonitorIDs,
 	}
 	// 仅在使用对齐模式时返回额外的时间范围信息
@@ -637,6 +641,32 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 	}
 
 	return filtered
+}
+
+// buildBoardCounts 统计各板块通道数量（排除 disabled/hidden/有 parent 的监测项）
+func buildBoardCounts(monitors []config.ServiceConfig) gin.H {
+	var hot, secondary, cold int
+	for _, task := range monitors {
+		if task.Disabled || task.Hidden {
+			continue
+		}
+		if strings.TrimSpace(task.Parent) != "" {
+			continue
+		}
+		switch task.Board {
+		case "hot":
+			hot++
+		case "secondary":
+			secondary++
+		case "cold":
+			cold++
+		}
+	}
+	return gin.H{
+		"hot":       hot,
+		"secondary": secondary,
+		"cold":      cold,
+	}
 }
 
 // buildAllMonitorIDs 构建全量监控项 ID 列表（用于前端清理无效收藏）

@@ -104,9 +104,13 @@
     },
     "boards": {
       "hot": "主板",
+      "hotShort": "主",
       "secondary": "副板",
+      "secondaryShort": "副",
       "cold": "冷板",
+      "coldShort": "冷",
       "all": "全部",
+      "allShort": "全",
       "selectBoard": "选择板块",
       "switchToHot": "切换到主板",
       "switchToCold": "切换到冷板",

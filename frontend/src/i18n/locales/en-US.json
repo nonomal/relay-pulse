@@ -104,9 +104,13 @@
     },
     "boards": {
       "hot": "Hot",
+      "hotShort": "Hot",
       "secondary": "Secondary",
+      "secondaryShort": "Sec",
       "cold": "Cold",
+      "coldShort": "Cold",
       "all": "All",
+      "allShort": "All",
       "selectBoard": "Select board",
       "switchToHot": "Switch to hot board",
       "switchToCold": "Switch to cold board",
