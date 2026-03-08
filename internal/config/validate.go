@@ -339,6 +339,13 @@ func (c *AppConfig) validateMonitorFields() error {
 			}
 		}
 
+		// ExpiresAt 验证（可选字段，格式必须为 "2006-01-02"）
+		if m.ExpiresAt != "" {
+			if _, err := time.Parse("2006-01-02", m.ExpiresAt); err != nil {
+				return fmt.Errorf("monitor[%d]: expires_at 格式错误，应为 YYYY-MM-DD", i)
+			}
+		}
+
 		// ProviderURL 验证（可选字段）
 		if m.ProviderURL != "" {
 			if err := validateURL(m.ProviderURL, "provider_url"); err != nil {

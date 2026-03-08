@@ -13,9 +13,15 @@ import (
 	"monitor/internal/storage"
 )
 
+// MonitorOverride 运行时覆盖字段（不修改配置，仅在 API 层应用）。
+type MonitorOverride struct {
+	Board        string              // 板块覆盖（"hot"/"secondary"）
+	SponsorLevel config.SponsorLevel // 赞助等级覆盖（空值表示不覆盖）
+}
+
 // Service 自动移板服务。
-// 定期基于 7 天可用率评估 hot ↔ secondary 归属，维护运行时 override map。
-// 调度器和配置文件不受影响，仅在 API 层覆盖 board 字段。
+// 定期基于 7 天可用率和赞助到期状态评估 hot ↔ secondary 归属，维护运行时 override map。
+// 调度器和配置文件不受影响，仅在 API 层覆盖 board/sponsor_level 字段。
 type Service struct {
 	storage storage.Storage
 
@@ -24,7 +30,7 @@ type Service struct {
 
 	// 原子指针替换：evaluate 生成新 map → Store；Handler 读取 → Load。
 	// nil 表示无 override（auto_move 未启用或无需移板）。
-	overrides atomic.Pointer[map[storage.MonitorKey]string]
+	overrides atomic.Pointer[map[storage.MonitorKey]MonitorOverride]
 
 	stopCh   chan struct{}
 	stopOnce sync.Once
@@ -65,20 +71,20 @@ func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 	}
 }
 
-// GetBoardOverride 查询指定监测项的 board override。
-// 返回 ("", false) 表示无 override，应使用配置原始值。
-func (s *Service) GetBoardOverride(key storage.MonitorKey) (string, bool) {
+// GetBoardOverride 查询指定监测项的 override。
+// 返回 (MonitorOverride{}, false) 表示无 override，应使用配置原始值。
+func (s *Service) GetBoardOverride(key storage.MonitorKey) (MonitorOverride, bool) {
 	ptr := s.overrides.Load()
 	if ptr == nil {
-		return "", false
+		return MonitorOverride{}, false
 	}
-	board, ok := (*ptr)[key]
-	return board, ok
+	ov, ok := (*ptr)[key]
+	return ov, ok
 }
 
 // Overrides 返回当前 override map 快照（只读）。
 // 调用方应在单次请求内缓存返回值以保证一致性。
-func (s *Service) Overrides() map[storage.MonitorKey]string {
+func (s *Service) Overrides() map[storage.MonitorKey]MonitorOverride {
 	ptr := s.overrides.Load()
 	if ptr == nil {
 		return nil
@@ -113,6 +119,7 @@ func (s *Service) Evaluate(ctx context.Context) {
 		"checked", stats.checked,
 		"demoted", stats.demoted,
 		"promoted", stats.promoted,
+		"expired", stats.expired,
 		"skipped_min_probes", stats.skippedMinProbes)
 }
 
@@ -131,6 +138,7 @@ type evalStats struct {
 	checked          int
 	demoted          int
 	promoted         int
+	expired          int
 	skippedMinProbes int
 }
 
@@ -196,7 +204,7 @@ func (s *Service) checkInterval() time.Duration {
 }
 
 // currentOverrides 返回当前 override map 的快照（可能为 nil）
-func (s *Service) currentOverrides() map[storage.MonitorKey]string {
+func (s *Service) currentOverrides() map[storage.MonitorKey]MonitorOverride {
 	ptr := s.overrides.Load()
 	if ptr == nil {
 		return nil
@@ -204,8 +212,10 @@ func (s *Service) currentOverrides() map[storage.MonitorKey]string {
 	return *ptr
 }
 
-func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage.MonitorKey]string, evalStats) {
+func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage.MonitorKey]MonitorOverride, evalStats) {
 	var stats evalStats
+	overrides := make(map[storage.MonitorKey]MonitorOverride)
+	today := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// 收集 hot/secondary 的根监测项（排除 parent/disabled/hidden/cold）
 	type candidate struct {
@@ -230,19 +240,41 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 			continue
 		}
 
+		key := storage.MonitorKey{
+			Provider: m.Provider,
+			Service:  m.Service,
+			Channel:  m.Channel,
+			Model:    m.Model,
+		}
+
+		// 到期检查：到期日当天仍有效，次日起自动降级并移入副板
+		if expiresAt := strings.TrimSpace(m.ExpiresAt); expiresAt != "" {
+			if expiresDate, err := time.Parse("2006-01-02", expiresAt); err == nil && today.After(expiresDate) {
+				ov := MonitorOverride{Board: "secondary"}
+				// 仅当赞助等级高于 pulse 时降级为 pulse（避免低等级被"升级"）
+				if m.SponsorLevel.Weight() > config.SponsorLevelPulse.Weight() {
+					ov.SponsorLevel = config.SponsorLevelPulse
+				}
+				overrides[key] = ov
+				stats.expired++
+				logger.Info("AutoMover", "赞助到期，自动降级",
+					"monitor", key.Provider+"/"+key.Service+"/"+key.Channel,
+					"expires_at", expiresAt)
+				continue // 跳过可用率评估
+			}
+		}
+
 		candidates = append(candidates, candidate{
-			key: storage.MonitorKey{
-				Provider: m.Provider,
-				Service:  m.Service,
-				Channel:  m.Channel,
-				Model:    m.Model,
-			},
+			key:         key,
 			configBoard: board,
 		})
 	}
 
 	if len(candidates) == 0 {
-		return nil, stats
+		if len(overrides) == 0 {
+			return nil, stats
+		}
+		return overrides, stats
 	}
 
 	// 构建批量查询 keys
@@ -281,7 +313,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 			if ctx.Err() == nil {
 				logger.Warn("AutoMover", "批量查询历史记录失败", "error", err)
 			}
-			return nil, stats
+			return overrides, stats
 		}
 		for k, v := range historyMap {
 			allHistory[k] = v
@@ -292,7 +324,6 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 	currentOverrides := s.currentOverrides()
 
 	// 双阈值评估：以"有效板块"（config + 当前 override）为基准
-	overrides := make(map[storage.MonitorKey]string)
 	for _, c := range candidates {
 		stats.checked++
 		records := allHistory[c.key]
@@ -304,14 +335,14 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 
 		// 有效板块 = 当前 override 优先，否则取配置值
 		effectiveBoard := c.configBoard
-		if overridden, ok := currentOverrides[c.key]; ok {
-			effectiveBoard = overridden
+		if ov, ok := currentOverrides[c.key]; ok && ov.Board != "" {
+			effectiveBoard = ov.Board
 		}
 
 		switch effectiveBoard {
 		case "hot":
 			if availability < snap.autoMove.ThresholdDown {
-				overrides[c.key] = "secondary"
+				overrides[c.key] = MonitorOverride{Board: "secondary"}
 				stats.demoted++
 				logger.Info("AutoMover", "自动移板: hot→secondary",
 					"monitor", c.key.Provider+"/"+c.key.Service+"/"+c.key.Channel,
@@ -322,7 +353,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 			if availability >= snap.autoMove.ThresholdUp {
 				// 仅当配置原始板也需要保持 override 时设置
 				if c.configBoard != "hot" {
-					overrides[c.key] = "hot"
+					overrides[c.key] = MonitorOverride{Board: "hot"}
 				}
 				// 若 configBoard 本就是 hot，不需要 override（清除即可）
 				stats.promoted++
@@ -332,7 +363,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 					"threshold_up", snap.autoMove.ThresholdUp)
 			} else if c.configBoard == "hot" {
 				// 配置是 hot 但之前被降级，可用率还没达到 threshold_up → 保持降级
-				overrides[c.key] = "secondary"
+				overrides[c.key] = MonitorOverride{Board: "secondary"}
 			}
 		}
 	}

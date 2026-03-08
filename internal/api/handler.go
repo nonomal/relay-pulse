@@ -535,7 +535,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 }
 
 // applyBoardOverrides 将自动移板 override 应用到监测项列表。
-// 浅拷贝 slice，仅覆盖被移板监测项的 Board 字段。
+// 浅拷贝 slice，覆盖被移板监测项的 Board 和 SponsorLevel 字段。
 func (h *Handler) applyBoardOverrides(monitors []config.ServiceConfig) []config.ServiceConfig {
 	if h.autoMover == nil {
 		return monitors
@@ -554,8 +554,11 @@ func (h *Handler) applyBoardOverrides(monitors []config.ServiceConfig) []config.
 			Channel:  copied[i].Channel,
 			Model:    copied[i].Model,
 		}
-		if board, ok := overrides[key]; ok {
-			copied[i].Board = board
+		if ov, ok := overrides[key]; ok {
+			copied[i].Board = ov.Board
+			if ov.SponsorLevel != "" {
+				copied[i].SponsorLevel = ov.SponsorLevel
+			}
 		}
 	}
 	return copied

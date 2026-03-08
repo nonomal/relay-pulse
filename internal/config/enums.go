@@ -42,6 +42,26 @@ func (s SponsorLevel) DeprecatedToNew() (SponsorLevel, bool) {
 	}
 }
 
+// Weight 返回赞助等级的权重（用于排序和比较）
+func (s SponsorLevel) Weight() int {
+	switch s {
+	case SponsorLevelCore:
+		return 6
+	case SponsorLevelBackbone:
+		return 5
+	case SponsorLevelBeacon:
+		return 4
+	case SponsorLevelPulse:
+		return 3
+	case SponsorLevelSignal:
+		return 2
+	case SponsorLevelPublic:
+		return 1
+	default:
+		return 0
+	}
+}
+
 // BadgeKind 徽标分类
 type BadgeKind string
 

@@ -101,12 +101,12 @@ func TestEvaluate_DualThreshold_DemoteHot(t *testing.T) {
 	svc := NewService(store, cfg)
 	svc.Evaluate(context.Background())
 
-	board, ok := svc.GetBoardOverride(key)
+	ov, ok := svc.GetBoardOverride(key)
 	if !ok {
 		t.Fatal("expected override for bad/cc/vip")
 	}
-	if board != "secondary" {
-		t.Errorf("expected board=secondary, got %s", board)
+	if ov.Board != "secondary" {
+		t.Errorf("expected board=secondary, got %s", ov.Board)
 	}
 }
 
@@ -139,12 +139,12 @@ func TestEvaluate_DualThreshold_PromoteSecondary(t *testing.T) {
 	svc := NewService(store, cfg)
 	svc.Evaluate(context.Background())
 
-	board, ok := svc.GetBoardOverride(key)
+	ov, ok := svc.GetBoardOverride(key)
 	if !ok {
 		t.Fatal("expected override for good/cc/vip")
 	}
-	if board != "hot" {
-		t.Errorf("expected board=hot, got %s", board)
+	if ov.Board != "hot" {
+		t.Errorf("expected board=hot, got %s", ov.Board)
 	}
 }
 
@@ -240,8 +240,8 @@ func TestEvaluate_DualThreshold_PreviousOverridePreserved(t *testing.T) {
 	// First: demote with 0% availability
 	store.history[key] = makeRecords(0, 100)
 	svc.Evaluate(context.Background())
-	board, ok := svc.GetBoardOverride(key)
-	if !ok || board != "secondary" {
+	ov, ok := svc.GetBoardOverride(key)
+	if !ok || ov.Board != "secondary" {
 		t.Fatal("expected demote to secondary")
 	}
 
@@ -249,9 +249,9 @@ func TestEvaluate_DualThreshold_PreviousOverridePreserved(t *testing.T) {
 	// Override should be preserved — still secondary
 	store.history[key] = records
 	svc.Evaluate(context.Background())
-	board, ok = svc.GetBoardOverride(key)
-	if !ok || board != "secondary" {
-		t.Errorf("expected override preserved as secondary in buffer zone, got ok=%v board=%s", ok, board)
+	ov, ok = svc.GetBoardOverride(key)
+	if !ok || ov.Board != "secondary" {
+		t.Errorf("expected override preserved as secondary in buffer zone, got ok=%v board=%s", ok, ov.Board)
 	}
 }
 
@@ -365,6 +365,194 @@ func TestEvaluate_DisabledClears(t *testing.T) {
 	_, ok = svc.GetBoardOverride(key)
 	if ok {
 		t.Error("expected overrides cleared after disabling auto_move")
+	}
+}
+
+func TestEvaluate_ExpiredChannel_DemotedAndDowngraded(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "expired", Service: "cc", Channel: "vip"}
+
+	// 即使可用率 100%，到期后也应降级
+	store.history[key] = makeRecords(1, 20)
+
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{
+				Provider:     "expired",
+				Service:      "cc",
+				Channel:      "vip",
+				Board:        "hot",
+				SponsorLevel: config.SponsorLevelBackbone,
+				ExpiresAt:    yesterday,
+			},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	ov, ok := svc.GetBoardOverride(key)
+	if !ok {
+		t.Fatal("expected override for expired channel")
+	}
+	if ov.Board != "secondary" {
+		t.Errorf("expected board=secondary, got %s", ov.Board)
+	}
+	if ov.SponsorLevel != config.SponsorLevelPulse {
+		t.Errorf("expected sponsor_level=pulse, got %s", ov.SponsorLevel)
+	}
+}
+
+func TestEvaluate_NotYetExpired_NoExpiryOverride(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "active", Service: "cc", Channel: "vip"}
+
+	// 100% green → should not be demoted by availability or expiry
+	store.history[key] = makeRecords(1, 20)
+
+	tomorrow := time.Now().UTC().AddDate(0, 0, 1).Format("2006-01-02")
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{
+				Provider:     "active",
+				Service:      "cc",
+				Channel:      "vip",
+				Board:        "hot",
+				SponsorLevel: config.SponsorLevelBackbone,
+				ExpiresAt:    tomorrow,
+			},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	_, ok := svc.GetBoardOverride(key)
+	if ok {
+		t.Error("expected no override for not-yet-expired channel")
+	}
+}
+
+func TestEvaluate_ExpiresToday_StillValid(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "today", Service: "cc", Channel: "vip"}
+
+	store.history[key] = makeRecords(1, 20)
+
+	today := time.Now().UTC().Format("2006-01-02")
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{
+				Provider:     "today",
+				Service:      "cc",
+				Channel:      "vip",
+				Board:        "hot",
+				SponsorLevel: config.SponsorLevelCore,
+				ExpiresAt:    today,
+			},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	_, ok := svc.GetBoardOverride(key)
+	if ok {
+		t.Error("expected no override for channel expiring today (still valid)")
+	}
+}
+
+func TestEvaluate_ExpiredAndAvailability_Coexist(t *testing.T) {
+	store := newMockStorage()
+	expiredKey := storage.MonitorKey{Provider: "expired", Service: "cc", Channel: "vip"}
+	badKey := storage.MonitorKey{Provider: "bad", Service: "cc", Channel: "vip"}
+
+	store.history[expiredKey] = makeRecords(1, 20) // good availability but expired
+	store.history[badKey] = makeRecords(0, 20)     // bad availability
+
+	yesterday := time.Now().UTC().AddDate(0, 0, -1).Format("2006-01-02")
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "expired", Service: "cc", Channel: "vip", Board: "hot", SponsorLevel: config.SponsorLevelBeacon, ExpiresAt: yesterday},
+			{Provider: "bad", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	// Expired channel: board=secondary, sponsor_level=pulse
+	ov, ok := svc.GetBoardOverride(expiredKey)
+	if !ok {
+		t.Fatal("expected override for expired channel")
+	}
+	if ov.Board != "secondary" || ov.SponsorLevel != config.SponsorLevelPulse {
+		t.Errorf("expired: expected board=secondary+level=pulse, got board=%s level=%s", ov.Board, ov.SponsorLevel)
+	}
+
+	// Bad availability channel: board=secondary, sponsor_level unchanged (empty)
+	ov2, ok := svc.GetBoardOverride(badKey)
+	if !ok {
+		t.Fatal("expected override for bad availability channel")
+	}
+	if ov2.Board != "secondary" {
+		t.Errorf("bad availability: expected board=secondary, got %s", ov2.Board)
+	}
+	if ov2.SponsorLevel != "" {
+		t.Errorf("bad availability: expected empty sponsor_level (no downgrade), got %s", ov2.SponsorLevel)
 	}
 }
 

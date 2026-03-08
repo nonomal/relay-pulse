@@ -30,6 +30,7 @@ type ServiceConfig struct {
 	Parent         string            `yaml:"parent" json:"parent,omitempty"`             // 父通道引用，格式 provider/service/channel
 	ChannelName    string            `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
 	ListedSince    string            `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
+	ExpiresAt      string            `yaml:"expires_at" json:"expires_at,omitempty"`     // 到期日期（可选，格式 "2006-01-02"），过期后自动降级并移入副板
 	URL            string            `yaml:"url" json:"url"`
 	Method         string            `yaml:"method" json:"method"`
 	Headers        map[string]string `yaml:"headers" json:"headers"`
