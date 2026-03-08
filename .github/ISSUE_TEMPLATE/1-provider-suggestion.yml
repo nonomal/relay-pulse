@@ -15,7 +15,7 @@ body:
 
         📧 **重要**：请勿在此填写真实 API Key，提交后通过邮件单独发送。
 
-        ✅ **提交前建议**：建议先使用 [API 自助测试](/selftest) 验证端点可用性，确认返回结果包含预期关键字（如 "pong"）。
+        ✅ **必须完成**：提交前请先使用 [API 自助测试](/selftest) 验证端点可用性，确认返回结果包含预期关键字（如 "pong"）。未通过自助测试的申请将不予受理。
 
         💎 **赞助等级**：不同等级对应不同的监测频率与权益，详见 [赞助权益体系](https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md)。
 
@@ -80,8 +80,10 @@ body:
 
           # [必填] 通道标识，格式：渠道类型-渠道来源简写
           #
-          # 渠道类型：
-          #   O = Official（官方）  R = Reverse（逆向）  M = Mixed（混合）
+          # 渠道类型（标准命名）：
+          #   O = 官方渠道 (Official)
+          #   R = 逆向渠道 (Reverse)
+          #   M = 混合渠道 (Mixed) ← 默认，不确定时选此项
           #
           # 官方渠道来源简写：
           #   Web = 官方网页订阅（claude.ai Pro/Max 等）
@@ -114,7 +116,9 @@ body:
           required: true
         - label: 我会在提交 Issue 后，通过邮箱 prehisle@gmail.com 单独发送真实 API Key，并在邮件中附上本 Issue 链接
           required: true
-        - label: 我同意所提供的 API Key 将用于可用性监测（连通性、延迟）和质量监测（响应内容校验）目的
+        - label: 我已通过 [API 自助测试](/selftest) 验证端点可用性
+          required: true
+        - label: 我同意所提供的 API Key 将基于监测目的使用，包括但不限于可用性监测（连通性、延迟）和深度质量检测
           required: true
 
   - type: textarea

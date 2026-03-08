@@ -52,7 +52,7 @@ body:
     attributes:
       label: 通道标识（channel）
       description: 对应配置中的 channel 标识（如不确定可留空）
-      placeholder: 例如：cc-Example-VIP
+      placeholder: 例如：O-API、R-自定义、M-自定义
 
   - type: dropdown
     id: current_level
