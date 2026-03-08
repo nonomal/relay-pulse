@@ -368,6 +368,211 @@ func TestEvaluate_DisabledClears(t *testing.T) {
 	}
 }
 
+func TestUpdateConfig_PurgesStaleOverrides(t *testing.T) {
+	store := newMockStorage()
+
+	hotKey := storage.MonitorKey{Provider: "hot-provider", Service: "cc", Channel: "vip"}
+	coldKey := storage.MonitorKey{Provider: "cold-provider", Service: "cc", Channel: "vip"}
+	disabledKey := storage.MonitorKey{Provider: "disabled-provider", Service: "cc", Channel: "vip"}
+	removedKey := storage.MonitorKey{Provider: "removed-provider", Service: "cc", Channel: "vip"}
+
+	store.history[hotKey] = makeRecords(0, 20)
+	store.history[coldKey] = makeRecords(0, 20)
+	store.history[disabledKey] = makeRecords(0, 20)
+	store.history[removedKey] = makeRecords(0, 20)
+
+	// 初始配置：所有通道在 hot 板
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "hot-provider", Service: "cc", Channel: "vip", Board: "hot"},
+			{Provider: "cold-provider", Service: "cc", Channel: "vip", Board: "hot"},
+			{Provider: "disabled-provider", Service: "cc", Channel: "vip", Board: "hot"},
+			{Provider: "removed-provider", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	// 验证：4 个通道都有 override（全部被降级到 secondary）
+	for _, k := range []storage.MonitorKey{hotKey, coldKey, disabledKey, removedKey} {
+		if _, ok := svc.GetBoardOverride(k); !ok {
+			t.Fatalf("expected override for %s after initial evaluate", k.Provider)
+		}
+	}
+
+	// 新配置：cold-provider 移入冷板，disabled-provider 被禁用，removed-provider 被移除
+	cfg2 := &config.AppConfig{
+		Boards:            cfg.Boards,
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "hot-provider", Service: "cc", Channel: "vip", Board: "hot"},
+			{Provider: "cold-provider", Service: "cc", Channel: "vip", Board: "cold"},
+			{Provider: "disabled-provider", Service: "cc", Channel: "vip", Board: "hot", Disabled: true},
+			// removed-provider 不再出现
+		},
+	}
+	svc.UpdateConfig(cfg2)
+
+	// hot-provider: 仍在 hot 板，override 应保留
+	if _, ok := svc.GetBoardOverride(hotKey); !ok {
+		t.Error("hot-provider override should be preserved")
+	}
+
+	// cold-provider: 已移入冷板，override 应被清除
+	if _, ok := svc.GetBoardOverride(coldKey); ok {
+		t.Error("cold-provider override should be purged after board changed to cold")
+	}
+
+	// disabled-provider: 已被禁用，override 应被清除
+	if _, ok := svc.GetBoardOverride(disabledKey); ok {
+		t.Error("disabled-provider override should be purged after being disabled")
+	}
+
+	// removed-provider: 已从配置移除，override 应被清除
+	if _, ok := svc.GetBoardOverride(removedKey); ok {
+		t.Error("removed-provider override should be purged after being removed from config")
+	}
+}
+
+func TestUpdateConfig_PurgesHiddenOverrides(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "hidden", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 20)
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "hidden", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	if _, ok := svc.GetBoardOverride(key); !ok {
+		t.Fatal("expected override after evaluate")
+	}
+
+	// 隐藏该通道
+	cfg2 := &config.AppConfig{
+		Boards:            cfg.Boards,
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "hidden", Service: "cc", Channel: "vip", Board: "hot", Hidden: true},
+		},
+	}
+	svc.UpdateConfig(cfg2)
+
+	if _, ok := svc.GetBoardOverride(key); ok {
+		t.Error("hidden monitor override should be purged")
+	}
+}
+
+func TestUpdateConfig_NoOverrides_Noop(t *testing.T) {
+	store := newMockStorage()
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "p", Service: "s", Channel: "c", Board: "cold"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	// 无 override 时 UpdateConfig 不应 panic
+	svc.UpdateConfig(cfg)
+
+	if overrides := svc.Overrides(); overrides != nil {
+		t.Error("expected nil overrides when no prior overrides exist")
+	}
+}
+
+func TestUpdateConfig_PurgesParentOverrides(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "p", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 20)
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "p", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	if _, ok := svc.GetBoardOverride(key); !ok {
+		t.Fatal("expected override after evaluate")
+	}
+
+	// 通道变为子通道（设置了 Parent），不再是根通道
+	cfg2 := &config.AppConfig{
+		Boards:            cfg.Boards,
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "p", Service: "cc", Channel: "vip", Board: "hot", Parent: "other/cc/root"},
+		},
+	}
+	svc.UpdateConfig(cfg2)
+
+	if _, ok := svc.GetBoardOverride(key); ok {
+		t.Error("child monitor override should be purged after gaining parent")
+	}
+}
+
 func TestEvaluate_ExpiredChannel_DemotedAndDowngraded(t *testing.T) {
 	store := newMockStorage()
 	key := storage.MonitorKey{Provider: "expired", Service: "cc", Channel: "vip"}

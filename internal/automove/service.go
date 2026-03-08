@@ -60,6 +60,8 @@ func (s *Service) Stop() {
 }
 
 // UpdateConfig 热更新配置。若 auto_move 被禁用，立即清空 override。
+// 若仍启用，清理新配置中已不再参与自动移板的监测项的旧 override
+// （board 变为 cold、被 disabled/hidden、或变为子通道的情况）。
 func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 	s.cfgMu.Lock()
 	s.cfg = cfg
@@ -68,6 +70,58 @@ func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 	// 若禁用，立即清空 override
 	if !cfg.Boards.Enabled || !cfg.Boards.AutoMove.Enabled {
 		s.overrides.Store(nil)
+		return
+	}
+
+	// auto_move 仍启用：清理已不再参与自动移板的监测项的旧 override
+	s.purgeStaleOverrides(cfg)
+}
+
+// purgeStaleOverrides 从当前 override map 中移除不再符合自动移板条件的 key。
+// 保留条件与 evaluate() 一致：非 disabled、非 hidden、无 parent、board != cold。
+func (s *Service) purgeStaleOverrides(cfg *config.AppConfig) {
+	ptr := s.overrides.Load()
+	if ptr == nil {
+		return
+	}
+
+	// 构建仍可参与自动移板的 key 集合（与 evaluate 中的过滤逻辑一致）
+	eligible := make(map[storage.MonitorKey]struct{})
+	for _, m := range cfg.Monitors {
+		if m.Disabled || m.Hidden {
+			continue
+		}
+		if strings.TrimSpace(m.Parent) != "" {
+			continue
+		}
+		board := strings.ToLower(strings.TrimSpace(m.Board))
+		if board == "" {
+			board = "hot"
+		}
+		if board == "cold" {
+			continue
+		}
+		key := storage.MonitorKey{
+			Provider: m.Provider,
+			Service:  m.Service,
+			Channel:  m.Channel,
+			Model:    m.Model,
+		}
+		eligible[key] = struct{}{}
+	}
+
+	// 构建新 map，仅保留仍符合条件的 override（不原地修改，保证并发安全）
+	filtered := make(map[storage.MonitorKey]MonitorOverride)
+	for key, ov := range *ptr {
+		if _, ok := eligible[key]; ok {
+			filtered[key] = ov
+		}
+	}
+
+	if len(filtered) == 0 {
+		s.overrides.Store(nil)
+	} else {
+		s.overrides.Store(&filtered)
 	}
 }
 
