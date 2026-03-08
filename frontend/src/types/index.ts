@@ -46,7 +46,7 @@ export type SponsorLevel = 'public' | 'signal' | 'pulse' | 'beacon' | 'backbone'
 export type BoardValue = 'hot' | 'secondary' | 'cold';
 
 // 板块过滤参数（URL/UI/API 查询）
-export type BoardFilter = BoardValue | 'all';
+export type BoardFilter = BoardValue | 'active' | 'all';
 
 /**
  * @deprecated 为保持向后兼容保留。新代码请使用：

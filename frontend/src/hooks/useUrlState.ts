@@ -183,7 +183,7 @@ export function useUrlState(): [UrlState, UrlStateActions] {
 
     // 解析板块参数：允许 hot/secondary/cold/all，其他值回退为 hot
     const rawBoard = searchParams.get(PARAM_KEYS.board);
-    const board: BoardFilter = (rawBoard === 'hot' || rawBoard === 'secondary' || rawBoard === 'cold' || rawBoard === 'all')
+    const board: BoardFilter = (rawBoard === 'hot' || rawBoard === 'secondary' || rawBoard === 'cold' || rawBoard === 'active' || rawBoard === 'all')
       ? rawBoard
       : DEFAULTS.board;
 

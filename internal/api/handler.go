@@ -334,9 +334,9 @@ func (h *Handler) GetStatus(c *gin.Context) {
 	}
 
 	// 验证 board 参数
-	if qBoard != "hot" && qBoard != "secondary" && qBoard != "cold" && qBoard != "all" {
+	if qBoard != "hot" && qBoard != "secondary" && qBoard != "cold" && qBoard != "active" && qBoard != "all" {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": fmt.Sprintf("无效的 board 参数: %s (支持: hot/secondary/cold/all)", qBoard),
+			"error": fmt.Sprintf("无效的 board 参数: %s (支持: hot/secondary/cold/active/all)", qBoard),
 		})
 		return
 	}
@@ -607,7 +607,11 @@ func (h *Handler) filterMonitors(monitors []config.ServiceConfig, provider, serv
 
 		// 板块过滤（仅当 boards 功能启用时生效）
 		if boardsEnabled && board != "all" {
-			if board != task.Board {
+			if board == "active" {
+				if task.Board != "hot" && task.Board != "secondary" {
+					continue
+				}
+			} else if board != task.Board {
 				continue
 			}
 		}

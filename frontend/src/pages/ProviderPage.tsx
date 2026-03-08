@@ -55,7 +55,7 @@ export default function ProviderPage() {
 
   // 板块状态（从 URL 读取，支持 hot/secondary/cold/all）
   const rawBoard = searchParams.get('board');
-  const board: BoardFilter = (rawBoard === 'hot' || rawBoard === 'secondary' || rawBoard === 'cold' || rawBoard === 'all') ? rawBoard : 'hot';
+  const board: BoardFilter = (rawBoard === 'hot' || rawBoard === 'secondary' || rawBoard === 'cold' || rawBoard === 'active' || rawBoard === 'all') ? rawBoard : 'hot';
 
   const setBoard = useCallback((value: BoardFilter) => {
     setSearchParams((prev) => {

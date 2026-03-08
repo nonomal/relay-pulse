@@ -1014,6 +1014,7 @@ func (b *Bot) handleSnap(ctx context.Context, e *OneBotEvent, args string) error
 	title := ownerLabel + " 专属状态"
 	pngData, err := b.screenshotService.CaptureWithOptions(snapCtx, providers, services, &screenshot.CaptureOptions{
 		Title: title,
+		Board: "active",
 	})
 	if err != nil {
 		slog.Error("截图失败", "chat_id", chatID, "providers", providers, "error", err)

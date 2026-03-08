@@ -72,7 +72,11 @@ func (h *Handler) filterMonitorsForGroups(monitors []config.ServiceConfig, provi
 
 		// 板块过滤（仅当 boards 功能启用时生效）
 		if boardsEnabled && board != "all" {
-			if board != task.Board {
+			if board == "active" {
+				if task.Board != "hot" && task.Board != "secondary" {
+					continue
+				}
+			} else if board != task.Board {
 				continue
 			}
 		}

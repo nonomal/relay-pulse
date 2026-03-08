@@ -19,6 +19,7 @@ var ErrConcurrencyLimit = errors.New("截图并发已达到上限")
 // CaptureOptions 截图可选参数
 type CaptureOptions struct {
 	Title string // 截图标题（群名/用户名 + 专属状态）
+	Board string // 板块过滤（如 "active"），为空时不传 board 参数（API 默认 hot）
 }
 
 // Service 提供基于 Playwright 的截图服务
@@ -110,6 +111,9 @@ func (s *Service) buildURL(providers, services []string, opts *CaptureOptions) (
 	}
 	q.Set("period", "90m")
 	q.Set("screenshot", "1")
+	if opts != nil && opts.Board != "" {
+		q.Set("board", opts.Board)
+	}
 	if opts != nil && opts.Title != "" {
 		// 规范化：去除控制字符，限制长度
 		title := strings.TrimSpace(opts.Title)
