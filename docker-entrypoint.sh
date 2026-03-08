@@ -22,7 +22,10 @@ if [ -f "$MOUNTED_CONFIG" ]; then
     ACTIVE_CONFIG="$MOUNTED_CONFIG"
     # 为配置文件中的 !include data/xxx.json 创建软链接
     if [ ! -e "$CONFIG_DATA_LINK" ]; then
-        ln -sfn "$DATA_DIR" "$CONFIG_DATA_LINK"
+        ln -sfn "$DATA_DIR" "$CONFIG_DATA_LINK" 2>/dev/null || {
+            echo "[Entrypoint] ⚠️ 无法创建 data 软链接（配置目录可能为只读挂载）"
+            echo "[Entrypoint]   如需 !include 功能，请移除配置目录的 :ro 标志或额外挂载: -v ./data:/config/data:ro"
+        }
     fi
 elif [ -f "$CONFIG_FILE" ]; then
     echo "[Entrypoint] 使用容器内配置文件: $CONFIG_FILE"

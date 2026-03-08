@@ -27,11 +27,11 @@ curl -O https://raw.githubusercontent.com/prehisle/relay-pulse/main/config.yaml.
 #### 2. 准备配置文件
 
 ```bash
-# 复制配置模板
-cp config.yaml.example config.yaml
+# 创建配置目录并复制配置模板
+mkdir -p config && cp config.yaml.example config/config.yaml
 
 # 编辑配置（填入你的 API Key 和服务端点）
-vim config.yaml
+vim config/config.yaml
 ```
 
 **最小配置示例**：
@@ -193,7 +193,7 @@ docker compose restart
 
 ```bash
 # 1. 编辑配置
-vim config.yaml
+vim config/config.yaml
 
 # 2. 观察日志，等待配置重载提示
 docker compose logs -f monitor
@@ -286,10 +286,10 @@ docker compose config
 
 ### 配置文件找不到
 
-确保 `config.yaml` 在 `docker-compose.yaml` 同目录下：
+确保 `config/config.yaml` 在 `docker-compose.yaml` 同目录下：
 
 ```bash
-ls -la config.yaml docker-compose.yaml
+ls -la config/config.yaml docker-compose.yaml
 ```
 
 ### 数据库权限问题

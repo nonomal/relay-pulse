@@ -82,4 +82,4 @@ fi
 
 echo ""
 echo "运行方式:"
-echo "  docker run -p 8080:8080 -v ./config.yaml:/app/config.yaml:ro relay-pulse-monitor:latest"
+echo "  docker run -p 8080:8080 -v ./config:/config relay-pulse-monitor:latest"

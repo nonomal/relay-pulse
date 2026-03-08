@@ -52,8 +52,8 @@ curl -O https://raw.githubusercontent.com/prehisle/relay-pulse/main/docker-compo
 curl -O https://raw.githubusercontent.com/prehisle/relay-pulse/main/config.yaml.example
 
 # 2. 准备配置
-cp config.yaml.example config.yaml
-vi config.yaml  # 填入你的 API Key
+mkdir -p config && cp config.yaml.example config/config.yaml
+vi config/config.yaml  # 填入你的 API Key
 
 # 3. 启动服务
 docker compose up -d

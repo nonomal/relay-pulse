@@ -79,7 +79,7 @@ environment:
 ### 数据持久化
 
 - **SQLite 数据库**: 挂载卷 `relay-pulse-data`
-- **配置文件**: `./config.yaml` → `/app/config.yaml`
+- **配置文件**: `./config/config.yaml` → `/config/config.yaml`（目录挂载，支持热更新）
 - **数据目录**: `./data` → `/app/data`
 
 ## 健康检查
@@ -108,7 +108,7 @@ docker compose down -v
 docker compose up -d --build
 
 # 更新配置（热更新，无需重启）
-vim config.yaml
+vim config/config.yaml
 # 监测服务会自动检测配置变更并重载
 ```
 
@@ -141,7 +141,7 @@ lsof -i :80
 
 ```bash
 # 确认配置文件挂载
-docker compose exec monitor cat /app/config.yaml
+docker compose exec monitor cat /config/config.yaml
 
 # 重启服务
 docker compose restart

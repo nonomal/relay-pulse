@@ -27,7 +27,7 @@ vim .env
 
 ### 2. 准备监测配置
 
-确保 `config.yaml` 已配置好监测服务和 API Keys。
+确保 `config/config.yaml` 已配置好监测服务和 API Keys。
 
 ### 3. 启动服务
 
