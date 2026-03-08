@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -21,71 +22,136 @@ import (
 )
 
 func main() {
-	provider := flag.String("provider", "", "Provider name (required)")
-	service := flag.String("service", "", "Service name (required)")
+	// 配置模式 flags
+	provider := flag.String("provider", "", "Provider name (config mode)")
+	service := flag.String("service", "", "Service name (config mode)")
 	channel := flag.String("channel", "", "Channel name (optional, defaults to service)")
-	model := flag.String("model", "", "Model name (optional, uses first matching channel if not specified)")
+	model := flag.String("model", "", "Model name override")
 	configFile := flag.String("config", "config.yaml", "Config file path")
+
+	// 独立模式 flags
+	urlFlag := flag.String("url", "", "API endpoint URL (standalone mode)")
+	keyFlag := flag.String("key", "", "API key (standalone mode)")
+	typeFlag := flag.String("type", "", "Service type: cc/cx/gm (standalone mode)")
+
 	verbose := flag.Bool("v", false, "Verbose output")
 
 	flag.Parse()
 
-	if *provider == "" || *service == "" {
-		fmt.Println("用法: go run cmd/verify/main.go -provider <name> -service <name> [-channel <name>] [-model <name>] [-config <path>] [-v]")
-		fmt.Println("示例: go run cmd/verify/main.go -provider 88code -service cx -channel vip3 -model gpt-5.1-codex-mini -v")
+	// 判定模式：独立模式 vs 配置模式
+	standaloneFlags := 0
+	if *urlFlag != "" {
+		standaloneFlags++
+	}
+	if *keyFlag != "" {
+		standaloneFlags++
+	}
+	if *typeFlag != "" {
+		standaloneFlags++
+	}
+
+	standaloneMode := standaloneFlags == 3
+
+	if standaloneFlags > 0 && standaloneFlags < 3 {
+		fmt.Println("❌ 独立模式必须同时提供 -url、-key、-type 三个参数")
+		fmt.Println("用法: go run ./cmd/verify -type cc -url <url> -key <key> [-model <name>] [-v]")
 		os.Exit(1)
 	}
 
-	if *channel == "" {
-		*channel = *service
-	}
-
-	// 加载 .env 文件（仅用于本地开发，不覆盖已有环境变量）
-	if err := config.LoadDotenvFromConfigDir(*configFile, *verbose); err != nil {
-		fmt.Printf("⚠️  %v\n", err)
-		// 不中断执行，继续尝试加载配置
-	}
-
-	// 加载配置
-	loader := config.NewLoader()
-	cfg, err := loader.Load(*configFile)
-	if err != nil {
-		fmt.Printf("❌ 加载配置失败: %v\n", err)
-		os.Exit(1)
-	}
-
-	// 查找检测项
 	var target *config.ServiceConfig
-	for i := range cfg.Monitors {
-		m := &cfg.Monitors[i]
-		if m.Provider == *provider && m.Service == *service && m.Channel == *channel {
-			if *model != "" {
-				// 指定了 model：精确匹配四元组
-				if m.Model == *model {
+
+	if standaloneMode {
+		// 独立模式：内嵌模板构建 ServiceConfig
+		svcType := strings.ToLower(strings.TrimSpace(*typeFlag))
+		if svcType == "gm" && *model != "" {
+			fmt.Println("⚠️  Gemini model 应在 -url 路径中指定，-model 参数将被忽略")
+		}
+		var err error
+		target, err = buildStandaloneConfig(svcType, *urlFlag, *keyFlag, *model)
+		if err != nil {
+			fmt.Printf("❌ %v\n", err)
+			os.Exit(1)
+		}
+	} else {
+		// 配置模式：从 config.yaml 查找
+		if *provider == "" || *service == "" {
+			fmt.Println("用法:")
+			fmt.Println("  配置模式: go run ./cmd/verify -provider <name> -service <name> [-channel <name>] [-model <name>] [-config <path>] [-v]")
+			fmt.Println("  独立模式: go run ./cmd/verify -type cc -url <url> -key <key> [-model <name>] [-v]")
+			fmt.Println()
+			fmt.Println("示例:")
+			fmt.Println("  go run ./cmd/verify -provider 88code -service cx -channel vip3 -model gpt-5.1-codex-mini -v")
+			fmt.Println("  go run ./cmd/verify -type cc -url https://api.example.com/v1/messages -key sk-xxx -v")
+			os.Exit(1)
+		}
+
+		if *channel == "" {
+			*channel = *service
+		}
+
+		// 加载 .env 文件（仅用于本地开发，不覆盖已有环境变量）
+		if err := config.LoadDotenvFromConfigDir(*configFile, *verbose); err != nil {
+			fmt.Printf("⚠️  %v\n", err)
+		}
+
+		// 加载配置
+		loader := config.NewLoader()
+		cfg, err := loader.Load(*configFile)
+		if err != nil {
+			fmt.Printf("❌ 加载配置失败: %v\n", err)
+			os.Exit(1)
+		}
+
+		// 查找检测项
+		for i := range cfg.Monitors {
+			m := &cfg.Monitors[i]
+			if m.Provider == *provider && m.Service == *service && m.Channel == *channel {
+				if *model != "" {
+					if m.Model == *model {
+						target = m
+						break
+					}
+				} else {
 					target = m
 					break
 				}
-			} else {
-				// 未指定 model：返回第一个匹配的配置
-				target = m
-				break
 			}
 		}
-	}
 
-	if target == nil {
-		if *model != "" {
-			fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s, model=%s\n", *provider, *service, *channel, *model)
-		} else {
-			fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s\n", *provider, *service, *channel)
+		if target == nil {
+			if *model != "" {
+				fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s, model=%s\n", *provider, *service, *channel, *model)
+			} else {
+				fmt.Printf("❌ 未找到检测项: provider=%s, service=%s, channel=%s\n", *provider, *service, *channel)
+			}
+			os.Exit(1)
 		}
-		os.Exit(1)
 	}
 
 	// 构建输出标识
-	targetInfo := fmt.Sprintf("provider=%s, service=%s, channel=%s", target.Provider, target.Service, target.Channel)
-	if target.Model != "" {
-		targetInfo += fmt.Sprintf(", model=%s", target.Model)
+	var targetInfo string
+	if standaloneMode {
+		displayURL := target.URL
+		// GM 模式 URL 中包含 API key，脱敏显示
+		if strings.ToLower(*typeFlag) == "gm" {
+			if u, err := url.Parse(target.URL); err == nil {
+				q := u.Query()
+				if k := q.Get("key"); k != "" {
+					q.Set("key", k[:min(6, len(k))]+"***")
+					u.RawQuery = q.Encode()
+					displayURL = u.String()
+				}
+			}
+		}
+		targetInfo = fmt.Sprintf("type=%s, url=%s", strings.ToLower(*typeFlag), displayURL)
+		if target.Model != "" {
+			targetInfo += fmt.Sprintf(", model=%s", target.Model)
+		}
+	} else {
+		targetInfo = fmt.Sprintf("provider=%s, service=%s, channel=%s", target.Provider, target.Service, target.Channel)
+		if target.Model != "" {
+			targetInfo += fmt.Sprintf(", model=%s", target.Model)
+		}
 	}
 	fmt.Printf("🔍 验证检测项: %s\n", targetInfo)
 	fmt.Println("========================================")
@@ -95,7 +161,19 @@ func main() {
 		if target.Model != "" {
 			fmt.Printf("  Model: %s\n", target.Model)
 		}
-		fmt.Printf("  URL: %s\n", target.URL)
+		verboseURL := target.URL
+		// GM 模式 URL 中包含 API key，脱敏显示
+		if standaloneMode && strings.ToLower(*typeFlag) == "gm" {
+			if u, err := url.Parse(target.URL); err == nil {
+				q := u.Query()
+				if k := q.Get("key"); k != "" {
+					q.Set("key", k[:min(6, len(k))]+"***")
+					u.RawQuery = q.Encode()
+					verboseURL = u.String()
+				}
+			}
+		}
+		fmt.Printf("  URL: %s\n", verboseURL)
 		fmt.Printf("  Method: %s\n", target.Method)
 		fmt.Printf("  Success Contains: %s\n", target.SuccessContains)
 		fmt.Printf("  Headers:\n")
@@ -265,6 +343,124 @@ func main() {
 		fmt.Printf("❌ 失败! HTTP %d, 延迟 %dms\n", resp.StatusCode, latency.Milliseconds())
 		os.Exit(1)
 	}
+}
+
+// buildStandaloneConfig 根据服务类型构建独立模式的 ServiceConfig。
+func buildStandaloneConfig(svcType, rawURL, apiKey, model string) (*config.ServiceConfig, error) {
+	switch svcType {
+	case "cc":
+		return buildCCConfig(rawURL, apiKey, model)
+	case "cx":
+		return buildCXConfig(rawURL, apiKey, model)
+	case "gm":
+		return buildGMConfig(rawURL, apiKey)
+	default:
+		return nil, fmt.Errorf("未知的 -type: %s（仅支持 cc/cx/gm）", svcType)
+	}
+}
+
+// buildCCConfig 构建 Anthropic Messages API 的 ServiceConfig。
+func buildCCConfig(rawURL, apiKey, model string) (*config.ServiceConfig, error) {
+	if model == "" {
+		model = "claude-haiku-4-5-20251001"
+	}
+	body, err := json.Marshal(map[string]any{
+		"model":      model,
+		"max_tokens": 100,
+		"stream":     false,
+		"system":     []map[string]any{{"type": "text", "text": "Always say 'pong'."}},
+		"messages":   []map[string]any{{"role": "user", "content": []map[string]any{{"type": "text", "text": "ping"}}}},
+		"tools":      []any{},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("构建 cc 请求体失败: %w", err)
+	}
+	return &config.ServiceConfig{
+		Provider: "standalone",
+		Service:  "cc",
+		Channel:  "cc",
+		Model:    model,
+		URL:      rawURL,
+		Method:   "POST",
+		Headers: map[string]string{
+			"x-api-key":         apiKey,
+			"anthropic-version": "2023-06-01",
+			"Content-Type":      "application/json",
+		},
+		Body:            string(body),
+		SuccessContains: "pong",
+	}, nil
+}
+
+// buildCXConfig 构建 OpenAI Responses API 的 ServiceConfig。
+func buildCXConfig(rawURL, apiKey, model string) (*config.ServiceConfig, error) {
+	if model == "" {
+		model = "gpt-5-codex"
+	}
+	body, err := json.Marshal(map[string]any{
+		"model": model,
+		"input": []map[string]any{
+			{"role": "system", "content": `You are an echo bot. Always say "pong".`},
+			{"role": "user", "content": "ping"},
+		},
+		"stream": false,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("构建 cx 请求体失败: %w", err)
+	}
+	return &config.ServiceConfig{
+		Provider: "standalone",
+		Service:  "cx",
+		Channel:  "cx",
+		Model:    model,
+		URL:      rawURL,
+		Method:   "POST",
+		Headers: map[string]string{
+			"Authorization": "Bearer " + apiKey,
+			"Content-Type":  "application/json",
+		},
+		Body:            string(body),
+		SuccessContains: "pong",
+	}, nil
+}
+
+// buildGMConfig 构建 Gemini API 的 ServiceConfig。
+func buildGMConfig(rawURL, apiKey string) (*config.ServiceConfig, error) {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, fmt.Errorf("无效的 -url: %w", err)
+	}
+	query := parsedURL.Query()
+	query.Set("key", apiKey)
+	parsedURL.RawQuery = query.Encode()
+
+	body, err := json.Marshal(map[string]any{
+		"contents": []map[string]any{{
+			"role": "user",
+			"parts": []map[string]any{
+				{"text": "ping\n\nOnly respond: pong\n\n"},
+			},
+		}},
+		"generationConfig": map[string]any{
+			"temperature":     0,
+			"maxOutputTokens": 5,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("构建 gm 请求体失败: %w", err)
+	}
+	return &config.ServiceConfig{
+		Provider: "standalone",
+		Service:  "gm",
+		Channel:  "gm",
+		URL:      parsedURL.String(),
+		Method:   "POST",
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
+		Body:            string(body),
+		SuccessContains: "pong",
+	}, nil
 }
 
 // readSSEStream 逐行读取 SSE 流，实时输出文本内容
