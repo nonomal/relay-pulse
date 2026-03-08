@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"monitor/internal/automove"
 	"monitor/internal/config"
 	"monitor/internal/storage"
 )
@@ -541,5 +542,134 @@ func TestIncrementStatusCount(t *testing.T) {
 	}
 	if counts.ContentMismatch != 1 {
 		t.Errorf("ContentMismatch: want 1, got %d", counts.ContentMismatch)
+	}
+}
+
+// TestApplyBoardOverrides_PSCPropagation 测试自动移板 override 的 PSC 传播逻辑
+func TestApplyBoardOverrides_PSCPropagation(t *testing.T) {
+	// 创建 autoMover 并注入 override
+	svc := automove.NewService(nil, &config.AppConfig{})
+	svc.SetOverrides(map[storage.MonitorKey]automove.MonitorOverride{
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: ""}: {
+			Board:        "secondary",
+			SponsorLevel: config.SponsorLevelPulse,
+		},
+	})
+
+	h := &Handler{
+		config:    &config.AppConfig{},
+		autoMover: svc,
+	}
+
+	monitors := []config.ServiceConfig{
+		// root 监测项（无 parent，无 model）→ 精确匹配
+		{Provider: "acme", Service: "cc", Channel: "vip", Board: "hot", SponsorLevel: config.SponsorLevelBackbone},
+		// 子模型 1（有 parent，有 model）→ PSC 回退继承
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: "gpt-4o", Parent: "acme/cc/vip", Board: "hot", SponsorLevel: config.SponsorLevelBackbone},
+		// 子模型 2 → PSC 回退继承
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: "claude-4", Parent: "acme/cc/vip", Board: "hot", SponsorLevel: config.SponsorLevelBackbone},
+		// 不受影响的通道
+		{Provider: "other", Service: "cc", Channel: "free", Board: "hot"},
+	}
+
+	result := h.applyBoardOverrides(monitors)
+
+	// root 被降级
+	if result[0].Board != "secondary" {
+		t.Errorf("root board: want secondary, got %s", result[0].Board)
+	}
+	if result[0].SponsorLevel != config.SponsorLevelPulse {
+		t.Errorf("root sponsor_level: want pulse, got %s", result[0].SponsorLevel)
+	}
+
+	// 子模型 1 继承 override
+	if result[1].Board != "secondary" {
+		t.Errorf("child[gpt-4o] board: want secondary, got %s", result[1].Board)
+	}
+	if result[1].SponsorLevel != config.SponsorLevelPulse {
+		t.Errorf("child[gpt-4o] sponsor_level: want pulse, got %s", result[1].SponsorLevel)
+	}
+
+	// 子模型 2 继承 override
+	if result[2].Board != "secondary" {
+		t.Errorf("child[claude-4] board: want secondary, got %s", result[2].Board)
+	}
+
+	// 不受影响的通道保持原值
+	if result[3].Board != "hot" {
+		t.Errorf("unrelated board: want hot, got %s", result[3].Board)
+	}
+
+	// 原始 monitors 未被修改（防御性拷贝）
+	if monitors[0].Board != "hot" {
+		t.Errorf("original monitors should not be mutated")
+	}
+}
+
+// TestApplyBoardOverrides_RootWithModel 测试 root 有 model 但无 parent 时走精确匹配
+func TestApplyBoardOverrides_RootWithModel(t *testing.T) {
+	svc := automove.NewService(nil, &config.AppConfig{})
+	svc.SetOverrides(map[storage.MonitorKey]automove.MonitorOverride{
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: ""}: {Board: "secondary"},
+	})
+
+	h := &Handler{
+		config:    &config.AppConfig{},
+		autoMover: svc,
+	}
+
+	monitors := []config.ServiceConfig{
+		// root 无 model → 精确匹配命中
+		{Provider: "acme", Service: "cc", Channel: "vip", Board: "hot"},
+		// root 有 model 但无 parent → 精确匹配未命中，也不走 PSC 回退
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: "special", Board: "hot"},
+	}
+
+	result := h.applyBoardOverrides(monitors)
+
+	if result[0].Board != "secondary" {
+		t.Errorf("root without model: want secondary, got %s", result[0].Board)
+	}
+	// root 有 model 无 parent 时，不应该被 PSC 回退影响
+	if result[1].Board != "hot" {
+		t.Errorf("root with model (no parent): want hot (unchanged), got %s", result[1].Board)
+	}
+}
+
+// TestApplyBoardOverrides_NoOverrides 测试无 override 时返回原始 slice
+func TestApplyBoardOverrides_NoOverrides(t *testing.T) {
+	svc := automove.NewService(nil, &config.AppConfig{})
+	// 不设置 overrides
+
+	h := &Handler{
+		config:    &config.AppConfig{},
+		autoMover: svc,
+	}
+
+	monitors := []config.ServiceConfig{
+		{Provider: "acme", Service: "cc", Channel: "vip", Board: "hot"},
+	}
+
+	result := h.applyBoardOverrides(monitors)
+
+	// 无 override 时应返回原始 slice（不拷贝）
+	if &result[0] != &monitors[0] {
+		t.Errorf("should return original slice when no overrides")
+	}
+}
+
+// TestApplyBoardOverrides_NilAutoMover 测试 autoMover 为 nil 时直接返回
+func TestApplyBoardOverrides_NilAutoMover(t *testing.T) {
+	h := &Handler{
+		config: &config.AppConfig{},
+	}
+
+	monitors := []config.ServiceConfig{
+		{Provider: "acme", Service: "cc", Channel: "vip", Board: "hot"},
+	}
+
+	result := h.applyBoardOverrides(monitors)
+	if &result[0] != &monitors[0] {
+		t.Errorf("should return original slice when autoMover is nil")
 	}
 }

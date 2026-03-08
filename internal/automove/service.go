@@ -92,6 +92,15 @@ func (s *Service) Overrides() map[storage.MonitorKey]MonitorOverride {
 	return *ptr
 }
 
+// SetOverrides 替换当前 override map（用于测试注入）。
+func (s *Service) SetOverrides(overrides map[storage.MonitorKey]MonitorOverride) {
+	if len(overrides) == 0 {
+		s.overrides.Store(nil)
+	} else {
+		s.overrides.Store(&overrides)
+	}
+}
+
 // Evaluate 执行一次完整的可用率评估和移板判断。
 // 可导出，供测试和启动时首次调用。
 func (s *Service) Evaluate(ctx context.Context) {
