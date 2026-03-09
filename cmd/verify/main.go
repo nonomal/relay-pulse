@@ -400,7 +400,7 @@ func buildCCConfig(rawURL, apiKey, model string) (*config.ServiceConfig, error) 
 		URL:      rawURL,
 		Method:   "POST",
 		Headers: map[string]string{
-			"x-api-key":         apiKey,
+			"authorization":     "Bearer " + apiKey,
 			"anthropic-version": "2023-06-01",
 			"Content-Type":      "application/json",
 		},
