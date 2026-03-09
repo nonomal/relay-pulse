@@ -55,9 +55,9 @@ prd.config.yaml
 deploy/*.env  # 所有环境变量文件（包含真实 API Key）
 !deploy/*.env.example  # 允许提交示例文件
 
-# Monitor data directory
-monitor/
-!monitor/.gitkeep
+# Monitor data directory (root level only, avoid matching internal/monitor/)
+/monitor/
+!/monitor/.gitkeep
 
 # Notifier development files
 notifier/data/
@@ -79,4 +79,5 @@ server
 # 归档输出文件（运行时生成，不应提交）
 archive/probe_history_*.csv
 archive/probe_history_*.csv.gz
-genconfig
+# genconfig binary (root level only, avoid matching cmd/genconfig/)
+/genconfig
