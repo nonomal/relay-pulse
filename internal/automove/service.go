@@ -310,7 +310,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 			Model:    m.Model,
 		}
 
-		// 到期检查：到期日当天仍有效，次日起自动降级并移入副板
+		// 到期检查：到期日当天仍有效，次日起自动降级并移入备板
 		if expiresAt := strings.TrimSpace(m.ExpiresAt); expiresAt != "" {
 			if expiresDate, err := time.Parse("2006-01-02", expiresAt); err == nil && today.After(expiresDate) {
 				ov := MonitorOverride{Board: "secondary"}

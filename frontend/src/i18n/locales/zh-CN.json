@@ -105,8 +105,8 @@
     "boards": {
       "hot": "主板",
       "hotShort": "主",
-      "secondary": "副板",
-      "secondaryShort": "副",
+      "secondary": "备板",
+      "secondaryShort": "备",
       "cold": "冷板",
       "coldShort": "冷",
       "all": "全部",

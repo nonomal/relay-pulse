@@ -307,7 +307,7 @@ frontend/src/
 │   ├── StatusTable / StatusCard   → 数据展示（桌面表格/移动卡片）
 │   ├── HeatmapBlock / LayeredHeatmapBlock → 热力图（单层/多模型）
 │   ├── Tooltip / StatusDot        → 状态详情与指示器
-│   ├── BoardSwitcher              → 热板/副板/冷板切换
+│   ├── BoardSwitcher              → 热板/备板/冷板切换
 │   ├── AnnouncementsBanner        → 公告横幅
 │   ├── SelfTestForm / TestStatusCard / TestResultPanel → 自测功能
 │   ├── FavoriteButton / EmptyFavorites → 收藏功能
@@ -624,7 +624,7 @@ HTTP 响应
 | 查询优化 | `enable_concurrent_query`、`concurrent_query_limit`、`enable_batch_query`、`enable_db_timeline_agg`、`batch_query_max_keys` | API 层数据库查询优化 |
 | 缓存 | `cache_ttl`（按 period 区分，90m/24h=10s，7d/30d=60s） | API 响应缓存 |
 | Provider 策略 | `disabled_providers`、`hidden_providers`、`risk_providers` | 批量禁用/隐藏/风险标记 |
-| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_down/up`、`min_probes`、`check_interval`） | 热板/副板/冷板 + 自动移板 |
+| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_down/up`、`min_probes`、`check_interval`） | 热板/备板/冷板 + 自动移板 |
 | 展示控制 | `expose_channel_details`、`channel_details_providers`、`public_base_url` | 通道技术细节暴露 |
 | 赞助/徽标 | `sponsor_pin`、`enable_badges`、`badge_definitions`、`badge_providers` | 置顶与徽标体系 |
 | 功能模块 | `selftest`、`events`、`announcements`、`github` | 自测/事件/公告/GitHub 配置 |
@@ -672,7 +672,7 @@ HTTP 响应
 | SelfTest | `enabled`、`max_concurrent`、`max_queue_size`、`job_timeout`、`result_ttl`、`rate_limit_per_minute`、`signature_secret` | 用户自助测试 |
 | Events | `enabled`、`mode`（model/channel）、`down_threshold`、`up_threshold`、`channel_down_threshold`、`channel_count_mode`、`api_token` | 状态变更事件 |
 | SponsorPin | `enabled`、`max_pinned`、`min_uptime`、`min_level` | 赞助通道置顶（详见 `docs/user/sponsorship.md`） |
-| Boards | `enabled` | 热板/副板/冷板三层系统 |
+| Boards | `enabled` | 热板/备板/冷板三层系统 |
 | Announcements | `enabled`、`owner`、`repo`、`category_name`、`poll_interval`、`window_hours`、`max_items`、`api_max_age` | GitHub Discussions 公告 |
 | GitHub | `token`、`proxy`、`timeout` | GitHub API 通用配置（公告功能依赖） |
 

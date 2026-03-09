@@ -138,10 +138,10 @@ func TestFilterMonitorsBoard(t *testing.T) {
 		}
 	})
 
-	t.Run("boards启用+secondary：只返回副板", func(t *testing.T) {
+	t.Run("boards启用+secondary：只返回备板", func(t *testing.T) {
 		result := h.filterMonitors(monitors, "all", "all", "secondary", true, false)
 		if len(result) != 1 {
-			t.Errorf("期望返回 1 个副板监测项，实际返回 %d 个", len(result))
+			t.Errorf("期望返回 1 个备板监测项，实际返回 %d 个", len(result))
 		}
 		if len(result) > 0 && result[0].Provider != "secondary-provider" {
 			t.Errorf("期望返回 secondary-provider，实际返回 %s", result[0].Provider)
