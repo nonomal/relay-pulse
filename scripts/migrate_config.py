@@ -27,22 +27,22 @@ except ImportError:
 
 # !include 文件名 → template 名称
 INCLUDE_TO_TEMPLATE = {
-    "data/cc-haiku-base.json": "cc-haiku-base",
-    "data/cc-haiku-tiny.json": "cc-haiku-tiny",
-    "data/cc-sonnet-tiny.json": "cc-sonnet-tiny",
-    "data/cc-opus-tiny.json": "cc-opus-tiny",
-    "data/cx-codex-base.json": "cx-codex-base",
-    "data/cx-codexmini-base.json": "cx-codexmini-base",
-    "data/cx-codexmax-base.json": "cx-codexmax-base",
-    "data/cx-gpt52-base.json": "cx-gpt52-base",
-    "data/gm-base.json": "gm-base",
-    "data/gm-thinking.json": "gm-thinking",
-    "data/gm-generate.json": "gm-generate",
-    "data/cc-arith.json": "cc-arith",
-    "data/cx-arith.json": "cx-arith",
-    "data/gm-arith.json": "gm-arith",
-    "data/archive-251214/public_cc_base.json": "archive-251214/public_cc_base",
-    "data/archive-251214/aicodemirror_cc.json": "archive-251214/aicodemirror_cc",
+    "templates/cc-haiku-base.json": "cc-haiku-base",
+    "templates/cc-haiku-tiny.json": "cc-haiku-tiny",
+    "templates/cc-sonnet-tiny.json": "cc-sonnet-tiny",
+    "templates/cc-opus-tiny.json": "cc-opus-tiny",
+    "templates/cx-codex-base.json": "cx-codex-base",
+    "templates/cx-codexmini-base.json": "cx-codexmini-base",
+    "templates/cx-codexmax-base.json": "cx-codexmax-base",
+    "templates/cx-gpt52-base.json": "cx-gpt52-base",
+    "templates/gm-base.json": "gm-base",
+    "templates/gm-thinking.json": "gm-thinking",
+    "templates/gm-generate.json": "gm-generate",
+    "templates/cc-arith.json": "cc-arith",
+    "templates/cx-arith.json": "cx-arith",
+    "templates/gm-arith.json": "gm-arith",
+    "templates/archive-251214/public_cc_base.json": "archive-251214/public_cc_base",
+    "templates/archive-251214/aicodemirror_cc.json": "archive-251214/aicodemirror_cc",
 }
 
 # service 类型 → anchor 默认 template
@@ -65,7 +65,7 @@ TEMPLATE_DEFAULT_TIMEOUT = "10s"
 ANCHOR_KEYS = {"x-cc-template", "x-cx-template", "x-gm-template"}
 
 # 正则
-INCLUDE_RE = re.compile(r"^\s*!include\s+(data/[A-Za-z0-9_./-]+\.json)\s*$")
+INCLUDE_RE = re.compile(r"^\s*!include\s+(templates/[A-Za-z0-9_./-]+\.json)\s*$")
 GM_MODEL_RE = re.compile(r"/v1beta/models/([^/:?]+)")
 
 # CC 标准路径后缀
@@ -417,7 +417,7 @@ def migrate_config(doc, config_path):
         return doc, report
 
     config_dir = os.path.dirname(os.path.abspath(config_path))
-    data_dir = os.path.join(config_dir, "data")
+    data_dir = os.path.join(config_dir, "templates")
     template_cache = {}
 
     for i, m in enumerate(monitors):

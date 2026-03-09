@@ -9,8 +9,8 @@ set -e
 CONFIG_FILE="/app/config.yaml"
 MOUNTED_CONFIG="/config/config.yaml"
 DEFAULT_CONFIG="/app/config.yaml.default"
-DATA_DIR="/app/data"
-CONFIG_DATA_LINK="/config/data"
+TEMPLATES_DIR="/app/templates"
+CONFIG_TEMPLATES_LINK="/config/templates"
 ACTIVE_CONFIG="$CONFIG_FILE"
 
 echo "[Entrypoint] 初始化监测服务..."
@@ -20,11 +20,11 @@ if [ -f "$MOUNTED_CONFIG" ]; then
     echo "[Entrypoint] 检测到外部配置文件: $MOUNTED_CONFIG"
     echo "[Entrypoint] 使用挂载的配置文件(直接传递给服务以支持热重载)"
     ACTIVE_CONFIG="$MOUNTED_CONFIG"
-    # 为配置文件中的 !include data/xxx.json 创建软链接
-    if [ ! -e "$CONFIG_DATA_LINK" ]; then
-        ln -sfn "$DATA_DIR" "$CONFIG_DATA_LINK" 2>/dev/null || {
-            echo "[Entrypoint] ⚠️ 无法创建 data 软链接（配置目录可能为只读挂载）"
-            echo "[Entrypoint]   如需 !include 功能，请移除配置目录的 :ro 标志或额外挂载: -v ./data:/config/data:ro"
+    # 为配置文件中的 !include templates/xxx.json 创建软链接
+    if [ ! -e "$CONFIG_TEMPLATES_LINK" ]; then
+        ln -sfn "$TEMPLATES_DIR" "$CONFIG_TEMPLATES_LINK" 2>/dev/null || {
+            echo "[Entrypoint] ⚠️ 无法创建 templates 软链接（配置目录可能为只读挂载）"
+            echo "[Entrypoint]   如需 !include 功能，请移除配置目录的 :ro 标志或额外挂载: -v ./templates:/config/templates:ro"
         }
     fi
 elif [ -f "$CONFIG_FILE" ]; then

@@ -175,7 +175,7 @@ internal/
 │   ├── badges.go         → BadgeDef / BadgeRef / ResolvedBadge / RiskBadge
 │   ├── enums.go          → SponsorLevel / BadgeKind / BadgeVariant
 │   ├── parent_inheritance.go → 父子通道配置继承
-│   ├── template.go       → 模板加载（data/*.json → ServiceConfig）
+│   ├── template.go       → 模板加载（templates/*.json → ServiceConfig）
 │   ├── userid.go         → 用户标识生成（{{USER_ID}} 占位符）
 │   ├── normalize*.go     → 归一化与默认值填充
 │   ├── validate.go       → 校验规则
@@ -652,7 +652,7 @@ HTTP 响应
 
 **模板占位符**: `{{API_KEY}}` 和 `{{MODEL}}` 在 headers 和 body 中会被自动替换。
 
-**引用文件**: 对于大型请求体，使用 `body: "!include data/filename.json"`（必须在 `data/` 目录下）。
+**引用文件**: 对于大型请求体，使用 `body: "!include templates/filename.json"`（必须在 `templates/` 目录下）。
 
 ### 存储配置
 

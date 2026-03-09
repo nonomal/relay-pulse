@@ -96,7 +96,7 @@ func (c *AppConfig) ResolveTemplates(configDir string) error {
 			continue
 		}
 
-		filePath := filepath.Join(configDir, "data", m.Template+".json")
+		filePath := filepath.Join(configDir, "templates", m.Template+".json")
 		tmpl, err := LoadProbeTemplate(filePath)
 		if err != nil {
 			return fmt.Errorf("monitor[%d] provider=%s service=%s: %w", i, m.Provider, m.Service, err)

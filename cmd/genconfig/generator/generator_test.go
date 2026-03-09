@@ -104,7 +104,7 @@ func TestTemplateFormatNewStyle(t *testing.T) {
 }
 
 func TestTemplateFormatLegacyStyle(t *testing.T) {
-	// 验证仍使用传统格式（暂无 data/ 模板）的配置
+	// 验证仍使用传统格式（暂无 templates/ 模板）的配置
 	legacyTemplates := []string{"cohere", "mistral", "custom"}
 
 	for _, name := range legacyTemplates {

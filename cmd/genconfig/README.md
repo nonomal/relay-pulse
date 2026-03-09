@@ -173,7 +173,7 @@ monitors:
     channel: "..."       # 业务通道
     board: "..."         # 板块
     base_url: "..."      # 服务商基础地址
-    template: "..."      # 引用 data/ 目录下的模板文件
+    template: "..."      # 引用 templates/ 目录下的模板文件
     model: "..."         # 模型名称（替换 {{MODEL}}）
     success_contains: "..." # 响应体关键字（可选，模板可预设）
 
@@ -226,7 +226,7 @@ A: 当前支持以下字段：
 
 ### Q: 如何使用自定义请求体？
 
-A: 推荐使用模板格式：在 `data/` 目录下创建 JSON 模板文件（定义 url/method/headers/body），然后通过 `template` 字段引用。对于传统格式，可以手动编辑 YAML 文件中的 `body` 字段，或使用 `!include` 引用外部文件：`body: "!include data/request.json"`。
+A: 推荐使用模板格式：在 `templates/` 目录下创建 JSON 模板文件（定义 url/method/headers/body），然后通过 `template` 字段引用。对于传统格式，可以手动编辑 YAML 文件中的 `body` 字段，或使用 `!include` 引用外部文件：`body: "!include templates/request.json"`。
 
 ### Q: 如何使用多模型配置？
 

@@ -49,11 +49,11 @@ func (w *Watcher) Start(ctx context.Context) error {
 		return err
 	}
 
-	// data 目录（用于 body include JSON）
-	dataDir := filepath.Clean(filepath.Join(dir, "data"))
-	dataDirPrefix := dataDir + string(filepath.Separator) // 预计算前缀
-	if info, err := os.Stat(dataDir); err == nil && info.IsDir() {
-		if err := w.addWatch(dataDir); err != nil {
+	// templates 目录（用于 body include JSON）
+	templatesDir := filepath.Clean(filepath.Join(dir, "templates"))
+	templatesDirPrefix := templatesDir + string(filepath.Separator) // 预计算前缀
+	if info, err := os.Stat(templatesDir); err == nil && info.IsDir() {
+		if err := w.addWatch(templatesDir); err != nil {
 			return err
 		}
 	}
@@ -74,11 +74,11 @@ func (w *Watcher) Start(ctx context.Context) error {
 					return
 				}
 
-				// 只关心目标配置文件和 data/ 目录下 JSON 的写入/创建/重命名事件
+				// 只关心目标配置文件和 templates/ 目录下 JSON 的写入/创建/重命名事件
 				eventPath := filepath.Clean(event.Name) // 归一化事件路径
 				isConfigFile := eventPath == targetFile
-				isDataFile := strings.HasPrefix(eventPath, dataDirPrefix)
-				if !isConfigFile && !isDataFile {
+				isTemplateFile := strings.HasPrefix(eventPath, templatesDirPrefix)
+				if !isConfigFile && !isTemplateFile {
 					continue
 				}
 
@@ -96,7 +96,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 				}
 
 				// 处理 Remove/Rename：重新监听，避免 inode 变化后事件丢失
-				if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 && (isConfigFile || isDataFile) {
+				if event.Op&(fsnotify.Remove|fsnotify.Rename) != 0 && (isConfigFile || isTemplateFile) {
 					if err := w.rewatchPath(eventPath); err != nil {
 						logger.Error("config", "重新监听目录失败", "error", err)
 					}

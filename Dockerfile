@@ -111,8 +111,8 @@ COPY --from=backend-builder /build/monitor /app/monitor
 # 复制默认配置文件作为模板
 COPY config.yaml.example /app/config.yaml.default
 
-# 复制 data 目录 (用于 !include 引用的 JSON 文件)
-COPY data/ /app/data/
+# 复制 templates 目录 (用于 !include 引用的 JSON 文件)
+COPY templates/ /app/templates/
 
 # 复制入口脚本
 COPY docker-entrypoint.sh /app/docker-entrypoint.sh

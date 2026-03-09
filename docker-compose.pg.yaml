@@ -33,8 +33,8 @@ services:
       - "8081:8080"
     volumes:
       - ./config:/config
-      # 如果需要自定义 data 文件，取消下面的注释
-      # - ./data:/app/data:ro
+      # 如果需要自定义 templates 文件，取消下面的注释
+      # - ./templates:/app/templates:ro
     environment:
       - TZ=${TZ:-Asia/Shanghai}
       - GIN_MODE=${GIN_MODE:-release}

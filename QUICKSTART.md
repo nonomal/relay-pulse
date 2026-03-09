@@ -46,7 +46,7 @@ monitors:
     category: "commercial"           # 必填：商业站(commercial) 或 公益站(public)
     sponsor: "团队自有"              # 必填：提供 API Key 的赞助者
     base_url: "https://api.openai.com"
-    template: "cx-codex-base"        # 引用 data/cx-codex-base.json 模板
+    template: "cx-codex-base"        # 引用 templates/cx-codex-base.json 模板
     api_key: "sk-your-api-key-here"
     model: "gpt-4.1"
 ```

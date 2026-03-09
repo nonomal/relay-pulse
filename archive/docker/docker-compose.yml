@@ -15,8 +15,8 @@ services:
     volumes:
       # 挂载配置文件（支持热更新）
       - ./config.yaml:/config/config.yaml:ro
-      # 挂载 data 目录（用于 !include 引用）
-      - ./data:/config/data:ro
+      # 挂载 templates 目录（用于 !include 引用）
+      - ./templates:/config/templates:ro
       # 持久化数据库（可选，推荐用于生产环境）
       - monitor-data:/app/data
     environment:

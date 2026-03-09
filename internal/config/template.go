@@ -9,7 +9,7 @@ import (
 	"monitor/internal/logger"
 )
 
-// ProbeTemplate 描述一次探测请求的完整模板（来自 data/*.json）
+// ProbeTemplate 描述一次探测请求的完整模板（来自 templates/*.json）
 type ProbeTemplate struct {
 	URL             string            // URL 模式，支持 {{BASE_URL}} 等占位符
 	Method          string            // HTTP 方法

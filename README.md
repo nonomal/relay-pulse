@@ -126,7 +126,7 @@ monitors:
     sponsor: "团队自有"
     sponsor_level: "beacon"    # 可选：public/signal/pulse/beacon/backbone/core
     base_url: "https://api.88code.com"
-    template: "cc-haiku-base"  # 引用 data/ 目录下的模板
+    template: "cc-haiku-base"  # 引用 templates/ 目录下的模板
     api_key: "sk-xxx"  # 或通过环境变量 MONITOR_88CODE_CC_API_KEY
     model: "claude-haiku-4-20250514"
 ```

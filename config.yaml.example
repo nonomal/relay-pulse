@@ -140,7 +140,7 @@ badge_providers:
 # 监测任务配置
 # ============================================
 # 新的模板化配置方式：
-#   - template: 引用 data/ 目录下的 JSON 模板文件（包含 url/method/headers/body/response）
+#   - template: 引用 templates/ 目录下的 JSON 模板文件（包含 url/method/headers/body/response）
 #   - base_url: 服务商基础地址，模板通过 {{BASE_URL}} 注入
 #   - model: 模型名称，模板通过 {{MODEL}} 注入
 #   - api_key: API 密钥，模板通过 {{API_KEY}} 注入
@@ -155,7 +155,7 @@ badge_providers:
 #   {{PROMPT}}            - 动态算术题（防缓存模板用）
 #   {{EXPECTED_ANSWER}}   - 预期答案（与 PROMPT 同步）
 #
-# 可用模板（data/ 目录）：
+# 可用模板（templates/ 目录）：
 #   CC: cc-haiku-base, cc-haiku-tiny, cc-opus-tiny, cc-sonnet-tiny, cc-arith
 #   CX: cx-codex-base, cx-gpt52-base, cx-codexmax-base, cx-codexmini-base, cx-arith
 #   GM: gm-base, gm-thinking, gm-arith

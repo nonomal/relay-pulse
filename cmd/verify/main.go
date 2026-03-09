@@ -34,7 +34,7 @@ func main() {
 	urlFlag := flag.String("url", "", "API endpoint URL (standalone mode)")
 	keyFlag := flag.String("key", "", "API key (standalone mode)")
 	typeFlag := flag.String("type", "", "Service type: cc/cx/gm (standalone mode)")
-	bodyFlag := flag.String("body", "", "Body template file path, e.g. data/cc-haiku-tiny.json (standalone mode, overrides built-in body)")
+	bodyFlag := flag.String("body", "", "Body template file path, e.g. templates/cc-haiku-tiny.json (standalone mode, overrides built-in body)")
 	successFlag := flag.String("success", "", "Success keyword to check in response (standalone mode, overrides built-in value)")
 
 	verbose := flag.Bool("v", false, "Verbose output")

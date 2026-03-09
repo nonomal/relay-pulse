@@ -80,7 +80,7 @@ environment:
 
 - **SQLite 数据库**: 挂载卷 `relay-pulse-data`
 - **配置文件**: `./config/config.yaml` → `/config/config.yaml`（目录挂载，支持热更新）
-- **数据目录**: `./data` → `/app/data`
+- **模板目录**: `./templates` → `/app/templates`
 
 ## 健康检查
 

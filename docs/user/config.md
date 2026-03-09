@@ -89,7 +89,7 @@ monitors:
     listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
     expires_at: "2025-12-31"   # 到期日期（可选）: 过期后自动降级并移入备板
     base_url: "https://api.88code.com"    # 服务商基础地址（模板模式必填）
-    template: "cc-haiku-base"             # 引用 data/ 目录下的模板（模板模式必填）
+    template: "cc-haiku-base"             # 引用 templates/ 目录下的模板（模板模式必填）
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
     model: "claude-haiku-4-20250514"      # 模型名称（可选，替换模板中 {{MODEL}}）
     # success_contains 由模板预设（可选覆盖）
@@ -1204,7 +1204,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 
 ##### `template`（模板模式必填）
 - **类型**: string
-- **说明**: 引用 `data/` 目录下的 JSON 模板文件（不含扩展名），定义完整的请求方式（url/method/headers/body/success_contains）
+- **说明**: 引用 `templates/` 目录下的 JSON 模板文件（不含扩展名），定义完整的请求方式（url/method/headers/body/success_contains）
 - **示例**: `"cx-codex-base"`、`"cc-haiku-base"`、`"gm-base"`
 
 ##### `method`（传统模式必填，模板模式可选）
@@ -1400,7 +1400,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
     }
 
   # 引用外部文件
-  body: "!include data/gpt4_request.json"
+  body: "!include templates/gpt4_request.json"
   ```
 
 ##### `success_contains`
@@ -2213,11 +2213,11 @@ body: |
 ✅ **推荐**（使用 `!include`）:
 
 ```yaml
-body: "!include data/gpt4_request.json"
+body: "!include templates/gpt4_request.json"
 ```
 
 ```json
-// data/gpt4_request.json
+// templates/gpt4_request.json
 {
   "model": "gpt-4",
   "messages": [/* 很长的消息列表 */],

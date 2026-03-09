@@ -40,18 +40,18 @@ monitor/
 curl -O https://raw.githubusercontent.com/prehisle/relay-pulse/main/docker-compose.yaml
 curl -O https://raw.githubusercontent.com/prehisle/relay-pulse/main/config.yaml.example
 
-# 2. 下载 data 目录（包含 JSON 模板文件）
-mkdir -p data
-curl -o data/cc_base.json https://raw.githubusercontent.com/prehisle/relay-pulse/main/data/cc_base.json
-curl -o data/cx_base.json https://raw.githubusercontent.com/prehisle/relay-pulse/main/data/cx_base.json
+# 2. 下载 templates 目录（包含 JSON 模板文件）
+mkdir -p templates
+curl -o templates/cc_base.json https://raw.githubusercontent.com/prehisle/relay-pulse/main/templates/cc_base.json
+curl -o templates/cx_base.json https://raw.githubusercontent.com/prehisle/relay-pulse/main/templates/cx_base.json
 
 # 3. 准备配置
 cp config.yaml.example config.yaml
 vim config.yaml  # 填入你的 API Key
 
-# 4. 取消注释 data 目录挂载（编辑 docker-compose.yaml）
+# 4. 取消注释 templates 目录挂载（编辑 docker-compose.yaml）
 # 找到这一行并取消注释:
-#   - ./data:/app/data:ro
+#   - ./templates:/app/templates:ro
 
 # 5. 一键启动
 docker compose up -d
@@ -108,10 +108,10 @@ monitors:
 - 如果升级旧配置，请为每个 monitor 添加这两个字段
 - 参考 `config.yaml.example` 查看完整示例
 
-如果请求体较大，可将 JSON 放在 `data/` 目录并在 `body` 中引用：
+如果请求体较大，可将 JSON 放在 `templates/` 目录并在 `body` 中引用：
 
 ```yaml
-body: "!include data/cx_base.json"  # 路径必须位于 data/ 下
+body: "!include templates/cx_base.json"  # 路径必须位于 templates/ 下
 ```
 
 ### 3. 配置巡检间隔

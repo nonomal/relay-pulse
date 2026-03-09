@@ -463,7 +463,7 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    # 暂无 data/ 模板，使用 base_url + method 传统格式
+    # 暂无 templates/ 模板，使用 base_url + method 传统格式
     base_url: "https://api.cohere.ai"
     url_pattern: "{{BASE_URL}}/v1/generate"
     method: "POST"
@@ -498,7 +498,7 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    # 暂无 data/ 模板，使用 base_url + method 传统格式
+    # 暂无 templates/ 模板，使用 base_url + method 传统格式
     base_url: "https://api.mistral.ai"
     url_pattern: "{{BASE_URL}}/v1/chat/completions"
     method: "POST"
