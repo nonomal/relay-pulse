@@ -16,6 +16,8 @@ const (
 	ErrCodeInvalidURL ErrorCode = "invalid_url"
 	// ErrCodeUnknownTestType 测试类型不支持
 	ErrCodeUnknownTestType ErrorCode = "unknown_test_type"
+	// ErrCodeUnknownVariant payload 变体不支持
+	ErrCodeUnknownVariant ErrorCode = "unknown_variant"
 	// ErrCodeQueueFull 队列已满
 	ErrCodeQueueFull ErrorCode = "queue_full"
 	// ErrCodeJobNotFound 任务不存在或已过期

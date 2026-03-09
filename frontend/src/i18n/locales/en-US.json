@@ -369,8 +369,21 @@
       "apiKey": "API Key",
       "apiKeyPlaceholder": "sk-...",
       "apiKeyHint": "Your API key is only used for this test and will not be stored",
+      "payloadVariant": "Payload Variant",
       "submit": "Start Test",
       "submitting": "Submitting..."
+    },
+    "payloadVariants": {
+      "cc-haiku-base": "Haiku Standard",
+      "cc-haiku-tiny": "Haiku Tiny",
+      "cc-opus-tiny": "Opus Tiny",
+      "cc-sonnet-tiny": "Sonnet Tiny",
+      "cx-codex-base": "Codex Standard",
+      "cx-gpt52-base": "GPT-5.2 Standard",
+      "cx-codexmax-base": "Codex Max Standard",
+      "cx-codexmini-base": "Codex Mini Standard",
+      "gm-base": "Standard",
+      "gm-thinking": "Thinking"
     },
     "status": {
       "queued": "Queued",

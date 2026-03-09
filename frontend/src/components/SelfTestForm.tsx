@@ -13,6 +13,7 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
   const [testTypes, setTestTypes] = useState<TestType[]>([]);
   const [formData, setFormData] = useState<SelfTestFormData>({
     testType: 'cc',
+    payloadVariant: '',
     apiUrl: '',
     apiKey: '',
   });
@@ -24,13 +25,37 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
       .then((data: TestType[]) => {
         setTestTypes(data);
         if (data.length > 0 && !formData.testType) {
-          setFormData((prev) => ({ ...prev, testType: data[0].id }));
+          const first = data[0];
+          setFormData((prev) => ({
+            ...prev,
+            testType: first.id,
+            payloadVariant: first.default_variant,
+          }));
+        } else {
+          // 设置当前选中类型的默认变体
+          const current = data.find((t) => t.id === formData.testType);
+          if (current) {
+            setFormData((prev) => ({
+              ...prev,
+              payloadVariant: current.default_variant,
+            }));
+          }
         }
       })
       .catch((err) => {
         console.error('Failed to load test types:', err);
       });
   }, []);
+
+  // 切换测试类型时重置变体为该类型默认值
+  const handleTestTypeChange = (newType: string) => {
+    const typeDef = testTypes.find((t) => t.id === newType);
+    setFormData({
+      ...formData,
+      testType: newType,
+      payloadVariant: typeDef?.default_variant ?? '',
+    });
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,6 +66,8 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
   };
 
   const isDisabled = disabled || isSubmitting;
+  const selectedType = testTypes.find((t) => t.id === formData.testType);
+  const hasMultipleVariants = selectedType && selectedType.variants && selectedType.variants.length > 1;
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -52,7 +79,7 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
         <select
           id="testType"
           value={formData.testType}
-          onChange={(e) => setFormData({ ...formData, testType: e.target.value })}
+          onChange={(e) => handleTestTypeChange(e.target.value)}
           disabled={isDisabled}
           className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
         >
@@ -64,7 +91,6 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
         </select>
         {/* 显示描述：优先后端返回，其次 i18n fallback */}
         {(() => {
-          const selectedType = testTypes.find((t) => t.id === formData.testType);
           const description =
             selectedType?.description ||
             t(`selftest.testTypeDescriptions.${formData.testType}`, { defaultValue: '' });
@@ -73,6 +99,31 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
           ) : null;
         })()}
       </div>
+
+      {/* Payload 变体选择（仅在有多个变体时显示） */}
+      {hasMultipleVariants && (
+        <div>
+          <label htmlFor="payloadVariant" className="block text-sm font-medium text-primary mb-2">
+            {t('selftest.form.payloadVariant')}
+          </label>
+          <select
+            id="payloadVariant"
+            value={formData.payloadVariant}
+            onChange={(e) => setFormData({ ...formData, payloadVariant: e.target.value })}
+            disabled={isDisabled}
+            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+          >
+            {selectedType!.variants
+              .slice()
+              .sort((a, b) => a.order - b.order)
+              .map((v) => (
+                <option key={v.id} value={v.id}>
+                  {t(`selftest.payloadVariants.${v.id}`, { defaultValue: v.id })}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
 
       {/* API URL 输入 */}
       <div>

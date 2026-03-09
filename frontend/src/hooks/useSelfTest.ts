@@ -117,6 +117,7 @@ export const useSelfTest = (): UseSelfTestReturn => {
       try {
         const request: CreateTestRequest = {
           test_type: data.testType,
+          payload_variant: data.payloadVariant || undefined,
           api_url: data.apiUrl,
           api_key: data.apiKey,
         };

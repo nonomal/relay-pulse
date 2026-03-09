@@ -12,9 +12,10 @@ import (
 
 // CreateTestRequest 创建测试请求
 type CreateTestRequest struct {
-	TestType string `json:"test_type" binding:"required"`
-	APIURL   string `json:"api_url" binding:"required,url,max=500"`
-	APIKey   string `json:"api_key" binding:"required,min=10,max=200"`
+	TestType       string `json:"test_type" binding:"required"`
+	PayloadVariant string `json:"payload_variant" binding:"omitempty,max=64"`
+	APIURL         string `json:"api_url" binding:"required,url,max=500"`
+	APIKey         string `json:"api_key" binding:"required,min=10,max=200"`
 }
 
 // ErrorResponse 自助测试错误响应（兼容旧版，仅在需要时附带 code）
@@ -25,18 +26,20 @@ type ErrorResponse struct {
 
 // CreateTestResponse 创建测试响应
 type CreateTestResponse struct {
-	ID        string `json:"id"`
-	Status    string `json:"status"`
-	QueuePos  int    `json:"queue_position,omitempty"`
-	CreatedAt int64  `json:"created_at"`
+	ID             string `json:"id"`
+	Status         string `json:"status"`
+	PayloadVariant string `json:"payload_variant"`
+	QueuePos       int    `json:"queue_position,omitempty"`
+	CreatedAt      int64  `json:"created_at"`
 }
 
 // GetTestResponse 获取测试响应
 type GetTestResponse struct {
-	ID       string `json:"id"`
-	Status   string `json:"status"`
-	QueuePos int    `json:"queue_position,omitempty"`
-	TestType string `json:"test_type"`
+	ID             string `json:"id"`
+	Status         string `json:"status"`
+	QueuePos       int    `json:"queue_position,omitempty"`
+	TestType       string `json:"test_type"`
+	PayloadVariant string `json:"payload_variant"`
 
 	// 结果字段（完成后有值）
 	ProbeStatus     *int    `json:"probe_status,omitempty"`
@@ -62,9 +65,11 @@ type SelfTestConfigResponse struct {
 
 // TestTypeInfo 测试类型信息
 type TestTypeInfo struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID             string                     `json:"id"`
+	Name           string                     `json:"name"`
+	Description    string                     `json:"description"`
+	DefaultVariant string                     `json:"default_variant"`
+	Variants       []*selftest.PayloadVariant `json:"variants"`
 }
 
 // CreateSelfTest 创建自助测试任务
@@ -105,6 +110,7 @@ func (h *Handler) CreateSelfTest(c *gin.Context) {
 		req.TestType,
 		req.APIURL,
 		req.APIKey,
+		req.PayloadVariant,
 	)
 	if err != nil {
 		logger.Error("selftest", "Failed to create job",
@@ -116,7 +122,7 @@ func (h *Handler) CreateSelfTest(c *gin.Context) {
 		switch code {
 		case selftest.ErrCodeQueueFull:
 			statusCode = http.StatusServiceUnavailable
-		case selftest.ErrCodeInvalidURL, selftest.ErrCodeUnknownTestType:
+		case selftest.ErrCodeInvalidURL, selftest.ErrCodeUnknownTestType, selftest.ErrCodeUnknownVariant:
 			statusCode = http.StatusBadRequest
 		}
 
@@ -139,10 +145,11 @@ func (h *Handler) CreateSelfTest(c *gin.Context) {
 
 	// 返回响应
 	resp := CreateTestResponse{
-		ID:        job.ID,
-		Status:    string(job.Status),
-		QueuePos:  job.QueuePos,
-		CreatedAt: job.CreatedAt.Unix(),
+		ID:             job.ID,
+		Status:         string(job.Status),
+		PayloadVariant: job.PayloadVariant,
+		QueuePos:       job.QueuePos,
+		CreatedAt:      job.CreatedAt.Unix(),
 	}
 
 	logger.Info("selftest", "Job created",
@@ -192,11 +199,12 @@ func (h *Handler) GetSelfTest(c *gin.Context) {
 
 	// 构造响应
 	resp := GetTestResponse{
-		ID:        job.ID,
-		Status:    string(job.Status),
-		QueuePos:  job.QueuePos,
-		TestType:  job.TestType,
-		CreatedAt: job.CreatedAt.Unix(),
+		ID:             job.ID,
+		Status:         string(job.Status),
+		QueuePos:       job.QueuePos,
+		TestType:       job.TestType,
+		PayloadVariant: job.PayloadVariant,
+		CreatedAt:      job.CreatedAt.Unix(),
 	}
 
 	// 如果已开始，添加开始时间
@@ -273,9 +281,11 @@ func (h *Handler) GetTestTypes(c *gin.Context) {
 	var response []TestTypeInfo
 	for _, t := range types {
 		response = append(response, TestTypeInfo{
-			ID:          t.ID,
-			Name:        t.Name,
-			Description: t.Description,
+			ID:             t.ID,
+			Name:           t.Name,
+			Description:    t.Description,
+			DefaultVariant: t.DefaultVariant,
+			Variants:       t.Variants,
 		})
 	}
 

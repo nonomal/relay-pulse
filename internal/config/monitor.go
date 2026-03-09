@@ -113,7 +113,7 @@ type ServiceConfig struct {
 	// 解析后的巡检间隔（可选，为空时使用全局 interval）
 	IntervalDuration time.Duration `yaml:"-" json:"-"`
 
-	// BodyTemplateName 请求体模板文件名（如 cc_base.json）
+	// BodyTemplateName 请求体模板文件名（如 cc-haiku-base.json）
 	// 在配置加载时从 body: "!include data/xxx.json" 提取，供 API 返回
 	BodyTemplateName string `yaml:"-" json:"-"`
 
@@ -171,6 +171,21 @@ func (m *ServiceConfig) ProcessPlaceholders() {
 	m.Body = strings.ReplaceAll(m.Body, "{{MODEL}}", m.Model)
 }
 
+// bodyIncludeAliases 提供旧模板名到新模板名的兼容映射（向后兼容旧 config.yaml）
+var bodyIncludeAliases = map[string]string{
+	"cc_base.json":                        "cc-haiku-base.json",
+	"cc_tiny.json":                        "cc-haiku-tiny.json",
+	"cc_tiny_opus.json":                   "cc-opus-tiny.json",
+	"cc_tiny_sonnet.json":                 "cc-sonnet-tiny.json",
+	"cx_base.json":                        "cx-codex-base.json",
+	"cx_base_251223.json":                 "cx-gpt52-base.json",
+	"cx_base_gpt-5.2.json":                "cx-gpt52-base.json",
+	"cx_base_gpt-gpt-5.1-codex-max.json":  "cx-codexmax-base.json",
+	"cx_base_gpt-gpt-5.1-codex-mini.json": "cx-codexmini-base.json",
+	"gm_base.json":                        "gm-base.json",
+	"gm_base_thinking.json":               "gm-thinking.json",
+}
+
 // resolveBodyInclude 解析 body 字段中的 !include 指令
 func (m *ServiceConfig) resolveBodyInclude(configDir string) error {
 	const includePrefix = "!include "
@@ -201,7 +216,30 @@ func (m *ServiceConfig) resolveBodyInclude(configDir string) error {
 
 	content, err := os.ReadFile(targetPath)
 	if err != nil {
-		return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
+		if !os.IsNotExist(err) {
+			return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
+		}
+
+		// 文件不存在时尝试别名映射（旧文件名 → 新文件名）
+		aliasName, ok := bodyIncludeAliases[filepath.Base(cleanPath)]
+		if !ok {
+			return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
+		}
+
+		aliasPath := filepath.Join(filepath.Dir(cleanPath), aliasName)
+		aliasTargetPath := filepath.Clean(filepath.Join(configDir, aliasPath))
+		if aliasTargetPath != dataDir && !strings.HasPrefix(aliasTargetPath, dataDir+string(os.PathSeparator)) {
+			return fmt.Errorf("monitor provider=%s service=%s: body include 路径必须位于 data/ 目录", m.Provider, m.Service)
+		}
+
+		content, err = os.ReadFile(aliasTargetPath)
+		if err != nil {
+			return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
+		}
+
+		m.BodyTemplateName = aliasName
+		m.Body = string(content)
+		return nil
 	}
 
 	// 提取模板文件名（供 API 返回）

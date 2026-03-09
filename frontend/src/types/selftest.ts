@@ -3,16 +3,26 @@
 // 任务状态
 export type JobStatus = 'queued' | 'running' | 'success' | 'failed' | 'timeout' | 'canceled';
 
+// Payload 变体
+export interface PayloadVariant {
+  id: string;
+  filename: string;
+  order: number;
+}
+
 // 测试类型
 export interface TestType {
   id: string;
   name: string;
   description: string;
+  default_variant: string;
+  variants: PayloadVariant[];
 }
 
 // 表单数据
 export interface SelfTestFormData {
   testType: string;
+  payloadVariant: string;
   apiUrl: string;
   apiKey: string;
 }
@@ -20,6 +30,7 @@ export interface SelfTestFormData {
 // 创建测试请求
 export interface CreateTestRequest {
   test_type: string;
+  payload_variant?: string;
   api_url: string;
   api_key: string;
 }
@@ -28,6 +39,7 @@ export interface CreateTestRequest {
 export interface CreateTestResponse {
   id: string;
   status: JobStatus;
+  payload_variant: string;
   queue_position?: number;
   created_at: number;
 }
@@ -38,6 +50,7 @@ export interface TestJobDetail {
   status: JobStatus;
   queue_position?: number;
   test_type: string;
+  payload_variant: string;
 
   // 结果字段（完成后有值）
   probe_status?: number; // 1/0/2 (green/red/yellow)

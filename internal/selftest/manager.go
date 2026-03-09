@@ -109,7 +109,7 @@ func NewTestJobManager(
 // CreateJob creates a new test job and enqueues it
 // Returns the job ID and any error
 func (m *TestJobManager) CreateJob(
-	testType, apiURL, apiKey string,
+	testType, apiURL, apiKey, payloadVariant string,
 ) (*TestJob, error) {
 	// 1. SSRF protection
 	if err := m.ssrfGuard.ValidateURL(apiURL); err != nil {
@@ -130,6 +130,12 @@ func (m *TestJobManager) CreateJob(
 		}
 	}
 
+	// 3. Payload variant validation
+	resolvedVariant, err := testTypeDef.ResolveVariant(payloadVariant)
+	if err != nil {
+		return nil, err
+	}
+
 	// 4. Check queue capacity
 	m.mu.Lock()
 	if len(m.queue) >= m.maxQueueSize {
@@ -143,13 +149,14 @@ func (m *TestJobManager) CreateJob(
 
 	// 5. Create job
 	job := &TestJob{
-		ID:        uuid.New().String(),
-		TestType:  testType,
-		APIURL:    apiURL,
-		APIKey:    apiKey, // Stored in memory only, never serialized
-		Status:    StatusQueued,
-		QueuePos:  len(m.queue) + 1,
-		CreatedAt: time.Now(),
+		ID:             uuid.New().String(),
+		TestType:       testType,
+		PayloadVariant: resolvedVariant.ID,
+		APIURL:         apiURL,
+		APIKey:         apiKey, // Stored in memory only, never serialized
+		Status:         StatusQueued,
+		QueuePos:       len(m.queue) + 1,
+		CreatedAt:      time.Now(),
 	}
 
 	// 6. Enqueue
@@ -162,9 +169,6 @@ func (m *TestJobManager) CreateJob(
 
 	// 7. Try to schedule immediately
 	m.scheduleNext()
-
-	// Store test type definition for later use
-	_ = testTypeDef // We'll use this in worker
 
 	// 8. Return snapshot to avoid data race with worker
 	// Worker may have already started modifying job fields after scheduleNext()
@@ -237,6 +241,7 @@ func (m *TestJobManager) worker(job *TestJob) {
 	// Get test type definition (读取 job 字段需要加锁)
 	job.mu.RLock()
 	testType := job.TestType
+	payloadVariant := job.PayloadVariant
 	apiURL := job.APIURL
 	apiKey := job.APIKey
 	job.mu.RUnlock()
@@ -252,8 +257,19 @@ func (m *TestJobManager) worker(job *TestJob) {
 		return
 	}
 
+	variant, err := testTypeDef.ResolveVariant(payloadVariant)
+	if err != nil {
+		now := time.Now()
+		job.mu.Lock()
+		job.Status = StatusFailed
+		job.ErrorMessage = fmt.Sprintf("failed to resolve payload variant: %v", err)
+		job.FinishedAt = &now
+		job.mu.Unlock()
+		return
+	}
+
 	// Build probe configuration
-	cfg, err := testTypeDef.Builder.Build(apiURL, apiKey)
+	cfg, err := testTypeDef.Builder.Build(apiURL, apiKey, variant)
 	if err != nil {
 		now := time.Now()
 		job.mu.Lock()

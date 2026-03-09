@@ -30,12 +30,13 @@ type TestJob struct {
 	mu sync.RWMutex `json:"-"`
 
 	// Basic identifiers
-	ID       string    `json:"id"`        // UUID
-	TestType string    `json:"test_type"` // "cc", "cx", etc.
-	APIURL   string    `json:"api_url"`
-	APIKey   string    `json:"-"` // Never serialize to JSON for security
-	Status   JobStatus `json:"status"`
-	QueuePos int       `json:"queue_position,omitempty"` // Only valid when Status == StatusQueued
+	ID             string    `json:"id"`              // UUID
+	TestType       string    `json:"test_type"`       // "cc", "cx", etc.
+	PayloadVariant string    `json:"payload_variant"` // 选中的 payload 变体 ID
+	APIURL         string    `json:"api_url"`
+	APIKey         string    `json:"-"` // Never serialize to JSON for security
+	Status         JobStatus `json:"status"`
+	QueuePos       int       `json:"queue_position,omitempty"` // Only valid when Status == StatusQueued
 
 	// Result fields (populated after completion)
 	ProbeStatus     int    `json:"probe_status,omitempty"`     // 1/0/2 (green/red/yellow)
@@ -63,6 +64,7 @@ func (j *TestJob) Snapshot() *TestJob {
 	return &TestJob{
 		ID:              j.ID,
 		TestType:        j.TestType,
+		PayloadVariant:  j.PayloadVariant,
 		APIURL:          j.APIURL,
 		APIKey:          "", // 永不对外暴露
 		Status:          j.Status,
