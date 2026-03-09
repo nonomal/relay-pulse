@@ -11,7 +11,7 @@
 	},
 	"body": {
 		"metadata": {
-			"user_id": "{{USER_ID}}"
+			"user_id": "user_792947a564a6115d55aa5c893375560ddb084839f527d391eff418ed7f95464b_account__session_792947a5-64a6-115d-55aa-5c893375560d"
 		},
 		"system": [{
 			"text": "You are Claude Code, Anthropic's official CLI for Claude.",
@@ -26,7 +26,7 @@
 				"type": "text"
 			}]
 		}],
-		"model": "{{MODEL}}",
+		"model": "claude-sonnet-4-5-20250929",
 		"tools": []
 	},
 	"response": {
