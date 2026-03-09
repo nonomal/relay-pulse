@@ -118,7 +118,7 @@ export const SelfTestForm: React.FC<SelfTestFormProps> = ({ onSubmit, isSubmitti
               .sort((a, b) => a.order - b.order)
               .map((v) => (
                 <option key={v.id} value={v.id}>
-                  {t(`selftest.payloadVariants.${v.id}`, { defaultValue: v.id })}
+                  {t(`selftest.payloadVariants.${v.id}`, { defaultValue: v.id })} ({v.filename})
                 </option>
               ))}
           </select>
