@@ -52,15 +52,19 @@ func (p *SelfTestProber) Probe(ctx context.Context, cfg *config.ServiceConfig) *
 		Latency:   0,
 	}
 
-	reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(cfg.Body)))
-	req, err := http.NewRequestWithContext(ctx, cfg.Method, cfg.URL, reqBody)
+	// 变量注入（复用 monitor.InjectVariables）
+	probeURL, probeBody, probeHeaders, probeSuccessContains := monitor.InjectVariables(cfg, nil)
+	// 使用注入后的 successContains（支持 {{EXPECTED_ANSWER}} 等占位符）
+
+	reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(probeBody)))
+	req, err := http.NewRequestWithContext(ctx, cfg.Method, probeURL, reqBody)
 	if err != nil {
 		result.SubStatus = "invalid_request"
 		result.Err = fmt.Errorf("创建请求失败: %w", err)
 		return result
 	}
 
-	for k, v := range cfg.Headers {
+	for k, v := range probeHeaders {
 		req.Header.Set(k, v)
 	}
 
@@ -103,9 +107,9 @@ func (p *SelfTestProber) Probe(ctx context.Context, cfg *config.ServiceConfig) *
 
 	// 内容校验：仅对非红状态做进一步判断（避免误把网络错误覆盖为内容不匹配）
 	// 使用 monitor 的 SSE 聚合逻辑提取语义文本，支持流式响应的内容匹配
-	if result.Status != 0 && strings.TrimSpace(cfg.SuccessContains) != "" {
+	if result.Status != 0 && strings.TrimSpace(probeSuccessContains) != "" {
 		text := monitor.AggregateResponseText(body)
-		if text == "" || !strings.Contains(text, cfg.SuccessContains) {
+		if text == "" || !strings.Contains(text, probeSuccessContains) {
 			result.Status = 0
 			result.SubStatus = "content_mismatch"
 			result.Err = fmt.Errorf("响应内容未包含预期关键字")

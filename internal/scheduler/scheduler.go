@@ -84,9 +84,9 @@ type Scheduler struct {
 }
 
 // NewScheduler 创建调度器
-func NewScheduler(store storage.Storage, interval time.Duration) *Scheduler {
+func NewScheduler(store storage.Storage, interval time.Duration, userIDMgr *config.UserIDManager) *Scheduler {
 	return &Scheduler{
-		prober:   monitor.NewProber(store),
+		prober:   monitor.NewProber(store, userIDMgr),
 		fallback: interval,
 		wakeCh:   make(chan struct{}, 1),
 	}

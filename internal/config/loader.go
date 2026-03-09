@@ -46,19 +46,14 @@ func (l *Loader) Load(filename string) (*AppConfig, error) {
 	// 应用环境变量覆盖
 	cfg.ApplyEnvOverrides()
 
-	// 解析 body include
-	if err := cfg.ResolveBodyIncludes(configDir); err != nil {
+	// 解析模板引用
+	if err := cfg.ResolveTemplates(configDir); err != nil {
 		return nil, err
 	}
 
 	// 规范化配置（填充默认值等）
 	if err := cfg.Normalize(); err != nil {
 		return nil, fmt.Errorf("配置规范化失败: %w", err)
-	}
-
-	// 处理占位符
-	for i := range cfg.Monitors {
-		cfg.Monitors[i].ProcessPlaceholders()
 	}
 
 	l.currentConfig = &cfg

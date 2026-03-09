@@ -10,22 +10,24 @@ func TestValidateMonitorsUniqueByQuadruple(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "gpt-4o",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "gpt-4o",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "gpt-4o",
-				URL:      "https://example.com/2",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "gpt-4o",
+				BaseURL:    "https://example.com/2",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 		},
 	}
@@ -40,13 +42,14 @@ func TestValidateParentRequiresModel(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
 				Provider: "demo",
@@ -68,12 +71,13 @@ func TestValidateReferencedParentRequiresModel(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
 				Provider: "demo",
@@ -96,13 +100,14 @@ func TestValidateParentFormatError(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
 				Provider: "demo",
@@ -145,22 +150,24 @@ func TestValidateParentMultipleDefinitions(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base-a",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base-a",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base-b",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base-b",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
 				Provider: "demo",
@@ -187,7 +194,8 @@ func TestNormalizeAppliesParentInheritanceAndTemplates(t *testing.T) {
 				Service:         "cc",
 				Channel:         "vip",
 				Model:           "base",
-				URL:             "https://example.com",
+				BaseURL:         "https://example.com",
+				URLPattern:      "{{BASE_URL}}",
 				Method:          "POST",
 				Category:        "public",
 				APIKey:          "k",
@@ -217,8 +225,8 @@ func TestNormalizeAppliesParentInheritanceAndTemplates(t *testing.T) {
 	if child.APIKey != "k" {
 		t.Fatalf("child.APIKey = %q, want %q", child.APIKey, "k")
 	}
-	if child.URL != "https://example.com" {
-		t.Fatalf("child.URL = %q, want %q", child.URL, "https://example.com")
+	if child.BaseURL != "https://example.com" {
+		t.Fatalf("child.BaseURL = %q, want %q", child.BaseURL, "https://example.com")
 	}
 	if child.Method != "POST" {
 		t.Fatalf("child.Method = %q, want %q", child.Method, "POST")
@@ -238,17 +246,6 @@ func TestNormalizeAppliesParentInheritanceAndTemplates(t *testing.T) {
 	if _, exists := cfg.Monitors[0].Headers["X-Test"]; exists {
 		t.Fatalf("期望 child.Headers 为深拷贝，但父 headers 被污染")
 	}
-
-	child.ProcessPlaceholders()
-	if child.Headers["Authorization"] != "Bearer k" {
-		t.Fatalf("Authorization placeholder not replaced, got=%q", child.Headers["Authorization"])
-	}
-	if child.Headers["X-Model"] != "child" {
-		t.Fatalf("MODEL placeholder not replaced, got=%q", child.Headers["X-Model"])
-	}
-	if child.Body != `{"model":"child","api_key":"k"}` {
-		t.Fatalf("Body placeholders not replaced, got=%q", child.Body)
-	}
 }
 
 // TestChildInheritsProviderServiceChannel 验证子项可以省略 provider/service/channel，从 parent 路径自动继承
@@ -256,13 +253,14 @@ func TestChildInheritsProviderServiceChannel(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
 			},
 			{
 				// 子项只需 parent + model，无需指定 provider/service/channel
@@ -334,13 +332,14 @@ func TestChildCannotOverrideProviderServiceChannel(t *testing.T) {
 			cfg := &AppConfig{
 				Monitors: []ServiceConfig{
 					{
-						Provider: "demo",
-						Service:  "cc",
-						Channel:  "vip",
-						Model:    "base",
-						URL:      "https://example.com",
-						Method:   "POST",
-						Category: "public",
+						Provider:   "demo",
+						Service:    "cc",
+						Channel:    "vip",
+						Model:      "base",
+						BaseURL:    "https://example.com",
+						URLPattern: "{{BASE_URL}}",
+						Method:     "POST",
+						Category:   "public",
 					},
 					tt.child,
 				},
@@ -359,13 +358,14 @@ func TestChildInheritsCategoryFromParent(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "commercial",
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "commercial",
 			},
 			{
 				// 子项只需 parent + model，无需 category
@@ -401,7 +401,8 @@ func TestChildInheritsDurationFieldsFromParent(t *testing.T) {
 				Service:     "cc",
 				Channel:     "vip",
 				Model:       "base",
-				URL:         "https://example.com",
+				BaseURL:     "https://example.com",
+				URLPattern:  "{{BASE_URL}}",
 				Method:      "POST",
 				Category:    "public",
 				Interval:    "1m",  // 父通道自定义 interval
@@ -473,7 +474,8 @@ func TestChildOwnDurationFieldsNotOverwritten(t *testing.T) {
 				Service:     "cc",
 				Channel:     "vip",
 				Model:       "base",
-				URL:         "https://example.com",
+				BaseURL:     "https://example.com",
+				URLPattern:  "{{BASE_URL}}",
 				Method:      "POST",
 				Category:    "public",
 				Interval:    "1m",
@@ -522,7 +524,8 @@ func TestChildInheritsBoardFromParent(t *testing.T) {
 				Service:    "cc",
 				Channel:    "vip",
 				Model:      "base",
-				URL:        "https://example.com",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
 				Method:     "POST",
 				Category:   "public",
 				Board:      "cold",
@@ -567,7 +570,8 @@ func TestChildExplicitBoardNotOverwritten(t *testing.T) {
 				Service:    "cc",
 				Channel:    "vip",
 				Model:      "base",
-				URL:        "https://example.com",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
 				Method:     "POST",
 				Category:   "public",
 				Board:      "cold",
@@ -614,7 +618,8 @@ func TestChildInheritsProviderSlugFromParent(t *testing.T) {
 				Service:      "cc",
 				Channel:      "vip",
 				Model:        "base",
-				URL:          "https://example.com",
+				BaseURL:      "https://example.com",
+				URLPattern:   "{{BASE_URL}}",
 				Method:       "POST",
 				Category:     "public",
 				ProviderSlug: "custom-slug", // 父通道自定义 slug
@@ -653,7 +658,8 @@ func TestChildExplicitProviderSlugNotOverwritten(t *testing.T) {
 				Service:      "cc",
 				Channel:      "vip",
 				Model:        "base",
-				URL:          "https://example.com",
+				BaseURL:      "https://example.com",
+				URLPattern:   "{{BASE_URL}}",
 				Method:       "POST",
 				Category:     "public",
 				ProviderSlug: "parent-slug",
@@ -691,7 +697,8 @@ func TestChildInheritsProviderNameFromParent(t *testing.T) {
 				Service:      "cc",
 				Channel:      "vip",
 				Model:        "base",
-				URL:          "https://example.com",
+				BaseURL:      "https://example.com",
+				URLPattern:   "{{BASE_URL}}",
 				Method:       "POST",
 				Category:     "public",
 				ProviderName: "演示服务商",
@@ -737,14 +744,15 @@ func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
 		},
 		Monitors: []ServiceConfig{
 			{
-				Provider: "demo",
-				Service:  "cc",
-				Channel:  "vip",
-				Model:    "base",
-				URL:      "https://example.com",
-				Method:   "POST",
-				Category: "public",
-				Badges:   []BadgeRef{{ID: "api_key_user"}},
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
+				Badges:     []BadgeRef{{ID: "api_key_user"}},
 			},
 			{
 				Model:    "child",
@@ -771,20 +779,21 @@ func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
 	}
 }
 
-// TestChildInheritsBodyTemplateNameFromParent 验证子项继承 body 时同步继承 BodyTemplateName
-func TestChildInheritsBodyTemplateNameFromParent(t *testing.T) {
+// TestChildInheritsTemplateFromParent 验证子项继承 body 时同步继承 Template
+func TestChildInheritsTemplateFromParent(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
 			{
-				Provider:         "demo",
-				Service:          "cc",
-				Channel:          "vip",
-				Model:            "base",
-				URL:              "https://example.com",
-				Method:           "POST",
-				Category:         "public",
-				Body:             `{"foo":"bar"}`,
-				BodyTemplateName: "cc_base.json", // 模拟 ResolveBodyIncludes 的结果
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				Category:   "public",
+				Body:       `{"foo":"bar"}`,
+				Template:   "cc_base.json",
 			},
 			{
 				Model:    "child",
@@ -806,7 +815,7 @@ func TestChildInheritsBodyTemplateNameFromParent(t *testing.T) {
 	if child.Body != `{"foo":"bar"}` {
 		t.Fatalf("child.Body = %q, want inherited body", child.Body)
 	}
-	if child.BodyTemplateName != "cc_base.json" {
-		t.Fatalf("child.BodyTemplateName = %q, want %q", child.BodyTemplateName, "cc_base.json")
+	if child.Template != "cc_base.json" {
+		t.Fatalf("child.Template = %q, want %q", child.Template, "cc_base.json")
 	}
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -87,11 +88,54 @@ func (c *AppConfig) ApplyEnvOverrides() {
 	}
 }
 
-// ResolveBodyIncludes 允许 body 字段引用 data/ 目录下的 JSON 文件
-func (c *AppConfig) ResolveBodyIncludes(configDir string) error {
+// ResolveTemplates 加载 template 字段引用的 JSON 模板文件，填充 ServiceConfig 中为空的字段
+func (c *AppConfig) ResolveTemplates(configDir string) error {
 	for i := range c.Monitors {
-		if err := c.Monitors[i].resolveBodyInclude(configDir); err != nil {
-			return err
+		m := &c.Monitors[i]
+		if m.Template == "" {
+			continue
+		}
+
+		filePath := filepath.Join(configDir, "data", m.Template+".json")
+		tmpl, err := LoadProbeTemplate(filePath)
+		if err != nil {
+			return fmt.Errorf("monitor[%d] provider=%s service=%s: %w", i, m.Provider, m.Service, err)
+		}
+
+		// 仅填充为空的字段（config > template）
+		if m.Method == "" {
+			m.Method = tmpl.Method
+		}
+		if m.Body == "" && len(tmpl.BodyRaw) > 0 {
+			m.Body = string(tmpl.BodyRaw)
+		}
+		if m.SuccessContains == "" {
+			m.SuccessContains = tmpl.SuccessContains
+		}
+
+		// 模板默认 slow_latency/timeout（仅当 monitor 未显式配置时填充）
+		if strings.TrimSpace(m.SlowLatency) == "" && tmpl.SlowLatency != "" {
+			m.SlowLatency = tmpl.SlowLatency
+		}
+		if strings.TrimSpace(m.Timeout) == "" && tmpl.Timeout != "" {
+			m.Timeout = tmpl.Timeout
+		}
+
+		// Headers 合并策略：模板为基础，config 覆盖
+		if len(tmpl.Headers) > 0 {
+			merged := make(map[string]string, len(tmpl.Headers)+len(m.Headers))
+			for k, v := range tmpl.Headers {
+				merged[k] = v
+			}
+			for k, v := range m.Headers {
+				merged[k] = v // config 覆盖模板
+			}
+			m.Headers = merged
+		}
+
+		// URL 模式：模板的 url 字段存入 URLPattern，探测期通过 InjectVariables 替换
+		if m.URLPattern == "" && tmpl.URL != "" {
+			m.URLPattern = tmpl.URL
 		}
 	}
 	return nil

@@ -19,6 +19,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"monitor/internal/config"
+	"monitor/internal/monitor"
 )
 
 func main() {
@@ -145,13 +146,16 @@ func main() {
 		}
 	}
 
+	// 变量注入：替换模板占位符
+	probeURL, probeBody, probeHeaders, _ := monitor.InjectVariables(target, nil)
+
 	// 构建输出标识
 	var targetInfo string
 	if standaloneMode {
-		displayURL := target.URL
+		displayURL := probeURL
 		// GM 模式 URL 中包含 API key，脱敏显示
 		if strings.ToLower(*typeFlag) == "gm" {
-			if u, err := url.Parse(target.URL); err == nil {
+			if u, err := url.Parse(probeURL); err == nil {
 				q := u.Query()
 				if k := q.Get("key"); k != "" {
 					q.Set("key", k[:min(6, len(k))]+"***")
@@ -178,10 +182,10 @@ func main() {
 		if target.Model != "" {
 			fmt.Printf("  Model: %s\n", target.Model)
 		}
-		verboseURL := target.URL
+		verboseURL := probeURL
 		// GM 模式 URL 中包含 API key，脱敏显示
 		if standaloneMode && strings.ToLower(*typeFlag) == "gm" {
-			if u, err := url.Parse(target.URL); err == nil {
+			if u, err := url.Parse(probeURL); err == nil {
 				q := u.Query()
 				if k := q.Get("key"); k != "" {
 					q.Set("key", k[:min(6, len(k))]+"***")
@@ -194,39 +198,37 @@ func main() {
 		fmt.Printf("  Method: %s\n", target.Method)
 		fmt.Printf("  Success Contains: %s\n", target.SuccessContains)
 		fmt.Printf("  Headers:\n")
-		for k, v := range target.Headers {
+		for k, v := range probeHeaders {
 			// 隐藏 API key
 			if strings.Contains(strings.ToLower(k), "key") || strings.Contains(strings.ToLower(k), "auth") {
 				v = v[:min(10, len(v))] + "..."
 			}
 			fmt.Printf("    %s: %s\n", k, v)
 		}
-		fmt.Printf("  Body (%d bytes):\n", len(target.Body))
-		if len(target.Body) > 200 {
-			fmt.Printf("    %s...\n", target.Body[:200])
+		fmt.Printf("  Body (%d bytes):\n", len(probeBody))
+		if len(probeBody) > 200 {
+			fmt.Printf("    %s...\n", probeBody[:200])
 		} else {
-			fmt.Printf("    %s\n", target.Body)
+			fmt.Printf("    %s\n", probeBody)
 		}
 		fmt.Println()
 	}
 
 	// 构建请求
 	var body io.Reader
-	if target.Body != "" {
-		// 去除首尾空白字符（某些 API 对此敏感）
-		trimmedBody := strings.TrimSpace(target.Body)
+	if probeBody != "" {
+		trimmedBody := strings.TrimSpace(probeBody)
 		body = bytes.NewBufferString(trimmedBody)
 	}
 
-	req, err := http.NewRequest(target.Method, target.URL, body)
+	req, err := http.NewRequest(target.Method, probeURL, body)
 	if err != nil {
 		fmt.Printf("❌ 构建请求失败: %v\n", err)
 		os.Exit(1)
 	}
 
 	// 设置 headers（使用原始大小写）
-	for k, v := range target.Headers {
-		// 直接操作 map 以保持原始大小写
+	for k, v := range probeHeaders {
 		req.Header[k] = []string{v}
 	}
 
@@ -393,12 +395,13 @@ func buildCCConfig(rawURL, apiKey, model string) (*config.ServiceConfig, error) 
 		return nil, fmt.Errorf("构建 cc 请求体失败: %w", err)
 	}
 	return &config.ServiceConfig{
-		Provider: "standalone",
-		Service:  "cc",
-		Channel:  "cc",
-		Model:    model,
-		URL:      rawURL,
-		Method:   "POST",
+		Provider:   "standalone",
+		Service:    "cc",
+		Channel:    "cc",
+		Model:      model,
+		BaseURL:    rawURL,
+		URLPattern: "{{BASE_URL}}",
+		Method:     "POST",
 		Headers: map[string]string{
 			"authorization":     "Bearer " + apiKey,
 			"anthropic-version": "2023-06-01",
@@ -426,12 +429,13 @@ func buildCXConfig(rawURL, apiKey, model string) (*config.ServiceConfig, error) 
 		return nil, fmt.Errorf("构建 cx 请求体失败: %w", err)
 	}
 	return &config.ServiceConfig{
-		Provider: "standalone",
-		Service:  "cx",
-		Channel:  "cx",
-		Model:    model,
-		URL:      rawURL,
-		Method:   "POST",
+		Provider:   "standalone",
+		Service:    "cx",
+		Channel:    "cx",
+		Model:      model,
+		BaseURL:    rawURL,
+		URLPattern: "{{BASE_URL}}",
+		Method:     "POST",
 		Headers: map[string]string{
 			"Authorization": "Bearer " + apiKey,
 			"Content-Type":  "application/json",
@@ -443,14 +447,6 @@ func buildCXConfig(rawURL, apiKey, model string) (*config.ServiceConfig, error) 
 
 // buildGMConfig 构建 Gemini API 的 ServiceConfig。
 func buildGMConfig(rawURL, apiKey string) (*config.ServiceConfig, error) {
-	parsedURL, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, fmt.Errorf("无效的 -url: %w", err)
-	}
-	query := parsedURL.Query()
-	query.Set("key", apiKey)
-	parsedURL.RawQuery = query.Encode()
-
 	body, err := json.Marshal(map[string]any{
 		"contents": []map[string]any{{
 			"role": "user",
@@ -467,11 +463,13 @@ func buildGMConfig(rawURL, apiKey string) (*config.ServiceConfig, error) {
 		return nil, fmt.Errorf("构建 gm 请求体失败: %w", err)
 	}
 	return &config.ServiceConfig{
-		Provider: "standalone",
-		Service:  "gm",
-		Channel:  "gm",
-		URL:      parsedURL.String(),
-		Method:   "POST",
+		Provider:   "standalone",
+		Service:    "gm",
+		Channel:    "gm",
+		BaseURL:    rawURL,
+		URLPattern: "{{BASE_URL}}?key={{API_KEY}}",
+		APIKey:     apiKey,
+		Method:     "POST",
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},

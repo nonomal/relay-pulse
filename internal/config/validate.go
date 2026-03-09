@@ -284,12 +284,15 @@ func (c *AppConfig) validateMonitorFields() error {
 			return fmt.Errorf("monitor[%d]: category 不能为空（必须是 commercial 或 public）", i)
 		}
 
-		// URL 和 Method 对于非子通道是必填的（子通道可以继承）
-		if !hasParent && m.URL == "" {
-			return fmt.Errorf("monitor[%d]: URL 不能为空", i)
-		}
-		if !hasParent && m.Method == "" {
-			return fmt.Errorf("monitor[%d]: method 不能为空", i)
+		// 非子通道：需要有 template 或 base_url + method
+		// 有 template 时允许 base_url/method 为空（由模板提供）
+		if !hasParent && m.Template == "" {
+			if m.BaseURL == "" {
+				return fmt.Errorf("monitor[%d]: 未配置 template 时 base_url 不能为空", i)
+			}
+			if m.Method == "" {
+				return fmt.Errorf("monitor[%d]: 未配置 template 时 method 不能为空", i)
+			}
 		}
 
 		// Method 枚举检查（子通道允许留空继承）

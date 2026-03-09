@@ -7,12 +7,13 @@ import (
 // minimalMonitor 创建最小有效的监测配置
 func minimalMonitor(provider, service string) ServiceConfig {
 	return ServiceConfig{
-		Provider: provider,
-		Service:  service,
-		URL:      "https://example.com",
-		Method:   "POST",
-		Category: "public",
-		Sponsor:  "test",
+		Provider:   provider,
+		Service:    service,
+		BaseURL:    "https://example.com",
+		URLPattern: "{{BASE_URL}}",
+		Method:     "POST",
+		Category:   "public",
+		Sponsor:    "test",
 	}
 }
 
@@ -130,7 +131,8 @@ func TestDisabledNormalize(t *testing.T) {
 				{
 					Provider:       "provider-a",
 					Service:        "cc",
-					URL:            "https://example.com",
+					BaseURL:        "https://example.com",
+					URLPattern:     "{{BASE_URL}}",
 					Method:         "POST",
 					Category:       "public",
 					Sponsor:        "test",
@@ -158,7 +160,8 @@ func TestDisabledNormalize(t *testing.T) {
 				{
 					Provider:       "provider-a",
 					Service:        "cc",
-					URL:            "https://example.com",
+					BaseURL:        "https://example.com",
+					URLPattern:     "{{BASE_URL}}",
 					Method:         "POST",
 					Category:       "public",
 					Sponsor:        "test",

@@ -45,12 +45,13 @@ func TestMaxConcurrencyNormalize(t *testing.T) {
 				MaxConcurrency: tt.input,
 				Monitors: []ServiceConfig{
 					{
-						Provider: "test",
-						Service:  "test",
-						URL:      "https://example.com",
-						Method:   "POST",
-						Category: "public",
-						Sponsor:  "test",
+						Provider:   "test",
+						Service:    "test",
+						BaseURL:    "https://example.com",
+						URLPattern: "{{BASE_URL}}",
+						Method:     "POST",
+						Category:   "public",
+						Sponsor:    "test",
 					},
 				},
 			}

@@ -144,7 +144,8 @@ func main() {
 	if interval <= 0 {
 		interval = time.Minute
 	}
-	sched := scheduler.NewScheduler(store, interval)
+	userIDMgr := config.NewUserIDManager()
+	sched := scheduler.NewScheduler(store, interval, userIDMgr)
 
 	// 创建事件服务（如果启用）
 	eventSvc, err := events.NewService(events.ServiceConfig{

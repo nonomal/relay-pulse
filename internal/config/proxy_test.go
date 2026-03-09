@@ -83,13 +83,14 @@ func TestProxyNormalize(t *testing.T) {
 			cfg := &AppConfig{
 				Monitors: []ServiceConfig{
 					{
-						Provider: "test",
-						Service:  "test",
-						Channel:  "test",
-						Category: "commercial",
-						URL:      "http://test.com",
-						Method:   "GET",
-						Proxy:    tt.proxy,
+						Provider:   "test",
+						Service:    "test",
+						Channel:    "test",
+						Category:   "commercial",
+						BaseURL:    "http://test.com",
+						URLPattern: "{{BASE_URL}}",
+						Method:     "GET",
+						Proxy:      tt.proxy,
 					},
 				},
 			}
@@ -127,14 +128,15 @@ func TestProxyInheritance(t *testing.T) {
 				Monitors: []ServiceConfig{
 					// 父通道
 					{
-						Provider: "test",
-						Service:  "cc",
-						Channel:  "main",
-						Model:    "gpt-4",
-						Category: "commercial",
-						URL:      "http://test.com",
-						Method:   "POST",
-						Proxy:    tt.parentProxy,
+						Provider:   "test",
+						Service:    "cc",
+						Channel:    "main",
+						Model:      "gpt-4",
+						Category:   "commercial",
+						BaseURL:    "http://test.com",
+						URLPattern: "{{BASE_URL}}",
+						Method:     "POST",
+						Proxy:      tt.parentProxy,
 					},
 					// 子通道
 					{

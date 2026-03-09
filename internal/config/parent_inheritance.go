@@ -64,26 +64,31 @@ func (c *AppConfig) applyParentInheritance() error {
 }
 
 // inheritCoreBehavior 继承核心监测行为配置
-// 包括：APIKey、URL、Method、Body、BodyTemplateName、SuccessContains、EnvVarName、Proxy、Headers
+// 包括：APIKey、Template、BaseURL、Method、Body、SuccessContains、EnvVarName、Proxy、Headers、UserIDRefreshMinutes
 func inheritCoreBehavior(child, parent *ServiceConfig) {
 	if child.APIKey == "" {
 		child.APIKey = parent.APIKey
 	}
-	if child.URL == "" {
-		child.URL = parent.URL
+	if child.Template == "" {
+		child.Template = parent.Template
+	}
+	if child.BaseURL == "" {
+		child.BaseURL = parent.BaseURL
+	}
+	if child.URLPattern == "" {
+		child.URLPattern = parent.URLPattern
 	}
 	if child.Method == "" {
 		child.Method = parent.Method
 	}
 	if child.Body == "" {
 		child.Body = parent.Body
-		// Body 继承时一并继承 BodyTemplateName（用于 API 返回 template_name）
-		if child.BodyTemplateName == "" {
-			child.BodyTemplateName = parent.BodyTemplateName
-		}
 	}
 	if child.SuccessContains == "" {
 		child.SuccessContains = parent.SuccessContains
+	}
+	if child.UserIDRefreshMinutes == 0 {
+		child.UserIDRefreshMinutes = parent.UserIDRefreshMinutes
 	}
 	// 自定义环境变量名（用于 API Key 查找）
 	if child.EnvVarName == "" {
@@ -91,7 +96,6 @@ func inheritCoreBehavior(child, parent *ServiceConfig) {
 	}
 
 	// Proxy 继承（子通道可继承父通道的代理配置）
-	// 使用 TrimSpace 判空，与 Normalize 逻辑保持一致
 	if strings.TrimSpace(child.Proxy) == "" {
 		child.Proxy = parent.Proxy
 	}

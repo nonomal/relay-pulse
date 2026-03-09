@@ -1,0 +1,25 @@
+{
+	"url": "{{BASE_URL}}/v1beta/models/{{MODEL}}:generateContent",
+	"method": "POST",
+	"headers": {
+		"Content-Type": "application/json",
+		"x-goog-api-key": "{{API_KEY}}"
+	},
+	"body": {
+		"contents": [{
+			"role": "user",
+			"parts": [{
+				"text": "{{PROMPT}}"
+			}]
+		}],
+		"generationConfig": {
+			"temperature": 0,
+			"maxOutputTokens": 10
+		}
+	},
+	"response": {
+		"success_contains": "{{EXPECTED_ANSWER}}",
+		"slow_latency": "5s",
+		"timeout": "10s"
+	}
+}

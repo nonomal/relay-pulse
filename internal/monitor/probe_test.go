@@ -120,7 +120,7 @@ func TestEvaluateStatusWithGeminiSSENoEventLine(t *testing.T) {
 func TestDetermineStatus(t *testing.T) {
 	t.Parallel()
 
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	slow := 100 * time.Millisecond
 
 	cases := []struct {
@@ -302,7 +302,8 @@ func newTestCfg(url string) config.ServiceConfig {
 		Service:             "test-service",
 		Channel:             "test-ch",
 		Model:               "test-model",
-		URL:                 url,
+		BaseURL:             url,
+		URLPattern:          "{{BASE_URL}}",
 		Method:              http.MethodGet,
 		Headers:             map[string]string{},
 		SlowLatencyDuration: 200 * time.Millisecond,
@@ -311,7 +312,7 @@ func newTestCfg(url string) config.ServiceConfig {
 }
 
 func TestProbe_200OK(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -333,7 +334,7 @@ func TestProbe_200OK(t *testing.T) {
 }
 
 func TestProbe_500ServerError(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -353,7 +354,7 @@ func TestProbe_500ServerError(t *testing.T) {
 }
 
 func TestProbe_429RateLimit(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -370,7 +371,7 @@ func TestProbe_429RateLimit(t *testing.T) {
 }
 
 func TestProbe_RetrySuccess(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	var attempts int32
@@ -403,7 +404,7 @@ func TestProbe_RetrySuccess(t *testing.T) {
 }
 
 func TestProbe_Timeout(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -425,7 +426,7 @@ func TestProbe_Timeout(t *testing.T) {
 }
 
 func TestProbe_ContextCancel(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -445,7 +446,7 @@ func TestProbe_ContextCancel(t *testing.T) {
 }
 
 func TestProbe_ContentMismatch(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -464,7 +465,7 @@ func TestProbe_ContentMismatch(t *testing.T) {
 }
 
 func TestProbe_POST(t *testing.T) {
-	prober := NewProber(nil)
+	prober := NewProber(nil, nil)
 	defer prober.Close()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -913,8 +913,8 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 	shouldExpose := h.config.ShouldExposeChannelDetails(task.Provider)
 	h.cfgMu.RUnlock()
 	if shouldExpose {
-		probeURL = sanitizeProbeURL(task.URL)
-		templateName = task.BodyTemplateName
+		probeURL = sanitizeProbeURL(task.BaseURL)
+		templateName = task.Template
 	}
 
 	return MonitorResult{

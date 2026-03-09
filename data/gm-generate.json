@@ -1,5 +1,5 @@
 {
-	"url": "{{BASE_URL}}/v1beta/models/{{MODEL}}:streamGenerateContent?alt=sse",
+	"url": "{{BASE_URL}}/v1beta/models/{{MODEL}}:generateContent",
 	"method": "POST",
 	"headers": {
 		"User-Agent": "GeminiCLI/0.22.2/gemini-3-pro-preview (darwin; arm64)",
@@ -16,16 +16,12 @@
 		}],
 		"generationConfig": {
 			"temperature": 0,
-			"maxOutputTokens": 128,
-			"thinkingConfig": {
-				"includeThoughts": false,
-				"thinkingBudget": 128
-			}
+			"maxOutputTokens": 5
 		}
 	},
 	"response": {
 		"success_contains": "pong",
-		"slow_latency": "7s",
-		"timeout": "14s"
+		"slow_latency": "5s",
+		"timeout": "10s"
 	}
 }

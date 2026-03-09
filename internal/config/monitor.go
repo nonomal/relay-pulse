@@ -1,40 +1,49 @@
 package config
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"time"
 )
 
 // ServiceConfig 单个服务监测配置
 type ServiceConfig struct {
-	Provider       string            `yaml:"provider" json:"provider"`
-	ProviderName   string            `yaml:"provider_name" json:"provider_name,omitempty"` // Provider 显示名称（可选，未配置时回退到 provider）
-	ProviderSlug   string            `yaml:"provider_slug" json:"provider_slug"`           // URL slug（可选，未配置时使用 provider 小写）
-	ProviderURL    string            `yaml:"provider_url" json:"provider_url"`             // 服务商官网链接（可选）
-	Service        string            `yaml:"service" json:"service"`
-	ServiceName    string            `yaml:"service_name" json:"service_name,omitempty"` // Service 显示名称（可选，未配置时回退到 service）
-	Category       string            `yaml:"category" json:"category"`                   // 分类：commercial（商业站）或 public（公益站）
-	Sponsor        string            `yaml:"sponsor" json:"sponsor"`                     // 赞助者：提供 API Key 的个人或组织
-	SponsorURL     string            `yaml:"sponsor_url" json:"sponsor_url"`             // 赞助者链接（可选）
-	SponsorLevel   SponsorLevel      `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助等级：public/signal/pulse/beacon/backbone/core（可选，按通道赞助）
-	PriceMin       *float64          `yaml:"price_min" json:"price_min"`                 // 参考倍率下限（可选，如 0.05）
-	PriceMax       *float64          `yaml:"price_max" json:"price_max"`                 // 参考倍率（可选，如 0.2）
-	Risks          []RiskBadge       `yaml:"-" json:"risks,omitempty"`                   // 风险徽标（由 risk_providers 自动注入，不在此配置）
-	Badges         []BadgeRef        `yaml:"badges" json:"-"`                            // 徽标引用（可选，支持 tooltip 覆盖）
-	ResolvedBadges []ResolvedBadge   `yaml:"-" json:"badges,omitempty"`                  // 解析后的徽标（由 badges + badge_providers 注入）
-	Channel        string            `yaml:"channel" json:"channel"`                     // 业务通道标识（如 "vip-channel"），用于分类和过滤
-	Model          string            `yaml:"model" json:"model,omitempty"`               // 模型名称（父子结构必填）
-	Parent         string            `yaml:"parent" json:"parent,omitempty"`             // 父通道引用，格式 provider/service/channel
-	ChannelName    string            `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
-	ListedSince    string            `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
-	ExpiresAt      string            `yaml:"expires_at" json:"expires_at,omitempty"`     // 到期日期（可选，格式 "2006-01-02"），过期后自动降级并移入备板
-	URL            string            `yaml:"url" json:"url"`
-	Method         string            `yaml:"method" json:"method"`
-	Headers        map[string]string `yaml:"headers" json:"headers"`
-	Body           string            `yaml:"body" json:"body"`
+	Provider       string          `yaml:"provider" json:"provider"`
+	ProviderName   string          `yaml:"provider_name" json:"provider_name,omitempty"` // Provider 显示名称（可选，未配置时回退到 provider）
+	ProviderSlug   string          `yaml:"provider_slug" json:"provider_slug"`           // URL slug（可选，未配置时使用 provider 小写）
+	ProviderURL    string          `yaml:"provider_url" json:"provider_url"`             // 服务商官网链接（可选）
+	Service        string          `yaml:"service" json:"service"`
+	ServiceName    string          `yaml:"service_name" json:"service_name,omitempty"` // Service 显示名称（可选，未配置时回退到 service）
+	Category       string          `yaml:"category" json:"category"`                   // 分类：commercial（商业站）或 public（公益站）
+	Sponsor        string          `yaml:"sponsor" json:"sponsor"`                     // 赞助者：提供 API Key 的个人或组织
+	SponsorURL     string          `yaml:"sponsor_url" json:"sponsor_url"`             // 赞助者链接（可选）
+	SponsorLevel   SponsorLevel    `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助等级：public/signal/pulse/beacon/backbone/core（可选，按通道赞助）
+	PriceMin       *float64        `yaml:"price_min" json:"price_min"`                 // 参考倍率下限（可选，如 0.05）
+	PriceMax       *float64        `yaml:"price_max" json:"price_max"`                 // 参考倍率（可选，如 0.2）
+	Risks          []RiskBadge     `yaml:"-" json:"risks,omitempty"`                   // 风险徽标（由 risk_providers 自动注入，不在此配置）
+	Badges         []BadgeRef      `yaml:"badges" json:"-"`                            // 徽标引用（可选，支持 tooltip 覆盖）
+	ResolvedBadges []ResolvedBadge `yaml:"-" json:"badges,omitempty"`                  // 解析后的徽标（由 badges + badge_providers 注入）
+	Channel        string          `yaml:"channel" json:"channel"`                     // 业务通道标识（如 "vip-channel"），用于分类和过滤
+	Model          string          `yaml:"model" json:"model,omitempty"`               // 模型名称（父子结构必填）
+	Parent         string          `yaml:"parent" json:"parent,omitempty"`             // 父通道引用，格式 provider/service/channel
+	ChannelName    string          `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
+	ListedSince    string          `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
+	ExpiresAt      string          `yaml:"expires_at" json:"expires_at,omitempty"`     // 到期日期（可选，格式 "2006-01-02"），过期后自动降级并移入备板
+	// Template 引用 data/<name>.json 模板，定义完整的请求方式（url/method/headers/body/response）
+	Template string `yaml:"template" json:"template,omitempty"`
+
+	// BaseURL 服务商基础地址（如 "https://api.88code.com"），模板通过 {{BASE_URL}} 引用
+	BaseURL string `yaml:"base_url" json:"base_url"`
+
+	// UserIDRefreshMinutes user_id 刷新间隔（分钟），0 = 使用确定性固定值
+	UserIDRefreshMinutes int `yaml:"user_id_refresh_minutes" json:"user_id_refresh_minutes,omitempty"`
+
+	// URLPattern URL 模式（含 {{BASE_URL}} 等占位符）
+	// 通常由 ResolveTemplates 从模板填充；也可在 config 中显式设置以覆盖模板
+	// 在探测期通过 InjectVariables 替换为最终 URL
+	URLPattern string `yaml:"url_pattern,omitempty" json:"-"`
+
+	Method  string            `yaml:"method" json:"method"`
+	Headers map[string]string `yaml:"headers" json:"headers"`
+	Body    string            `yaml:"body" json:"body"`
 
 	// SuccessContains 可选：响应体需包含的关键字，用于判定请求语义是否成功
 	SuccessContains string `yaml:"success_contains" json:"success_contains"`
@@ -113,10 +122,6 @@ type ServiceConfig struct {
 	// 解析后的巡检间隔（可选，为空时使用全局 interval）
 	IntervalDuration time.Duration `yaml:"-" json:"-"`
 
-	// BodyTemplateName 请求体模板文件名（如 cc-haiku-base.json）
-	// 在配置加载时从 body: "!include data/xxx.json" 提取，供 API 返回
-	BodyTemplateName string `yaml:"-" json:"-"`
-
 	// Proxy 可选：该监测项使用的代理地址
 	// 支持格式：
 	//   - HTTP/HTTPS 代理：http://host:port, http://user:pass@host:port
@@ -155,95 +160,4 @@ type RiskProviderConfig struct {
 type ChannelDetailsProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，匹配时忽略大小写和首尾空格
 	Expose   bool   `yaml:"expose" json:"expose"`     // 是否暴露该 provider 的通道技术细节
-}
-
-// ProcessPlaceholders 处理 {{API_KEY}} / {{MODEL}} 占位符替换（headers 和 body）
-func (m *ServiceConfig) ProcessPlaceholders() {
-	// Headers 中替换
-	for k, v := range m.Headers {
-		v = strings.ReplaceAll(v, "{{API_KEY}}", m.APIKey)
-		v = strings.ReplaceAll(v, "{{MODEL}}", m.Model)
-		m.Headers[k] = v
-	}
-
-	// Body 中替换
-	m.Body = strings.ReplaceAll(m.Body, "{{API_KEY}}", m.APIKey)
-	m.Body = strings.ReplaceAll(m.Body, "{{MODEL}}", m.Model)
-}
-
-// bodyIncludeAliases 提供旧模板名到新模板名的兼容映射（向后兼容旧 config.yaml）
-var bodyIncludeAliases = map[string]string{
-	"cc_base.json":                        "cc-haiku-base.json",
-	"cc_tiny.json":                        "cc-haiku-tiny.json",
-	"cc_tiny_opus.json":                   "cc-opus-tiny.json",
-	"cc_tiny_sonnet.json":                 "cc-sonnet-tiny.json",
-	"cx_base.json":                        "cx-codex-base.json",
-	"cx_base_251223.json":                 "cx-gpt52-base.json",
-	"cx_base_gpt-5.2.json":                "cx-gpt52-base.json",
-	"cx_base_gpt-gpt-5.1-codex-max.json":  "cx-codexmax-base.json",
-	"cx_base_gpt-gpt-5.1-codex-mini.json": "cx-codexmini-base.json",
-	"gm_base.json":                        "gm-base.json",
-	"gm_base_thinking.json":               "gm-thinking.json",
-}
-
-// resolveBodyInclude 解析 body 字段中的 !include 指令
-func (m *ServiceConfig) resolveBodyInclude(configDir string) error {
-	const includePrefix = "!include "
-	trimmed := strings.TrimSpace(m.Body)
-	if trimmed == "" || !strings.HasPrefix(trimmed, includePrefix) {
-		return nil
-	}
-
-	relativePath := strings.TrimSpace(trimmed[len(includePrefix):])
-	if relativePath == "" {
-		return fmt.Errorf("monitor provider=%s service=%s: body include 路径不能为空", m.Provider, m.Service)
-	}
-
-	if filepath.IsAbs(relativePath) {
-		return fmt.Errorf("monitor provider=%s service=%s: body include 必须使用相对路径", m.Provider, m.Service)
-	}
-
-	cleanPath := filepath.Clean(relativePath)
-	targetPath := filepath.Join(configDir, cleanPath)
-
-	dataDir := filepath.Clean(filepath.Join(configDir, "data"))
-	targetPath = filepath.Clean(targetPath)
-
-	// 确保引用的文件位于 data/ 目录内
-	if targetPath != dataDir && !strings.HasPrefix(targetPath, dataDir+string(os.PathSeparator)) {
-		return fmt.Errorf("monitor provider=%s service=%s: body include 路径必须位于 data/ 目录", m.Provider, m.Service)
-	}
-
-	content, err := os.ReadFile(targetPath)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
-		}
-
-		// 文件不存在时尝试别名映射（旧文件名 → 新文件名）
-		aliasName, ok := bodyIncludeAliases[filepath.Base(cleanPath)]
-		if !ok {
-			return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
-		}
-
-		aliasPath := filepath.Join(filepath.Dir(cleanPath), aliasName)
-		aliasTargetPath := filepath.Clean(filepath.Join(configDir, aliasPath))
-		if aliasTargetPath != dataDir && !strings.HasPrefix(aliasTargetPath, dataDir+string(os.PathSeparator)) {
-			return fmt.Errorf("monitor provider=%s service=%s: body include 路径必须位于 data/ 目录", m.Provider, m.Service)
-		}
-
-		content, err = os.ReadFile(aliasTargetPath)
-		if err != nil {
-			return fmt.Errorf("monitor provider=%s service=%s: 读取 body include 文件失败: %w", m.Provider, m.Service, err)
-		}
-
-		m.BodyTemplateName = aliasName
-		m.Body = string(content)
-		return nil
-	}
-
-	// 提取模板文件名（供 API 返回）
-	m.BodyTemplateName = filepath.Base(cleanPath)
-	m.Body = string(content)
-	return nil
 }

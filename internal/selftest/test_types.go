@@ -2,7 +2,6 @@ package selftest
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -28,27 +27,13 @@ func SetDataDir(dir string) {
 	})
 }
 
-// loadBodyTemplate 从 data/ 目录读取请求体模板文件
-func loadBodyTemplate(filename string) (string, error) {
-	if dataDir == "" {
-		return "", fmt.Errorf("data directory not set, call SetDataDir first")
-	}
-
-	filePath := filepath.Join(dataDir, filename)
-	content, err := os.ReadFile(filePath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read body template %s: %w", filename, err)
-	}
-
-	return string(content), nil
-}
-
 // PayloadVariant 描述请求体模板的一个变体
 type PayloadVariant struct {
 	ID              string `json:"id"`                         // 变体标识，如 "cc-haiku-base"
 	Filename        string `json:"filename"`                   // 模板文件名，如 "cc-haiku-base.json"
 	Order           int    `json:"order"`                      // UI 排序权重
-	SuccessContains string `json:"success_contains,omitempty"` // 响应校验关键字（空则使用 Builder 默认值）
+	Model           string `json:"model,omitempty"`            // 默认模型名（用于替换模板中的 {{MODEL}}）
+	SuccessContains string `json:"success_contains,omitempty"` // 响应校验关键字（空则使用模板默认值）
 }
 
 // TestConfigBuilder is an interface for building test configurations
@@ -116,53 +101,13 @@ func ListTestTypes() []*TestType {
 	return types
 }
 
-// CCTestBuilder builds configuration for Claude Chat Completions (non-streaming)
-type CCTestBuilder struct{}
-
-func (b *CCTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*config.ServiceConfig, error) {
-	if apiURL == "" {
-		return nil, fmt.Errorf("api_url is required")
-	}
-	if apiKey == "" {
-		return nil, fmt.Errorf("api_key is required")
-	}
-	if variant == nil || variant.Filename == "" {
-		return nil, fmt.Errorf("payload variant is required")
-	}
-
-	body, err := loadBodyTemplate(variant.Filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load CC body template: %w", err)
-	}
-
-	successContains := "isNewTopic"
-	if variant.SuccessContains != "" {
-		successContains = variant.SuccessContains
-	}
-
-	return &config.ServiceConfig{
-		Provider: "selftest",
-		Service:  "cc",
-		URL:      apiURL,
-		Method:   "POST",
-		Headers: map[string]string{
-			"Authorization":     "Bearer " + apiKey,
-			"Content-Type":      "application/json",
-			"User-Agent":        "claude-cli/2.0.45 (external, cli)",
-			"Anthropic-Beta":    "interleaved-thinking-2025-05-14,context-management-2025-06-27,tool-examples-2025-10-29",
-			"Anthropic-Version": "2023-06-01",
-			"X-App":             "cli",
-		},
-		Body:                body,
-		SuccessContains:     successContains,
-		SlowLatencyDuration: 5 * time.Second,
-	}, nil
+// TemplateBuilder 从 data/ 目录加载 JSON 模板构建测试配置
+// 统一替代原来的 CCTestBuilder / CXTestBuilder / GMTestBuilder
+type TemplateBuilder struct {
+	Service string // 服务标识，如 "cc", "cx", "gm"
 }
 
-// CXTestBuilder builds configuration for Codex (OpenAI Responses API)
-type CXTestBuilder struct{}
-
-func (b *CXTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*config.ServiceConfig, error) {
+func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*config.ServiceConfig, error) {
 	if apiURL == "" {
 		return nil, fmt.Errorf("api_url is required")
 	}
@@ -172,69 +117,36 @@ func (b *CXTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 	if variant == nil || variant.Filename == "" {
 		return nil, fmt.Errorf("payload variant is required")
 	}
-
-	body, err := loadBodyTemplate(variant.Filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load CX body template: %w", err)
+	if dataDir == "" {
+		return nil, fmt.Errorf("data directory not set, call SetDataDir first")
 	}
 
-	successContains := "pong"
+	tmpl, err := config.LoadProbeTemplate(filepath.Join(dataDir, variant.Filename))
+	if err != nil {
+		return nil, fmt.Errorf("failed to load template %s: %w", variant.Filename, err)
+	}
+
+	// 从模板复制 headers（保留占位符，由 InjectVariables 在探测时替换）
+	headers := make(map[string]string, len(tmpl.Headers))
+	for k, v := range tmpl.Headers {
+		headers[k] = v
+	}
+
+	successContains := tmpl.SuccessContains
 	if variant.SuccessContains != "" {
 		successContains = variant.SuccessContains
 	}
 
 	return &config.ServiceConfig{
-		Provider: "selftest",
-		Service:  "cx",
-		URL:      apiURL,
-		Method:   "POST",
-		Headers: map[string]string{
-			"Authorization": "Bearer " + apiKey,
-			"Content-Type":  "application/json",
-			"openai-beta":   "responses=experimental",
-		},
-		Body:                body,
-		SuccessContains:     successContains,
-		SlowLatencyDuration: 5 * time.Second,
-	}, nil
-}
-
-// GMTestBuilder builds configuration for Gemini (v1beta streamGenerateContent)
-type GMTestBuilder struct{}
-
-func (b *GMTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*config.ServiceConfig, error) {
-	if apiURL == "" {
-		return nil, fmt.Errorf("api_url is required")
-	}
-	if apiKey == "" {
-		return nil, fmt.Errorf("api_key is required")
-	}
-	if variant == nil || variant.Filename == "" {
-		return nil, fmt.Errorf("payload variant is required")
-	}
-
-	body, err := loadBodyTemplate(variant.Filename)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load GM body template: %w", err)
-	}
-
-	successContains := "pong"
-	if variant.SuccessContains != "" {
-		successContains = variant.SuccessContains
-	}
-
-	return &config.ServiceConfig{
-		Provider: "selftest",
-		Service:  "gm",
-		URL:      apiURL,
-		Method:   "POST",
-		Headers: map[string]string{
-			"User-Agent":        "GeminiCLI/0.22.2/gemini-3-pro-preview (darwin; arm64)",
-			"x-goog-api-client": "google-genai-sdk/1.30.0 gl-node/v24.10.0",
-			"Content-Type":      "application/json",
-			"x-goog-api-key":    apiKey,
-		},
-		Body:                body,
+		Provider:            "selftest",
+		Service:             b.Service,
+		BaseURL:             apiURL,
+		APIKey:              apiKey,
+		Model:               variant.Model,
+		URLPattern:          "{{BASE_URL}}", // selftest: 用户提供完整 URL，不使用模板 URL 路径
+		Method:              tmpl.Method,
+		Headers:             headers,
+		Body:                string(tmpl.BodyRaw),
 		SuccessContains:     successContains,
 		SlowLatencyDuration: 5 * time.Second,
 	}, nil
@@ -243,22 +155,26 @@ func (b *GMTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 // init registers built-in test types
 func init() {
 	ccVariants := []*PayloadVariant{
-		{ID: "cc-haiku-base", Filename: "cc-haiku-base.json", Order: 1},
-		{ID: "cc-haiku-tiny", Filename: "cc-haiku-tiny.json", Order: 2, SuccessContains: "pong"},
-		{ID: "cc-opus-tiny", Filename: "cc-opus-tiny.json", Order: 3, SuccessContains: "pong"},
-		{ID: "cc-sonnet-tiny", Filename: "cc-sonnet-tiny.json", Order: 4, SuccessContains: "pong"},
+		{ID: "cc-haiku-base", Filename: "cc-haiku-base.json", Order: 1, Model: "claude-haiku-4-5-20251001"},
+		{ID: "cc-haiku-tiny", Filename: "cc-haiku-tiny.json", Order: 2, Model: "claude-haiku-4-5-20251001"},
+		{ID: "cc-opus-tiny", Filename: "cc-opus-tiny.json", Order: 3, Model: "claude-opus-4-5-20251101"},
+		{ID: "cc-sonnet-tiny", Filename: "cc-sonnet-tiny.json", Order: 4, Model: "claude-sonnet-4-5-20250929"},
+		{ID: "cc-arith", Filename: "cc-arith.json", Order: 10, Model: "claude-haiku-4-5-20251001"},
 	}
 
 	cxVariants := []*PayloadVariant{
-		{ID: "cx-codex-base", Filename: "cx-codex-base.json", Order: 1},
-		{ID: "cx-gpt52-base", Filename: "cx-gpt52-base.json", Order: 2},
-		{ID: "cx-codexmax-base", Filename: "cx-codexmax-base.json", Order: 3},
-		{ID: "cx-codexmini-base", Filename: "cx-codexmini-base.json", Order: 4},
+		{ID: "cx-codex-base", Filename: "cx-codex-base.json", Order: 1, Model: "gpt-5-codex"},
+		{ID: "cx-gpt52-base", Filename: "cx-gpt52-base.json", Order: 2, Model: "gpt-5.2"},
+		{ID: "cx-codexmax-base", Filename: "cx-codexmax-base.json", Order: 3, Model: "gpt-5.1-codex-max"},
+		{ID: "cx-codexmini-base", Filename: "cx-codexmini-base.json", Order: 4, Model: "gpt-5.1-codex-mini"},
+		{ID: "cx-arith", Filename: "cx-arith.json", Order: 10, Model: "gpt-5-codex"},
 	}
 
 	gmVariants := []*PayloadVariant{
 		{ID: "gm-base", Filename: "gm-base.json", Order: 1},
 		{ID: "gm-thinking", Filename: "gm-thinking.json", Order: 2},
+		{ID: "gm-generate", Filename: "gm-generate.json", Order: 3},
+		{ID: "gm-arith", Filename: "gm-arith.json", Order: 10},
 	}
 
 	RegisterTestType(&TestType{
@@ -267,7 +183,7 @@ func init() {
 		Description:    "",
 		DefaultVariant: "cc-haiku-base",
 		Variants:       ccVariants,
-		Builder:        &CCTestBuilder{},
+		Builder:        &TemplateBuilder{Service: "cc"},
 	})
 
 	RegisterTestType(&TestType{
@@ -276,7 +192,7 @@ func init() {
 		Description:    "",
 		DefaultVariant: "cx-codex-base",
 		Variants:       cxVariants,
-		Builder:        &CXTestBuilder{},
+		Builder:        &TemplateBuilder{Service: "cx"},
 	})
 
 	RegisterTestType(&TestType{
@@ -285,6 +201,6 @@ func init() {
 		Description:    "",
 		DefaultVariant: "gm-base",
 		Variants:       gmVariants,
-		Builder:        &GMTestBuilder{},
+		Builder:        &TemplateBuilder{Service: "gm"},
 	})
 }

@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/andybalholm/brotli"
+	"github.com/google/uuid"
 	"github.com/klauspost/compress/zstd"
 
 	"monitor/internal/config"
@@ -41,14 +42,67 @@ type ProbeResult struct {
 type Prober struct {
 	clientPool *ClientPool
 	storage    storage.Storage
+	userIDMgr  *config.UserIDManager
 }
 
 // NewProber 创建探测器
-func NewProber(storage storage.Storage) *Prober {
+func NewProber(storage storage.Storage, userIDMgr *config.UserIDManager) *Prober {
 	return &Prober{
 		clientPool: NewClientPool(),
 		storage:    storage,
+		userIDMgr:  userIDMgr,
 	}
+}
+
+// InjectVariables 替换所有占位符，返回临时副本（不修改共享 ServiceConfig）
+func InjectVariables(cfg *config.ServiceConfig, uidMgr *config.UserIDManager) (url, body string, headers map[string]string, successContains string) {
+	// 回退：非模板监测项可能没有 URLPattern，直接使用 BaseURL
+	url = cfg.URLPattern
+	if url == "" {
+		url = cfg.BaseURL
+	}
+	body = cfg.Body
+	successContains = cfg.SuccessContains
+
+	// 复制 headers
+	headers = make(map[string]string, len(cfg.Headers))
+	for k, v := range cfg.Headers {
+		headers[k] = v
+	}
+
+	// 生成动态提示词（仅在模板使用 {{PROMPT}} 时）
+	prompt, expectedAnswer := "", ""
+	if strings.Contains(body, "{{PROMPT}}") || strings.Contains(successContains, "{{EXPECTED_ANSWER}}") {
+		prompt, expectedAnswer = GenerateArithmeticPrompt()
+	}
+
+	// 原子获取 user_id 和 hash（确保同一生命周期内一致）
+	userID, userIDHash := "", ""
+	if uidMgr != nil {
+		userID, userIDHash = uidMgr.GetUserIDPair(cfg.Provider, cfg.Service, cfg.Channel, cfg.UserIDRefreshMinutes)
+	}
+
+	// 构建替换器
+	replacePairs := []string{
+		"{{BASE_URL}}", cfg.BaseURL,
+		"{{API_KEY}}", cfg.APIKey,
+		"{{MODEL}}", cfg.Model,
+		"{{USER_ID}}", userID,
+		"{{USER_ID_HASH}}", userIDHash,
+		"{{RAND_UUID}}", uuid.New().String(),
+		"{{PROMPT}}", prompt,
+		"{{EXPECTED_ANSWER}}", expectedAnswer,
+	}
+	replacer := strings.NewReplacer(replacePairs...)
+
+	url = replacer.Replace(url)
+	body = replacer.Replace(body)
+	successContains = replacer.Replace(successContains)
+	for k, v := range headers {
+		headers[k] = replacer.Replace(v)
+	}
+
+	return url, body, headers, successContains
 }
 
 // Probe 执行单次探测（支持可配置重试）
@@ -132,9 +186,12 @@ retryLoop:
 			break retryLoop
 		}
 
+		// 变量注入：创建临时副本替换所有占位符（不修改共享 ServiceConfig）
+		probeURL, probeBody, probeHeaders, probeSuccessContains := InjectVariables(cfg, p.userIDMgr)
+
 		// 准备请求体（去除首尾空白，某些 API 对此敏感）
-		reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(cfg.Body)))
-		req, err := http.NewRequestWithContext(ctx, cfg.Method, cfg.URL, reqBody)
+		reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(probeBody)))
+		req, err := http.NewRequestWithContext(ctx, cfg.Method, probeURL, reqBody)
 		if err != nil {
 			result.Error = fmt.Errorf("创建请求失败: %w", err)
 			result.Status = 0
@@ -143,8 +200,8 @@ retryLoop:
 			break retryLoop
 		}
 
-		// 设置 Headers（已处理过占位符）
-		for k, v := range cfg.Headers {
+		// 设置 Headers（已替换占位符）
+		for k, v := range probeHeaders {
 			req.Header.Set(k, v)
 		}
 
@@ -211,7 +268,7 @@ retryLoop:
 
 		// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
 		var bodyBytes []byte
-		if cfg.SuccessContains != "" {
+		if probeSuccessContains != "" {
 			data, readErr := io.ReadAll(resp.Body)
 			switch {
 			case readErr == nil:
@@ -241,7 +298,7 @@ retryLoop:
 		status, subStatus := p.determineStatus(resp.StatusCode, latency, cfg.SlowLatencyDuration)
 		result.Status = status
 		result.SubStatus = subStatus
-		result.Status, result.SubStatus = evaluateStatus(result.Status, result.SubStatus, bodyBytes, cfg.SuccessContains)
+		result.Status, result.SubStatus = evaluateStatus(result.Status, result.SubStatus, bodyBytes, probeSuccessContains)
 		result.Latency = totalLatency
 		result.Error = nil
 

@@ -167,8 +167,8 @@ func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool,
 	// 根据配置决定是否暴露通道技术细节（probe_url, template_name）
 	var probeURL, templateName string
 	if exposeChannelDetails {
-		probeURL = sanitizeProbeURL(parent.URL)
-		templateName = parent.BodyTemplateName
+		probeURL = sanitizeProbeURL(parent.BaseURL)
+		templateName = parent.Template
 	}
 
 	return MonitorGroup{

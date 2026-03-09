@@ -37,7 +37,8 @@ func mkMonitor(provider, service, channel, model, url string, interval time.Dura
 		Service:                service,
 		Channel:                channel,
 		Model:                  model,
-		URL:                    url,
+		BaseURL:                url,
+		URLPattern:             "{{BASE_URL}}",
 		Method:                 http.MethodGet,
 		SlowLatencyDuration:    5 * time.Second,
 		TimeoutDuration:        5 * time.Second,
@@ -79,7 +80,7 @@ func waitRecords(t *testing.T, store storage.Storage, key storage.MonitorKey, wa
 
 func TestStartStop(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 
 	cfg := &config.AppConfig{
 		IntervalDuration: 30 * time.Second,
@@ -126,7 +127,7 @@ func TestStartStop(t *testing.T) {
 
 func TestStartStop_DoubleStart(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 
 	cfg := &config.AppConfig{
 		IntervalDuration: 30 * time.Second,
@@ -150,7 +151,7 @@ func TestStartStop_DoubleStart(t *testing.T) {
 
 func TestStartStop_DoubleStop(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 
 	cfg := &config.AppConfig{
 		IntervalDuration: 30 * time.Second,
@@ -169,7 +170,7 @@ func TestStartStop_DoubleStop(t *testing.T) {
 
 func TestTriggerNow(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
@@ -202,7 +203,7 @@ func TestTriggerNow(t *testing.T) {
 
 func TestTriggerNow_NotRunning(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 	// Should not panic when called on a stopped scheduler
 	s.TriggerNow()
 }
@@ -211,7 +212,7 @@ func TestTriggerNow_NotRunning(t *testing.T) {
 
 func TestUpdateConfig(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
@@ -264,7 +265,7 @@ func TestUpdateConfig(t *testing.T) {
 
 func TestUpdateConfig_EmptyMonitors(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, 30*time.Second)
+	s := NewScheduler(store, 30*time.Second, nil)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
@@ -305,7 +306,7 @@ func TestUpdateConfig_EmptyMonitors(t *testing.T) {
 
 func TestMaxConcurrency(t *testing.T) {
 	store := newTestStore(t)
-	s := NewScheduler(store, time.Minute)
+	s := NewScheduler(store, time.Minute, nil)
 
 	const maxConc = 2
 	const monCount = 4
