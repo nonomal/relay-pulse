@@ -122,7 +122,8 @@ func GenerateConfig(interval, slowLatency, timeout string, monitors []map[string
 		sponsor := strings.TrimSpace(monitor["sponsor"])
 		channel := strings.TrimSpace(monitor["channel"])
 		board := strings.ToLower(strings.TrimSpace(monitor["board"]))
-		url := strings.TrimSpace(monitor["url"])
+		baseURL := strings.TrimSpace(monitor["base_url"])
+		urlPattern := strings.TrimSpace(monitor["url_pattern"])
 		method := strings.ToUpper(strings.TrimSpace(monitor["method"]))
 		successContains := strings.TrimSpace(monitor["success_contains"])
 
@@ -153,8 +154,8 @@ func GenerateConfig(interval, slowLatency, timeout string, monitors []map[string
 		if !isValidEnum(board, validBoards) {
 			return "", fmt.Errorf("monitor[%d]: board '%s' 无效，必须是 hot/secondary/cold", i, board)
 		}
-		if url == "" {
-			return "", fmt.Errorf("monitor[%d]: url 不能为空", i)
+		if baseURL == "" {
+			return "", fmt.Errorf("monitor[%d]: base_url 不能为空", i)
 		}
 		if method == "" {
 			method = "POST"
@@ -169,7 +170,10 @@ func GenerateConfig(interval, slowLatency, timeout string, monitors []map[string
 		sb.WriteString("    sponsor: " + quoteYAML(sponsor) + "\n")
 		sb.WriteString("    channel: " + quoteYAML(channel) + "\n")
 		sb.WriteString("    board: " + quoteYAML(board) + "\n")
-		sb.WriteString("    url: " + quoteYAML(url) + "\n")
+		sb.WriteString("    base_url: " + quoteYAML(baseURL) + "\n")
+		if urlPattern != "" && urlPattern != "{{BASE_URL}}" {
+			sb.WriteString("    url_pattern: " + quoteYAML(urlPattern) + "\n")
+		}
 		sb.WriteString("    method: " + quoteYAML(method) + "\n")
 
 		if successContains != "" {
@@ -353,18 +357,10 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    url: "https://api.openai.com/v1/chat/completions"
-    method: "POST"
-    success_contains: "choices"
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-      Content-Type: "application/json"
-    body: |
-      {
-        "model": "gpt-4",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
+    base_url: "https://api.openai.com"
+    template: "cx-codex-base"
+    model: "gpt-4.1"
+    # success_contains 由模板预设，无需手动指定
 `
 
 const anthropicTemplate = `# Anthropic 监测配置
@@ -387,19 +383,10 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    url: "https://api.anthropic.com/v1/messages"
-    method: "POST"
-    success_contains: "content"
-    headers:
-      x-api-key: "{{API_KEY}}"
-      anthropic-version: "2023-06-01"
-      Content-Type: "application/json"
-    body: |
-      {
-        "model": "claude-3-opus-20240229",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
+    base_url: "https://api.anthropic.com"
+    template: "cc-haiku-base"
+    model: "claude-haiku-4-20250514"
+    # success_contains 由模板预设，无需手动指定
 `
 
 const customTemplate = `# 自定义 API 监测配置
@@ -422,7 +409,8 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    url: "https://api.example.com/health"
+    base_url: "https://api.example.com"
+    url_pattern: "{{BASE_URL}}/health"
     method: "GET"
     success_contains: "ok"
     headers:
@@ -449,15 +437,10 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-    method: "POST"
-    success_contains: "candidates"
-    headers:
-      Content-Type: "application/json"
-    body: |
-      {
-        "contents": [{"parts": [{"text": "hi"}]}]
-      }
+    base_url: "https://generativelanguage.googleapis.com"
+    template: "gm-base"
+    model: "gemini-2.0-flash"
+    # success_contains 由模板预设，无需手动指定
 `
 
 const cohereTemplate = `# Cohere 监测配置
@@ -480,7 +463,9 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    url: "https://api.cohere.ai/v1/generate"
+    # 暂无 data/ 模板，使用 base_url + method 传统格式
+    base_url: "https://api.cohere.ai"
+    url_pattern: "{{BASE_URL}}/v1/generate"
     method: "POST"
     success_contains: "generations"
     headers:
@@ -513,7 +498,9 @@ monitors:
     sponsor: "团队"
     channel: "standard"
     board: "hot"
-    url: "https://api.mistral.ai/v1/chat/completions"
+    # 暂无 data/ 模板，使用 base_url + method 传统格式
+    base_url: "https://api.mistral.ai"
+    url_pattern: "{{BASE_URL}}/v1/chat/completions"
     method: "POST"
     success_contains: "choices"
     headers:
@@ -541,7 +528,7 @@ storage:
     path: "monitor.db"
 
 monitors:
-  # 父通道：定义公共配置
+  # 父通道：定义公共配置（模板 + base_url）
   - provider: "88code"
     service: "cc"
     channel: "vip"
@@ -550,35 +537,15 @@ monitors:
     sponsor: "团队"
     sponsor_level: "advanced"
     board: "hot"
-    url: "https://api.88code.com/v1/chat/completions"
-    method: "POST"
-    success_contains: "content"
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-      Content-Type: "application/json"
-    body: |
-      {
-        "model": "{{MODEL}}",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
+    base_url: "https://api.88code.com"
+    template: "cc-haiku-base"
+    # success_contains 由模板预设，无需手动指定
 
   # 子通道：继承父配置，只需指定 model 和 parent
+  # 模板中的 {{MODEL}} 占位符会自动替换为子通道的 model 值
   - model: "claude-opus-4-20250514"
     parent: "88code/cc/vip"
-    body: |
-      {
-        "model": "claude-opus-4-20250514",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
 
   - model: "claude-haiku-4-20250514"
     parent: "88code/cc/vip"
-    body: |
-      {
-        "model": "claude-haiku-4-20250514",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
 `

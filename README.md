@@ -125,17 +125,10 @@ monitors:
     category: "commercial"
     sponsor: "团队自有"
     sponsor_level: "beacon"    # 可选：public/signal/pulse/beacon/backbone/core
-    url: "https://api.88code.com/v1/chat/completions"
-    method: "POST"
+    base_url: "https://api.88code.com"
+    template: "cc-haiku-base"  # 引用 data/ 目录下的模板
     api_key: "sk-xxx"  # 或通过环境变量 MONITOR_88CODE_CC_API_KEY
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-    body: |
-      {
-        "model": "claude-3-opus",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
+    model: "claude-haiku-4-20250514"
 ```
 
 **详细配置说明**：[docs/user/config.md](docs/user/config.md)

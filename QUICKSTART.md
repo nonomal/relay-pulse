@@ -42,21 +42,13 @@ slow_latency: "5s"
 
 monitors:
   - provider: "openai"
-    service: "gpt-4"
+    service: "cx"
     category: "commercial"           # 必填：商业站(commercial) 或 公益站(public)
     sponsor: "团队自有"              # 必填：提供 API Key 的赞助者
-    url: "https://api.openai.com/v1/chat/completions"
-    method: "POST"
+    base_url: "https://api.openai.com"
+    template: "cx-codex-base"        # 引用 data/cx-codex-base.json 模板
     api_key: "sk-your-api-key-here"
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-      Content-Type: "application/json"
-    body: |
-      {
-        "model": "gpt-4",
-        "messages": [{"role": "user", "content": "hello"}],
-        "max_tokens": 10
-      }
+    model: "gpt-4.1"
 ```
 
 #### 3. 一键启动
@@ -117,14 +109,13 @@ EOF
 ```yaml
 monitors:
   - provider: "openai"
-    service: "gpt-4"
+    service: "cx"
     category: "commercial"
     sponsor: "团队自有"
-    url: "https://api.openai.com/v1/chat/completions"
-    method: "POST"
+    base_url: "https://api.openai.com"
+    template: "cx-codex-base"
+    model: "gpt-4.1"
     # api_key 留空或不填，将从环境变量读取
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
 ```
 
 #### 3. 启动时加载环境变量
@@ -212,47 +203,35 @@ interval: "1m"
 slow_latency: "5s"
 
 monitors:
-  # OpenAI GPT-4
+  # OpenAI GPT-4.1
   - provider: "openai"
-    service: "gpt-4"
+    service: "cx"
     category: "commercial"
     sponsor: "团队自有"
-    url: "https://api.openai.com/v1/chat/completions"
-    method: "POST"
+    base_url: "https://api.openai.com"
+    template: "cx-codex-base"
     api_key: "sk-openai-key"
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-      Content-Type: "application/json"
-    body: |
-      {"model": "gpt-4", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 5}
+    model: "gpt-4.1"
 
   # Anthropic Claude
   - provider: "anthropic"
-    service: "claude-3-opus"
+    service: "cc"
     category: "commercial"
     sponsor: "团队自有"
-    url: "https://api.anthropic.com/v1/messages"
-    method: "POST"
+    base_url: "https://api.anthropic.com"
+    template: "cc-haiku-base"
     api_key: "sk-ant-key"
-    headers:
-      x-api-key: "{{API_KEY}}"
-      anthropic-version: "2023-06-01"
-      Content-Type: "application/json"
-    body: |
-      {"model": "claude-3-opus-20240229", "messages": [{"role": "user", "content": "hi"}], "max_tokens": 10}
+    model: "claude-haiku-4-20250514"
 
   # Google Gemini
   - provider: "google"
-    service: "gemini-pro"
+    service: "gm"
     category: "commercial"
     sponsor: "团队自有"
-    url: "https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={{API_KEY}}"
-    method: "POST"
+    base_url: "https://generativelanguage.googleapis.com"
+    template: "gm-base"
     api_key: "your-google-api-key"
-    headers:
-      Content-Type: "application/json"
-    body: |
-      {"contents": [{"parts": [{"text": "hi"}]}]}
+    model: "gemini-2.0-flash"
 ```
 
 ---

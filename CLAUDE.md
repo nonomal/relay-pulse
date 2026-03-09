@@ -148,8 +148,8 @@ make ci
 ```
 
 **GitHub Actions 工作流**：
-- `test.yml` - PR 和 main 分支推送时运行测试
-- `docker-publish.yml` - 测试通过后构建 Docker 镜像
+- `ci-release.yml` - CI 测试 + semantic-release 自动发版
+- `notifier-docker.yml` - Notifier Docker 镜像构建
 
 ## 架构与设计模式
 
@@ -166,7 +166,7 @@ cmd/
     └── generator/         → 模板注册与生成逻辑
 
 internal/
-├── config/                → 配置管理（22 文件，按职责拆分）
+├── config/                → 配置管理（19 源文件 + 5 测试，按职责拆分）
 │   ├── app_config.go     → AppConfig 全局设置
 │   ├── monitor.go        → ServiceConfig 监测项字段
 │   ├── storage_config.go → StorageConfig / RetentionConfig / ArchiveConfig
@@ -175,12 +175,14 @@ internal/
 │   ├── badges.go         → BadgeDef / BadgeRef / ResolvedBadge / RiskBadge
 │   ├── enums.go          → SponsorLevel / BadgeKind / BadgeVariant
 │   ├── parent_inheritance.go → 父子通道配置继承
+│   ├── template.go       → 模板加载（data/*.json → ServiceConfig）
+│   ├── userid.go         → 用户标识生成（{{USER_ID}} 占位符）
 │   ├── normalize*.go     → 归一化与默认值填充
 │   ├── validate.go       → 校验规则
 │   ├── loader.go         → YAML 解析 + .env 加载
 │   ├── dotenv.go         → .env 文件支持
 │   ├── watcher.go        → fsnotify 热更新
-│   ├── lifecycle.go      → Clone / ApplyEnvOverrides
+│   ├── lifecycle.go      → Clone / ApplyEnvOverrides / ResolveTemplates
 │   └── helpers.go        → 工具函数
 ├── logger/                → 结构化日志（slog）
 │   └── logger.go
@@ -641,11 +643,12 @@ HTTP 响应
 | 业务属性 | `category`（commercial/public）、`sponsor`、`sponsor_url`、`sponsor_level`、`price_min`、`price_max`、`listed_since`、`expires_at` | 分类、赞助与倍率 |
 | 多模型 | `model`（模型名称）、`parent`（格式 `provider/service/channel`） | 父子通道继承体系 |
 | 生命周期 | `disabled`/`disabled_reason`、`hidden`/`hidden_reason`、`board`（hot/secondary/cold）、`cold_reason` | 停用/隐藏/板块控制 |
-| 探测配置 | `url`、`method`、`headers`、`body`、`success_contains`、`api_key`、`proxy`、`env_var_name` | HTTP 探测参数 |
+| 模板配置 | `template`、`base_url`、`url_pattern` | 模板引用 + 基础地址（新格式，推荐） |
+| 探测配置 | `url`、`method`、`headers`、`body`、`success_contains`、`api_key`、`proxy`、`env_var_name` | HTTP 探测参数（传统格式或模板自动填充） |
 | 覆盖配置 | `interval`、`slow_latency`、`timeout`、`retry`、`retry_base_delay`、`retry_max_delay`、`retry_jitter` | 监测项级覆盖全局设置 |
 | 徽标 | `badges`（BadgeRef 数组）、`risks`（由 risk_providers 自动注入） | 徽标引用与风险标签 |
 
-**配置优先级**: `monitor` > `by_service` > `global`（适用于 slow_latency、timeout、retry 等所有分级配置）
+**配置优先级**: `monitor` > `template` > `by_service` > `global`（适用于 slow_latency、timeout、retry 等所有分级配置；同名字段以更高优先级覆盖，未指定则继承）
 
 **模板占位符**: `{{API_KEY}}` 和 `{{MODEL}}` 在 headers 和 body 中会被自动替换。
 

@@ -15,7 +15,8 @@ func TestGenerateConfig(t *testing.T) {
 			"sponsor":          "team",
 			"channel":          "standard",
 			"board":            "hot",
-			"url":              "https://api.openai.com/v1/chat/completions",
+			"base_url":         "https://api.openai.com",
+			"url_pattern":      "{{BASE_URL}}/v1/chat/completions",
 			"method":           "POST",
 			"success_contains": "choices",
 		},
@@ -45,6 +46,12 @@ func TestGenerateConfig(t *testing.T) {
 	if !strings.Contains(config, "board: \"hot\"") {
 		t.Error("配置缺少 board")
 	}
+	if !strings.Contains(config, "base_url: \"https://api.openai.com\"") {
+		t.Error("配置缺少 base_url")
+	}
+	if strings.Contains(config, "    url:") {
+		t.Error("配置不应包含旧格式的 url 字段")
+	}
 }
 
 func TestGenerateFromTemplate(t *testing.T) {
@@ -60,6 +67,86 @@ func TestGenerateFromTemplate(t *testing.T) {
 		}
 		if !strings.Contains(config, "interval:") {
 			t.Errorf("模板 %s 缺少 interval", tmpl)
+		}
+	}
+}
+
+func TestTemplateFormatNewStyle(t *testing.T) {
+	// 验证使用新格式（template + base_url）的模板
+	newStyleTemplates := map[string]struct {
+		baseURL  string
+		template string
+	}{
+		"openai":    {baseURL: "https://api.openai.com", template: "cx-codex-base"},
+		"anthropic": {baseURL: "https://api.anthropic.com", template: "cc-haiku-base"},
+		"gemini":    {baseURL: "https://generativelanguage.googleapis.com", template: "gm-base"},
+	}
+
+	for name, expect := range newStyleTemplates {
+		config, err := GenerateFromTemplate(name)
+		if err != nil {
+			t.Fatalf("生成模板 %s 失败: %v", name, err)
+		}
+		if !strings.Contains(config, "base_url: \""+expect.baseURL+"\"") {
+			t.Errorf("模板 %s 缺少 base_url: %s", name, expect.baseURL)
+		}
+		if !strings.Contains(config, "template: \""+expect.template+"\"") {
+			t.Errorf("模板 %s 缺少 template: %s", name, expect.template)
+		}
+		// 新格式不应包含 url/method/headers/body
+		if strings.Contains(config, "    url:") {
+			t.Errorf("模板 %s 不应包含 url 字段（应使用 base_url + template）", name)
+		}
+		if strings.Contains(config, "    method:") {
+			t.Errorf("模板 %s 不应包含 method 字段", name)
+		}
+	}
+}
+
+func TestTemplateFormatLegacyStyle(t *testing.T) {
+	// 验证仍使用传统格式（暂无 data/ 模板）的配置
+	legacyTemplates := []string{"cohere", "mistral", "custom"}
+
+	for _, name := range legacyTemplates {
+		config, err := GenerateFromTemplate(name)
+		if err != nil {
+			t.Fatalf("生成模板 %s 失败: %v", name, err)
+		}
+		if !strings.Contains(config, "base_url:") {
+			t.Errorf("传统模板 %s 应包含 base_url 字段", name)
+		}
+		if !strings.Contains(config, "url_pattern:") {
+			t.Errorf("传统模板 %s 应包含 url_pattern 字段", name)
+		}
+		if !strings.Contains(config, "method:") {
+			t.Errorf("传统模板 %s 应包含 method 字段", name)
+		}
+	}
+}
+
+func TestMultiModelTemplateNewStyle(t *testing.T) {
+	config, err := GenerateFromTemplate("multi-model")
+	if err != nil {
+		t.Fatalf("生成 multi-model 模板失败: %v", err)
+	}
+	if !strings.Contains(config, "base_url:") {
+		t.Error("multi-model 父通道应包含 base_url")
+	}
+	if !strings.Contains(config, "template:") {
+		t.Error("multi-model 父通道应包含 template")
+	}
+	if !strings.Contains(config, "parent:") {
+		t.Error("multi-model 应包含子通道 parent 引用")
+	}
+	// 子通道不应有 body
+	lines := strings.Split(config, "\n")
+	inChild := false
+	for _, line := range lines {
+		if strings.Contains(line, "parent:") {
+			inChild = true
+		}
+		if inChild && strings.TrimSpace(line) == "body: |" {
+			t.Error("multi-model 子通道不应包含 body（由模板 {{MODEL}} 自动处理）")
 		}
 	}
 }
@@ -115,7 +202,7 @@ monitors:
     sponsor: "team"
     channel: "standard"
     board: "hot"
-    url: "https://example.com"
+    base_url: "https://example.com"
     method: "GET"
 `
 	err = WriteConfig(base, tmpfile.Name(), false)

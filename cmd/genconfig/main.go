@@ -91,7 +91,8 @@ func runInteractiveMode() (string, error) {
 		sponsor := prompt(reader, "赞助者名称 (sponsor)")
 		channel := promptWithDefault(reader, "业务通道 (channel)", service)
 		board := promptEnumWithDefault(reader, "板块 (hot/secondary/cold)", "hot", []string{"hot", "secondary", "cold"})
-		url := prompt(reader, "健康检查端点 URL")
+		baseURL := prompt(reader, "服务商基础地址 (base_url，如 https://api.openai.com)")
+		urlPattern := promptWithDefault(reader, "URL 路径模式 (url_pattern，如 {{BASE_URL}}/v1/chat/completions)", "{{BASE_URL}}")
 		method := promptEnumWithDefault(reader, "HTTP 方法", "POST", []string{"GET", "POST", "PUT", "DELETE", "PATCH"})
 		successContains := promptWithDefault(reader, "响应体关键字 (success_contains)", "")
 
@@ -102,7 +103,8 @@ func runInteractiveMode() (string, error) {
 			"sponsor":          sponsor,
 			"channel":          channel,
 			"board":            board,
-			"url":              url,
+			"base_url":         baseURL,
+			"url_pattern":      urlPattern,
 			"method":           method,
 			"success_contains": successContains,
 		}

@@ -53,37 +53,32 @@ go run ./cmd/genconfig -mode interactive
 ## 可用模板
 
 ### openai
-生成 OpenAI GPT-4 监测配置，包含：
-- 服务商：openai
-- 服务类型：gpt-4
-- 端点：https://api.openai.com/v1/chat/completions
-- 关键字验证：choices
+生成 OpenAI 监测配置（使用模板格式），包含：
+- 服务商：openai，服务类型：cx
+- 模板：`cx-codex-base`，基础地址：`https://api.openai.com`
+- 默认模型：gpt-4.1，关键字验证：choices
 
 ### anthropic
-生成 Anthropic Claude 监测配置，包含：
-- 服务商：anthropic
-- 服务类型：claude
-- 端点：https://api.anthropic.com/v1/messages
-- 关键字验证：content
+生成 Anthropic Claude 监测配置（使用模板格式），包含：
+- 服务商：anthropic，服务类型：cc
+- 模板：`cc-haiku-base`，基础地址：`https://api.anthropic.com`
+- 默认模型：claude-haiku-4-20250514，关键字验证：content
 
 ### gemini
-生成 Google Gemini 监测配置，包含：
-- 服务商：google
-- 服务类型：gemini
-- 端点：https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent
-- 关键字验证：candidates
+生成 Google Gemini 监测配置（使用模板格式），包含：
+- 服务商：google，服务类型：gm
+- 模板：`gm-base`，基础地址：`https://generativelanguage.googleapis.com`
+- 默认模型：gemini-2.0-flash，关键字验证：candidates
 
 ### cohere
-生成 Cohere 监测配置，包含：
-- 服务商：cohere
-- 服务类型：generate
+生成 Cohere 监测配置（暂无模板，使用传统格式），包含：
+- 服务商：cohere，服务类型：cx
 - 端点：https://api.cohere.ai/v1/generate
 - 关键字验证：generations
 
 ### mistral
-生成 Mistral AI 监测配置，包含：
-- 服务商：mistral
-- 服务类型：chat
+生成 Mistral AI 监测配置（暂无模板，使用传统格式），包含：
+- 服务商：mistral，服务类型：cx
 - 端点：https://api.mistral.ai/v1/chat/completions
 - 关键字验证：choices
 
@@ -170,17 +165,24 @@ storage:
 ### 监测项
 ```yaml
 monitors:
+  # 模板格式（推荐，适用于 OpenAI/Anthropic/Gemini 等已有模板的服务）
   - provider: "..."      # 服务商标识
-    service: "..."       # 服务类型
+    service: "..."       # 服务类型（cc/cx/gm）
     category: "..."      # 分类
     sponsor: "..."       # 赞助者
     channel: "..."       # 业务通道
     board: "..."         # 板块
-    url: "..."           # 健康检查端点
-    method: "..."        # HTTP 方法
-    success_contains: "..." # 响应体关键字
-    headers: {...}       # 请求头
-    body: {...}          # 请求体
+    base_url: "..."      # 服务商基础地址
+    template: "..."      # 引用 data/ 目录下的模板文件
+    model: "..."         # 模型名称（替换 {{MODEL}}）
+    success_contains: "..." # 响应体关键字（可选，模板可预设）
+
+  # 传统格式（适用于无模板的自定义 API）
+  # - provider: "..."
+  #   url: "..."           # 健康检查端点
+  #   method: "..."        # HTTP 方法
+  #   headers: {...}       # 请求头
+  #   body: {...}          # 请求体
 ```
 
 ## 后续步骤
@@ -217,16 +219,14 @@ A: 可以：
 
 A: 当前支持以下字段：
 - provider, service, category, sponsor
-- channel, board, url, method
+- channel, board, base_url, url_pattern, method
 - success_contains
 
 其他高级字段（如 proxy, interval 覆盖等）需要手动编辑配置文件。
 
 ### Q: 如何使用自定义请求体？
 
-A: 生成的配置中 `body` 字段是简单的 JSON。对于复杂的请求体，可以：
-1. 手动编辑 YAML 文件中的 body 字段
-2. 使用 `!include` 引用外部文件：`body: "!include data/request.json"`
+A: 推荐使用模板格式：在 `data/` 目录下创建 JSON 模板文件（定义 url/method/headers/body），然后通过 `template` 字段引用。对于传统格式，可以手动编辑 YAML 文件中的 `body` 字段，或使用 `!include` 引用外部文件：`body: "!include data/request.json"`。
 
 ### Q: 如何使用多模型配置？
 

@@ -88,19 +88,11 @@ monitors:
     price_max: 0.2             # 参考倍率（可选）: 显示为 "0.125 / 0.05~0.2"
     listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
     expires_at: "2025-12-31"   # 到期日期（可选）: 过期后自动降级并移入备板
-    url: "https://api.88code.com/v1/chat/completions"  # 健康检查端点（必填）
-    method: "POST"             # HTTP 方法（必填）
+    base_url: "https://api.88code.com"    # 服务商基础地址（模板模式必填）
+    template: "cc-haiku-base"             # 引用 data/ 目录下的模板（模板模式必填）
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
-    headers:                   # 请求头（可选）
-      Authorization: "Bearer {{API_KEY}}"
-      Content-Type: "application/json"
-    body: |                    # 请求体（可选）
-      {
-        "model": "claude-3-opus",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
-    success_contains: "content"  # 响应体必须包含的关键字（可选）
+    model: "claude-haiku-4-20250514"      # 模型名称（可选，替换模板中 {{MODEL}}）
+    # success_contains 由模板预设（可选覆盖）
 ```
 
 ## 配置项详解
@@ -1205,14 +1197,19 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 - **说明**: 提供 API Key 的赞助者名称
 - **示例**: `"团队自有"`, `"用户捐赠"`, `"John Doe"`
 
-##### `url`
+##### `base_url`（模板模式必填）
 - **类型**: string
-- **说明**: 健康检查的 HTTP 端点
-- **示例**: `"https://api.openai.com/v1/chat/completions"`
+- **说明**: 服务商基础地址，模板通过 `{{BASE_URL}}` 注入
+- **示例**: `"https://api.openai.com"`、`"https://api.anthropic.com"`
 
-##### `method`
+##### `template`（模板模式必填）
 - **类型**: string
-- **说明**: HTTP 请求方法
+- **说明**: 引用 `data/` 目录下的 JSON 模板文件（不含扩展名），定义完整的请求方式（url/method/headers/body/success_contains）
+- **示例**: `"cx-codex-base"`、`"cc-haiku-base"`、`"gm-base"`
+
+##### `method`（传统模式必填，模板模式可选）
+- **类型**: string
+- **说明**: HTTP 请求方法（使用模板时由模板提供，可显式覆盖）
 - **可选值**: `"GET"`, `"POST"`, `"PUT"`, `"DELETE"`, `"PATCH"`
 
 #### 可选字段
@@ -1287,7 +1284,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 ##### 多模型监测组配置示例
 
 ```yaml
-# 父通道：定义公共配置（完整配置）
+# 父通道：定义公共配置（模板 + base_url）
 - provider: "88code"
   service: "cc"
   channel: "vip"
@@ -1295,22 +1292,14 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
   category: "commercial"
   sponsor: "团队"
   sponsor_level: "backbone"
-  url: "https://api.88code.com/v1/chat/completions"
-  method: "POST"
-  headers:
-    Authorization: "Bearer {{API_KEY}}"
-    Content-Type: "application/json"
-  body: |
-    {"model": "{{MODEL}}", "messages": [{"role": "user", "content": "hi"}]}
-  success_contains: "content"
+  base_url: "https://api.88code.com"
+  template: "cc-haiku-base"          # 模板定义 url/method/headers/body/success_contains
 
 # 子通道：完整继承，只需 parent + model（+ 差异字段）
 - model: "claude-opus-4-20250514"
-  parent: "88code/cc/vip"  # 自动继承 provider/service/channel 及其他配置
+  parent: "88code/cc/vip"  # 自动继承 provider/service/channel/template/base_url 等
   # category 会从父通道继承，也可显式覆盖
-  # 仅覆盖不同的 body（使用 {{MODEL}} 占位符时甚至可以省略）
-  body: |
-    {"model": "claude-opus-4-20250514", "messages": [{"role": "user", "content": "hi"}]}
+  # 模板中的 {{MODEL}} 占位符会自动替换为子通道的 model 值
 ```
 
 **前端显示**：
@@ -2259,26 +2248,17 @@ deploy/relaypulse.env      # 生产 API Keys（添加到 .gitignore）
 
 ## 配置示例库
 
-### 示例1：OpenAI GPT-4
+### 示例1：OpenAI GPT-4.1
 
 ```yaml
 monitors:
   - provider: "openai"
-    service: "gpt-4"
+    service: "cx"
     category: "commercial"
     sponsor: "团队"
-    url: "https://api.openai.com/v1/chat/completions"
-    method: "POST"
-    headers:
-      Authorization: "Bearer {{API_KEY}}"
-      Content-Type: "application/json"
-    body: |
-      {
-        "model": "gpt-4",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
-    success_contains: "choices"
+    base_url: "https://api.openai.com"
+    template: "cx-codex-base"       # 模板预设 url/method/headers/body/success_contains
+    model: "gpt-4.1"
 ```
 
 ### 示例2：Anthropic Claude
@@ -2286,33 +2266,24 @@ monitors:
 ```yaml
 monitors:
   - provider: "anthropic"
-    service: "claude-3"
+    service: "cc"
     category: "public"
     sponsor: "社区"
-    url: "https://api.anthropic.com/v1/messages"
-    method: "POST"
-    headers:
-      x-api-key: "{{API_KEY}}"
-      anthropic-version: "2023-06-01"
-      Content-Type: "application/json"
-    body: |
-      {
-        "model": "claude-3-opus-20240229",
-        "messages": [{"role": "user", "content": "hi"}],
-        "max_tokens": 1
-      }
-    success_contains: "content"
+    base_url: "https://api.anthropic.com"
+    template: "cc-haiku-base"       # 模板预设 url/method/headers/body/success_contains
+    model: "claude-haiku-4-20250514"
 ```
 
-### 示例3：自定义 REST API
+### 示例3：自定义 REST API（传统格式）
 
 ```yaml
 monitors:
   - provider: "custom-api"
-    service: "health"
+    service: "cx"
     category: "public"
     sponsor: "自有"
-    url: "https://api.example.com/health"
+    base_url: "https://api.example.com"
+    url_pattern: "{{BASE_URL}}/health"
     method: "GET"
     success_contains: "ok"
 ```
