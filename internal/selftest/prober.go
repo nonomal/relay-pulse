@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"monitor/internal/config"
+	"monitor/internal/monitor"
 )
 
 // DefaultMaxResponseBytes 自助测试响应体读取上限（避免内存/带宽被滥用）
@@ -90,8 +91,9 @@ func (p *SelfTestProber) Probe(ctx context.Context, cfg *config.ServiceConfig) *
 	result.SubStatus = sub
 
 	// 保存响应片段（用于错误排查，仅保存前 512 字符）
+	// 对 SSE 流式响应使用聚合后的语义文本（比原始 data: 行更可读）
 	if len(body) > 0 {
-		snippet := strings.TrimSpace(string(body))
+		snippet := strings.TrimSpace(monitor.AggregateResponseText(body))
 		const maxSnippetLen = 512
 		if len(snippet) > maxSnippetLen {
 			snippet = snippet[:maxSnippetLen] + "... (truncated)"
@@ -100,8 +102,10 @@ func (p *SelfTestProber) Probe(ctx context.Context, cfg *config.ServiceConfig) *
 	}
 
 	// 内容校验：仅对非红状态做进一步判断（避免误把网络错误覆盖为内容不匹配）
+	// 使用 monitor 的 SSE 聚合逻辑提取语义文本，支持流式响应的内容匹配
 	if result.Status != 0 && strings.TrimSpace(cfg.SuccessContains) != "" {
-		if len(body) == 0 || !bytes.Contains(body, []byte(cfg.SuccessContains)) {
+		text := monitor.AggregateResponseText(body)
+		if text == "" || !strings.Contains(text, cfg.SuccessContains) {
 			result.Status = 0
 			result.SubStatus = "content_mismatch"
 			result.Err = fmt.Errorf("响应内容未包含预期关键字")

@@ -298,7 +298,7 @@ func (p *Prober) logFailedProbe(cfg *config.ServiceConfig, result *ProbeResult, 
 
 	// content_mismatch 特殊处理：即便响应体为空/仅空白，也输出诊断信息
 	if result.SubStatus == storage.SubStatusContentMismatch {
-		aggText := aggregateResponseText(bodyBytes)
+		aggText := AggregateResponseText(bodyBytes)
 		trimmed := strings.TrimSpace(aggText)
 
 		if trimmed == "" {
@@ -317,7 +317,7 @@ func (p *Prober) logFailedProbe(cfg *config.ServiceConfig, result *ProbeResult, 
 		}
 	} else if len(bodyBytes) > 0 {
 		// 其他红色状态：保持原有行为，在有响应体时输出片段
-		snippet := strings.TrimSpace(aggregateResponseText(bodyBytes))
+		snippet := strings.TrimSpace(AggregateResponseText(bodyBytes))
 		if snippet != "" {
 			if len(snippet) > maxSnippetLen {
 				snippet = snippet[:maxSnippetLen] + "... (truncated)"
@@ -348,7 +348,7 @@ func evaluateStatus(baseStatus int, baseSubStatus storage.SubStatus, body []byte
 	}
 
 	// 对 2xx 响应（绿色或慢速黄色）做内容校验
-	text := aggregateResponseText(body)
+	text := AggregateResponseText(body)
 	if strings.TrimSpace(text) == "" {
 		// 没有响应内容，降级为红
 		return 0, storage.SubStatusContentMismatch
@@ -563,7 +563,7 @@ func (p *Prober) determineStatus(statusCode, latency int, slowLatency time.Durat
 // aggregateResponseText 将原始响应体整理为用于关键字匹配的文本。
 // - 普通 JSON/文本：直接使用完整 body
 // - SSE / 流式响应：尝试解析 data: 行中的增量内容并拼接
-func aggregateResponseText(body []byte) string {
+func AggregateResponseText(body []byte) string {
 	if len(body) == 0 {
 		return ""
 	}
@@ -576,7 +576,7 @@ func aggregateResponseText(body []byte) string {
 		isSSE = bytes.HasPrefix(body, []byte("data:")) || bytes.Contains(body, []byte("\ndata:"))
 	}
 	if isSSE {
-		if sseText := extractTextFromSSE(body); sseText != "" {
+		if sseText := ExtractTextFromSSE(body); sseText != "" {
 			return sseText
 		}
 	}
@@ -596,7 +596,7 @@ func aggregateResponseText(body []byte) string {
 //     注意：Gemini SSE 没有 event: 行，只有 data: 行；流式响应中 text 可能被拆分
 //
 // 解析失败时会尽量回退到原始 data 文本。
-func extractTextFromSSE(body []byte) string {
+func ExtractTextFromSSE(body []byte) string {
 	scanner := bufio.NewScanner(bytes.NewReader(body))
 	// 提升单行上限，避免极端情况下行太长
 	buf := make([]byte, 0, 64*1024)
