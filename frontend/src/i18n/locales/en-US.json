@@ -363,9 +363,9 @@
     "description": "Test if your API endpoint is working properly, check latency and availability",
     "form": {
       "testType": "Test Type",
-      "apiUrl": "API URL",
-      "apiUrlPlaceholder": "https://api.example.com/v1/...",
-      "apiUrlHint": "HTTPS only, domain names required (IP addresses not supported)",
+      "apiUrl": "API Base URL",
+      "apiUrlPlaceholder": "https://api.example.com",
+      "apiUrlHint": "Enter base URL only. The API path is automatically appended based on test type. HTTPS and domain names only.",
       "apiKey": "API Key",
       "apiKeyPlaceholder": "sk-...",
       "apiKeyHint": "Your API key is only used for this test and will not be stored",
@@ -412,8 +412,8 @@
     },
     "hints": {
       "title": "Usage Tips",
-      "httpsOnly": "HTTPS protocol only",
-      "domainOnly": "Domain names required, IP addresses not supported",
+      "httpsOnly": "HTTPS only, domain names required",
+      "domainOnly": "Enter base URL only, API path is appended automatically",
       "rateLimit": "Maximum 10 tests per minute per IP",
       "privacy": "API keys are only used for testing and will not be stored or logged"
     },

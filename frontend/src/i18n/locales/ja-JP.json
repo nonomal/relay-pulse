@@ -363,9 +363,9 @@
     "description": "API エンドポイントが正常に動作しているか確認し、レイテンシと可用性をチェックします",
     "form": {
       "testType": "テストタイプ",
-      "apiUrl": "API URL",
-      "apiUrlPlaceholder": "https://api.example.com/v1/...",
-      "apiUrlHint": "HTTPS のみ、ドメイン名必須（IP アドレス非対応）",
+      "apiUrl": "API ベース URL",
+      "apiUrlPlaceholder": "https://api.example.com",
+      "apiUrlHint": "ベース URL のみ入力してください。API パスはテストタイプに応じて自動的に付加されます。HTTPS とドメイン名のみ対応。",
       "apiKey": "API キー",
       "apiKeyPlaceholder": "sk-...",
       "apiKeyHint": "API キーはこのテストでのみ使用され、保存されません",
@@ -412,8 +412,8 @@
     },
     "hints": {
       "title": "使用上のヒント",
-      "httpsOnly": "HTTPS プロトコルのみ",
-      "domainOnly": "ドメイン名が必要、IP アドレス非対応",
+      "httpsOnly": "HTTPS のみ、ドメイン名必須",
+      "domainOnly": "ベース URL のみ入力、API パスは自動付加",
       "rateLimit": "IP あたり毎分最大 10 回のテスト",
       "privacy": "API キーはテスト用途のみで、保存やログ記録されません"
     },

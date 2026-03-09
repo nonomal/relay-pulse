@@ -195,8 +195,8 @@ func main() {
 	// 初始化自助测试管理器（如果启用）
 	var selfTestMgr *selftest.TestJobManager
 	if cfg.SelfTest.Enabled {
-		// 设置 selftest 数据目录（用于动态读取 cc_base.json、cx_base.json 等模板）
-		// 数据目录为配置文件所在目录下的 data/ 子目录
+		// 设置 selftest 模板目录（用于动态读取 cc_base.json、cx_base.json 等模板）
+		// 模板目录为配置文件所在目录下的 templates/ 子目录
 		configDir := filepath.Dir(configFile)
 		if configDir == "" || configDir == "." {
 			// 如果配置文件在当前目录，使用当前工作目录
@@ -204,8 +204,8 @@ func main() {
 				configDir = cwd
 			}
 		}
-		dataDir := filepath.Join(configDir, "data")
-		selftest.SetDataDir(dataDir)
+		templatesDir := filepath.Join(configDir, "templates")
+		selftest.SetTemplatesDir(templatesDir)
 
 		// 解析时间间隔
 		jobTimeout, err := time.ParseDuration(cfg.SelfTest.JobTimeout)

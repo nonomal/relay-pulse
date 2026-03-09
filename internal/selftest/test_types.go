@@ -12,18 +12,18 @@ import (
 	"monitor/internal/logger"
 )
 
-// dataDir 存储 data/ 目录的路径（由 main.go 初始化时设置）
+// templatesDir 存储 templates/ 目录的路径（由 main.go 初始化时设置）
 var (
-	dataDir     string
-	dataDirOnce sync.Once
+	templatesDir     string
+	templatesDirOnce sync.Once
 )
 
-// SetDataDir 设置数据目录路径（应在 main.go 中调用）
+// SetTemplatesDir 设置模板目录路径（应在 main.go 中调用）
 // 该目录包含 cc-haiku-base.json、cx-codex-base.json 等模板文件
-func SetDataDir(dir string) {
-	dataDirOnce.Do(func() {
-		dataDir = dir
-		logger.Info("selftest", "数据目录已设置", "path", dataDir)
+func SetTemplatesDir(dir string) {
+	templatesDirOnce.Do(func() {
+		templatesDir = dir
+		logger.Info("selftest", "模板目录已设置", "path", templatesDir)
 	})
 }
 
@@ -101,7 +101,7 @@ func ListTestTypes() []*TestType {
 	return types
 }
 
-// TemplateBuilder 从 data/ 目录加载 JSON 模板构建测试配置
+// TemplateBuilder 从 templates/ 目录加载 JSON 模板构建测试配置
 // 统一替代原来的 CCTestBuilder / CXTestBuilder / GMTestBuilder
 type TemplateBuilder struct {
 	Service string // 服务标识，如 "cc", "cx", "gm"
@@ -117,11 +117,11 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 	if variant == nil || variant.Filename == "" {
 		return nil, fmt.Errorf("payload variant is required")
 	}
-	if dataDir == "" {
-		return nil, fmt.Errorf("data directory not set, call SetDataDir first")
+	if templatesDir == "" {
+		return nil, fmt.Errorf("templates directory not set, call SetTemplatesDir first")
 	}
 
-	tmpl, err := config.LoadProbeTemplate(filepath.Join(dataDir, variant.Filename))
+	tmpl, err := config.LoadProbeTemplate(filepath.Join(templatesDir, variant.Filename))
 	if err != nil {
 		return nil, fmt.Errorf("failed to load template %s: %w", variant.Filename, err)
 	}
@@ -143,7 +143,7 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 		BaseURL:             apiURL,
 		APIKey:              apiKey,
 		Model:               variant.Model,
-		URLPattern:          "{{BASE_URL}}", // selftest: 用户提供完整 URL，不使用模板 URL 路径
+		URLPattern:          tmpl.URL, // selftest: 使用模板 URL 模式（支持 {{BASE_URL}}/{{MODEL}} 等占位符）
 		Method:              tmpl.Method,
 		Headers:             headers,
 		Body:                string(tmpl.BodyRaw),
@@ -171,10 +171,10 @@ func init() {
 	}
 
 	gmVariants := []*PayloadVariant{
-		{ID: "gm-base", Filename: "gm-base.json", Order: 1},
-		{ID: "gm-thinking", Filename: "gm-thinking.json", Order: 2},
-		{ID: "gm-generate", Filename: "gm-generate.json", Order: 3},
-		{ID: "gm-arith", Filename: "gm-arith.json", Order: 10},
+		{ID: "gm-base", Filename: "gm-base.json", Order: 1, Model: "gemini-2.5-flash"},
+		{ID: "gm-thinking", Filename: "gm-thinking.json", Order: 2, Model: "gemini-2.5-flash-thinking"},
+		{ID: "gm-generate", Filename: "gm-generate.json", Order: 3, Model: "gemini-2.5-flash"},
+		{ID: "gm-arith", Filename: "gm-arith.json", Order: 10, Model: "gemini-2.5-flash"},
 	}
 
 	RegisterTestType(&TestType{

@@ -363,9 +363,9 @@
     "description": "测试您的 API 端点是否正常工作，检查延迟和可用性",
     "form": {
       "testType": "测试类型",
-      "apiUrl": "API 地址",
-      "apiUrlPlaceholder": "https://api.example.com/v1/...",
-      "apiUrlHint": "仅支持 HTTPS 协议，必须使用域名（不支持 IP 地址）",
+      "apiUrl": "API 基础地址",
+      "apiUrlPlaceholder": "https://api.example.com",
+      "apiUrlHint": "仅需填写基础地址，系统会根据测试类型自动拼接路径。仅支持 HTTPS 协议和域名。",
       "apiKey": "API 密钥",
       "apiKeyPlaceholder": "sk-...",
       "apiKeyHint": "您的 API 密钥仅用于本次测试，不会被存储",
@@ -412,8 +412,8 @@
     },
     "hints": {
       "title": "使用提示",
-      "httpsOnly": "仅支持 HTTPS 协议",
-      "domainOnly": "必须使用域名，不支持 IP 地址",
+      "httpsOnly": "仅支持 HTTPS 协议，必须使用域名",
+      "domainOnly": "只需填写基础地址，API 路径由系统自动拼接",
       "rateLimit": "每个 IP 每分钟最多 10 次测试",
       "privacy": "API 密钥仅用于测试，不会被存储或记录"
     },
