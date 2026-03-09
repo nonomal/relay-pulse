@@ -45,9 +45,10 @@ func loadBodyTemplate(filename string) (string, error) {
 
 // PayloadVariant 描述请求体模板的一个变体
 type PayloadVariant struct {
-	ID       string `json:"id"`       // 变体标识，如 "cc-haiku-base"
-	Filename string `json:"filename"` // 模板文件名，如 "cc-haiku-base.json"
-	Order    int    `json:"order"`    // UI 排序权重
+	ID              string `json:"id"`                         // 变体标识，如 "cc-haiku-base"
+	Filename        string `json:"filename"`                   // 模板文件名，如 "cc-haiku-base.json"
+	Order           int    `json:"order"`                      // UI 排序权重
+	SuccessContains string `json:"success_contains,omitempty"` // 响应校验关键字（空则使用 Builder 默认值）
 }
 
 // TestConfigBuilder is an interface for building test configurations
@@ -134,6 +135,11 @@ func (b *CCTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 		return nil, fmt.Errorf("failed to load CC body template: %w", err)
 	}
 
+	successContains := "isNewTopic"
+	if variant.SuccessContains != "" {
+		successContains = variant.SuccessContains
+	}
+
 	return &config.ServiceConfig{
 		Provider: "selftest",
 		Service:  "cc",
@@ -148,7 +154,7 @@ func (b *CCTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 			"X-App":             "cli",
 		},
 		Body:                body,
-		SuccessContains:     "isNewTopic",
+		SuccessContains:     successContains,
 		SlowLatencyDuration: 5 * time.Second,
 	}, nil
 }
@@ -172,6 +178,11 @@ func (b *CXTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 		return nil, fmt.Errorf("failed to load CX body template: %w", err)
 	}
 
+	successContains := "pong"
+	if variant.SuccessContains != "" {
+		successContains = variant.SuccessContains
+	}
+
 	return &config.ServiceConfig{
 		Provider: "selftest",
 		Service:  "cx",
@@ -183,7 +194,7 @@ func (b *CXTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 			"openai-beta":   "responses=experimental",
 		},
 		Body:                body,
-		SuccessContains:     "pong",
+		SuccessContains:     successContains,
 		SlowLatencyDuration: 5 * time.Second,
 	}, nil
 }
@@ -207,6 +218,11 @@ func (b *GMTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 		return nil, fmt.Errorf("failed to load GM body template: %w", err)
 	}
 
+	successContains := "pong"
+	if variant.SuccessContains != "" {
+		successContains = variant.SuccessContains
+	}
+
 	return &config.ServiceConfig{
 		Provider: "selftest",
 		Service:  "gm",
@@ -219,7 +235,7 @@ func (b *GMTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 			"x-goog-api-key":    apiKey,
 		},
 		Body:                body,
-		SuccessContains:     "pong",
+		SuccessContains:     successContains,
 		SlowLatencyDuration: 5 * time.Second,
 	}, nil
 }
@@ -228,9 +244,9 @@ func (b *GMTestBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) (*
 func init() {
 	ccVariants := []*PayloadVariant{
 		{ID: "cc-haiku-base", Filename: "cc-haiku-base.json", Order: 1},
-		{ID: "cc-haiku-tiny", Filename: "cc-haiku-tiny.json", Order: 2},
-		{ID: "cc-opus-tiny", Filename: "cc-opus-tiny.json", Order: 3},
-		{ID: "cc-sonnet-tiny", Filename: "cc-sonnet-tiny.json", Order: 4},
+		{ID: "cc-haiku-tiny", Filename: "cc-haiku-tiny.json", Order: 2, SuccessContains: "pong"},
+		{ID: "cc-opus-tiny", Filename: "cc-opus-tiny.json", Order: 3, SuccessContains: "pong"},
+		{ID: "cc-sonnet-tiny", Filename: "cc-sonnet-tiny.json", Order: 4, SuccessContains: "pong"},
 	}
 
 	cxVariants := []*PayloadVariant{

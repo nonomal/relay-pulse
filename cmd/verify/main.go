@@ -33,6 +33,8 @@ func main() {
 	urlFlag := flag.String("url", "", "API endpoint URL (standalone mode)")
 	keyFlag := flag.String("key", "", "API key (standalone mode)")
 	typeFlag := flag.String("type", "", "Service type: cc/cx/gm (standalone mode)")
+	bodyFlag := flag.String("body", "", "Body template file path, e.g. data/cc-haiku-tiny.json (standalone mode, overrides built-in body)")
+	successFlag := flag.String("success", "", "Success keyword to check in response (standalone mode, overrides built-in value)")
 
 	verbose := flag.Bool("v", false, "Verbose output")
 
@@ -54,7 +56,7 @@ func main() {
 
 	if standaloneFlags > 0 && standaloneFlags < 3 {
 		fmt.Println("❌ 独立模式必须同时提供 -url、-key、-type 三个参数")
-		fmt.Println("用法: go run ./cmd/verify -type cc -url <url> -key <key> [-model <name>] [-v]")
+		fmt.Println("用法: go run ./cmd/verify -type cc -url <url> -key <key> [-model <name>] [-body <file>] [-success <keyword>] [-v]")
 		os.Exit(1)
 	}
 
@@ -72,12 +74,27 @@ func main() {
 			fmt.Printf("❌ %v\n", err)
 			os.Exit(1)
 		}
+
+		// 如果指定了 -body，从文件加载替换内嵌的请求体
+		if *bodyFlag != "" {
+			bodyContent, err := os.ReadFile(*bodyFlag)
+			if err != nil {
+				fmt.Printf("❌ 读取 body 文件失败: %v\n", err)
+				os.Exit(1)
+			}
+			target.Body = string(bodyContent)
+		}
+
+		// 如果指定了 -success，覆盖响应校验关键字
+		if *successFlag != "" {
+			target.SuccessContains = *successFlag
+		}
 	} else {
 		// 配置模式：从 config.yaml 查找
 		if *provider == "" || *service == "" {
 			fmt.Println("用法:")
 			fmt.Println("  配置模式: go run ./cmd/verify -provider <name> -service <name> [-channel <name>] [-model <name>] [-config <path>] [-v]")
-			fmt.Println("  独立模式: go run ./cmd/verify -type cc -url <url> -key <key> [-model <name>] [-v]")
+			fmt.Println("  独立模式: go run ./cmd/verify -type cc -url <url> -key <key> [-model <name>] [-body <file>] [-success <keyword>] [-v]")
 			fmt.Println()
 			fmt.Println("示例:")
 			fmt.Println("  go run ./cmd/verify -provider 88code -service cx -channel vip3 -model gpt-5.1-codex-mini -v")
