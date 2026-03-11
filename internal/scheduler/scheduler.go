@@ -12,6 +12,7 @@ import (
 
 	"monitor/internal/config"
 	"monitor/internal/events"
+	"monitor/internal/identity"
 	"monitor/internal/logger"
 	"monitor/internal/monitor"
 	"monitor/internal/storage"
@@ -84,7 +85,7 @@ type Scheduler struct {
 }
 
 // NewScheduler 创建调度器
-func NewScheduler(store storage.Storage, interval time.Duration, userIDMgr *config.UserIDManager) *Scheduler {
+func NewScheduler(store storage.RecordStorage, interval time.Duration, userIDMgr *identity.UserIDManager) *Scheduler {
 	return &Scheduler{
 		prober:   monitor.NewProber(store, userIDMgr),
 		fallback: interval,

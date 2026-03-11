@@ -181,7 +181,7 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 		c.Monitors[i].Category = strings.ToLower(strings.TrimSpace(c.Monitors[i].Category))
 
 		// 旧赞助等级兼容迁移（持续 1 个版本周期）
-		if migrated, ok := c.Monitors[i].SponsorLevel.DeprecatedToNew(); ok {
+		if migrated, ok := c.Monitors[i].SponsorLevel.deprecatedToNew(); ok {
 			logger.Warn("config", "monitor 使用已废弃的赞助等级，已自动迁移",
 				"monitor_index", i,
 				"provider", c.Monitors[i].Provider,

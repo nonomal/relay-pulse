@@ -26,7 +26,7 @@ type GitHubConfig struct {
 }
 
 // Normalize 规范化 GitHub 配置（默认值、环境变量覆盖、基础校验）
-func (c *GitHubConfig) Normalize() error {
+func (c *GitHubConfig) normalize() error {
 	// token：环境变量优先覆盖
 	if envToken := strings.TrimSpace(os.Getenv("GITHUB_TOKEN")); envToken != "" {
 		c.Token = envToken
@@ -111,7 +111,7 @@ func (c *AnnouncementsConfig) IsEnabled() bool {
 }
 
 // Normalize 规范化 announcements 配置（填充默认值、解析 duration）
-func (c *AnnouncementsConfig) Normalize() error {
+func (c *AnnouncementsConfig) normalize() error {
 	// owner/repo：默认 prehisle/relay-pulse
 	if strings.TrimSpace(c.Owner) == "" {
 		c.Owner = "prehisle"
@@ -176,8 +176,8 @@ func (c *AnnouncementsConfig) Normalize() error {
 
 // Cache TTL 默认值常量（集中定义，避免多处重复）
 const (
-	DefaultCacheTTLShort = 10 * time.Second // 90m, 24h 默认 TTL
-	DefaultCacheTTLLong  = 60 * time.Second // 7d, 30d 默认 TTL
+	defaultCacheTTLShort = 10 * time.Second // 90m, 24h 默认 TTL
+	defaultCacheTTLLong  = 60 * time.Second // 7d, 30d 默认 TTL
 )
 
 // CacheTTLConfig API 响应缓存 TTL 配置（按 period 区分）
@@ -202,7 +202,7 @@ type CacheTTLConfig struct {
 }
 
 // Normalize 规范化 cache_ttl 配置（填充默认值并解析 duration）
-func (c *CacheTTLConfig) Normalize() error {
+func (c *CacheTTLConfig) normalize() error {
 	parseOrDefault := func(period, raw string, defaultDur time.Duration) (time.Duration, error) {
 		if strings.TrimSpace(raw) == "" {
 			return defaultDur, nil
@@ -218,19 +218,19 @@ func (c *CacheTTLConfig) Normalize() error {
 	}
 
 	var err error
-	c.TTL90mDuration, err = parseOrDefault("90m", c.TTL90m, DefaultCacheTTLShort)
+	c.TTL90mDuration, err = parseOrDefault("90m", c.TTL90m, defaultCacheTTLShort)
 	if err != nil {
 		return err
 	}
-	c.TTL24hDuration, err = parseOrDefault("24h", c.TTL24h, DefaultCacheTTLShort)
+	c.TTL24hDuration, err = parseOrDefault("24h", c.TTL24h, defaultCacheTTLShort)
 	if err != nil {
 		return err
 	}
-	c.TTL7dDuration, err = parseOrDefault("7d", c.TTL7d, DefaultCacheTTLLong)
+	c.TTL7dDuration, err = parseOrDefault("7d", c.TTL7d, defaultCacheTTLLong)
 	if err != nil {
 		return err
 	}
-	c.TTL30dDuration, err = parseOrDefault("30d", c.TTL30d, DefaultCacheTTLLong)
+	c.TTL30dDuration, err = parseOrDefault("30d", c.TTL30d, defaultCacheTTLLong)
 	if err != nil {
 		return err
 	}
@@ -245,23 +245,23 @@ func (c *CacheTTLConfig) TTLForPeriod(period string) time.Duration {
 		if c.TTL90mDuration > 0 {
 			return c.TTL90mDuration
 		}
-		return DefaultCacheTTLShort
+		return defaultCacheTTLShort
 	case "24h", "1d":
 		if c.TTL24hDuration > 0 {
 			return c.TTL24hDuration
 		}
-		return DefaultCacheTTLShort
+		return defaultCacheTTLShort
 	case "7d":
 		if c.TTL7dDuration > 0 {
 			return c.TTL7dDuration
 		}
-		return DefaultCacheTTLLong
+		return defaultCacheTTLLong
 	case "30d":
 		if c.TTL30dDuration > 0 {
 			return c.TTL30dDuration
 		}
-		return DefaultCacheTTLLong
+		return defaultCacheTTLLong
 	default:
-		return DefaultCacheTTLShort
+		return defaultCacheTTLShort
 	}
 }

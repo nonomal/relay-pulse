@@ -118,9 +118,7 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 		if path == "/api/status" {
 			acceptEncoding := c.GetHeader("Accept-Encoding")
 			if !strings.Contains(acceptEncoding, "gzip") {
-				c.AbortWithStatusJSON(http.StatusNotAcceptable, gin.H{
-					"error": "This endpoint requires gzip support. Add header: Accept-Encoding: gzip",
-				})
+				abortAPIError(c, http.StatusNotAcceptable, ErrCodeNotAcceptable, "该接口要求客户端支持 gzip，请添加 Accept-Encoding: gzip 请求头")
 				return
 			}
 		}
@@ -288,7 +286,7 @@ func setupStaticFiles(router *gin.Engine, handler *Handler) {
 
 		// API 路径返回 404
 		if strings.HasPrefix(path, "/api/") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "API endpoint not found"})
+			apiError(c, http.StatusNotFound, ErrCodeNotFound, "API 接口不存在")
 			return
 		}
 

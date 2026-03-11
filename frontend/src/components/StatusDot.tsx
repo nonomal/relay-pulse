@@ -1,4 +1,5 @@
-import { STATUS } from '../constants';
+import { useTranslation } from 'react-i18next';
+import { getStatusConfig } from '../constants';
 import type { StatusKey } from '../types';
 
 interface StatusDotProps {
@@ -8,13 +9,14 @@ interface StatusDotProps {
 }
 
 export function StatusDot({ status, size = 'md', showLabel = false }: StatusDotProps) {
+  const { t } = useTranslation();
   const sizeClasses = {
     sm: 'w-2 h-2',
     md: 'w-3 h-3',
     lg: 'w-4 h-4',
   };
 
-  const statusInfo = STATUS[status];
+  const statusInfo = getStatusConfig(t)[status];
 
   return (
     <div

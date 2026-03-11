@@ -14,7 +14,7 @@ import (
 type Service struct {
 	detector         *Detector
 	channelDetector  *ChannelDetector
-	storage          storage.Storage
+	storage          storage.EventStorage
 	enabled          bool
 	mode             string // "model" 或 "channel"
 	channelCountMode string // "incremental" 或 "recompute"
@@ -37,7 +37,7 @@ type ServiceConfig struct {
 }
 
 // NewService 创建事件服务
-func NewService(cfg ServiceConfig, store storage.Storage) (*Service, error) {
+func NewService(cfg ServiceConfig, store storage.EventStorage) (*Service, error) {
 	if !cfg.Enabled {
 		return &Service{
 			enabled: false,

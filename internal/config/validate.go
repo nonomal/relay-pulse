@@ -32,7 +32,7 @@ func newValidateContext() *validateContext {
 
 // Validate 验证配置合法性
 // 注意：此方法有副作用，会预处理子通道的 provider/service/channel 继承
-func (c *AppConfig) Validate() error {
+func (c *AppConfig) validate() error {
 	if len(c.Monitors) == 0 {
 		return fmt.Errorf("至少需要配置一个监测项")
 	}
@@ -82,6 +82,117 @@ func (c *AppConfig) Validate() error {
 	}
 
 	return nil
+}
+
+// ValidateFinal 检查环境变量覆盖、模板解析、继承和 Normalize 之后的最终配置。
+// Phase 1: 仅返回告警项，由调用方记录日志，不阻断启动或热更新。
+func (c *AppConfig) validateFinal() []error {
+	var warns []error
+
+	// 存储类型校验
+	storageType := strings.ToLower(strings.TrimSpace(c.Storage.Type))
+	switch storageType {
+	case "", "sqlite", "postgres", "postgresql":
+		// 合法值
+	default:
+		warns = append(warns, fmt.Errorf("storage.type '%s' 无效，支持 sqlite/postgres", c.Storage.Type))
+	}
+
+	// PostgreSQL 端口范围校验
+	if storageType == "postgres" || storageType == "postgresql" {
+		if c.Storage.Postgres.Port <= 0 || c.Storage.Postgres.Port > 65535 {
+			warns = append(warns, fmt.Errorf("storage.postgres.port(%d) 超出有效范围 1-65535", c.Storage.Postgres.Port))
+		}
+	}
+
+	// 逐监测项检查最终态合理性
+	for i := range c.Monitors {
+		m := &c.Monitors[i]
+		if m.Disabled {
+			continue
+		}
+		hasParent := strings.TrimSpace(m.Parent) != ""
+
+		// 非子通道：最终必须有可用的探测地址
+		if !hasParent && !hasUsableProbeTarget(m) {
+			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 最终探测地址缺失（需要 base_url 或 url_pattern）",
+				i, m.Provider, m.Service, m.Channel))
+		}
+
+		// 占位符依赖校验：模板/配置引用了占位符，但对应字段为空
+		if serviceConfigUsesPlaceholder(m, "{{BASE_URL}}") && strings.TrimSpace(m.BaseURL) == "" {
+			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 引用了 {{BASE_URL}}，但最终 base_url 为空",
+				i, m.Provider, m.Service, m.Channel))
+		}
+		if serviceConfigUsesPlaceholder(m, "{{API_KEY}}") && strings.TrimSpace(m.APIKey) == "" {
+			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 引用了 {{API_KEY}}，但最终 api_key 为空",
+				i, m.Provider, m.Service, m.Channel))
+		}
+		if serviceConfigUsesPlaceholder(m, "{{MODEL}}") && strings.TrimSpace(m.Model) == "" {
+			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 引用了 {{MODEL}}，但最终 model 为空",
+				i, m.Provider, m.Service, m.Channel))
+		}
+
+		// URL 安全告警：默认不允许探测目标直接指向私有网络 IP
+		if !c.AllowPrivateNetworks && !m.SkipURLValidation {
+			if err := validateNoPrivateIPURL(m.BaseURL, "base_url"); err != nil {
+				warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: %w",
+					i, m.Provider, m.Service, m.Channel, err))
+			}
+			// url_pattern 为绝对 URL（不依赖 {{BASE_URL}}）时也检查
+			if urlPattern := strings.TrimSpace(m.URLPattern); urlPattern != "" &&
+				!strings.Contains(urlPattern, "{{BASE_URL}}") {
+				if err := validateNoPrivateIPURL(urlPattern, "url_pattern"); err != nil {
+					warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: %w",
+						i, m.Provider, m.Service, m.Channel, err))
+				}
+			}
+		}
+
+		// 非子通道：最终 method 必须有效
+		if !hasParent {
+			method := strings.TrimSpace(m.Method)
+			if method == "" {
+				warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 最终 method 为空",
+					i, m.Provider, m.Service, m.Channel))
+			} else if !isValidHTTPMethod(method) {
+				warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 最终 method '%s' 无效",
+					i, m.Provider, m.Service, m.Channel, m.Method))
+			}
+		}
+	}
+
+	return warns
+}
+
+// isValidHTTPMethod 检查是否为合法 HTTP 方法
+func isValidHTTPMethod(method string) bool {
+	switch strings.ToUpper(strings.TrimSpace(method)) {
+	case "GET", "POST", "PUT", "DELETE", "PATCH":
+		return true
+	}
+	return false
+}
+
+// hasUsableProbeTarget 检查监测项最终是否有可用的探测地址
+func hasUsableProbeTarget(m *ServiceConfig) bool {
+	return strings.TrimSpace(m.BaseURL) != "" || strings.TrimSpace(m.URLPattern) != ""
+}
+
+// serviceConfigUsesPlaceholder 检查监测项的配置字段中是否引用了指定占位符
+func serviceConfigUsesPlaceholder(m *ServiceConfig, placeholder string) bool {
+	if strings.Contains(m.BaseURL, placeholder) ||
+		strings.Contains(m.URLPattern, placeholder) ||
+		strings.Contains(m.Body, placeholder) ||
+		strings.Contains(m.SuccessContains, placeholder) {
+		return true
+	}
+	for k, v := range m.Headers {
+		if strings.Contains(k, placeholder) || strings.Contains(v, placeholder) {
+			return true
+		}
+	}
+	return false
 }
 
 // preprocessParentInheritance 预处理子通道的 provider/service/channel 继承
@@ -296,11 +407,8 @@ func (c *AppConfig) validateMonitorFields() error {
 		}
 
 		// Method 枚举检查（子通道允许留空继承）
-		if m.Method != "" {
-			validMethods := map[string]bool{"GET": true, "POST": true, "PUT": true, "DELETE": true, "PATCH": true}
-			if !validMethods[strings.ToUpper(m.Method)] {
-				return fmt.Errorf("monitor[%d]: method '%s' 无效，必须是 GET/POST/PUT/DELETE/PATCH 之一", i, m.Method)
-			}
+		if m.Method != "" && !isValidHTTPMethod(m.Method) {
+			return fmt.Errorf("monitor[%d]: method '%s' 无效，必须是 GET/POST/PUT/DELETE/PATCH 之一", i, m.Method)
 		}
 
 		// Category 枚举检查（子通道允许留空继承）
@@ -309,7 +417,7 @@ func (c *AppConfig) validateMonitorFields() error {
 		}
 
 		// SponsorLevel 枚举检查（可选字段，空值有效）
-		if !m.SponsorLevel.IsValid() {
+		if !m.SponsorLevel.isValid() {
 			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 public/signal/pulse/beacon/backbone/core 之一（或留空）", i, m.SponsorLevel)
 		}
 
@@ -450,10 +558,10 @@ func (c *AppConfig) validateBadgeConfigs() error {
 		}
 
 		// 允许空值通过校验（Normalize() 会填充默认值）
-		if bd.Kind != "" && !bd.Kind.IsValid() {
+		if bd.Kind != "" && !bd.Kind.isValid() {
 			return fmt.Errorf("badge_definitions[%s]: kind '%s' 无效，必须是 source/info/feature", id, bd.Kind)
 		}
-		if bd.Variant != "" && !bd.Variant.IsValid() {
+		if bd.Variant != "" && !bd.Variant.isValid() {
 			return fmt.Errorf("badge_definitions[%s]: variant '%s' 无效，必须是 default/success/warning/danger/info", id, bd.Variant)
 		}
 		if bd.Weight < 0 || bd.Weight > 100 {

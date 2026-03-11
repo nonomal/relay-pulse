@@ -95,10 +95,10 @@ func TestProxyNormalize(t *testing.T) {
 				},
 			}
 
-			if err := cfg.Validate(); err != nil {
+			if err := cfg.validate(); err != nil {
 				t.Fatalf("Validate() 失败: %v", err)
 			}
-			if err := cfg.Normalize(); err != nil {
+			if err := cfg.normalize(); err != nil {
 				t.Fatalf("Normalize() 失败: %v", err)
 			}
 
@@ -147,10 +147,10 @@ func TestProxyInheritance(t *testing.T) {
 				},
 			}
 
-			if err := cfg.Validate(); err != nil {
+			if err := cfg.validate(); err != nil {
 				t.Fatalf("Validate() 失败: %v", err)
 			}
-			if err := cfg.Normalize(); err != nil {
+			if err := cfg.normalize(); err != nil {
 				t.Fatalf("Normalize() 失败: %v", err)
 			}
 

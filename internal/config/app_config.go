@@ -143,21 +143,25 @@ type AppConfig struct {
 	// 可通过环境变量 MONITOR_PUBLIC_BASE_URL 覆盖
 	PublicBaseURL string `yaml:"public_base_url" json:"public_base_url"`
 
+	// 是否允许监测项使用私有网络 IP 作为探测目标（默认 false）
+	// false 时在 validateFinal() 中输出告警，不阻断启动或热更新
+	AllowPrivateNetworks bool `yaml:"allow_private_networks" json:"allow_private_networks"`
+
 	// ===== Provider 策略配置 =====
 
 	// 批量禁用的服务商列表（彻底停用，不探测、不存储、不展示）
 	// 列表中的 provider 会自动继承 disabled=true 状态到对应的 monitors
-	DisabledProviders []DisabledProviderConfig `yaml:"disabled_providers" json:"disabled_providers"`
+	DisabledProviders []disabledProviderConfig `yaml:"disabled_providers" json:"disabled_providers"`
 
 	// 批量隐藏的服务商列表
 	// 列表中的 provider 会自动继承 hidden=true 状态到对应的 monitors
 	// 用于临时下架整个服务商（如商家不配合整改）
-	HiddenProviders []HiddenProviderConfig `yaml:"hidden_providers" json:"hidden_providers"`
+	HiddenProviders []hiddenProviderConfig `yaml:"hidden_providers" json:"hidden_providers"`
 
 	// 风险服务商列表
 	// 列表中的 provider 会自动继承 risks 到对应的所有 monitors
 	// 用于标记存在风险的服务商（如跑路风险）
-	RiskProviders []RiskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
+	RiskProviders []riskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
 
 	// ===== 功能开关 =====
 
@@ -172,7 +176,7 @@ type AppConfig struct {
 
 	// provider 级通道技术细节暴露覆盖配置
 	// 可针对特定 provider 覆盖全局 expose_channel_details 设置
-	ChannelDetailsProviders []ChannelDetailsProviderConfig `yaml:"channel_details_providers,omitempty" json:"channel_details_providers,omitempty"`
+	ChannelDetailsProviders []channelDetailsProviderConfig `yaml:"channel_details_providers,omitempty" json:"channel_details_providers,omitempty"`
 
 	// 赞助商置顶配置
 	// 用于在页面初始加载时置顶符合条件的赞助商监测项

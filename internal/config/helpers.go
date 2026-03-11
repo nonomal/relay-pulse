@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"strings"
 
@@ -38,6 +39,50 @@ func validateURL(rawURL, fieldName string) error {
 	}
 
 	return nil
+}
+
+// validateNoPrivateIPURL 检查 URL 主机部分是否为私有/特殊网络 IP。
+// 仅检查 IP 字面量，不做 DNS 解析；hostname 直接跳过。
+func validateNoPrivateIPURL(rawURL, fieldName string) error {
+	trimmed := strings.TrimSpace(rawURL)
+	if trimmed == "" {
+		return nil
+	}
+
+	parsed, err := url.Parse(trimmed)
+	if err != nil {
+		return nil // 语法问题由其他校验器处理
+	}
+
+	host := strings.TrimSpace(parsed.Hostname())
+	if host == "" {
+		return nil
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return nil // hostname 不做 DNS 解析
+	}
+
+	if isPrivateOrSpecialIP(ip) {
+		return fmt.Errorf("%s 指向私有/特殊网络 IP %s", fieldName, host)
+	}
+	return nil
+}
+
+// isPrivateOrSpecialIP 检查 IP 是否属于私有或特殊用途网段
+func isPrivateOrSpecialIP(ip net.IP) bool {
+	if ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() ||
+		ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	// RFC 6598 Carrier-Grade NAT: 100.64.0.0/10
+	if v4 := ip.To4(); v4 != nil {
+		if v4[0] == 100 && v4[1] >= 64 && v4[1] <= 127 {
+			return true
+		}
+	}
+	return false
 }
 
 // validateProviderSlug 验证 provider_slug 格式

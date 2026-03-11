@@ -88,13 +88,13 @@ func (h *Handler) GetStatusQuery(c *gin.Context) {
 	if len(rawQs) > 0 {
 		// 多查模式
 		if len(rawQs) > maxQueryGET {
-			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("q 参数最多支持 %d 组查询", maxQueryGET)})
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, fmt.Sprintf("q 参数最多支持 %d 组查询", maxQueryGET))
 			return
 		}
 		for _, raw := range rawQs {
 			q, err := parsePackedQuery(raw)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, err.Error())
 				return
 			}
 			queries = append(queries, q)
@@ -103,7 +103,7 @@ func (h *Handler) GetStatusQuery(c *gin.Context) {
 		// 单查模式
 		provider := strings.TrimSpace(c.Query("provider"))
 		if provider == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "provider 为必填参数（或使用 q=provider/service/channel）"})
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "provider 为必填参数（或使用 q=provider/service/channel）")
 			return
 		}
 		queries = []StatusQuery{
@@ -121,7 +121,7 @@ func (h *Handler) GetStatusQuery(c *gin.Context) {
 	resp, err := h.executeStatusQuery(ctx, queries)
 	if err != nil {
 		logger.FromContext(c.Request.Context(), "api").Error("GetStatusQuery 失败", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("查询失败: %v", err)})
+		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "查询失败，请稍后再试")
 		return
 	}
 
@@ -135,16 +135,16 @@ func (h *Handler) GetStatusQuery(c *gin.Context) {
 func (h *Handler) PostStatusBatch(c *gin.Context) {
 	var req StatusQueryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("无效的 JSON: %v", err)})
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "请求体必须是合法的 JSON")
 		return
 	}
 
 	if len(req.Queries) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "queries 不能为空"})
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "queries 不能为空")
 		return
 	}
 	if len(req.Queries) > maxQueryPOST {
-		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("queries 最多支持 %d 组查询", maxQueryPOST)})
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, fmt.Sprintf("queries 最多支持 %d 组查询", maxQueryPOST))
 		return
 	}
 
@@ -154,7 +154,7 @@ func (h *Handler) PostStatusBatch(c *gin.Context) {
 		req.Queries[i].Service = strings.TrimSpace(req.Queries[i].Service)
 		req.Queries[i].Channel = strings.TrimSpace(req.Queries[i].Channel)
 		if req.Queries[i].Provider == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "provider 为必填字段"})
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "provider 为必填字段")
 			return
 		}
 	}
@@ -165,7 +165,7 @@ func (h *Handler) PostStatusBatch(c *gin.Context) {
 	resp, err := h.executeStatusQuery(ctx, req.Queries)
 	if err != nil {
 		logger.FromContext(c.Request.Context(), "api").Error("PostStatusBatch 失败", "error", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("查询失败: %v", err)})
+		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "查询失败，请稍后再试")
 		return
 	}
 

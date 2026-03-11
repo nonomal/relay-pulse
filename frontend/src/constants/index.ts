@@ -9,7 +9,7 @@ export const PROVIDERS: Provider[] = [
   { id: 'www.right.codes', name: 'www.right.codes', services: ['cx'] },
 ];
 
-// 时间范围配置（保留以兼容现有代码）
+// 时间范围结构定义（仅 id/points/unit，供 mockMonitor 等非 i18n 场景使用）
 export const TIME_RANGES: TimeRange[] = [
   { id: '90m', label: '近90分钟', points: 90, unit: 'minute' },
   { id: '24h', label: '近24小时', points: 24, unit: 'hour' },
@@ -24,39 +24,6 @@ export const getTimeRanges = (t: TFunction): TimeRange[] => [
   { id: '7d', label: t('controls.timeRanges.7d'), points: 7, unit: 'day' },
   { id: '30d', label: t('controls.timeRanges.30d'), points: 30, unit: 'day' },
 ];
-
-// 状态配置（保留以兼容现有代码）
-// 使用语义化 CSS 类名，支持主题切换
-export const STATUS: Record<string, StatusConfig> = {
-  AVAILABLE: {
-    color: 'bg-success',
-    text: 'text-success',
-    glow: 'glow-success',
-    label: '可用',
-    weight: 3,
-  },
-  DEGRADED: {
-    color: 'bg-warning',
-    text: 'text-warning',
-    glow: 'glow-warning',
-    label: '波动',
-    weight: 2,
-  },
-  MISSING: {
-    color: 'bg-secondary',
-    text: 'text-secondary',
-    glow: 'glow-muted',
-    label: '无数据',
-    weight: 1,  // 排序权重与 UNAVAILABLE 相同
-  },
-  UNAVAILABLE: {
-    color: 'bg-danger',
-    text: 'text-danger',
-    glow: 'glow-danger',
-    label: '不可用',
-    weight: 1,
-  },
-};
 
 // 状态配置工厂函数（i18n 版本）
 // 使用语义化 CSS 类名，支持主题切换
@@ -90,31 +57,6 @@ export const getStatusConfig = (t: TFunction): Record<string, StatusConfig> => (
     weight: 1,
   },
 });
-
-// 保留原有导出以兼容不需要翻译的场景
-// 使用语义化 CSS 类名，支持主题切换
-export const STATUS_COLORS = {
-  AVAILABLE: {
-    color: 'bg-success',
-    text: 'text-success',
-    glow: 'glow-success',
-  },
-  DEGRADED: {
-    color: 'bg-warning',
-    text: 'text-warning',
-    glow: 'glow-warning',
-  },
-  MISSING: {
-    color: 'bg-secondary',
-    text: 'text-secondary',
-    glow: 'glow-muted',
-  },
-  UNAVAILABLE: {
-    color: 'bg-danger',
-    text: 'text-danger',
-    glow: 'glow-danger',
-  },
-} as const;
 
 // API 基础 URL（使用相对路径，自动适配当前域名）
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';

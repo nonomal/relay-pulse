@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -51,6 +52,20 @@ type DatabaseConfig struct {
 // APIConfig HTTP API 配置
 type APIConfig struct {
 	Addr string `yaml:"addr"` // 监听地址，如 :8081
+
+	// AuthToken 可选 Bearer Token，非空时要求 bind-token 端点携带 Authorization: Bearer <token>
+	// 默认空（不鉴权），可通过环境变量 API_AUTH_TOKEN 覆盖
+	AuthToken string `yaml:"auth_token"`
+
+	// CORSAllowedOrigins 允许的 CORS Origin 列表
+	// 默认 ["*"]（向后兼容），部署时建议收紧为实际前端域名
+	// 可通过环境变量 API_CORS_ALLOWED_ORIGINS（逗号分隔）覆盖
+	CORSAllowedOrigins []string `yaml:"cors_allowed_origins"`
+
+	// TrustProxy 是否信任反向代理的 X-Forwarded-For / X-Real-IP 头
+	// 默认 false（仅使用 RemoteAddr 提取客户端 IP）
+	// 部署在 nginx/caddy/cloudflare 等反向代理后面时应设为 true
+	TrustProxy bool `yaml:"trust_proxy"`
 }
 
 // LimitsConfig 限制配置
@@ -122,6 +137,15 @@ func (c *Config) applyEnvOverrides() {
 	if v := os.Getenv("API_ADDR"); v != "" {
 		c.API.Addr = v
 	}
+	if v := os.Getenv("API_AUTH_TOKEN"); v != "" {
+		c.API.AuthToken = strings.TrimSpace(v)
+	}
+	if v := os.Getenv("API_CORS_ALLOWED_ORIGINS"); v != "" {
+		c.API.CORSAllowedOrigins = splitAndTrimCSV(v)
+	}
+	if v := os.Getenv("API_TRUST_PROXY"); v == "true" || v == "1" {
+		c.API.TrustProxy = true
+	}
 	// QQ 相关环境变量
 	if v := os.Getenv("QQ_ONEBOT_HTTP_URL"); v != "" {
 		c.QQ.OneBotHTTPURL = v
@@ -148,6 +172,12 @@ func (c *Config) setDefaults() {
 	}
 	if c.API.Addr == "" {
 		c.API.Addr = ":8081"
+	}
+	c.API.AuthToken = strings.TrimSpace(c.API.AuthToken)
+	if len(c.API.CORSAllowedOrigins) == 0 {
+		c.API.CORSAllowedOrigins = []string{"*"}
+	} else {
+		c.API.CORSAllowedOrigins = normalizeCORSOrigins(c.API.CORSAllowedOrigins)
 	}
 	if c.Limits.MaxSubscriptionsPerUser == 0 {
 		c.Limits.MaxSubscriptionsPerUser = 20
@@ -188,6 +218,37 @@ func (c *Config) setDefaults() {
 	if c.Screenshot.MaxConcurrent == 0 {
 		c.Screenshot.MaxConcurrent = 3
 	}
+}
+
+// splitAndTrimCSV 将逗号分隔的字符串拆分并去除空白
+func splitAndTrimCSV(v string) []string {
+	parts := strings.Split(v, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if s := strings.TrimSpace(p); s != "" {
+			result = append(result, s)
+		}
+	}
+	return result
+}
+
+// normalizeCORSOrigins 规范化 CORS origin 列表：含 "*" 时直接返回 ["*"]
+func normalizeCORSOrigins(origins []string) []string {
+	result := make([]string, 0, len(origins))
+	for _, o := range origins {
+		o = strings.TrimSpace(o)
+		if o == "" {
+			continue
+		}
+		if o == "*" {
+			return []string{"*"}
+		}
+		result = append(result, o)
+	}
+	if len(result) == 0 {
+		return []string{"*"}
+	}
+	return result
 }
 
 // validate 验证配置

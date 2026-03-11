@@ -1,5 +1,12 @@
-import { STATUS } from '../constants';
 import type { ProcessedMonitorData, SortConfig, StatusKey, SponsorPinConfig } from '../types';
+
+/** 状态排序权重（仅用于排序比较，不含样式或 i18n） */
+const STATUS_WEIGHT: Record<string, number> = {
+  AVAILABLE: 3,
+  DEGRADED: 2,
+  MISSING: 1,
+  UNAVAILABLE: 1,
+};
 import { calculateBadgeScore, SPONSOR_WEIGHTS } from './badgeUtils';
 
 /**
@@ -59,8 +66,8 @@ function comparePrimary(
     aValue = calculateBadgeScore(a);
     bValue = calculateBadgeScore(b);
   } else if (key === 'currentStatus') {
-    aValue = STATUS[a.currentStatus as StatusKey]?.weight ?? 0;
-    bValue = STATUS[b.currentStatus as StatusKey]?.weight ?? 0;
+    aValue = STATUS_WEIGHT[a.currentStatus as StatusKey] ?? 0;
+    bValue = STATUS_WEIGHT[b.currentStatus as StatusKey] ?? 0;
   } else if (key === 'uptime') {
     return compareUptime(a.uptime, b.uptime, direction);
   } else if (key === 'priceRatio') {

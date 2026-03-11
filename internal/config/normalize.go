@@ -9,7 +9,7 @@ import (
 )
 
 // Normalize 规范化配置（填充默认值等）
-func (c *AppConfig) Normalize() error {
+func (c *AppConfig) normalize() error {
 	// 1. 全局时间配置（interval, slow_latency, timeout 及 by_service）
 	if err := c.normalizeGlobalTimings(); err != nil {
 		return err
@@ -394,7 +394,7 @@ func (c *AppConfig) normalizeGlobalDefaults() error {
 	}
 
 	// 缓存 TTL 配置
-	if err := c.CacheTTL.Normalize(); err != nil {
+	if err := c.CacheTTL.normalize(); err != nil {
 		return err
 	}
 
@@ -450,7 +450,7 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 		c.SponsorPin.MinLevel = SponsorLevelBeacon
 	}
 	// 旧值兼容迁移（持续 1 个版本周期）
-	if migrated, ok := c.SponsorPin.MinLevel.DeprecatedToNew(); ok {
+	if migrated, ok := c.SponsorPin.MinLevel.deprecatedToNew(); ok {
 		logger.Warn("config", "sponsor_pin.min_level 使用已废弃的赞助等级，已自动迁移",
 			"old", c.SponsorPin.MinLevel, "new", migrated)
 		c.SponsorPin.MinLevel = migrated
@@ -464,7 +464,7 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 		logger.Warn("config", "sponsor_pin.min_uptime 超出范围，已回退默认值", "value", c.SponsorPin.MinUptime, "default", 95.0)
 		c.SponsorPin.MinUptime = 95.0
 	}
-	if !c.SponsorPin.MinLevel.IsValid() || c.SponsorPin.MinLevel == SponsorLevelNone {
+	if !c.SponsorPin.MinLevel.isValid() || c.SponsorPin.MinLevel == SponsorLevelNone {
 		logger.Warn("config", "sponsor_pin.min_level 无效，已回退默认值", "value", c.SponsorPin.MinLevel, "default", SponsorLevelBeacon)
 		c.SponsorPin.MinLevel = SponsorLevelBeacon
 	}
@@ -541,12 +541,12 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 	}
 
 	// GitHub 配置默认值与环境变量覆盖
-	if err := c.GitHub.Normalize(); err != nil {
+	if err := c.GitHub.normalize(); err != nil {
 		return err
 	}
 
 	// 公告配置默认值与解析
-	if err := c.Announcements.Normalize(); err != nil {
+	if err := c.Announcements.normalize(); err != nil {
 		return err
 	}
 
@@ -635,13 +635,13 @@ func (c *AppConfig) normalizeStorageConfig() error {
 	}
 
 	// 历史数据保留与清理配置
-	if err := c.Storage.Retention.Normalize(); err != nil {
+	if err := c.Storage.Retention.normalize(); err != nil {
 		return err
 	}
 
 	// 历史数据归档配置（仅在启用时校验）
 	if c.Storage.Archive.IsEnabled() {
-		if err := c.Storage.Archive.Normalize(); err != nil {
+		if err := c.Storage.Archive.normalize(); err != nil {
 			return err
 		}
 		// 校验归档天数应小于保留天数，避免数据在归档前被清理

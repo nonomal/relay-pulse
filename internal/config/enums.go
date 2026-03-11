@@ -14,7 +14,7 @@ const (
 )
 
 // IsValid 检查赞助等级是否有效（含旧值兼容）
-func (s SponsorLevel) IsValid() bool {
+func (s SponsorLevel) isValid() bool {
 	switch s {
 	case SponsorLevelNone,
 		SponsorLevelPublic, SponsorLevelSignal, SponsorLevelPulse,
@@ -22,14 +22,14 @@ func (s SponsorLevel) IsValid() bool {
 		return true
 	default:
 		// 旧值兼容：basic/advanced/enterprise 仍视为有效
-		_, ok := s.DeprecatedToNew()
+		_, ok := s.deprecatedToNew()
 		return ok
 	}
 }
 
 // DeprecatedToNew 将旧赞助等级映射为新等级（向后兼容，持续 1 个版本周期）
 // 返回 (新等级, 是否为旧值)
-func (s SponsorLevel) DeprecatedToNew() (SponsorLevel, bool) {
+func (s SponsorLevel) deprecatedToNew() (SponsorLevel, bool) {
 	switch s {
 	case "basic":
 		return SponsorLevelPulse, true
@@ -72,7 +72,7 @@ const (
 )
 
 // IsValid 检查徽标分类是否有效
-func (k BadgeKind) IsValid() bool {
+func (k BadgeKind) isValid() bool {
 	switch k {
 	case BadgeKindSource, BadgeKindInfo, BadgeKindFeature:
 		return true
@@ -93,7 +93,7 @@ const (
 )
 
 // IsValid 检查徽标样式是否有效
-func (v BadgeVariant) IsValid() bool {
+func (v BadgeVariant) isValid() bool {
 	switch v {
 	case BadgeVariantDefault, BadgeVariantSuccess, BadgeVariantWarning, BadgeVariantDanger, BadgeVariantInfo:
 		return true

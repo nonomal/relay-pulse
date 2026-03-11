@@ -14,6 +14,7 @@ import { Tooltip } from '../components/Tooltip';
 import { Footer } from '../components/Footer';
 import { EmptyFavorites } from '../components/EmptyFavorites';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
+import { canonicalize } from '../utils/monitorDataProcessor';
 import type { ViewMode, SortConfig, TooltipState, ProcessedMonitorData, ChannelOption, BoardFilter } from '../types';
 
 // localStorage key for time align preference (shared with App.tsx)
@@ -28,11 +29,6 @@ interface ProviderPageSnapshot {
   version: 1;
   filterService: string[];
   filterChannel: string[];
-}
-
-// Provider 名称规范化（小写、去空格）
-function canonicalize(value?: string): string {
-  return value?.trim().toLowerCase() ?? '';
 }
 
 /**

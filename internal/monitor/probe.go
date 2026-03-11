@@ -20,6 +20,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 
 	"monitor/internal/config"
+	"monitor/internal/identity"
 	"monitor/internal/logger"
 	"monitor/internal/storage"
 )
@@ -41,12 +42,12 @@ type ProbeResult struct {
 // Prober 探测器
 type Prober struct {
 	clientPool *ClientPool
-	storage    storage.Storage
-	userIDMgr  *config.UserIDManager
+	storage    storage.RecordStorage
+	userIDMgr  *identity.UserIDManager
 }
 
 // NewProber 创建探测器
-func NewProber(storage storage.Storage, userIDMgr *config.UserIDManager) *Prober {
+func NewProber(storage storage.RecordStorage, userIDMgr *identity.UserIDManager) *Prober {
 	return &Prober{
 		clientPool: NewClientPool(),
 		storage:    storage,
@@ -55,7 +56,7 @@ func NewProber(storage storage.Storage, userIDMgr *config.UserIDManager) *Prober
 }
 
 // InjectVariables 替换所有占位符，返回临时副本（不修改共享 ServiceConfig）
-func InjectVariables(cfg *config.ServiceConfig, uidMgr *config.UserIDManager) (url, body string, headers map[string]string, successContains string) {
+func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) (url, body string, headers map[string]string, successContains string) {
 	// 回退：非模板监测项可能没有 URLPattern，直接使用 BaseURL
 	url = cfg.URLPattern
 	if url == "" {

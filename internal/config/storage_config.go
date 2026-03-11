@@ -82,7 +82,7 @@ func (c *RetentionConfig) IsEnabled() bool {
 }
 
 // Normalize 规范化 retention 配置（填充默认值并解析 duration）
-func (c *RetentionConfig) Normalize() error {
+func (c *RetentionConfig) normalize() error {
 	// 保留天数（默认 36）
 	if c.Days == 0 {
 		c.Days = 36
@@ -187,7 +187,7 @@ func (c *ArchiveConfig) IsEnabled() bool {
 }
 
 // Normalize 规范化 archive 配置（填充默认值）
-func (c *ArchiveConfig) Normalize() error {
+func (c *ArchiveConfig) normalize() error {
 	// 归档执行时间校验（UTC 小时，0-23，默认 3）
 	if c.ScheduleHour != nil {
 		if *c.ScheduleHour < 0 || *c.ScheduleHour > 23 {

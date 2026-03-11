@@ -52,7 +52,7 @@ func TestBaseURLNormalization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &AppConfig{PublicBaseURL: tt.inputURL}
-			err := cfg.Normalize()
+			err := cfg.normalize()
 
 			if tt.shouldErr {
 				if err == nil {
@@ -154,8 +154,8 @@ func TestBadgeKindVariantValidation(t *testing.T) {
 
 	for _, tt := range kindTests {
 		t.Run("Kind_"+string(tt.kind), func(t *testing.T) {
-			if got := tt.kind.IsValid(); got != tt.isValid {
-				t.Errorf("BadgeKind(%q).IsValid() = %v, want %v", tt.kind, got, tt.isValid)
+			if got := tt.kind.isValid(); got != tt.isValid {
+				t.Errorf("BadgeKind(%q).isValid() = %v, want %v", tt.kind, got, tt.isValid)
 			}
 		})
 	}
@@ -175,8 +175,8 @@ func TestBadgeKindVariantValidation(t *testing.T) {
 
 	for _, tt := range variantTests {
 		t.Run("Variant_"+string(tt.variant), func(t *testing.T) {
-			if got := tt.variant.IsValid(); got != tt.isValid {
-				t.Errorf("BadgeVariant(%q).IsValid() = %v, want %v", tt.variant, got, tt.isValid)
+			if got := tt.variant.isValid(); got != tt.isValid {
+				t.Errorf("BadgeVariant(%q).isValid() = %v, want %v", tt.variant, got, tt.isValid)
 			}
 		})
 	}
@@ -286,7 +286,7 @@ func TestBadgesValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.config.Validate()
+			err := tt.config.validate()
 
 			if tt.shouldErr {
 				if err == nil {
@@ -345,7 +345,7 @@ func TestBadgesNormalize(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -408,7 +408,7 @@ func TestBadgesDisabled(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -442,7 +442,7 @@ func TestBadgesDefaultOverride(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -479,7 +479,7 @@ func TestBadgesClone(t *testing.T) {
 		},
 	}
 
-	clone := cfg.Clone()
+	clone := cfg.clone()
 
 	// 修改原始配置（map 需要通过临时变量修改）
 	modifiedDef := cfg.BadgeDefs["test"]
@@ -529,7 +529,7 @@ func TestCloneDeepCopiesMonitorPointerFields(t *testing.T) {
 		},
 	}
 
-	clone := cfg.Clone()
+	clone := cfg.clone()
 
 	// 修改原始值
 	*cfg.Monitors[0].PriceMin = 9.9
@@ -628,7 +628,7 @@ func TestCacheTTLNormalize(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.config
-			err := cfg.Normalize()
+			err := cfg.normalize()
 
 			if tt.shouldErr {
 				if err == nil {
@@ -668,7 +668,7 @@ func TestCacheTTLForPeriod(t *testing.T) {
 		TTL7d:  "120s",
 		TTL30d: "300s",
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -747,7 +747,7 @@ func TestAppConfigNormalizeWithCacheTTL(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -781,7 +781,7 @@ func TestAppConfigNormalizeWithInvalidCacheTTL(t *testing.T) {
 		},
 	}
 
-	err := cfg.Normalize()
+	err := cfg.normalize()
 	if err == nil {
 		t.Errorf("Normalize() should return error for invalid cache_ttl")
 	}

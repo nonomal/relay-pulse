@@ -47,10 +47,11 @@ func WithSlowLatencyByService(m map[string]time.Duration) TestJobManagerOption {
 
 // TestJobManager manages the lifecycle of self-test jobs
 type TestJobManager struct {
-	mu      sync.RWMutex
-	jobs    map[string]*TestJob // id -> job
-	queue   []*TestJob          // waiting queue (FIFO)
-	running map[string]*TestJob // currently running jobs
+	mu       sync.RWMutex
+	jobs     map[string]*TestJob // id -> job
+	queue    []*TestJob          // waiting queue (FIFO)
+	running  map[string]*TestJob // currently running jobs
+	stopping bool                // 标记管理器正在关闭，拒绝新任务和调度
 
 	maxConcurrent int           // Maximum concurrent jobs (default 10)
 	maxQueueSize  int           // Maximum queue length (default 50)
@@ -136,8 +137,18 @@ func (m *TestJobManager) CreateJob(
 		return nil, err
 	}
 
-	// 4. Check queue capacity
+	// 4. Check if stopping (hot reload in progress)
 	m.mu.Lock()
+	if m.stopping {
+		m.mu.Unlock()
+		return nil, &Error{
+			Code:    ErrCodeFeatureDisabled,
+			Message: "自助测试功能正在重载，请稍后再试",
+			Err:     errors.New("selftest manager is stopping"),
+		}
+	}
+
+	// 5. Check queue capacity
 	if len(m.queue) >= m.maxQueueSize {
 		m.mu.Unlock()
 		return nil, &Error{
@@ -198,7 +209,7 @@ func (m *TestJobManager) scheduleNext() {
 	defer m.mu.Unlock()
 
 	// Check if we have capacity and jobs in queue
-	if len(m.running) >= m.maxConcurrent || len(m.queue) == 0 {
+	if m.stopping || len(m.running) >= m.maxConcurrent || len(m.queue) == 0 {
 		return
 	}
 
@@ -365,13 +376,74 @@ func (m *TestJobManager) cleanup() {
 	}
 }
 
-// Stop gracefully stops the manager (idempotent, safe to call multiple times)
-func (m *TestJobManager) Stop() {
+// beginStop 标记管理器为 stopping，取消所有排队任务，返回被丢弃的 pending 数量
+func (m *TestJobManager) beginStop() (pending int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.stopping = true
+	pending = len(m.queue)
+	if pending == 0 {
+		return pending
+	}
+
+	// 将所有排队任务标记为已取消
+	now := time.Now()
+	for _, job := range m.queue {
+		job.mu.Lock()
+		if job.Status == StatusQueued {
+			job.Status = StatusCanceled
+			job.QueuePos = 0
+			job.ErrorMessage = "配置热更新：排队中的自助测试任务已取消"
+			job.FinishedAt = &now
+		}
+		job.mu.Unlock()
+	}
+	m.queue = nil
+	return pending
+}
+
+// runningCount 返回当前正在运行的任务数（并发安全）
+func (m *TestJobManager) runningCount() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return len(m.running)
+}
+
+// StopWithDrain 优雅停止管理器。
+// timeout > 0 时最多等待 running 任务指定时长；timeout <= 0 时无限等待。
+func (m *TestJobManager) StopWithDrain(timeout time.Duration) {
 	m.stopOnce.Do(func() {
+		pending := m.beginStop()
+		if pending > 0 {
+			logger.Warn("selftest", "管理器停止时丢弃排队任务", "pending", pending)
+		}
+
 		close(m.stopCleanup)
-		m.wg.Wait()
+
+		done := make(chan struct{})
+		go func() {
+			m.wg.Wait()
+			close(done)
+		}()
+
+		if timeout > 0 {
+			select {
+			case <-done:
+			case <-time.After(timeout):
+				logger.Warn("selftest", "等待运行中任务 drain 超时，继续关闭",
+					"timeout", timeout, "running", m.runningCount())
+			}
+		} else {
+			<-done
+		}
 		m.limiter.Stop()
 	})
+}
+
+// Stop gracefully stops the manager (idempotent, safe to call multiple times)
+func (m *TestJobManager) Stop() {
+	m.StopWithDrain(0)
 }
 
 // CheckRateLimit checks if the IP is allowed to make a request

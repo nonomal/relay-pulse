@@ -4,14 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"monitor/internal/logger"
 )
 
 // ApplyEnvOverrides 应用环境变量覆盖
 // API Key 格式：MONITOR_<PROVIDER>_<SERVICE>_<CHANNEL>_API_KEY（优先）或 MONITOR_<PROVIDER>_<SERVICE>_API_KEY（向后兼容）
 // 存储配置格式：MONITOR_STORAGE_TYPE, MONITOR_POSTGRES_HOST 等
-func (c *AppConfig) ApplyEnvOverrides() {
+func (c *AppConfig) applyEnvOverrides() {
 	// PublicBaseURL 环境变量覆盖
 	if envBaseURL := os.Getenv("MONITOR_PUBLIC_BASE_URL"); envBaseURL != "" {
 		c.PublicBaseURL = envBaseURL
@@ -27,8 +30,12 @@ func (c *AppConfig) ApplyEnvOverrides() {
 		c.Storage.Postgres.Host = envHost
 	}
 	if envPort := os.Getenv("MONITOR_POSTGRES_PORT"); envPort != "" {
-		if port, err := fmt.Sscanf(envPort, "%d", &c.Storage.Postgres.Port); err == nil && port == 1 {
-			// Port parsed successfully
+		port, err := strconv.Atoi(strings.TrimSpace(envPort))
+		if err != nil {
+			logger.Warn("config", "MONITOR_POSTGRES_PORT 无效，已忽略",
+				"value", envPort, "error", err)
+		} else {
+			c.Storage.Postgres.Port = port
 		}
 	}
 	if envUser := os.Getenv("MONITOR_POSTGRES_USER"); envUser != "" {
@@ -89,7 +96,7 @@ func (c *AppConfig) ApplyEnvOverrides() {
 }
 
 // ResolveTemplates 加载 template 字段引用的 JSON 模板文件，填充 ServiceConfig 中为空的字段
-func (c *AppConfig) ResolveTemplates(configDir string) error {
+func (c *AppConfig) resolveTemplates(configDir string) error {
 	for i := range c.Monitors {
 		m := &c.Monitors[i]
 		if m.Template == "" {
@@ -142,7 +149,7 @@ func (c *AppConfig) ResolveTemplates(configDir string) error {
 }
 
 // Clone 深拷贝配置（用于热更新回滚）
-func (c *AppConfig) Clone() *AppConfig {
+func (c *AppConfig) clone() *AppConfig {
 	// 深拷贝指针字段
 	var staggerPtr *bool
 	if c.StaggerProbes != nil {
@@ -203,12 +210,12 @@ func (c *AppConfig) Clone() *AppConfig {
 		CacheTTL:                        c.CacheTTL, // CacheTTL 是值类型，直接复制
 		Storage:                         c.Storage,
 		PublicBaseURL:                   c.PublicBaseURL,
-		DisabledProviders:               make([]DisabledProviderConfig, len(c.DisabledProviders)),
-		HiddenProviders:                 make([]HiddenProviderConfig, len(c.HiddenProviders)),
-		RiskProviders:                   make([]RiskProviderConfig, len(c.RiskProviders)),
+		DisabledProviders:               make([]disabledProviderConfig, len(c.DisabledProviders)),
+		HiddenProviders:                 make([]hiddenProviderConfig, len(c.HiddenProviders)),
+		RiskProviders:                   make([]riskProviderConfig, len(c.RiskProviders)),
 		Boards:                          c.Boards, // Boards 是值类型（含 AutoMove），直接复制
 		ExposeChannelDetails:            exposeChannelDetailsPtr,
-		ChannelDetailsProviders:         make([]ChannelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
+		ChannelDetailsProviders:         make([]channelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
 		EnableBadges:                    c.EnableBadges,
 		BadgeDefs:                       make(map[string]BadgeDef, len(c.BadgeDefs)),
 		BadgeProviders:                  make([]BadgeProviderConfig, len(c.BadgeProviders)),

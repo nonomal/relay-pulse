@@ -32,7 +32,7 @@ func TestValidateMonitorsUniqueByQuadruple(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
+	err := cfg.validate()
 	if err == nil || !strings.Contains(err.Error(), "重复的监测项") {
 		t.Fatalf("期望重复的监测项错误, got=%v", err)
 	}
@@ -61,7 +61,7 @@ func TestValidateParentRequiresModel(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
+	err := cfg.validate()
 	if err == nil || !strings.Contains(err.Error(), "有 parent 但缺少 model") {
 		t.Fatalf("期望子通道缺少 model 报错, got=%v", err)
 	}
@@ -90,7 +90,7 @@ func TestValidateReferencedParentRequiresModel(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
+	err := cfg.validate()
 	if err == nil || !strings.Contains(err.Error(), "被引用为父") {
 		t.Fatalf("期望父通道缺少 model 报错, got=%v", err)
 	}
@@ -120,7 +120,7 @@ func TestValidateParentFormatError(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
+	err := cfg.validate()
 	if err == nil || !strings.Contains(err.Error(), "parent 格式错误") {
 		t.Fatalf("期望 parent 格式错误, got=%v", err)
 	}
@@ -140,7 +140,7 @@ func TestValidateParentNotFound(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
+	err := cfg.validate()
 	if err == nil || !strings.Contains(err.Error(), "找不到父通道") {
 		t.Fatalf("期望找不到父通道错误, got=%v", err)
 	}
@@ -180,7 +180,7 @@ func TestValidateParentMultipleDefinitions(t *testing.T) {
 		},
 	}
 
-	err := cfg.Validate()
+	err := cfg.validate()
 	if err == nil || !strings.Contains(err.Error(), "存在多个定义") {
 		t.Fatalf("期望父通道多定义报错, got=%v", err)
 	}
@@ -214,10 +214,10 @@ func TestNormalizeAppliesParentInheritanceAndTemplates(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -271,7 +271,7 @@ func TestChildInheritsProviderServiceChannel(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
 
@@ -345,7 +345,7 @@ func TestChildCannotOverrideProviderServiceChannel(t *testing.T) {
 				},
 			}
 
-			err := cfg.Validate()
+			err := cfg.validate()
 			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 				t.Fatalf("期望错误包含 %q, got=%v", tt.wantErr, err)
 			}
@@ -376,10 +376,10 @@ func TestChildInheritsCategoryFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -418,10 +418,10 @@ func TestChildInheritsDurationFieldsFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -493,10 +493,10 @@ func TestChildOwnDurationFieldsNotOverwritten(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -540,10 +540,10 @@ func TestChildInheritsBoardFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -587,10 +587,10 @@ func TestChildExplicitBoardNotOverwritten(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -633,10 +633,10 @@ func TestChildInheritsProviderSlugFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -673,10 +673,10 @@ func TestChildExplicitProviderSlugNotOverwritten(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -714,10 +714,10 @@ func TestChildInheritsProviderNameFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -763,10 +763,10 @@ func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
@@ -804,10 +804,10 @@ func TestChildInheritsTemplateFromParent(t *testing.T) {
 		},
 	}
 
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		t.Fatalf("Validate() failed: %v", err)
 	}
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 

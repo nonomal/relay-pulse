@@ -7,6 +7,7 @@ import type {
   JobStatus,
   TestResult,
 } from '../types/selftest';
+import { extractErrorMessage } from '../utils/apiClient';
 
 interface UseSelfTestReturn {
   jobId: string | null;
@@ -50,12 +51,16 @@ export const useSelfTest = (): UseSelfTestReturn => {
         const response = await fetch(`/api/selftest/${id}`);
 
         if (!response.ok) {
+          const errorMessage = extractErrorMessage(
+            await response.text(),
+            `获取任务状态失败 (${response.status})`
+          );
           if (response.status === 404) {
-            setError('任务不存在或已过期');
+            setError(errorMessage);
             setIsPolling(false);
             return;
           }
-          throw new Error(`Failed to fetch status: ${response.statusText}`);
+          throw new Error(errorMessage);
         }
 
         const data: TestJobDetail = await response.json();
@@ -131,17 +136,10 @@ export const useSelfTest = (): UseSelfTestReturn => {
         });
 
         if (!response.ok) {
-          const errorText = await response.text();
-          let errorMessage = errorText;
-
-          // 尝试解析 JSON 错误
-          try {
-            const errorJson = JSON.parse(errorText);
-            errorMessage = errorJson.error || errorText;
-          } catch {
-            // 如果不是 JSON，使用原始文本
-          }
-
+          const errorMessage = extractErrorMessage(
+            await response.text(),
+            `提交失败 (${response.status})`
+          );
           throw new Error(errorMessage);
         }
 

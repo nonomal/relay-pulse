@@ -117,7 +117,7 @@ func (w *Watcher) Start(ctx context.Context) error {
 
 // reload 重新加载配置
 func (w *Watcher) reload() {
-	newConfig, err := w.loader.LoadOrRollback(w.filename)
+	newConfig, err := w.loader.loadOrRollback(w.filename)
 	if err != nil {
 		logger.Error("config", "重载失败", "error", err)
 		return

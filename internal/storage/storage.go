@@ -181,50 +181,33 @@ type EventFilters struct {
 	Types    []EventType // 按事件类型过滤（可选，如 ["DOWN", "UP"]）
 }
 
-// Storage 存储接口
+// ===== 领域子接口 =====
+
+// RecordStorage 探测记录的读写操作
 //
 // 索引依赖说明：
 // - GetLatest 和 GetHistory 的性能依赖于 idx_probe_history_pscm_ts_cover 覆盖索引
 // - 两个方法都必须包含完整的 (provider, service, channel, model) 等值条件
 // - ⚠️ 如果新增不带 channel/model 参数的查询方法，需要重新评估索引策略
-type Storage interface {
-	// Init 初始化存储
-	Init() error
-
-	// Close 关闭存储
-	Close() error
-
-	// WithContext 返回绑定指定 context 的存储实例
-	// 用于支持请求级别的超时和取消，不修改原实例，便于并发请求安全复用
-	WithContext(ctx context.Context) Storage
-
+type RecordStorage interface {
 	// SaveRecord 保存探测记录
 	SaveRecord(record *ProbeRecord) error
 
 	// GetLatest 获取最新记录
-	// 要求：必须传入 provider, service, channel, model 四个参数（索引覆盖）
 	GetLatest(provider, service, channel, model string) (*ProbeRecord, error)
 
 	// GetHistory 获取历史记录（时间范围）
-	// 要求：必须传入 provider, service, channel, model 四个参数（索引覆盖）
 	GetHistory(provider, service, channel, model string, since time.Time) ([]*ProbeRecord, error)
 
 	// GetLatestBatch 批量获取每个监测项的最新记录
-	// 返回 map 中缺失的 key 表示该监测项没有任何记录
-	// 用于 7d/30d 场景优化，将 N 个监测项的 GetLatest 从 N 次往返降为 1 次
 	GetLatestBatch(keys []MonitorKey) (map[MonitorKey]*ProbeRecord, error)
 
 	// GetHistoryBatch 批量获取多个监测项的历史记录（时间范围）
-	// 返回 map 中缺失的 key 表示该监测项没有任何记录
-	// 用于 7d/30d 场景优化，将 N 个监测项的 GetHistory 从 N 次往返降为 1 次
 	GetHistoryBatch(keys []MonitorKey, since time.Time) (map[MonitorKey][]*ProbeRecord, error)
+}
 
-	// MigrateChannelData 将 channel 为空的历史记录迁移到最新配置
-	// 注意：一次性操作，无需索引优化
-	MigrateChannelData(mappings []ChannelMigrationMapping) error
-
-	// ===== 状态订阅通知（事件）相关方法 =====
-
+// EventStorage 状态变更检测的持久化操作
+type EventStorage interface {
 	// GetServiceState 获取服务状态机持久化状态
 	// 返回 nil, nil 表示该监测项尚未初始化状态
 	GetServiceState(provider, service, channel, model string) (*ServiceState, error)
@@ -240,31 +223,50 @@ type Storage interface {
 	UpsertChannelState(state *ChannelState) error
 
 	// GetModelStatesForChannel 获取通道下所有模型的状态
-	// 用于构建通道级事件的 Meta 信息
 	GetModelStatesForChannel(provider, service, channel string) ([]*ServiceState, error)
 
 	// SaveStatusEvent 保存状态变更事件
-	// 使用唯一约束确保幂等（相同 provider/service/channel/event_type/trigger_record_id 不重复插入）
+	// 使用唯一约束确保幂等
 	SaveStatusEvent(event *StatusEvent) error
 
-	// GetStatusEvents 查询状态变更事件列表
-	// sinceID: 从该 ID 之后开始（游标分页，不包含该 ID）
-	// limit: 最多返回条数
-	// filters: 可选过滤条件
+	// GetStatusEvents 查询状态变更事件列表（游标分页）
 	GetStatusEvents(sinceID int64, limit int, filters *EventFilters) ([]*StatusEvent, error)
 
 	// GetLatestEventID 获取最新事件 ID（用于客户端初始化游标）
-	// 返回 0 表示没有任何事件
 	GetLatestEventID() (int64, error)
+}
 
-	// ===== 历史数据清理相关方法 =====
-
+// RetentionStorage 历史数据清理操作
+type RetentionStorage interface {
 	// PurgeOldRecords 清理指定时间之前的历史记录
-	// before: 清理此时间戳之前的记录
-	// batchSize: 每批删除的最大行数
-	// 返回实际删除的行数和错误
-	// 注意：该方法应在单次调用中删除一批记录，调用方负责循环调用直到无更多数据
+	// 调用方负责循环调用直到无更多数据
 	PurgeOldRecords(ctx context.Context, before time.Time, batchSize int) (deleted int64, err error)
+}
+
+// MigrationStorage 数据迁移操作（一次性/运维场景）
+type MigrationStorage interface {
+	// MigrateChannelData 将 channel 为空的历史记录迁移到最新配置
+	MigrateChannelData(mappings []ChannelMigrationMapping) error
+}
+
+// Storage 完整存储接口，组合所有领域子接口
+//
+// 工厂方法返回此接口；消费方应尽量依赖更小的子接口。
+// WithContext 返回 Storage 以保持现有调用链兼容。
+type Storage interface {
+	// Init 初始化存储
+	Init() error
+
+	// Close 关闭存储
+	Close() error
+
+	// WithContext 返回绑定指定 context 的存储实例
+	WithContext(ctx context.Context) Storage
+
+	RecordStorage
+	MigrationStorage
+	EventStorage
+	RetentionStorage
 }
 
 // ===== DB 侧时间轴聚合相关类型 =====

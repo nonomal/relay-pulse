@@ -21,7 +21,7 @@ func minimalMonitor(provider, service string) ServiceConfig {
 func TestDisabledProvidersValidation(t *testing.T) {
 	tests := []struct {
 		name      string
-		providers []DisabledProviderConfig
+		providers []disabledProviderConfig
 		wantError bool
 	}{
 		{
@@ -31,7 +31,7 @@ func TestDisabledProvidersValidation(t *testing.T) {
 		},
 		{
 			name: "正常配置",
-			providers: []DisabledProviderConfig{
+			providers: []disabledProviderConfig{
 				{Provider: "provider-a", Reason: "已跑路"},
 				{Provider: "provider-b", Reason: "已关站"},
 			},
@@ -39,14 +39,14 @@ func TestDisabledProvidersValidation(t *testing.T) {
 		},
 		{
 			name: "provider 为空",
-			providers: []DisabledProviderConfig{
+			providers: []disabledProviderConfig{
 				{Provider: "", Reason: "测试"},
 			},
 			wantError: true,
 		},
 		{
 			name: "重复 provider",
-			providers: []DisabledProviderConfig{
+			providers: []disabledProviderConfig{
 				{Provider: "same-provider", Reason: "原因1"},
 				{Provider: "same-provider", Reason: "原因2"},
 			},
@@ -54,7 +54,7 @@ func TestDisabledProvidersValidation(t *testing.T) {
 		},
 		{
 			name: "重复 provider（大小写不同）",
-			providers: []DisabledProviderConfig{
+			providers: []disabledProviderConfig{
 				{Provider: "Provider-A", Reason: "原因1"},
 				{Provider: "provider-a", Reason: "原因2"},
 			},
@@ -69,7 +69,7 @@ func TestDisabledProvidersValidation(t *testing.T) {
 				Monitors:          []ServiceConfig{minimalMonitor("test", "test")},
 			}
 
-			err := cfg.Validate()
+			err := cfg.validate()
 			if tt.wantError && err == nil {
 				t.Errorf("期望报错但没有错误")
 			}
@@ -86,7 +86,7 @@ func TestDisabledNormalize(t *testing.T) {
 		cfg := &AppConfig{
 			Interval:    "1m",
 			SlowLatency: "5s",
-			DisabledProviders: []DisabledProviderConfig{
+			DisabledProviders: []disabledProviderConfig{
 				{Provider: "disabled-provider", Reason: "商家已跑路"},
 			},
 			Monitors: []ServiceConfig{
@@ -95,7 +95,7 @@ func TestDisabledNormalize(t *testing.T) {
 			},
 		}
 
-		if err := cfg.Normalize(); err != nil {
+		if err := cfg.normalize(); err != nil {
 			t.Fatalf("Normalize 失败: %v", err)
 		}
 
@@ -124,7 +124,7 @@ func TestDisabledNormalize(t *testing.T) {
 		cfg := &AppConfig{
 			Interval:    "1m",
 			SlowLatency: "5s",
-			DisabledProviders: []DisabledProviderConfig{
+			DisabledProviders: []disabledProviderConfig{
 				{Provider: "provider-a", Reason: "Provider 级别原因"},
 			},
 			Monitors: []ServiceConfig{
@@ -142,7 +142,7 @@ func TestDisabledNormalize(t *testing.T) {
 			},
 		}
 
-		if err := cfg.Normalize(); err != nil {
+		if err := cfg.normalize(); err != nil {
 			t.Fatalf("Normalize 失败: %v", err)
 		}
 
@@ -171,7 +171,7 @@ func TestDisabledNormalize(t *testing.T) {
 			},
 		}
 
-		if err := cfg.Normalize(); err != nil {
+		if err := cfg.normalize(); err != nil {
 			t.Fatalf("Normalize 失败: %v", err)
 		}
 
@@ -190,10 +190,10 @@ func TestDisabledNormalize(t *testing.T) {
 		cfg := &AppConfig{
 			Interval:    "1m",
 			SlowLatency: "5s",
-			DisabledProviders: []DisabledProviderConfig{
+			DisabledProviders: []disabledProviderConfig{
 				{Provider: "disabled-provider", Reason: "已跑路"},
 			},
-			HiddenProviders: []HiddenProviderConfig{
+			HiddenProviders: []hiddenProviderConfig{
 				{Provider: "hidden-provider", Reason: "整改中"},
 			},
 			Monitors: []ServiceConfig{
@@ -203,7 +203,7 @@ func TestDisabledNormalize(t *testing.T) {
 			},
 		}
 
-		if err := cfg.Normalize(); err != nil {
+		if err := cfg.normalize(); err != nil {
 			t.Fatalf("Normalize 失败: %v", err)
 		}
 
@@ -234,18 +234,18 @@ func TestDisabledClone(t *testing.T) {
 	original := &AppConfig{
 		Interval:    "1m",
 		SlowLatency: "5s",
-		DisabledProviders: []DisabledProviderConfig{
+		DisabledProviders: []disabledProviderConfig{
 			{Provider: "provider-a", Reason: "原因A"},
 			{Provider: "provider-b", Reason: "原因B"},
 		},
 		Monitors: []ServiceConfig{minimalMonitor("test", "test")},
 	}
 
-	if err := original.Normalize(); err != nil {
+	if err := original.normalize(); err != nil {
 		t.Fatalf("Normalize 失败: %v", err)
 	}
 
-	cloned := original.Clone()
+	cloned := original.clone()
 
 	// 检查 DisabledProviders 被正确复制
 	if len(cloned.DisabledProviders) != len(original.DisabledProviders) {

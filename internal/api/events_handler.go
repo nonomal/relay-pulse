@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"monitor/internal/logger"
 	"monitor/internal/storage"
 )
 
@@ -55,16 +56,28 @@ func (h *Handler) GetEvents(c *gin.Context) {
 		return
 	}
 
-	// 解析查询参数
-	sinceID, _ := strconv.ParseInt(c.DefaultQuery("since_id", "0"), 10, 64)
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-
-	// 限制范围：默认 20，最大 100
-	if limit <= 0 {
-		limit = 20
+	// 解析查询参数（仅在参数缺省时使用默认值；显式传参必须是合法整数）
+	sinceID := int64(0)
+	if rawSinceID, ok := c.GetQuery("since_id"); ok {
+		parsedSinceID, err := strconv.ParseInt(strings.TrimSpace(rawSinceID), 10, 64)
+		if err != nil || parsedSinceID < 0 {
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "since_id 必须为大于等于 0 的整数")
+			return
+		}
+		sinceID = parsedSinceID
 	}
-	if limit > 100 {
-		limit = 100
+
+	limit := 20
+	if rawLimit, ok := c.GetQuery("limit"); ok {
+		parsedLimit, err := strconv.Atoi(strings.TrimSpace(rawLimit))
+		if err != nil || parsedLimit <= 0 {
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "limit 必须为 1-100 的整数")
+			return
+		}
+		if parsedLimit > 100 {
+			parsedLimit = 100
+		}
+		limit = parsedLimit
 	}
 
 	// 构建过滤器
@@ -85,9 +98,14 @@ func (h *Handler) GetEvents(c *gin.Context) {
 			types := strings.Split(typesStr, ",")
 			for _, t := range types {
 				t = strings.TrimSpace(t)
-				if t == "DOWN" || t == "UP" {
-					filters.Types = append(filters.Types, storage.EventType(t))
+				if t == "" {
+					continue
 				}
+				if t != "DOWN" && t != "UP" {
+					apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "types 仅支持 DOWN、UP（逗号分隔）")
+					return
+				}
+				filters.Types = append(filters.Types, storage.EventType(t))
 			}
 		}
 	}
@@ -95,9 +113,8 @@ func (h *Handler) GetEvents(c *gin.Context) {
 	// 查询事件
 	events, err := h.storage.GetStatusEvents(sinceID, limit+1, filters)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询事件失败",
-		})
+		logger.FromContext(c.Request.Context(), "api").Error("GetEvents 失败", "since_id", sinceID, "limit", limit, "error", err)
+		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "查询事件失败，请稍后再试")
 		return
 	}
 
@@ -154,9 +171,8 @@ func (h *Handler) GetLatestEventID(c *gin.Context) {
 
 	latestID, err := h.storage.GetLatestEventID()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "查询最新事件ID失败",
-		})
+		logger.FromContext(c.Request.Context(), "api").Error("GetLatestEventID 失败", "error", err)
+		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "查询最新事件 ID 失败，请稍后再试")
 		return
 	}
 
@@ -175,36 +191,28 @@ func (h *Handler) checkEventsAPIToken(c *gin.Context) bool {
 
 	// 未配置 token 时拒绝所有请求
 	if apiToken == "" {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"error": "events API 未配置，请设置 EVENTS_API_TOKEN 环境变量",
-		})
+		apiError(c, http.StatusServiceUnavailable, ErrCodeServiceUnavailable, "events API 暂不可用")
 		return false
 	}
 
 	// 验证 Authorization header
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "缺少 Authorization 请求头",
-		})
+		apiError(c, http.StatusUnauthorized, ErrCodeUnauthorized, "缺少 Authorization 请求头")
 		return false
 	}
 
 	// 支持 "Bearer <token>" 格式
 	const bearerPrefix = "Bearer "
 	if !strings.HasPrefix(authHeader, bearerPrefix) {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Authorization 格式错误，应为: Bearer <token>",
-		})
+		apiError(c, http.StatusUnauthorized, ErrCodeUnauthorized, "Authorization 格式错误，应为 Bearer <token>")
 		return false
 	}
 
 	token := strings.TrimPrefix(authHeader, bearerPrefix)
 	// 使用恒定时间比较，防止时序攻击
 	if subtle.ConstantTimeCompare([]byte(token), []byte(apiToken)) != 1 {
-		c.JSON(http.StatusForbidden, gin.H{
-			"error": "API token 无效",
-		})
+		apiError(c, http.StatusForbidden, ErrCodeForbidden, "API token 无效")
 		return false
 	}
 

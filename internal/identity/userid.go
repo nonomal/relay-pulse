@@ -1,4 +1,5 @@
-package config
+// Package identity 管理运行时用户标识，与配置加载/校验无关。
+package identity
 
 import (
 	"crypto/sha256"
@@ -26,19 +27,6 @@ func NewUserIDManager() *UserIDManager {
 	return &UserIDManager{
 		entries: make(map[string]*userIDEntry),
 	}
-}
-
-// GetUserID 获取通道级 user_id
-// refreshMinutes=0 返回确定性固定值；>0 按间隔轮换
-func (m *UserIDManager) GetUserID(provider, service, channel string, refreshMinutes int) string {
-	id, _ := m.resolve(provider, service, channel, refreshMinutes)
-	return id
-}
-
-// GetUserIDHash 获取 user_id 的 SHA-256 哈希（用于 prompt_cache_key 等）
-func (m *UserIDManager) GetUserIDHash(provider, service, channel string, refreshMinutes int) string {
-	_, hash := m.resolve(provider, service, channel, refreshMinutes)
-	return hash
 }
 
 // GetUserIDPair 原子获取 user_id 和 hash（确保同一次调用中两者一致）

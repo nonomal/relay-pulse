@@ -33,6 +33,9 @@ type ServiceConfig struct {
 	// BaseURL 服务商基础地址（如 "https://api.88code.com"），模板通过 {{BASE_URL}} 引用
 	BaseURL string `yaml:"base_url" json:"base_url"`
 
+	// SkipURLValidation 跳过该监测项的私网 IP 告警校验（内网/自建探测目标场景）
+	SkipURLValidation bool `yaml:"skip_url_validation,omitempty" json:"-"`
+
 	// UserIDRefreshMinutes user_id 刷新间隔（分钟），0 = 使用确定性固定值
 	UserIDRefreshMinutes int `yaml:"user_id_refresh_minutes" json:"user_id_refresh_minutes,omitempty"`
 
@@ -134,30 +137,30 @@ type ServiceConfig struct {
 	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
 }
 
-// DisabledProviderConfig 批量禁用指定 provider 的配置
+// disabledProviderConfig 批量禁用指定 provider 的配置
 // 用于彻底停用某个服务商的所有监测项（不探测、不存储、不展示）
-type DisabledProviderConfig struct {
+type disabledProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Reason   string `yaml:"reason" json:"reason"`     // 停用原因（可选）
 }
 
-// HiddenProviderConfig 批量隐藏指定 provider 的配置
+// hiddenProviderConfig 批量隐藏指定 provider 的配置
 // 用于临时下架某个服务商的所有监测项
-type HiddenProviderConfig struct {
+type hiddenProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Reason   string `yaml:"reason" json:"reason"`     // 下架原因（可选）
 }
 
-// RiskProviderConfig 服务商风险配置
+// riskProviderConfig 服务商风险配置
 // 用于标记存在风险的服务商，风险会自动继承到该服务商的所有监测项
-type RiskProviderConfig struct {
+type riskProviderConfig struct {
 	Provider string      `yaml:"provider" json:"provider"` // provider 名称，需与 monitors 中的 provider 完全匹配
 	Risks    []RiskBadge `yaml:"risks" json:"risks"`       // 风险徽标数组
 }
 
-// ChannelDetailsProviderConfig provider 级通道技术细节暴露配置
+// channelDetailsProviderConfig provider 级通道技术细节暴露配置
 // 用于针对特定 provider 覆盖全局 expose_channel_details 设置
-type ChannelDetailsProviderConfig struct {
+type channelDetailsProviderConfig struct {
 	Provider string `yaml:"provider" json:"provider"` // provider 名称，匹配时忽略大小写和首尾空格
 	Expose   bool   `yaml:"expose" json:"expose"`     // 是否暴露该 provider 的通道技术细节
 }

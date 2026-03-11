@@ -106,6 +106,7 @@ func (s *PostgresStorage) Init() error {
 		model TEXT NOT NULL DEFAULT '',
 		status INTEGER NOT NULL,
 		sub_status TEXT NOT NULL DEFAULT '',
+		http_code INTEGER NOT NULL DEFAULT 0,
 		latency INTEGER NOT NULL,
 		timestamp BIGINT NOT NULL
 	);
@@ -186,7 +187,7 @@ func (s *PostgresStorage) ensureSubStatusColumn() error {
 	checkQuery := `
 		SELECT COUNT(*)
 		FROM information_schema.columns
-		WHERE table_name = 'probe_history' AND column_name = 'sub_status'
+		WHERE table_schema = current_schema() AND table_name = 'probe_history' AND column_name = 'sub_status'
 	`
 
 	var count int
@@ -215,7 +216,7 @@ func (s *PostgresStorage) ensureChannelColumn() error {
 	checkQuery := `
 		SELECT COUNT(*)
 		FROM information_schema.columns
-		WHERE table_name = 'probe_history' AND column_name = 'channel'
+		WHERE table_schema = current_schema() AND table_name = 'probe_history' AND column_name = 'channel'
 	`
 
 	var count int
@@ -244,7 +245,7 @@ func (s *PostgresStorage) ensureHttpCodeColumn() error {
 	checkQuery := `
 		SELECT COUNT(*)
 		FROM information_schema.columns
-		WHERE table_name = 'probe_history' AND column_name = 'http_code'
+		WHERE table_schema = current_schema() AND table_name = 'probe_history' AND column_name = 'http_code'
 	`
 
 	var count int
@@ -272,7 +273,7 @@ func (s *PostgresStorage) ensureModelColumn() error {
 	checkQuery := `
 		SELECT COUNT(*)
 		FROM information_schema.columns
-		WHERE table_name = 'probe_history' AND column_name = 'model'
+		WHERE table_schema = current_schema() AND table_name = 'probe_history' AND column_name = 'model'
 	`
 
 	var count int

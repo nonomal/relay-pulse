@@ -25,12 +25,14 @@ else
     echo "✅ 前端已构建（frontend/dist 存在）"
 fi
 
-# 3. 复制前端到 internal/api/frontend
-echo "📋 复制前端文件到 internal/api/frontend..."
+# 3. 仅复制 dist/ 构建产物到 internal/api/frontend/dist
+#    Go embed 指令为 //go:embed frontend/dist，只需要 dist/ 目录
+echo "📋 复制前端构建产物到 internal/api/frontend/dist..."
 rm -rf internal/api/frontend
-cp -r frontend internal/api/
+mkdir -p internal/api/frontend
+cp -r frontend/dist internal/api/frontend/
 
-echo "✅ 前端文件已复制到 internal/api/frontend"
+echo "✅ 前端构建产物已复制到 internal/api/frontend/dist"
 echo ""
 
 # 4. 创建配置文件（如果不存在）
@@ -52,7 +54,7 @@ echo "  2. 运行 ./dev.sh 启动开发服务器（带热重载）"
 echo "  3. 或者运行 go run cmd/server/main.go"
 echo ""
 echo "注意："
-echo "  - Go embed 不支持符号链接，因此我们复制了 frontend 目录"
+echo "  - Go embed 不支持符号链接，因此我们复制了 frontend/dist 构建产物"
 echo "  - 每次修改前端代码后，需要重新运行此脚本：./scripts/setup-dev.sh --rebuild-frontend"
 echo "  - internal/api/frontend 已添加到 .gitignore，不会被提交"
 echo ""

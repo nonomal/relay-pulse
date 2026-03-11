@@ -56,7 +56,7 @@ func TestMaxConcurrencyNormalize(t *testing.T) {
 				},
 			}
 
-			err := cfg.Normalize()
+			err := cfg.normalize()
 			if tt.wantError {
 				if err == nil {
 					t.Errorf("期望报错但没有错误")

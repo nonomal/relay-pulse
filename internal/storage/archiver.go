@@ -22,26 +22,91 @@ import (
 // Archiver 历史数据归档任务
 // 负责将过期数据导出到文件（CSV.gz），用于备份
 type Archiver struct {
-	storage  Storage
-	config   *config.ArchiveConfig
-	running  atomic.Bool
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	storage     Storage
+	cfgMu       sync.RWMutex
+	config      *config.ArchiveConfig
+	running     atomic.Bool
+	stopCh      chan struct{}
+	reloadCh    chan struct{} // 配置热更新时唤醒挂起的调度 timer
+	lifecycleMu sync.Mutex    // 保护 started/stoppedCh，确保 Stop() 阻塞等待 goroutine 退出
+	started     bool
+	stoppedCh   chan struct{}
+	stopOnce    sync.Once
 }
 
 // NewArchiver 创建归档任务
 func NewArchiver(storage Storage, cfg *config.ArchiveConfig) *Archiver {
 	return &Archiver{
-		storage: storage,
-		config:  cfg,
-		stopCh:  make(chan struct{}),
+		storage:  storage,
+		config:   cfg,
+		stopCh:   make(chan struct{}),
+		reloadCh: make(chan struct{}, 1),
+	}
+}
+
+// currentConfig 获取当前配置的值拷贝（并发安全）
+func (a *Archiver) currentConfig() config.ArchiveConfig {
+	a.cfgMu.RLock()
+	defer a.cfgMu.RUnlock()
+	if a.config == nil {
+		return config.ArchiveConfig{}
+	}
+	return *a.config
+}
+
+// UpdateArchiveConfig 热更新 archive 配置，并唤醒调度循环重新计算下次归档时间
+func (a *Archiver) UpdateArchiveConfig(cfg *config.ArchiveConfig) {
+	if cfg == nil {
+		return
+	}
+	a.cfgMu.Lock()
+	a.config = cfg
+	a.cfgMu.Unlock()
+
+	// 非阻塞通知：唤醒 Start 中挂起的 timer
+	select {
+	case a.reloadCh <- struct{}{}:
+	default:
+	}
+	logger.Info("archiver", "archive 配置已更新",
+		"archive_days", cfg.ArchiveDays,
+		"output_dir", cfg.OutputDir)
+}
+
+// beginLoop 标记 Start goroutine 已进入主循环（防止并发启动）
+func (a *Archiver) beginLoop() bool {
+	a.lifecycleMu.Lock()
+	defer a.lifecycleMu.Unlock()
+	if a.started {
+		return false
+	}
+	a.started = true
+	a.stoppedCh = make(chan struct{})
+	return true
+}
+
+// endLoop 标记 Start goroutine 已退出
+func (a *Archiver) endLoop() {
+	a.lifecycleMu.Lock()
+	ch := a.stoppedCh
+	a.stoppedCh = nil
+	a.started = false
+	a.lifecycleMu.Unlock()
+	if ch != nil {
+		close(ch)
 	}
 }
 
 // Start 启动归档任务（阻塞，应在 goroutine 中调用）
 // 每天凌晨执行一次归档
 func (a *Archiver) Start(ctx context.Context) {
-	if !a.config.IsEnabled() {
+	if !a.beginLoop() {
+		return
+	}
+	defer a.endLoop()
+
+	cfg := a.currentConfig()
+	if !cfg.IsEnabled() {
 		logger.Info("archiver", "数据归档已禁用")
 		return
 	}
@@ -54,55 +119,77 @@ func (a *Archiver) Start(ctx context.Context) {
 	}
 
 	// 确保输出目录存在
-	if err := os.MkdirAll(a.config.OutputDir, 0755); err != nil {
-		logger.Error("archiver", "创建归档目录失败", "error", err, "dir", a.config.OutputDir)
+	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
+		logger.Error("archiver", "创建归档目录失败", "error", err, "dir", cfg.OutputDir)
 		return
 	}
 
 	logger.Info("archiver", "归档任务已启动",
-		"output_dir", a.config.OutputDir,
-		"archive_days", a.config.ArchiveDays,
-		"backfill_days", a.config.BackfillDays,
-		"format", a.config.Format)
+		"output_dir", cfg.OutputDir,
+		"archive_days", cfg.ArchiveDays,
+		"backfill_days", cfg.BackfillDays,
+		"format", cfg.Format)
 
 	// 首次立即尝试归档
 	a.runArchive(ctx, archiveStorage)
 
-	// 每天在配置的 UTC 小时执行归档（默认 UTC 3:00）
 	for {
-		nextRun := a.nextArchiveTime()
+		// 每轮循环重新读取配置（支持热更新后生效）
+		cfg = a.currentConfig()
+		if !cfg.IsEnabled() {
+			logger.Info("archiver", "归档任务已禁用，停止调度")
+			return
+		}
+
+		nextRun := a.nextArchiveTimeFor(cfg)
 		waitDuration := time.Until(nextRun)
+		if waitDuration < 0 {
+			waitDuration = 0
+		}
 
 		logger.Info("archiver", "下次归档时间",
 			"next_run", nextRun.Format(time.RFC3339),
-			"schedule_hour_utc", a.scheduleHourUTC(),
+			"schedule_hour_utc", scheduleHourUTC(cfg),
 			"wait", waitDuration)
 
+		timer := time.NewTimer(waitDuration)
 		select {
-		case <-time.After(waitDuration):
+		case <-timer.C:
 			a.runArchive(ctx, archiveStorage)
+		case <-a.reloadCh:
+			drainTimer(timer)
+			logger.Info("archiver", "归档配置已变更，重新计算下次归档时间")
 		case <-ctx.Done():
+			drainTimer(timer)
 			logger.Info("archiver", "归档任务收到取消信号，正在退出")
 			return
 		case <-a.stopCh:
+			drainTimer(timer)
 			logger.Info("archiver", "归档任务收到停止信号，正在退出")
 			return
 		}
 	}
 }
 
-// Stop 停止归档任务（幂等，可重复调用）
+// Stop 停止归档任务并等待 goroutine 退出（幂等，可重复调用）
 func (a *Archiver) Stop() {
 	a.stopOnce.Do(func() {
 		close(a.stopCh)
 	})
+	// 等待 Start goroutine 退出，避免 Stop 后立即创建新实例导致并发
+	a.lifecycleMu.Lock()
+	ch := a.stoppedCh
+	a.lifecycleMu.Unlock()
+	if ch != nil {
+		<-ch
+	}
 }
 
-// nextArchiveTime 计算下次归档时间（每天在配置的 UTC 小时执行，默认 3）
-func (a *Archiver) nextArchiveTime() time.Time {
+// nextArchiveTimeFor 计算下次归档时间（每天在配置的 UTC 小时执行，默认 3）
+func (a *Archiver) nextArchiveTimeFor(cfg config.ArchiveConfig) time.Time {
 	now := time.Now().UTC()
-	scheduleHour := a.scheduleHourUTC()
-	next := time.Date(now.Year(), now.Month(), now.Day(), scheduleHour, 0, 0, 0, time.UTC)
+	hour := scheduleHourUTC(cfg)
+	next := time.Date(now.Year(), now.Month(), now.Day(), hour, 0, 0, 0, time.UTC)
 	if now.After(next) {
 		next = next.Add(24 * time.Hour)
 	}
@@ -110,9 +197,9 @@ func (a *Archiver) nextArchiveTime() time.Time {
 }
 
 // scheduleHourUTC 返回配置的归档执行时间（UTC 小时），默认 3
-func (a *Archiver) scheduleHourUTC() int {
-	if a.config != nil && a.config.ScheduleHour != nil {
-		return *a.config.ScheduleHour
+func scheduleHourUTC(cfg config.ArchiveConfig) int {
+	if cfg.ScheduleHour != nil {
+		return *cfg.ScheduleHour
 	}
 	return 3
 }
@@ -127,14 +214,25 @@ func (a *Archiver) runArchive(ctx context.Context, archiveStorage ArchiveStorage
 	}
 	defer a.running.Store(false)
 
+	cfg := a.currentConfig()
+	if !cfg.IsEnabled() {
+		return
+	}
+
+	// 确保输出目录存在（配置可能已变更）
+	if err := os.MkdirAll(cfg.OutputDir, 0755); err != nil {
+		logger.Error("archiver", "创建归档目录失败", "error", err, "dir", cfg.OutputDir)
+		return
+	}
+
 	now := time.Now().UTC()
 	todayStart := now.Truncate(24 * time.Hour)
 
 	// 计算归档日期范围
 	// latestArchiveDate: 最新可归档日期（今天 - archive_days）
 	// earliestArchiveDate: 最早回溯日期（latestArchiveDate - backfill_days + 1）
-	latestArchiveDate := todayStart.AddDate(0, 0, -a.config.ArchiveDays)
-	backfillDays := a.config.BackfillDays
+	latestArchiveDate := todayStart.AddDate(0, 0, -cfg.ArchiveDays)
+	backfillDays := cfg.BackfillDays
 	if backfillDays < 1 {
 		backfillDays = 1
 	}
@@ -143,7 +241,7 @@ func (a *Archiver) runArchive(ctx context.Context, archiveStorage ArchiveStorage
 	logger.Info("archiver", "本轮归档计划",
 		"earliest_date", earliestArchiveDate.Format("2006-01-02"),
 		"latest_date", latestArchiveDate.Format("2006-01-02"),
-		"archive_days", a.config.ArchiveDays,
+		"archive_days", cfg.ArchiveDays,
 		"backfill_days", backfillDays)
 
 	// 遍历日期范围，逐日补齐缺失的归档
@@ -158,7 +256,7 @@ func (a *Archiver) runArchive(ctx context.Context, archiveStorage ArchiveStorage
 		default:
 		}
 
-		if err := a.archiveOneDay(ctx, archiveStorage, d); err != nil {
+		if err := a.archiveOneDay(ctx, archiveStorage, cfg, d); err != nil {
 			// 优雅关闭时 context 被取消，降级为 Info 避免噪声
 			if ctx.Err() != nil {
 				logger.Info("archiver", "归档任务被取消", "date", d.Format("2006-01-02"))
@@ -170,20 +268,20 @@ func (a *Archiver) runArchive(ctx context.Context, archiveStorage ArchiveStorage
 	}
 
 	// 清理过期的归档文件
-	a.cleanupOldArchives()
+	a.cleanupOldArchives(cfg)
 }
 
 // archiveOneDay 归档单日数据
-func (a *Archiver) archiveOneDay(ctx context.Context, archiveStorage ArchiveStorage, archiveDate time.Time) error {
+func (a *Archiver) archiveOneDay(ctx context.Context, archiveStorage ArchiveStorage, cfg config.ArchiveConfig, archiveDate time.Time) error {
 	archiveDate = archiveDate.UTC().Truncate(24 * time.Hour)
 	dateStr := archiveDate.Format("2006-01-02")
 
 	// 生成文件名
 	filename := fmt.Sprintf("probe_history_%s.csv", dateStr)
-	if a.config.Format == "csv.gz" {
+	if cfg.Format == "csv.gz" {
 		filename += ".gz"
 	}
-	fullPath := filepath.Join(a.config.OutputDir, filename)
+	fullPath := filepath.Join(cfg.OutputDir, filename)
 
 	// 检查是否已归档
 	if _, err := os.Stat(fullPath); err == nil {
@@ -205,7 +303,7 @@ func (a *Archiver) archiveOneDay(ctx context.Context, archiveStorage ArchiveStor
 		"file", filename)
 
 	// 创建临时文件（使用 CreateTemp 避免文件名冲突）
-	file, err := os.CreateTemp(a.config.OutputDir, filename+".tmp.*")
+	file, err := os.CreateTemp(cfg.OutputDir, filename+".tmp.*")
 	if err != nil {
 		return fmt.Errorf("创建临时文件失败: %w", err)
 	}
@@ -222,7 +320,7 @@ func (a *Archiver) archiveOneDay(ctx context.Context, archiveStorage ArchiveStor
 	var gzipWriter *gzip.Writer
 
 	// 如果需要压缩
-	if a.config.Format == "csv.gz" {
+	if cfg.Format == "csv.gz" {
 		gzipWriter = gzip.NewWriter(file)
 		writer = gzipWriter
 	}
@@ -304,14 +402,14 @@ func (a *Archiver) archiveOneDay(ctx context.Context, archiveStorage ArchiveStor
 }
 
 // cleanupOldArchives 清理过期的归档文件
-func (a *Archiver) cleanupOldArchives() {
-	if a.config.KeepDaysValue <= 0 {
+func (a *Archiver) cleanupOldArchives(cfg config.ArchiveConfig) {
+	if cfg.KeepDaysValue <= 0 {
 		return // -1 表示永久保留，0 不应该出现
 	}
 
-	cutoff := time.Now().UTC().AddDate(0, 0, -a.config.KeepDaysValue)
+	cutoff := time.Now().UTC().AddDate(0, 0, -cfg.KeepDaysValue)
 
-	entries, err := os.ReadDir(a.config.OutputDir)
+	entries, err := os.ReadDir(cfg.OutputDir)
 	if err != nil {
 		logger.Warn("archiver", "读取归档目录失败", "error", err)
 		return
@@ -337,7 +435,7 @@ func (a *Archiver) cleanupOldArchives() {
 		}
 
 		if info.ModTime().Before(cutoff) {
-			fullPath := filepath.Join(a.config.OutputDir, name)
+			fullPath := filepath.Join(cfg.OutputDir, name)
 			if err := os.Remove(fullPath); err != nil {
 				logger.Warn("archiver", "删除过期归档失败", "error", err, "file", name)
 			} else {

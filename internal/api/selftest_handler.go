@@ -18,12 +18,6 @@ type CreateTestRequest struct {
 	APIKey         string `json:"api_key" binding:"required,min=10,max=200"`
 }
 
-// ErrorResponse 自助测试错误响应（兼容旧版，仅在需要时附带 code）
-type ErrorResponse struct {
-	Code  string `json:"code,omitempty"`
-	Error string `json:"error"`
-}
-
 // CreateTestResponse 创建测试响应
 type CreateTestResponse struct {
 	ID             string `json:"id"`
@@ -72,41 +66,66 @@ type TestTypeInfo struct {
 	Variants       []*selftest.PayloadVariant `json:"variants"`
 }
 
+// selfTestErrorStatusAndCode 将 selftest 领域错误码映射为 HTTP 状态码和统一 API 错误码
+func selfTestErrorStatusAndCode(code selftest.ErrorCode) (int, string) {
+	switch code {
+	case selftest.ErrCodeBadRequest, selftest.ErrCodeInvalidURL, selftest.ErrCodeUnknownTestType, selftest.ErrCodeUnknownVariant:
+		return http.StatusBadRequest, ErrCodeInvalidParam
+	case selftest.ErrCodeRateLimited:
+		return http.StatusTooManyRequests, ErrCodeRateLimited
+	case selftest.ErrCodeFeatureDisabled:
+		return http.StatusServiceUnavailable, ErrCodeFeatureDisabled
+	case selftest.ErrCodeQueueFull:
+		return http.StatusServiceUnavailable, ErrCodeQueueFull
+	case selftest.ErrCodeJobNotFound:
+		return http.StatusNotFound, ErrCodeNotFound
+	default:
+		return http.StatusInternalServerError, ErrCodeInternalError
+	}
+}
+
+// writeSelfTestError 将 selftest 错误转换为统一 API 错误响应
+func writeSelfTestError(c *gin.Context, err error, fallbackMessage string) {
+	var stErr *selftest.Error
+	if errors.As(err, &stErr) {
+		statusCode, code := selfTestErrorStatusAndCode(stErr.Code)
+		message := stErr.Message
+		if code == ErrCodeInternalError || message == "" {
+			message = fallbackMessage
+		}
+		apiError(c, statusCode, code, message)
+		return
+	}
+	apiError(c, http.StatusInternalServerError, ErrCodeInternalError, fallbackMessage)
+}
+
 // CreateSelfTest 创建自助测试任务
 // POST /api/selftest
 func (h *Handler) CreateSelfTest(c *gin.Context) {
-	// 检查功能是否启用
-	if h.selfTestMgr == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Code:  string(selftest.ErrCodeFeatureDisabled),
-			Error: "自助测试功能未启用",
-		})
+	// 检查功能是否启用（通过 mutex 安全读取，支持热更新替换实例）
+	mgr := h.getSelfTestManager()
+	if mgr == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "自助测试功能未启用")
 		return
 	}
 
 	// IP 限流检查
 	clientIP := c.ClientIP()
-	if !h.selfTestMgr.CheckRateLimit(clientIP) {
+	if !mgr.CheckRateLimit(clientIP) {
 		logger.Warn("selftest", "Rate limit exceeded", "ip", clientIP)
-		c.JSON(http.StatusTooManyRequests, ErrorResponse{
-			Code:  string(selftest.ErrCodeRateLimited),
-			Error: "请求过于频繁，请稍后再试",
-		})
+		apiError(c, http.StatusTooManyRequests, ErrCodeRateLimited, "请求过于频繁，请稍后再试")
 		return
 	}
 
 	// 解析请求
 	var req CreateTestRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  string(selftest.ErrCodeBadRequest),
-			Error: err.Error(),
-		})
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "请求参数无效，请检查 test_type、api_url、api_key 字段")
 		return
 	}
 
 	// 创建任务
-	job, err := h.selfTestMgr.CreateJob(
+	job, err := mgr.CreateJob(
 		req.TestType,
 		req.APIURL,
 		req.APIKey,
@@ -115,31 +134,7 @@ func (h *Handler) CreateSelfTest(c *gin.Context) {
 	if err != nil {
 		logger.Error("selftest", "Failed to create job",
 			"test_type", req.TestType, "ip", clientIP, "error", err)
-
-		// 根据错误码返回不同的状态码
-		statusCode := http.StatusBadRequest
-		code := selftest.CodeOf(err)
-		switch code {
-		case selftest.ErrCodeQueueFull:
-			statusCode = http.StatusServiceUnavailable
-		case selftest.ErrCodeInvalidURL, selftest.ErrCodeUnknownTestType, selftest.ErrCodeUnknownVariant:
-			statusCode = http.StatusBadRequest
-		}
-
-		// 尝试提取结构化错误
-		var stErr *selftest.Error
-		if errors.As(err, &stErr) {
-			c.JSON(statusCode, ErrorResponse{
-				Code:  string(stErr.Code),
-				Error: stErr.Message,
-			})
-			return
-		}
-
-		c.JSON(statusCode, ErrorResponse{
-			Code:  string(code),
-			Error: err.Error(),
-		})
+		writeSelfTestError(c, err, "创建自助测试任务失败，请稍后再试")
 		return
 	}
 
@@ -161,39 +156,22 @@ func (h *Handler) CreateSelfTest(c *gin.Context) {
 // GetSelfTest 获取测试任务状态
 // GET /api/selftest/:id
 func (h *Handler) GetSelfTest(c *gin.Context) {
-	if h.selfTestMgr == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Code:  string(selftest.ErrCodeFeatureDisabled),
-			Error: "自助测试功能未启用",
-		})
+	mgr := h.getSelfTestManager()
+	if mgr == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "自助测试功能未启用")
 		return
 	}
 
 	jobID := c.Param("id")
 	if jobID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{
-			Code:  string(selftest.ErrCodeBadRequest),
-			Error: "job_id is required",
-		})
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "任务 ID 不能为空")
 		return
 	}
 
 	// 获取任务
-	job, err := h.selfTestMgr.GetJob(jobID)
+	job, err := mgr.GetJob(jobID)
 	if err != nil {
-		code := selftest.CodeOf(err)
-		var stErr *selftest.Error
-		if errors.As(err, &stErr) {
-			c.JSON(http.StatusNotFound, ErrorResponse{
-				Code:  string(stErr.Code),
-				Error: stErr.Message,
-			})
-			return
-		}
-		c.JSON(http.StatusNotFound, ErrorResponse{
-			Code:  string(code),
-			Error: err.Error(),
-		})
+		writeSelfTestError(c, err, "查询自助测试任务失败，请稍后再试")
 		return
 	}
 
@@ -243,11 +221,8 @@ func (h *Handler) GetSelfTest(c *gin.Context) {
 // GetSelfTestConfig 获取自助测试配置
 // GET /api/selftest/config
 func (h *Handler) GetSelfTestConfig(c *gin.Context) {
-	if h.selfTestMgr == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Code:  string(selftest.ErrCodeFeatureDisabled),
-			Error: "自助测试功能未启用",
-		})
+	if h.getSelfTestManager() == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "自助测试功能未启用")
 		return
 	}
 
@@ -269,11 +244,8 @@ func (h *Handler) GetSelfTestConfig(c *gin.Context) {
 // GetTestTypes 获取可用的测试类型
 // GET /api/selftest/types
 func (h *Handler) GetTestTypes(c *gin.Context) {
-	if h.selfTestMgr == nil {
-		c.JSON(http.StatusServiceUnavailable, ErrorResponse{
-			Code:  string(selftest.ErrCodeFeatureDisabled),
-			Error: "自助测试功能未启用",
-		})
+	if h.getSelfTestManager() == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "自助测试功能未启用")
 		return
 	}
 

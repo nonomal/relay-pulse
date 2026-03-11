@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"monitor/internal/logger"
 )
 
 // Loader 配置加载器
@@ -39,29 +41,35 @@ func (l *Loader) Load(filename string) (*AppConfig, error) {
 	configDir := filepath.Dir(absPath)
 
 	// 验证配置
-	if err := cfg.Validate(); err != nil {
+	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("配置验证失败: %w", err)
 	}
 
 	// 应用环境变量覆盖
-	cfg.ApplyEnvOverrides()
+	cfg.applyEnvOverrides()
 
 	// 解析模板引用
-	if err := cfg.ResolveTemplates(configDir); err != nil {
+	if err := cfg.resolveTemplates(configDir); err != nil {
 		return nil, err
 	}
 
 	// 规范化配置（填充默认值等）
-	if err := cfg.Normalize(); err != nil {
+	if err := cfg.normalize(); err != nil {
 		return nil, fmt.Errorf("配置规范化失败: %w", err)
+	}
+
+	// Phase 1: 最终态校验仅告警，不阻断启动或热更新
+	// 捕获 env 覆盖、模板注入、继承和 Normalize 之后可能遗留的不一致配置
+	for _, warn := range cfg.validateFinal() {
+		logger.Warn("config", "最终配置校验告警", "detail", warn.Error())
 	}
 
 	l.currentConfig = &cfg
 	return &cfg, nil
 }
 
-// LoadOrRollback 加载配置，失败时保持旧配置
-func (l *Loader) LoadOrRollback(filename string) (*AppConfig, error) {
+// loadOrRollback 加载配置，失败时保持旧配置
+func (l *Loader) loadOrRollback(filename string) (*AppConfig, error) {
 	newConfig, err := l.Load(filename)
 	if err != nil {
 		// 返回错误但保持旧配置
@@ -73,7 +81,7 @@ func (l *Loader) LoadOrRollback(filename string) (*AppConfig, error) {
 	return newConfig, nil
 }
 
-// GetCurrent 获取当前配置
-func (l *Loader) GetCurrent() *AppConfig {
+// getCurrent 获取当前配置（仅包内使用）
+func (l *Loader) getCurrent() *AppConfig {
 	return l.currentConfig
 }
