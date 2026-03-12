@@ -12,8 +12,8 @@ body:
         本模板覆盖：**赞助等级申请/升级、续期、权益争议、负向徽标申诉**。
         赞助权益说明请参阅：[赞助权益体系](https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md)。
 
-        📧 **联系邮箱**：prehisle@gmail.com
-        - 赞助申请、续期、对账等事宜请通过邮箱沟通
+        💬 **联系 QQ**：18058344
+        - 赞助申请、续期、对账等事宜请通过 QQ 沟通
         - 请勿在 Issue 中提交 API Key、支付凭证或个人敏感信息
 
   - type: dropdown
@@ -109,9 +109,9 @@ body:
   - type: input
     id: contact
     attributes:
-      label: 联系邮箱
+      label: 联系 QQ
       description: 用于对接赞助事宜或补充材料
-      placeholder: name@company.com
+      placeholder: "例如：18058344"
     validations:
       required: true
 

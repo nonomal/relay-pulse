@@ -76,8 +76,8 @@ body:
     id: contact
     attributes:
       label: 联系方式
-      description: 建议填写可接收邮件的工作邮箱（不要填写 API Key/密码）。
-      placeholder: "name@company.com"
+      description: QQ 号或其他联系方式（不要填写 API Key/密码）。
+      placeholder: "QQ号 / GitHub用户名"
     validations:
       required: true
 
