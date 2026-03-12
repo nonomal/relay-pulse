@@ -375,12 +375,10 @@
       "submitting": "Отправка..."
     },
     "payloadVariants": {
-      "cc-haiku-base": "Haiku стандарт",
       "cc-haiku-tiny": "Haiku лёгкий",
       "cc-opus-tiny": "Opus лёгкий",
       "cc-sonnet-tiny": "Sonnet лёгкий",
       "cx-codex-base": "Codex стандарт",
-      "cx-gpt52-base": "GPT-5.2 стандарт",
       "cx-codexmax-base": "Codex Max стандарт",
       "cx-codexmini-base": "Codex Mini стандарт",
       "gm-base": "Стандарт",

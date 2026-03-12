@@ -187,7 +187,7 @@ networks:
 #
 # 自定义模板文件（可选）
 # ------------------------------
-# templates 目录包含 !include 引用的 JSON 文件（如 cc-haiku-base.json、cx-codex-base.json）
+# templates 目录包含 !include 引用的 JSON 文件（如 cc-haiku-tiny.json、cx-codex-base.json）
 # 默认使用镜像内置的 templates 文件，无需挂载
 #
 # 如需自定义 templates 文件内容:

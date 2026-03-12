@@ -89,7 +89,7 @@ monitors:
     listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
     expires_at: "2025-12-31"   # 到期日期（可选）: 过期后自动降级并移入备板
     base_url: "https://api.88code.com"    # 服务商基础地址（模板模式必填）
-    template: "cc-haiku-base"             # 引用 templates/ 目录下的模板（模板模式必填）
+    template: "cc-haiku-tiny"             # 引用 templates/ 目录下的模板（模板模式必填）
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
     model: "claude-haiku-4-20250514"      # 模型名称（可选，替换模板中 {{MODEL}}）
     # success_contains 由模板预设（可选覆盖）
@@ -1205,7 +1205,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 ##### `template`（模板模式必填）
 - **类型**: string
 - **说明**: 引用 `templates/` 目录下的 JSON 模板文件（不含扩展名），定义完整的请求方式（url/method/headers/body/success_contains）
-- **示例**: `"cx-codex-base"`、`"cc-haiku-base"`、`"gm-base"`
+- **示例**: `"cx-codex-base"`、`"cc-haiku-tiny"`、`"gm-base"`
 
 ##### `method`（传统模式必填，模板模式可选）
 - **类型**: string
@@ -1293,7 +1293,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
   sponsor: "团队"
   sponsor_level: "backbone"
   base_url: "https://api.88code.com"
-  template: "cc-haiku-base"          # 模板定义 url/method/headers/body/success_contains
+  template: "cc-haiku-tiny"          # 模板定义 url/method/headers/body/success_contains
 
 # 子通道：完整继承，只需 parent + model（+ 差异字段）
 - model: "claude-opus-4-20250514"
@@ -2270,7 +2270,7 @@ monitors:
     category: "public"
     sponsor: "社区"
     base_url: "https://api.anthropic.com"
-    template: "cc-haiku-base"       # 模板预设 url/method/headers/body/success_contains
+    template: "cc-haiku-tiny"       # 模板预设 url/method/headers/body/success_contains
     model: "claude-haiku-4-20250514"
 ```
 

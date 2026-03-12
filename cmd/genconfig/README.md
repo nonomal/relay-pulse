@@ -61,7 +61,7 @@ go run ./cmd/genconfig -mode interactive
 ### anthropic
 生成 Anthropic Claude 监测配置（使用模板格式），包含：
 - 服务商：anthropic，服务类型：cc
-- 模板：`cc-haiku-base`，基础地址：`https://api.anthropic.com`
+- 模板：`cc-haiku-tiny`，基础地址：`https://api.anthropic.com`
 - 默认模型：claude-haiku-4-20250514，关键字验证：content
 
 ### gemini

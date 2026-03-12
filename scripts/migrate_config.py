@@ -27,14 +27,14 @@ except ImportError:
 
 # !include 文件名 → template 名称
 INCLUDE_TO_TEMPLATE = {
-    "templates/cc-haiku-base.json": "cc-haiku-base",
+    "templates/cc-haiku-base.json": "cc-haiku-tiny",
     "templates/cc-haiku-tiny.json": "cc-haiku-tiny",
     "templates/cc-sonnet-tiny.json": "cc-sonnet-tiny",
     "templates/cc-opus-tiny.json": "cc-opus-tiny",
     "templates/cx-codex-base.json": "cx-codex-base",
     "templates/cx-codexmini-base.json": "cx-codexmini-base",
     "templates/cx-codexmax-base.json": "cx-codexmax-base",
-    "templates/cx-gpt52-base.json": "cx-gpt52-base",
+    "templates/cx-gpt52-base.json": "cx-codex-base",
     "templates/gm-base.json": "gm-base",
     "templates/gm-thinking.json": "gm-thinking",
     "templates/gm-generate.json": "gm-generate",
@@ -45,7 +45,7 @@ INCLUDE_TO_TEMPLATE = {
 
 # service 类型 → anchor 默认 template
 SERVICE_DEFAULT_TEMPLATE = {
-    "cc": "cc-haiku-base",
+    "cc": "cc-haiku-tiny",
     "cx": "cx-codex-base",
     "gm": "gm-base",
 }

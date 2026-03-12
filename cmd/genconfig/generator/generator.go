@@ -384,7 +384,7 @@ monitors:
     channel: "standard"
     board: "hot"
     base_url: "https://api.anthropic.com"
-    template: "cc-haiku-base"
+    template: "cc-haiku-tiny"
     model: "claude-haiku-4-20250514"
     # success_contains 由模板预设，无需手动指定
 `
@@ -538,7 +538,7 @@ monitors:
     sponsor_level: "advanced"
     board: "hot"
     base_url: "https://api.88code.com"
-    template: "cc-haiku-base"
+    template: "cc-haiku-tiny"
     # success_contains 由模板预设，无需手动指定
 
   # 子通道：继承父配置，只需指定 model 和 parent

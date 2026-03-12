@@ -375,12 +375,10 @@
       "submitting": "提交中..."
     },
     "payloadVariants": {
-      "cc-haiku-base": "Haiku 标准",
       "cc-haiku-tiny": "Haiku 轻量",
       "cc-opus-tiny": "Opus 轻量",
       "cc-sonnet-tiny": "Sonnet 轻量",
       "cx-codex-base": "Codex 标准",
-      "cx-gpt52-base": "GPT-5.2 标准",
       "cx-codexmax-base": "Codex Max 标准",
       "cx-codexmini-base": "Codex Mini 标准",
       "gm-base": "标准",

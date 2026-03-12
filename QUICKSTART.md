@@ -219,7 +219,7 @@ monitors:
     category: "commercial"
     sponsor: "团队自有"
     base_url: "https://api.anthropic.com"
-    template: "cc-haiku-base"
+    template: "cc-haiku-tiny"
     api_key: "sk-ant-key"
     model: "claude-haiku-4-20250514"
 

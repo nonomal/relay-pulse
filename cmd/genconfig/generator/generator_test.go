@@ -78,7 +78,7 @@ func TestTemplateFormatNewStyle(t *testing.T) {
 		template string
 	}{
 		"openai":    {baseURL: "https://api.openai.com", template: "cx-codex-base"},
-		"anthropic": {baseURL: "https://api.anthropic.com", template: "cc-haiku-base"},
+		"anthropic": {baseURL: "https://api.anthropic.com", template: "cc-haiku-tiny"},
 		"gemini":    {baseURL: "https://generativelanguage.googleapis.com", template: "gm-base"},
 	}
 

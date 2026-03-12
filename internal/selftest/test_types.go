@@ -19,7 +19,7 @@ var (
 )
 
 // SetTemplatesDir 设置模板目录路径（应在 main.go 中调用）
-// 该目录包含 cc-haiku-base.json、cx-codex-base.json 等模板文件
+// 该目录包含 cc-haiku-tiny.json、cx-codex-base.json 等模板文件
 func SetTemplatesDir(dir string) {
 	templatesDirOnce.Do(func() {
 		templatesDir = dir
@@ -29,8 +29,8 @@ func SetTemplatesDir(dir string) {
 
 // PayloadVariant 描述请求体模板的一个变体
 type PayloadVariant struct {
-	ID              string `json:"id"`                         // 变体标识，如 "cc-haiku-base"
-	Filename        string `json:"filename"`                   // 模板文件名，如 "cc-haiku-base.json"
+	ID              string `json:"id"`                         // 变体标识，如 "cc-haiku-tiny"
+	Filename        string `json:"filename"`                   // 模板文件名，如 "cc-haiku-tiny.json"
 	Order           int    `json:"order"`                      // UI 排序权重
 	Model           string `json:"model,omitempty"`            // 默认模型名（用于替换模板中的 {{MODEL}}）
 	SuccessContains string `json:"success_contains,omitempty"` // 响应校验关键字（空则使用模板默认值）
@@ -155,18 +155,16 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 // init registers built-in test types
 func init() {
 	ccVariants := []*PayloadVariant{
-		{ID: "cc-haiku-base", Filename: "cc-haiku-base.json", Order: 1, Model: "claude-haiku-4-5-20251001"},
-		{ID: "cc-haiku-tiny", Filename: "cc-haiku-tiny.json", Order: 2, Model: "claude-haiku-4-5-20251001"},
-		{ID: "cc-opus-tiny", Filename: "cc-opus-tiny.json", Order: 3, Model: "claude-opus-4-5-20251101"},
-		{ID: "cc-sonnet-tiny", Filename: "cc-sonnet-tiny.json", Order: 4, Model: "claude-sonnet-4-5-20250929"},
+		{ID: "cc-haiku-tiny", Filename: "cc-haiku-tiny.json", Order: 1, Model: "claude-haiku-4-5-20251001"},
+		{ID: "cc-opus-tiny", Filename: "cc-opus-tiny.json", Order: 2, Model: "claude-opus-4-5-20251101"},
+		{ID: "cc-sonnet-tiny", Filename: "cc-sonnet-tiny.json", Order: 3, Model: "claude-sonnet-4-5-20250929"},
 		{ID: "cc-arith", Filename: "cc-arith.json", Order: 10, Model: "claude-haiku-4-5-20251001"},
 	}
 
 	cxVariants := []*PayloadVariant{
 		{ID: "cx-codex-base", Filename: "cx-codex-base.json", Order: 1, Model: "gpt-5-codex"},
-		{ID: "cx-gpt52-base", Filename: "cx-gpt52-base.json", Order: 2, Model: "gpt-5.2"},
-		{ID: "cx-codexmax-base", Filename: "cx-codexmax-base.json", Order: 3, Model: "gpt-5.1-codex-max"},
-		{ID: "cx-codexmini-base", Filename: "cx-codexmini-base.json", Order: 4, Model: "gpt-5.1-codex-mini"},
+		{ID: "cx-codexmax-base", Filename: "cx-codexmax-base.json", Order: 2, Model: "gpt-5.1-codex-max"},
+		{ID: "cx-codexmini-base", Filename: "cx-codexmini-base.json", Order: 3, Model: "gpt-5.1-codex-mini"},
 		{ID: "cx-arith", Filename: "cx-arith.json", Order: 10, Model: "gpt-5-codex"},
 	}
 
@@ -181,7 +179,7 @@ func init() {
 		ID:             "cc",
 		Name:           "Claude Code (cc)",
 		Description:    "",
-		DefaultVariant: "cc-haiku-base",
+		DefaultVariant: "cc-haiku-tiny",
 		Variants:       ccVariants,
 		Builder:        &TemplateBuilder{Service: "cc"},
 	})

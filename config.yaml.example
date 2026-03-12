@@ -156,8 +156,8 @@ badge_providers:
 #   {{EXPECTED_ANSWER}}   - 预期答案（与 PROMPT 同步）
 #
 # 可用模板（templates/ 目录）：
-#   CC: cc-haiku-base, cc-haiku-tiny, cc-opus-tiny, cc-sonnet-tiny, cc-arith
-#   CX: cx-codex-base, cx-gpt52-base, cx-codexmax-base, cx-codexmini-base, cx-arith
+#   CC: cc-haiku-tiny, cc-opus-tiny, cc-sonnet-tiny, cc-arith
+#   CX: cx-codex-base, cx-codexmax-base, cx-codexmini-base, cx-arith
 #   GM: gm-base, gm-thinking, gm-arith
 
 monitors:
@@ -171,7 +171,7 @@ monitors:
     sponsor_level: "beacon"
     channel: "vip3"
     base_url: "https://api.88code.com"
-    template: "cc-haiku-base"
+    template: "cc-haiku-tiny"
     api_key: "sk-xxxxxxxx"
     model: "claude-haiku-4-5-20251001"
 
@@ -182,7 +182,7 @@ monitors:
     service: "cc"
     channel: "vip3"
     base_url: "https://api.88code.com"
-    template: "cc-haiku-base"
+    template: "cc-haiku-tiny"
     api_key: "sk-xxxxxxxx"
     model: "claude-haiku-4-5-20251001"
     category: "commercial"
@@ -238,7 +238,7 @@ monitors:
   #   sponsor: "自定义"
   #   channel: "special"
   #   base_url: "https://custom-api.example.com"
-  #   template: "cc-haiku-base"
+  #   template: "cc-haiku-tiny"
   #   api_key: "sk-custom"
   #   model: "claude-haiku-4-5-20251001"
   #   headers:
@@ -252,7 +252,7 @@ monitors:
   #   service: "cc"
   #   channel: "rotating-uid"
   #   base_url: "https://api.88code.com"
-  #   template: "cc-haiku-base"
+  #   template: "cc-haiku-tiny"
   #   api_key: "sk-xxx"
   #   model: "claude-haiku-4-5-20251001"
   #   user_id_refresh_minutes: 30  # 每 30 分钟更换 user_id
@@ -265,6 +265,6 @@ monitors:
   #   board: "cold"
   #   cold_reason: "该渠道长期不稳定，先归档节省探测资源"
   #   base_url: "https://api.example.com"
-  #   template: "cc-haiku-base"
+  #   template: "cc-haiku-tiny"
   #   api_key: "sk-xxx"
   #   model: "claude-haiku-4-5-20251001"
