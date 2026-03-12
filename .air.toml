@@ -8,12 +8,9 @@ tmp_dir = "tmp/air"
   # 构建命令
   cmd = "go build -o ./tmp/air/monitor ./cmd/server"
 
-  # 二进制文件路径
-  bin = "tmp/air/monitor"
-
-  # 完整启动命令（默认使用 config.yaml）
+  # 二进制文件入口（air v1.64+ 使用 entrypoint 替代 bin）
   # 如需自定义配置文件，请修改此行或直接运行 go run ./cmd/server path/to/config.yaml
-  full_bin = "./tmp/air/monitor"
+  entrypoint = "./tmp/air/monitor"
 
   # 监听的文件扩展名（仅 Go 源代码，配置由应用自己热更新）
   include_ext = ["go"]
