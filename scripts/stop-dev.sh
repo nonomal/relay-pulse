@@ -1,6 +1,6 @@
 #!/bin/bash
 # 停止开发环境服务
-# 使用方式: ./scripts/stop-dev.sh 或 make stop
+# 使用方式: ./scripts/stop-dev.sh
 
 # 颜色定义
 RED='\033[0;31m'

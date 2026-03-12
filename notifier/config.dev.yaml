@@ -1,5 +1,5 @@
 # relay-pulse-notifier 开发环境配置
-# 用于本地 make dev-all 开发
+# 用于本地 ./scripts/dev-all.sh 开发
 
 relay_pulse:
   # 本地 relay-pulse 事件 API 地址

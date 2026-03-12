@@ -1,6 +1,6 @@
 #!/bin/bash
 # 一键启动前后端 + Notifier 开发环境（热重载）
-# 使用方式: ./scripts/dev-all.sh 或 make dev-all
+# 使用方式: ./scripts/dev-all.sh
 
 set -e
 
@@ -152,7 +152,7 @@ check_existing() {
     fi
 
     if [ "$has_existing" = true ]; then
-        printf "${YELLOW}请先运行 'make stop' 停止现有服务${NC}\n"
+        printf "${YELLOW}请先运行 './scripts/stop-dev.sh' 停止现有服务${NC}\n"
         exit 1
     fi
 }
@@ -167,7 +167,7 @@ check_dependencies() {
         AIR_CMD="$(go env GOPATH)/bin/air"
     else
         printf "${RED}错误: air 未安装${NC}\n"
-        echo "请运行: make install-air"
+        echo "请运行: go install github.com/air-verse/air@latest"
         exit 1
     fi
 
