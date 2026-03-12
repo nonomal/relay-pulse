@@ -261,7 +261,7 @@ curl -X POST http://localhost:8080/api/status/batch \
 
 ## 📝 变更日志
 
-查看 [CHANGELOG.md](CHANGELOG.md) 了解版本历史和最新变更。
+查看 [GitHub Releases](https://github.com/prehisle/relay-pulse/releases) 了解版本历史和最新变更。
 
 ## 🤝 贡献
 

@@ -2,8 +2,9 @@ import { PROVIDERS, TIME_RANGES } from '../constants';
 import type { ProcessedMonitorData, StatusKey, StatusCounts } from '../types';
 
 /**
- * 模拟数据生成器 - 完全复刻 docs/front.jsx 的逻辑
- * 用于演示和本地开发
+ * 模拟数据生成器 - 用于演示和本地开发
+ *
+ * 启用方式: 在 .env.local 中设置 VITE_USE_MOCK_DATA=true
  */
 export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMonitorData[]> {
   return new Promise((resolve) => {
@@ -28,7 +29,7 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
             const rand = Math.random();
             let statusKey: StatusKey = 'AVAILABLE';
 
-            // 与 docs/front.jsx 完全一致的状态分配逻辑，并添加缺失数据
+            // 状态分配逻辑，包含缺失数据模拟
             if (rand > 0.98) statusKey = 'MISSING';        // 2% 概率缺失
             else if (rand > 0.95) statusKey = 'UNAVAILABLE';  // 3% 概率不可用
             else if (rand > 0.85) statusKey = 'DEGRADED';     // 10% 概率降级
@@ -153,6 +154,6 @@ export function fetchMockMonitorData(timeRangeId: string): Promise<ProcessedMoni
       });
 
       resolve(data);
-    }, 600); // 与 docs/front.jsx 一致的延迟时间
+    }, 600); // 模拟网络延迟
   });
 }

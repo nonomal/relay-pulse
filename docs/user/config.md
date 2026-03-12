@@ -2235,7 +2235,7 @@ config.yaml                # 本地开发配置
 
 # 生产环境
 config.production.yaml     # 生产配置（不含敏感信息）
-deploy/relaypulse.env      # 生产 API Keys（添加到 .gitignore）
+.env                       # 生产 API Keys（添加到 .gitignore）
 ```
 
 ### 4. 安全加固

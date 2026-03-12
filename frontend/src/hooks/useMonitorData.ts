@@ -89,7 +89,7 @@ export function useMonitorData({
         let processed: ProcessedMonitorData[];
 
         if (USE_MOCK_DATA) {
-          // 使用模拟数据 - 完全复刻 docs/front.jsx
+          // 使用模拟数据
           processed = await fetchMockMonitorData(timeRange);
           // Mock 数据模式：视为板块功能可用（便于本地调试）
           setBoardsEnabled(true);

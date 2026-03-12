@@ -365,10 +365,12 @@ dev-pg:
 	@echo "  本地 PostgreSQL 开发模式（安全）"
 	@echo "=========================================="
 	@echo ""
-	@echo "📋 加载配置: configs/pg-local.env"
+	@echo "📋 加载配置: .env.pg.example"
 	@echo "⚠️  未加载生产 API Keys，探测功能会返回认证错误"
 	@echo ""
-	@set -a && . ./configs/pg-local.env && set +a && \
+	@set -a && . ./.env.pg.example && set +a && \
+		MONITOR_POSTGRES_HOST=localhost MONITOR_POSTGRES_PORT=5433 \
+		GIN_MODE=debug \
 		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml
 
 # 后端开发模式（本地 PostgreSQL + 生产 API Keys，需要确认）
@@ -394,7 +396,9 @@ dev-pg-prod:
 	@echo ""
 	@printf "确认启动? [y/N] " && read confirm && [ "$$confirm" = "y" ] || (echo "已取消"; exit 1)
 	@echo ""
-	@echo "📋 加载配置: configs/pg-local.env + .env (API Keys)"
+	@echo "📋 加载配置: .env.pg.example + .env (API Keys)"
 	@echo ""
-	@set -a && . ./configs/pg-local.env && . ./.env && set +a && \
+	@set -a && . ./.env.pg.example && . ./.env && set +a && \
+		MONITOR_POSTGRES_HOST=localhost MONITOR_POSTGRES_PORT=5433 \
+		GIN_MODE=debug \
 		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml

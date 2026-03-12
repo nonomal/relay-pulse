@@ -172,7 +172,7 @@ curl http://localhost:8080/api/version
 
 ## 📝 Changelog
 
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+See [GitHub Releases](https://github.com/prehisle/relay-pulse/releases) for version history.
 
 ## 🤝 Contributing
 

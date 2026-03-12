@@ -52,9 +52,8 @@ prd.config.yaml
 .env
 .env.local
 .env.*
-deploy/*.env  # 所有环境变量文件（包含真实 API Key）
-!deploy/*.env.example  # 允许提交示例文件
-
+!/.env.example
+!/.env.pg.example
 # Monitor data directory (root level only, avoid matching internal/monitor/)
 /monitor/
 !/monitor/.gitkeep

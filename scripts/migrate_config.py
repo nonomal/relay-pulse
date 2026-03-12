@@ -41,8 +41,6 @@ INCLUDE_TO_TEMPLATE = {
     "templates/cc-arith.json": "cc-arith",
     "templates/cx-arith.json": "cx-arith",
     "templates/gm-arith.json": "gm-arith",
-    "templates/archive-251214/public_cc_base.json": "archive-251214/public_cc_base",
-    "templates/archive-251214/aicodemirror_cc.json": "archive-251214/aicodemirror_cc",
 }
 
 # service 类型 → anchor 默认 template

@@ -56,14 +56,5 @@ if grep -r "SQLiteStorage" internal/ > /dev/null 2>&1; then
     fi
 fi
 
-# 检查 CHANGELOG 是否需要更新（如果存在）
-if [ -f "CHANGELOG.md" ]; then
-    # 获取最近一次代码修改时间
-    LAST_CODE_CHANGE=$(find . -name "*.go" -newer CHANGELOG.md 2>/dev/null | head -1)
-    if [ -n "$LAST_CODE_CHANGE" ]; then
-        echo -e "${YELLOW}提示: 有代码更新，请考虑更新 CHANGELOG.md${NC}"
-    fi
-fi
-
 echo -e "${GREEN}文档检查完成${NC}"
 exit 0
