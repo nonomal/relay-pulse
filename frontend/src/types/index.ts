@@ -24,6 +24,7 @@ export interface StatusCounts {
   auth_error: number;       // 认证失败次数（401/403）
   invalid_request: number;  // 请求参数错误次数（400）
   network_error: number;    // 连接失败次数
+  response_timeout: number; // 响应超时次数（连接成功但读取响应体超时）
   content_mismatch: number; // 内容校验失败次数
 
   // HTTP 错误码细分统计

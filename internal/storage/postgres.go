@@ -691,6 +691,7 @@ SELECT
 	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'auth_error' THEN 1 ELSE 0 END), 0)::int AS auth_error,
 	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'invalid_request' THEN 1 ELSE 0 END), 0)::int AS invalid_request,
 	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'network_error' THEN 1 ELSE 0 END), 0)::int AS network_error,
+	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'response_timeout' THEN 1 ELSE 0 END), 0)::int AS response_timeout,
 	COALESCE(SUM(CASE WHEN f.status = 0 AND f.sub_status = 'content_mismatch' THEN 1 ELSE 0 END), 0)::int AS content_mismatch,
 
 	COALESCE(h.breakdown, '{}'::jsonb) AS http_code_breakdown
@@ -731,6 +732,7 @@ ORDER BY
 			authError       int
 			invalidRequest  int
 			networkError    int
+			responseTimeout int
 			contentMismatch int
 
 			breakdownRaw []byte
@@ -759,6 +761,7 @@ ORDER BY
 			&authError,
 			&invalidRequest,
 			&networkError,
+			&responseTimeout,
 			&contentMismatch,
 			&breakdownRaw,
 		); err != nil {
@@ -798,6 +801,7 @@ ORDER BY
 				AuthError:         authError,
 				InvalidRequest:    invalidRequest,
 				NetworkError:      networkError,
+				ResponseTimeout:   responseTimeout,
 				ContentMismatch:   contentMismatch,
 				HttpCodeBreakdown: httpCodeBreakdown,
 			},

@@ -73,6 +73,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     auth_error: 0,
     invalid_request: 0,
     network_error: 0,
+    response_timeout: 0,
     content_mismatch: 0,
   };
 
@@ -121,6 +122,7 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     { key: 'auth_error', label: t('subStatus.auth_error'), value: counts.auth_error },
     { key: 'invalid_request', label: t('subStatus.invalid_request'), value: counts.invalid_request },
     { key: 'network_error', label: t('subStatus.network_error'), value: counts.network_error },
+    { key: 'response_timeout', label: t('subStatus.response_timeout'), value: counts.response_timeout },
     { key: 'rate_limit', label: t('subStatus.rate_limit'), value: counts.rate_limit },
     { key: 'content_mismatch', label: t('subStatus.content_mismatch'), value: counts.content_mismatch },
   ].filter(item => item.value > 0);

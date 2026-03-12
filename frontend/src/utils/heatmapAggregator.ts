@@ -168,6 +168,7 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
     auth_error: 0,
     invalid_request: 0,
     network_error: 0,
+    response_timeout: 0,
     content_mismatch: 0,
   };
 
@@ -178,7 +179,7 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
     const numericKeys = [
       'available', 'degraded', 'unavailable', 'missing',
       'slow_latency', 'rate_limit', 'server_error', 'client_error',
-      'auth_error', 'invalid_request', 'network_error', 'content_mismatch'
+      'auth_error', 'invalid_request', 'network_error', 'response_timeout', 'content_mismatch'
     ] as const;
 
     // 合并数值字段

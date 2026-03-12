@@ -311,6 +311,8 @@ func incrementStatusCount(counts *storage.StatusCounts, status int, subStatus st
 			counts.InvalidRequest++
 		case storage.SubStatusNetworkError:
 			counts.NetworkError++
+		case storage.SubStatusResponseTimeout:
+			counts.ResponseTimeout++
 		case storage.SubStatusContentMismatch:
 			counts.ContentMismatch++
 		}

@@ -211,6 +211,7 @@
     "auth_error": "Ошибка аутентификации",
     "invalid_request": "Неверные параметры запроса",
     "network_error": "Ошибка соединения",
+    "response_timeout": "Таймаут ответа",
     "content_mismatch": "Несовпадение содержимого"
   },
   "tooltip": {

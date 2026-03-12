@@ -71,6 +71,7 @@ function mapStatusCounts(counts?: StatusCounts): StatusCounts {
     auth_error: counts?.auth_error ?? 0,
     invalid_request: counts?.invalid_request ?? 0,
     network_error: counts?.network_error ?? 0,
+    response_timeout: counts?.response_timeout ?? 0,
     content_mismatch: counts?.content_mismatch ?? 0,
     http_code_breakdown: counts?.http_code_breakdown,
   };
@@ -106,6 +107,7 @@ function mergeStatusCounts(points: Array<{ status_counts?: StatusCounts }>): Sta
     auth_error: 0,
     invalid_request: 0,
     network_error: 0,
+    response_timeout: 0,
     content_mismatch: 0,
   };
 
@@ -123,6 +125,7 @@ function mergeStatusCounts(points: Array<{ status_counts?: StatusCounts }>): Sta
     merged.auth_error += counts.auth_error ?? 0;
     merged.invalid_request += counts.invalid_request ?? 0;
     merged.network_error += counts.network_error ?? 0;
+    merged.response_timeout += counts.response_timeout ?? 0;
     merged.content_mismatch += counts.content_mismatch ?? 0;
 
     if (counts.http_code_breakdown) {

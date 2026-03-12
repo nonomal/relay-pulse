@@ -211,6 +211,7 @@
     "auth_error": "認証に失敗しました",
     "invalid_request": "リクエストパラメータのエラー",
     "network_error": "接続に失敗しました",
+    "response_timeout": "応答タイムアウト",
     "content_mismatch": "内容検証に失敗しました"
   },
   "tooltip": {

@@ -211,6 +211,7 @@
     "auth_error": "Authentication failed",
     "invalid_request": "Invalid request parameters",
     "network_error": "Network error",
+    "response_timeout": "Response timeout",
     "content_mismatch": "Content validation failed"
   },
   "tooltip": {

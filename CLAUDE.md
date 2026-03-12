@@ -586,6 +586,7 @@ HTTP 响应
 | 🔴 红色 | `auth_error` | 认证失败 | HTTP 401/403 |
 | 🔴 红色 | `invalid_request` | 请求参数错误 | HTTP 400 |
 | 🔴 红色 | `network_error` | 连接失败 | 网络错误、连接超时 |
+| 🔴 红色 | `response_timeout` | 响应超时 | HTTP 连接成功但读取响应体超时 |
 | 🔴 红色 | `content_mismatch` | 内容校验失败 | HTTP 2xx 但响应体不含预期内容 |
 
 **可用率计算**：

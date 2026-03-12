@@ -18,6 +18,7 @@ const (
 	SubStatusAuthError       SubStatus = "auth_error"       // 认证/权限失败（401/403）
 	SubStatusInvalidRequest  SubStatus = "invalid_request"  // 请求参数错误（400）
 	SubStatusNetworkError    SubStatus = "network_error"    // 网络错误（连接失败）
+	SubStatusResponseTimeout SubStatus = "response_timeout" // 响应超时（连接成功但读取响应体超时）
 	SubStatusContentMismatch SubStatus = "content_mismatch" // 内容校验失败
 )
 
@@ -62,6 +63,7 @@ type StatusCounts struct {
 	AuthError       int `json:"auth_error"`       // 红色-认证失败次数（401/403）
 	InvalidRequest  int `json:"invalid_request"`  // 红色-请求参数错误次数（400）
 	NetworkError    int `json:"network_error"`    // 红色-连接失败次数
+	ResponseTimeout int `json:"response_timeout"` // 红色-响应超时次数（连接成功但读取响应体超时）
 	ContentMismatch int `json:"content_mismatch"` // 红色-内容校验失败次数
 
 	// HTTP 错误码细分统计

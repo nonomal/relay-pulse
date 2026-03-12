@@ -282,6 +282,31 @@ retryLoop:
 			default:
 				logger.Warn("probe", "读取响应体失败",
 					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
+				// 读取响应体超时：仅 2xx 响应标记为 response_timeout，非 2xx 走正常 HTTP 状态分类
+				if errors.Is(readErr, context.DeadlineExceeded) && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+					_ = resp.Body.Close()
+					result.Status = 0
+					result.SubStatus = storage.SubStatusResponseTimeout
+					result.HttpCode = resp.StatusCode
+					result.Latency = totalLatency
+					result.Error = readErr
+					lastBodyBytes = data
+					if attempt+1 < maxAttempts {
+						p.logFailedProbe(cfg, result, data)
+						delay := computeRetryDelay(attempt, baseDelay, maxDelay, jitter)
+						logger.Info("probe", "探测失败，准备重试",
+							"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
+							"attempt", attempt+1, "next_attempt", attempt+2, "status", result.Status, "sub_status", result.SubStatus,
+							"http_code", result.HttpCode, "delay_ms", delay.Milliseconds())
+						select {
+						case <-ctx.Done():
+							break retryLoop
+						case <-time.After(delay):
+							continue
+						}
+					}
+					break retryLoop
+				}
 			}
 
 			// 内容解压：根据 Content-Encoding 处理 br/zstd/gzip/deflate

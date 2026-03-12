@@ -211,6 +211,7 @@
     "auth_error": "认证失败",
     "invalid_request": "请求参数错误",
     "network_error": "连接失败",
+    "response_timeout": "响应超时",
     "content_mismatch": "内容校验失败"
   },
   "tooltip": {
