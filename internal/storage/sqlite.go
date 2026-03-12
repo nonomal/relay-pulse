@@ -380,6 +380,11 @@ func (s *SQLiteStorage) MigrateChannelData(mappings []ChannelMigrationMapping) e
 	return nil
 }
 
+// Ping 检查数据库连通性
+func (s *SQLiteStorage) Ping() error {
+	return s.db.PingContext(s.effectiveCtx())
+}
+
 // Close 关闭数据库
 func (s *SQLiteStorage) Close() error {
 	return s.db.Close()

@@ -260,6 +260,9 @@ type Storage interface {
 	// Close 关闭存储
 	Close() error
 
+	// Ping 检查存储连通性（用于就绪探针）
+	Ping() error
+
 	// WithContext 返回绑定指定 context 的存储实例
 	WithContext(ctx context.Context) Storage
 

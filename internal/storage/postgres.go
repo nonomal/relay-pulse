@@ -352,6 +352,11 @@ func (s *PostgresStorage) MigrateChannelData(mappings []ChannelMigrationMapping)
 	return nil
 }
 
+// Ping 检查数据库连通性
+func (s *PostgresStorage) Ping() error {
+	return s.pool.Ping(s.effectiveCtx())
+}
+
 // Close 关闭数据库连接
 func (s *PostgresStorage) Close() error {
 	s.pool.Close()

@@ -11,6 +11,7 @@ type panicStorage struct{}
 
 func (panicStorage) Init() error                         { panic("not implemented") }
 func (panicStorage) Close() error                        { panic("not implemented") }
+func (panicStorage) Ping() error                         { panic("not implemented") }
 func (panicStorage) WithContext(context.Context) Storage { panic("not implemented") }
 func (panicStorage) SaveRecord(*ProbeRecord) error       { panic("not implemented") }
 func (panicStorage) GetLatest(string, string, string, string) (*ProbeRecord, error) {

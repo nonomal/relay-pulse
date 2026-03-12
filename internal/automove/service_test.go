@@ -22,6 +22,7 @@ func newMockStorage() *mockStorage {
 
 func (m *mockStorage) Init() error                                   { return nil }
 func (m *mockStorage) Close() error                                  { return nil }
+func (m *mockStorage) Ping() error                                   { return nil }
 func (m *mockStorage) WithContext(_ context.Context) storage.Storage { return m }
 func (m *mockStorage) SaveRecord(_ *storage.ProbeRecord) error       { return nil }
 func (m *mockStorage) GetLatest(_, _, _, _ string) (*storage.ProbeRecord, error) {

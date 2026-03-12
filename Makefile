@@ -211,7 +211,12 @@ ci:
 	@echo ">> 前端依赖安装..."
 	@cd frontend && npm ci
 	@echo ">> 前端 lint..."
-	@cd frontend && npm run lint || echo "⚠ 前端 lint 有警告（不阻塞）"
+	@cd frontend && npm run lint
+	@echo "✓ 前端 lint 通过"
+	@echo ""
+	@echo ">> 前端测试..."
+	@cd frontend && npm run test -- --run
+	@echo "✓ 前端测试通过"
 	@echo ""
 	@echo "=========================================="
 	@echo "  CI 检查完成"

@@ -94,7 +94,6 @@ jobs:
 
       - name: Frontend test
         working-directory: frontend
-        continue-on-error: true  # 前端测试不阻塞 CI
         run: npm run test -- --run
 
       - name: Test Summary
@@ -150,10 +149,10 @@ jobs:
             echo "ℹ️ No new release (commit type does not trigger release)" >> $GITHUB_STEP_SUMMARY
           fi
 
-  # ==================== Docker (与 ci 并行) ====================
+  # ==================== Docker (CI 通过后构建) ====================
   docker:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    # 无 needs，与 ci 并行执行（Dockerfile 有独立的前端构建阶段）
+    needs: [ci]
     runs-on: ubuntu-latest
     permissions:
       contents: read
