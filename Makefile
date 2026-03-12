@@ -37,7 +37,7 @@ PG_BACKUP_DIR ?= .bak/rpbak260108
 PG_BACKUP_FILE ?= $(PG_BACKUP_DIR)/relay_pulse_backup-260108.dump
 
 .PHONY: help build release dev test ci
-.PHONY: pg-up pg-down pg-status pg-shell pg-restore pg-reset dev-pg dev-pg-prod
+.PHONY: pg-up pg-down pg-status pg-shell pg-restore pg-reset dev-pg
 
 # 默认目标：显示帮助
 help:
@@ -50,7 +50,6 @@ help:
 	@echo "  开发模式:"
 	@echo "  make dev           - 后端开发模式（SQLite，热重载）"
 	@echo "  make dev-pg        - 后端开发模式（本地 PG，热重载，安全）"
-	@echo "  make dev-pg-prod   - 后端开发模式（本地 PG + 生产 API Keys，需确认）"
 	@echo ""
 	@echo "  本地 PostgreSQL:"
 	@echo "  make pg-up         - 启动本地 PG 容器 (端口 $(PG_PORT))"
@@ -298,36 +297,6 @@ dev-pg:
 	@echo "⚠️  未加载生产 API Keys，探测功能会返回认证错误"
 	@echo ""
 	@set -a && . ./.env.pg.example && set +a && \
-		MONITOR_POSTGRES_HOST=localhost MONITOR_POSTGRES_PORT=5433 \
-		GIN_MODE=debug \
-		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml
-
-# 后端开发模式（本地 PostgreSQL + 生产 API Keys，需要确认）
-dev-pg-prod:
-	@if [ ! -f "$(AIR_CMD)" ] && [ -z "$$(command -v air 2>/dev/null)" ]; then \
-		echo "错误: air 未安装，请运行 'go install github.com/air-verse/air@latest'"; \
-		exit 1; \
-	fi
-	@if ! docker ps --format '{{.Names}}' | grep -q "^$(PG_CONTAINER_NAME)$$"; then \
-		echo "错误: 本地 PG 容器未运行，请先执行 'make pg-up'"; \
-		exit 1; \
-	fi
-	@if [ ! -f ".env" ]; then \
-		echo "错误: .env 文件不存在（包含生产 API Keys）"; \
-		exit 1; \
-	fi
-	@echo "=========================================="
-	@echo "  ⚠️  生产 API Keys 模式确认"
-	@echo "=========================================="
-	@echo ""
-	@echo "此模式将加载生产环境的 API Keys！"
-	@echo "探测请求会消耗真实的 API 配额。"
-	@echo ""
-	@printf "确认启动? [y/N] " && read confirm && [ "$$confirm" = "y" ] || (echo "已取消"; exit 1)
-	@echo ""
-	@echo "📋 加载配置: .env.pg.example + .env (API Keys)"
-	@echo ""
-	@set -a && . ./.env.pg.example && . ./.env && set +a && \
 		MONITOR_POSTGRES_HOST=localhost MONITOR_POSTGRES_PORT=5433 \
 		GIN_MODE=debug \
 		MONITOR_CORS_ORIGINS="$(MONITOR_CORS_ORIGINS)" $(AIR_CMD) -c .air.toml
