@@ -7,16 +7,27 @@
 		"Authorization": "Bearer {{API_KEY}}",
 		"Content-Type": "application/json",
 		"Anthropic-Version": "2023-06-01",
-		"User-Agent": "Claude-Code/1.0"
+		"User-Agent": "claude-cli/2.1.7 (external, cli)",
+		"Anthropic-Beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14",
+		"Anthropic-Dangerous-Direct-Browser-Access": "true",
+		"X-App": "cli"
 	},
 	"body": {
 		"model": "{{MODEL}}",
 		"max_tokens": 20,
-		"stream": false,
+		"stream": true,
+		"metadata": {
+			"user_id": "{{USER_ID}}"
+		},
+		"system": [{
+			"text": "You are Claude Code, Anthropic's official CLI for Claude.",
+			"type": "text"
+		}],
 		"messages": [{
 			"role": "user",
-			"content": "{{PROMPT}}"
-		}]
+			"content": [{ "text": "{{PROMPT}}", "type": "text" }]
+		}],
+		"tools": []
 	},
 	"response": {
 		"success_contains": "{{EXPECTED_ANSWER}}"

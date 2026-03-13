@@ -19,7 +19,7 @@
 			}
 		],
 		"max_output_tokens": 10,
-		"stream": false
+		"stream": true
 	},
 	"response": {
 		"success_contains": "{{EXPECTED_ANSWER}}"
