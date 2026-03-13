@@ -289,7 +289,10 @@ func (s *Service) currentOverrides() map[storage.MonitorKey]MonitorOverride {
 func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage.MonitorKey]MonitorOverride, evalStats) {
 	var stats evalStats
 	overrides := make(map[storage.MonitorKey]MonitorOverride)
-	today := time.Now().UTC().Truncate(24 * time.Hour)
+	nowUTC := time.Now().UTC()
+	today := nowUTC.Truncate(24 * time.Hour)
+	// 与 WebUI 的 7d day 对齐保持一致：endTime 为下一天 00:00 UTC
+	endTime := alignToNextUTCDay(nowUTC)
 
 	// 收集 hot/secondary 的根监测项（排除 parent/disabled/hidden/cold）
 	type candidate struct {
@@ -372,7 +375,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 	}
 
 	store := s.storage.WithContext(ctx)
-	since := time.Now().UTC().AddDate(0, 0, -7)
+	since := endTime.Add(-time.Duration(availabilityBucketCount) * availabilityBucketWindow)
 
 	// 合并所有批次结果
 	allHistory := make(map[storage.MonitorKey][]*storage.ProbeRecord)
@@ -401,7 +404,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 	for _, c := range candidates {
 		stats.checked++
 		records := allHistory[c.key]
-		availability, total := CalculateAvailability(records, snap.degradedWeight)
+		availability, total := CalculateAvailability(records, endTime, snap.degradedWeight)
 		if total < snap.autoMove.MinProbes {
 			stats.skippedMinProbes++
 			continue
@@ -443,4 +446,14 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 	}
 
 	return overrides, stats
+}
+
+// alignToNextUTCDay 将时间向上对齐到下一天 00:00 UTC。
+// 逻辑与 api/query.go alignTimestamp(t, "day") 保持一致。
+func alignToNextUTCDay(t time.Time) time.Time {
+	truncated := t.UTC().Truncate(24 * time.Hour)
+	if truncated.Before(t.UTC()) {
+		return truncated.Add(24 * time.Hour)
+	}
+	return truncated
 }

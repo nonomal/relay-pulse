@@ -64,11 +64,14 @@ func (m *mockStorage) PurgeOldRecords(_ context.Context, _ time.Time, _ int) (in
 	return 0, nil
 }
 
-// makeRecords 生成指定状态的探测记录
+// makeRecords 生成指定状态的探测记录。
+// 所有记录使用相同时间戳（当前时间），确保落在同一 bucket 内，
+// 避免因 UTC 午夜附近运行导致的跨 bucket 脆弱测试。
 func makeRecords(status int, count int) []*storage.ProbeRecord {
+	ts := time.Now().UTC().Unix()
 	records := make([]*storage.ProbeRecord, count)
 	for i := range records {
-		records[i] = &storage.ProbeRecord{Status: status}
+		records[i] = &storage.ProbeRecord{Status: status, Timestamp: ts}
 	}
 	return records
 }
@@ -154,13 +157,14 @@ func TestEvaluate_DualThreshold_HysteresisBuffer(t *testing.T) {
 	key := storage.MonitorKey{Provider: "mid", Service: "cc", Channel: "vip"}
 
 	// 52% availability: between threshold_down(50%) and threshold_up(55%)
-	// 52 green + 48 red out of 100 → 52%
+	// 所有记录使用相同时间戳，确保落在同一 bucket，避免跨 bucket 脆弱测试
+	ts := time.Now().UTC().Unix()
 	records := make([]*storage.ProbeRecord, 100)
 	for i := 0; i < 52; i++ {
-		records[i] = &storage.ProbeRecord{Status: 1}
+		records[i] = &storage.ProbeRecord{Status: 1, Timestamp: ts}
 	}
 	for i := 52; i < 100; i++ {
-		records[i] = &storage.ProbeRecord{Status: 0}
+		records[i] = &storage.ProbeRecord{Status: 0, Timestamp: ts}
 	}
 	store.history[key] = records
 
@@ -208,12 +212,13 @@ func TestEvaluate_DualThreshold_PreviousOverridePreserved(t *testing.T) {
 	key := storage.MonitorKey{Provider: "mid", Service: "cc", Channel: "vip"}
 
 	// 52% availability: between threshold_down(50%) and threshold_up(55%)
+	ts := time.Now().UTC().Unix()
 	records := make([]*storage.ProbeRecord, 100)
 	for i := 0; i < 52; i++ {
-		records[i] = &storage.ProbeRecord{Status: 1}
+		records[i] = &storage.ProbeRecord{Status: 1, Timestamp: ts}
 	}
 	for i := 52; i < 100; i++ {
-		records[i] = &storage.ProbeRecord{Status: 0}
+		records[i] = &storage.ProbeRecord{Status: 0, Timestamp: ts}
 	}
 	store.history[key] = records
 
