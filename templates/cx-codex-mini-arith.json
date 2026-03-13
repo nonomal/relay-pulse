@@ -24,7 +24,6 @@
 		"parallel_tool_calls": false,
 		"reasoning": { "effort": "low", "summary": "auto" },
 		"store": false,
-		"max_output_tokens": 20,
 		"stream": true
 	},
 	"response": {
