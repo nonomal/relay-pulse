@@ -1,0 +1,31 @@
+{
+	"model": "Codex Max",
+	"request_model": "gpt-5.1-codex-max",
+	"url": "{{BASE_URL}}/v1/responses",
+	"method": "POST",
+	"headers": {
+		"Authorization": "Bearer {{API_KEY}}",
+		"Content-Type": "application/json",
+		"openai-beta": "responses=experimental"
+	},
+	"body": {
+		"model": "{{MODEL}}",
+		"input": [
+			{
+				"type": "message",
+				"role": "user",
+				"content": [{ "type": "input_text", "text": "{{PROMPT}}" }]
+			}
+		],
+		"max_output_tokens": 10,
+		"stream": false
+	},
+	"response": {
+		"success_contains": "{{EXPECTED_ANSWER}}"
+	},
+	"probe": {
+		"slow_latency": "4s",
+		"timeout": "10s",
+		"retry": 0
+	}
+}
