@@ -76,46 +76,46 @@ type ServiceConfig struct {
 	Board      string `yaml:"board" json:"board"`
 	ColdReason string `yaml:"cold_reason" json:"cold_reason,omitempty"` // 冷板原因（可选）
 
-	// 通道级慢请求阈值（可选，覆盖 slow_latency_by_service 和全局 slow_latency）
+	// 通道级慢请求阈值（可选，覆盖模板和全局 slow_latency）
 	// 支持 Go duration 格式，例如 "5s"、"15s"
+	// 优先级：monitor > template.probe > global
 	SlowLatency string `yaml:"slow_latency" json:"slow_latency"`
 
 	// 解析后的"慢请求"阈值，用于黄灯判定
-	// 优先级：monitor.slow_latency > slow_latency_by_service > 全局 slow_latency
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
 
-	// 通道级超时时间（可选，覆盖 timeout_by_service 和全局 timeout）
+	// 通道级超时时间（可选，覆盖模板和全局 timeout）
 	// 支持 Go duration 格式，例如 "10s"、"30s"
+	// 优先级：monitor > template.probe > global
 	Timeout string `yaml:"timeout" json:"timeout"`
 
 	// 解析后的超时时间
-	// 优先级：monitor.timeout > timeout_by_service > 全局 timeout
 	TimeoutDuration time.Duration `yaml:"-" json:"-"`
 
-	// 通道级重试次数（可选，覆盖 retry_by_service 和全局 retry）
+	// 通道级重试次数（可选，覆盖模板和全局 retry）
 	// 0 表示不重试；该字段表示"额外重试次数"，不包含首次尝试
 	// 使用 *int 以区分"未设置(nil)"和"显式设置为 0"
+	// 优先级：monitor > template.probe > global
 	Retry *int `yaml:"retry" json:"retry,omitempty"`
 
 	// 解析后的重试次数（内部使用）
-	// 优先级：monitor.retry > retry_by_service > 全局 retry
 	RetryCount int `yaml:"-" json:"-"`
 
-	// 通道级退避基准间隔（可选，覆盖 retry_base_delay_by_service 和全局 retry_base_delay）
+	// 通道级退避基准间隔（可选，覆盖模板和全局 retry_base_delay）
 	// 支持 Go duration 格式，例如 "200ms"、"500ms"
 	RetryBaseDelay string `yaml:"retry_base_delay" json:"retry_base_delay,omitempty"`
 
 	// 解析后的退避基准间隔（内部使用）
 	RetryBaseDelayDuration time.Duration `yaml:"-" json:"-"`
 
-	// 通道级退避最大间隔（可选，覆盖 retry_max_delay_by_service 和全局 retry_max_delay）
+	// 通道级退避最大间隔（可选，覆盖模板和全局 retry_max_delay）
 	// 支持 Go duration 格式，例如 "2s"、"5s"
 	RetryMaxDelay string `yaml:"retry_max_delay" json:"retry_max_delay,omitempty"`
 
 	// 解析后的退避最大间隔（内部使用）
 	RetryMaxDelayDuration time.Duration `yaml:"-" json:"-"`
 
-	// 通道级抖动比例（可选，覆盖 retry_jitter_by_service 和全局 retry_jitter）
+	// 通道级抖动比例（可选，覆盖模板和全局 retry_jitter）
 	// 取值范围 0-1，0 表示无抖动
 	// 使用 *float64 以区分"未设置(nil)"和"显式设置为 0"
 	RetryJitter *float64 `yaml:"retry_jitter" json:"retry_jitter,omitempty"`

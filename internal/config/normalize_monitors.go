@@ -41,14 +41,9 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 			c.Monitors[i].SlowLatencyDuration = d
 		}
 
-		// slow_latency 下发：monitor > by_service > global
+		// slow_latency 下发：monitor > global（模板值已在 resolveTemplates 填入 monitor）
 		if c.Monitors[i].SlowLatencyDuration == 0 {
-			serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
-			if d, ok := c.SlowLatencyByServiceDuration[serviceKey]; ok {
-				c.Monitors[i].SlowLatencyDuration = d
-			} else {
-				c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
-			}
+			c.Monitors[i].SlowLatencyDuration = c.SlowLatencyDuration
 		}
 
 		// 解析 monitor 级 timeout（如有配置）
@@ -65,14 +60,9 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 			c.Monitors[i].TimeoutDuration = d
 		}
 
-		// timeout 下发：monitor > by_service > global
+		// timeout 下发：monitor > global（模板值已在 resolveTemplates 填入 monitor）
 		if c.Monitors[i].TimeoutDuration == 0 {
-			serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
-			if d, ok := c.TimeoutByServiceDuration[serviceKey]; ok {
-				c.Monitors[i].TimeoutDuration = d
-			} else {
-				c.Monitors[i].TimeoutDuration = c.TimeoutDuration
-			}
+			c.Monitors[i].TimeoutDuration = c.TimeoutDuration
 		}
 
 		// 警告：slow_latency >= timeout 时黄灯基本不会触发
@@ -100,23 +90,20 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 			c.Monitors[i].IntervalDuration = c.IntervalDuration
 		}
 
-		// ===== 重试配置下发 =====
-		serviceKey := strings.ToLower(strings.TrimSpace(c.Monitors[i].Service))
+		// ===== 重试配置下发：monitor > global（模板值已在 resolveTemplates 填入 monitor） =====
 
-		// retry 下发：monitor > by_service > global
+		// retry 下发
 		if c.Monitors[i].Retry != nil {
 			if *c.Monitors[i].Retry < 0 {
 				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry 必须 >= 0",
 					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
 			}
 			c.Monitors[i].RetryCount = *c.Monitors[i].Retry
-		} else if v, ok := c.RetryByServiceCount[serviceKey]; ok {
-			c.Monitors[i].RetryCount = v
 		} else {
 			c.Monitors[i].RetryCount = c.RetryCount
 		}
 
-		// retry_base_delay 下发：monitor > by_service > global
+		// retry_base_delay 下发
 		if trimmed := strings.TrimSpace(c.Monitors[i].RetryBaseDelay); trimmed != "" {
 			d, err := time.ParseDuration(trimmed)
 			if err != nil {
@@ -128,13 +115,11 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
 			}
 			c.Monitors[i].RetryBaseDelayDuration = d
-		} else if d, ok := c.RetryBaseDelayByServiceDuration[serviceKey]; ok {
-			c.Monitors[i].RetryBaseDelayDuration = d
 		} else {
 			c.Monitors[i].RetryBaseDelayDuration = c.RetryBaseDelayDuration
 		}
 
-		// retry_max_delay 下发：monitor > by_service > global
+		// retry_max_delay 下发
 		if trimmed := strings.TrimSpace(c.Monitors[i].RetryMaxDelay); trimmed != "" {
 			d, err := time.ParseDuration(trimmed)
 			if err != nil {
@@ -146,21 +131,17 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
 			}
 			c.Monitors[i].RetryMaxDelayDuration = d
-		} else if d, ok := c.RetryMaxDelayByServiceDuration[serviceKey]; ok {
-			c.Monitors[i].RetryMaxDelayDuration = d
 		} else {
 			c.Monitors[i].RetryMaxDelayDuration = c.RetryMaxDelayDuration
 		}
 
-		// retry_jitter 下发：monitor > by_service > global
+		// retry_jitter 下发
 		if c.Monitors[i].RetryJitter != nil {
 			v := *c.Monitors[i].RetryJitter
 			if v < 0 || v > 1 {
 				return fmt.Errorf("monitor[%d] (provider=%s, service=%s, channel=%s): retry_jitter 必须在 0 到 1 之间",
 					i, c.Monitors[i].Provider, c.Monitors[i].Service, c.Monitors[i].Channel)
 			}
-			c.Monitors[i].RetryJitterValue = v
-		} else if v, ok := c.RetryJitterByServiceValue[serviceKey]; ok {
 			c.Monitors[i].RetryJitterValue = v
 		} else {
 			c.Monitors[i].RetryJitterValue = c.RetryJitterValue

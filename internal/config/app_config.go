@@ -18,25 +18,11 @@ type AppConfig struct {
 	// 解析后的慢请求阈值（内部使用，不序列化）
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
 
-	// 按服务类型覆盖的慢请求阈值（可选，支持 Go duration 格式）
-	// 例如 cc: "15s", gm: "3s"
-	SlowLatencyByService map[string]string `yaml:"slow_latency_by_service" json:"slow_latency_by_service"`
-
-	// 解析后的按服务慢请求阈值（内部使用，不序列化）
-	SlowLatencyByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
-
 	// 请求超时时间（支持 Go duration 格式，例如 "10s"、"30s"，默认 "10s"）
 	Timeout string `yaml:"timeout" json:"timeout"`
 
 	// 解析后的超时时间（内部使用，不序列化）
 	TimeoutDuration time.Duration `yaml:"-" json:"-"`
-
-	// 按服务类型覆盖的超时时间（可选，支持 Go duration 格式）
-	// 例如 cc: "30s", gm: "10s"
-	TimeoutByService map[string]string `yaml:"timeout_by_service" json:"timeout_by_service"`
-
-	// 解析后的按服务超时时间（内部使用，不序列化）
-	TimeoutByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
 
 	// ===== 重试配置 =====
 
@@ -47,24 +33,11 @@ type AppConfig struct {
 	// 解析后的全局重试次数（内部使用）
 	RetryCount int `yaml:"-" json:"-"`
 
-	// 按服务类型覆盖的重试次数（可选）
-	// 例如 cc: 3, gm: 1
-	RetryByService map[string]int `yaml:"retry_by_service" json:"retry_by_service"`
-
-	// 解析后的按服务重试次数（内部使用，key 统一小写）
-	RetryByServiceCount map[string]int `yaml:"-" json:"-"`
-
 	// 重试退避基准间隔（默认 200ms）
 	RetryBaseDelay string `yaml:"retry_base_delay" json:"retry_base_delay"`
 
 	// 解析后的退避基准间隔（内部使用）
 	RetryBaseDelayDuration time.Duration `yaml:"-" json:"-"`
-
-	// 按服务类型覆盖的退避基准间隔（可选）
-	RetryBaseDelayByService map[string]string `yaml:"retry_base_delay_by_service" json:"retry_base_delay_by_service"`
-
-	// 解析后的按服务退避基准间隔（内部使用，key 统一小写）
-	RetryBaseDelayByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
 
 	// 重试退避最大间隔（默认 2s）
 	RetryMaxDelay string `yaml:"retry_max_delay" json:"retry_max_delay"`
@@ -72,24 +45,12 @@ type AppConfig struct {
 	// 解析后的退避最大间隔（内部使用）
 	RetryMaxDelayDuration time.Duration `yaml:"-" json:"-"`
 
-	// 按服务类型覆盖的退避最大间隔（可选）
-	RetryMaxDelayByService map[string]string `yaml:"retry_max_delay_by_service" json:"retry_max_delay_by_service"`
-
-	// 解析后的按服务退避最大间隔（内部使用，key 统一小写）
-	RetryMaxDelayByServiceDuration map[string]time.Duration `yaml:"-" json:"-"`
-
 	// 重试抖动比例（0-1，默认 0.2；0 表示无抖动）
 	// 使用 *float64 以区分"未设置(nil)"和"显式设置为 0"
 	RetryJitter *float64 `yaml:"retry_jitter,omitempty" json:"retry_jitter,omitempty"`
 
 	// 解析后的抖动比例（内部使用）
 	RetryJitterValue float64 `yaml:"-" json:"-"`
-
-	// 按服务类型覆盖的抖动比例（可选）
-	RetryJitterByService map[string]float64 `yaml:"retry_jitter_by_service" json:"retry_jitter_by_service"`
-
-	// 解析后的按服务抖动比例（内部使用，key 统一小写）
-	RetryJitterByServiceValue map[string]float64 `yaml:"-" json:"-"`
 
 	// ===== 运行时配置 =====
 

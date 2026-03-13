@@ -10,7 +10,7 @@ import (
 
 // Normalize 规范化配置（填充默认值等）
 func (c *AppConfig) normalize() error {
-	// 1. 全局时间配置（interval, slow_latency, timeout 及 by_service）
+	// 1. 全局时间配置（interval, slow_latency, timeout, retry 系列）
 	if err := c.normalizeGlobalTimings(); err != nil {
 		return err
 	}
@@ -80,7 +80,7 @@ func newNormalizeContext() *normalizeContext {
 }
 
 // normalizeGlobalTimings 规范化全局时间配置
-// 包括：interval, slow_latency, timeout 及其 by_service 版本
+// 包括：interval, slow_latency, timeout, retry 系列
 func (c *AppConfig) normalizeGlobalTimings() error {
 	// 巡检间隔
 	if c.Interval == "" {
@@ -110,36 +110,6 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 		c.SlowLatencyDuration = d
 	}
 
-	// 按服务类型覆盖的慢请求阈值
-	if len(c.SlowLatencyByService) > 0 {
-		c.SlowLatencyByServiceDuration = make(map[string]time.Duration, len(c.SlowLatencyByService))
-		for service, raw := range c.SlowLatencyByService {
-			normalizedService := strings.ToLower(strings.TrimSpace(service))
-			if normalizedService == "" {
-				return fmt.Errorf("slow_latency_by_service: service 名称不能为空")
-			}
-			if _, exists := c.SlowLatencyByServiceDuration[normalizedService]; exists {
-				return fmt.Errorf("slow_latency_by_service: service '%s' 重复配置（大小写不敏感）", normalizedService)
-			}
-
-			trimmed := strings.TrimSpace(raw)
-			if trimmed == "" {
-				return fmt.Errorf("slow_latency_by_service[%s]: 值不能为空", service)
-			}
-			d, err := time.ParseDuration(trimmed)
-			if err != nil {
-				return fmt.Errorf("解析 slow_latency_by_service[%s] 失败: %w", service, err)
-			}
-			if d <= 0 {
-				return fmt.Errorf("slow_latency_by_service[%s] 必须大于 0", service)
-			}
-			c.SlowLatencyByServiceDuration[normalizedService] = d
-		}
-	} else {
-		// 热更新场景：清除旧的覆盖配置
-		c.SlowLatencyByServiceDuration = nil
-	}
-
 	// 请求超时时间（默认 10 秒）
 	if c.Timeout == "" {
 		c.TimeoutDuration = 10 * time.Second
@@ -154,36 +124,6 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 		c.TimeoutDuration = d
 	}
 
-	// 按服务类型覆盖的超时时间
-	if len(c.TimeoutByService) > 0 {
-		c.TimeoutByServiceDuration = make(map[string]time.Duration, len(c.TimeoutByService))
-		for service, raw := range c.TimeoutByService {
-			normalizedService := strings.ToLower(strings.TrimSpace(service))
-			if normalizedService == "" {
-				return fmt.Errorf("timeout_by_service: service 名称不能为空")
-			}
-			if _, exists := c.TimeoutByServiceDuration[normalizedService]; exists {
-				return fmt.Errorf("timeout_by_service: service '%s' 重复配置（大小写不敏感）", normalizedService)
-			}
-
-			trimmed := strings.TrimSpace(raw)
-			if trimmed == "" {
-				return fmt.Errorf("timeout_by_service[%s]: 值不能为空", service)
-			}
-			d, err := time.ParseDuration(trimmed)
-			if err != nil {
-				return fmt.Errorf("解析 timeout_by_service[%s] 失败: %w", service, err)
-			}
-			if d <= 0 {
-				return fmt.Errorf("timeout_by_service[%s] 必须大于 0", service)
-			}
-			c.TimeoutByServiceDuration[normalizedService] = d
-		}
-	} else {
-		// 热更新场景：清除旧的覆盖配置
-		c.TimeoutByServiceDuration = nil
-	}
-
 	// ===== 重试配置 =====
 	// 重试次数（默认 0，不重试）
 	if c.Retry == nil {
@@ -193,26 +133,6 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 	}
 	if c.RetryCount < 0 {
 		return fmt.Errorf("retry 必须 >= 0")
-	}
-
-	// 按服务类型覆盖的重试次数
-	if len(c.RetryByService) > 0 {
-		c.RetryByServiceCount = make(map[string]int, len(c.RetryByService))
-		for service, v := range c.RetryByService {
-			key := strings.ToLower(strings.TrimSpace(service))
-			if key == "" {
-				return fmt.Errorf("retry_by_service: service 名称不能为空")
-			}
-			if _, exists := c.RetryByServiceCount[key]; exists {
-				return fmt.Errorf("retry_by_service: service '%s' 重复配置（大小写不敏感）", key)
-			}
-			if v < 0 {
-				return fmt.Errorf("retry_by_service[%s] 必须 >= 0", service)
-			}
-			c.RetryByServiceCount[key] = v
-		}
-	} else {
-		c.RetryByServiceCount = nil
 	}
 
 	// 退避基准间隔（默认 200ms）
@@ -229,34 +149,6 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 		c.RetryBaseDelayDuration = d
 	}
 
-	// 按服务类型覆盖的退避基准间隔
-	if len(c.RetryBaseDelayByService) > 0 {
-		c.RetryBaseDelayByServiceDuration = make(map[string]time.Duration, len(c.RetryBaseDelayByService))
-		for service, raw := range c.RetryBaseDelayByService {
-			key := strings.ToLower(strings.TrimSpace(service))
-			if key == "" {
-				return fmt.Errorf("retry_base_delay_by_service: service 名称不能为空")
-			}
-			if _, exists := c.RetryBaseDelayByServiceDuration[key]; exists {
-				return fmt.Errorf("retry_base_delay_by_service: service '%s' 重复配置（大小写不敏感）", key)
-			}
-			trimmed := strings.TrimSpace(raw)
-			if trimmed == "" {
-				return fmt.Errorf("retry_base_delay_by_service[%s]: 值不能为空", service)
-			}
-			d, err := time.ParseDuration(trimmed)
-			if err != nil {
-				return fmt.Errorf("解析 retry_base_delay_by_service[%s] 失败: %w", service, err)
-			}
-			if d <= 0 {
-				return fmt.Errorf("retry_base_delay_by_service[%s] 必须 > 0", service)
-			}
-			c.RetryBaseDelayByServiceDuration[key] = d
-		}
-	} else {
-		c.RetryBaseDelayByServiceDuration = nil
-	}
-
 	// 退避最大间隔（默认 2s）
 	if strings.TrimSpace(c.RetryMaxDelay) == "" {
 		c.RetryMaxDelayDuration = 2 * time.Second
@@ -269,34 +161,6 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 			return fmt.Errorf("retry_max_delay 必须 > 0")
 		}
 		c.RetryMaxDelayDuration = d
-	}
-
-	// 按服务类型覆盖的退避最大间隔
-	if len(c.RetryMaxDelayByService) > 0 {
-		c.RetryMaxDelayByServiceDuration = make(map[string]time.Duration, len(c.RetryMaxDelayByService))
-		for service, raw := range c.RetryMaxDelayByService {
-			key := strings.ToLower(strings.TrimSpace(service))
-			if key == "" {
-				return fmt.Errorf("retry_max_delay_by_service: service 名称不能为空")
-			}
-			if _, exists := c.RetryMaxDelayByServiceDuration[key]; exists {
-				return fmt.Errorf("retry_max_delay_by_service: service '%s' 重复配置（大小写不敏感）", key)
-			}
-			trimmed := strings.TrimSpace(raw)
-			if trimmed == "" {
-				return fmt.Errorf("retry_max_delay_by_service[%s]: 值不能为空", service)
-			}
-			d, err := time.ParseDuration(trimmed)
-			if err != nil {
-				return fmt.Errorf("解析 retry_max_delay_by_service[%s] 失败: %w", service, err)
-			}
-			if d <= 0 {
-				return fmt.Errorf("retry_max_delay_by_service[%s] 必须 > 0", service)
-			}
-			c.RetryMaxDelayByServiceDuration[key] = d
-		}
-	} else {
-		c.RetryMaxDelayByServiceDuration = nil
 	}
 
 	// 全局 max >= base 校验
@@ -312,26 +176,6 @@ func (c *AppConfig) normalizeGlobalTimings() error {
 	}
 	if c.RetryJitterValue < 0 || c.RetryJitterValue > 1 {
 		return fmt.Errorf("retry_jitter 必须在 0 到 1 之间，当前值: %.2f", c.RetryJitterValue)
-	}
-
-	// 按服务类型覆盖的抖动比例
-	if len(c.RetryJitterByService) > 0 {
-		c.RetryJitterByServiceValue = make(map[string]float64, len(c.RetryJitterByService))
-		for service, v := range c.RetryJitterByService {
-			key := strings.ToLower(strings.TrimSpace(service))
-			if key == "" {
-				return fmt.Errorf("retry_jitter_by_service: service 名称不能为空")
-			}
-			if _, exists := c.RetryJitterByServiceValue[key]; exists {
-				return fmt.Errorf("retry_jitter_by_service: service '%s' 重复配置（大小写不敏感）", key)
-			}
-			if v < 0 || v > 1 {
-				return fmt.Errorf("retry_jitter_by_service[%s] 必须在 0 到 1 之间", service)
-			}
-			c.RetryJitterByServiceValue[key] = v
-		}
-	} else {
-		c.RetryJitterByServiceValue = nil
 	}
 
 	return nil

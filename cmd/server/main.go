@@ -80,7 +80,6 @@ func newSelfTestManager(cfg *config.AppConfig) *selftest.TestJobManager {
 		cfg.SelfTest.JobTimeoutDuration,
 		cfg.SelfTest.ResultTTLDuration,
 		cfg.SelfTest.RateLimitPerMinute,
-		selftest.WithSlowLatencyByService(cfg.SlowLatencyByServiceDuration),
 	)
 }
 
@@ -100,8 +99,7 @@ func selfTestConfigChanged(oldCfg, newCfg *config.AppConfig) bool {
 		o.MaxQueueSize != n.MaxQueueSize ||
 		o.JobTimeoutDuration != n.JobTimeoutDuration ||
 		o.ResultTTLDuration != n.ResultTTLDuration ||
-		o.RateLimitPerMinute != n.RateLimitPerMinute ||
-		!sameDurationMap(oldCfg.SlowLatencyByServiceDuration, newCfg.SlowLatencyByServiceDuration)
+		o.RateLimitPerMinute != n.RateLimitPerMinute
 }
 
 // announcementsConfigChanged 检测公告配置是否需要重建 Service
@@ -127,19 +125,6 @@ func announcementsConfigChanged(oldCfg, newCfg *config.AppConfig) bool {
 		oldCfg.GitHub.Token != newCfg.GitHub.Token ||
 		oldCfg.GitHub.Proxy != newCfg.GitHub.Proxy ||
 		oldCfg.GitHub.TimeoutDuration != newCfg.GitHub.TimeoutDuration
-}
-
-// sameDurationMap 比较两个 map[string]time.Duration 是否相同
-func sameDurationMap(a, b map[string]time.Duration) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for k, av := range a {
-		if bv, ok := b[k]; !ok || bv != av {
-			return false
-		}
-	}
-	return true
 }
 
 func main() {

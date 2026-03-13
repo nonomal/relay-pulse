@@ -225,6 +225,22 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 	}
 	requestModel := tmpl.RequestModel
 
+	// 从模板读取 slow_latency，兜底 5s
+	slowLatency := 5 * time.Second
+	if tmpl.SlowLatency != "" {
+		if d, err := time.ParseDuration(tmpl.SlowLatency); err == nil && d > 0 {
+			slowLatency = d
+		}
+	}
+
+	// 从模板读取 timeout，兜底 10s
+	timeout := 10 * time.Second
+	if tmpl.Timeout != "" {
+		if d, err := time.ParseDuration(tmpl.Timeout); err == nil && d > 0 {
+			timeout = d
+		}
+	}
+
 	return &config.ServiceConfig{
 		Provider:            "selftest",
 		Service:             b.Service,
@@ -232,12 +248,13 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 		APIKey:              apiKey,
 		Model:               model,
 		RequestModel:        requestModel,
-		URLPattern:          tmpl.URL, // selftest: 使用模板 URL 模式（支持 {{BASE_URL}}/{{MODEL}} 等占位符）
+		URLPattern:          tmpl.URL,
 		Method:              tmpl.Method,
 		Headers:             headers,
 		Body:                string(tmpl.BodyRaw),
 		SuccessContains:     successContains,
-		SlowLatencyDuration: 5 * time.Second,
+		SlowLatencyDuration: slowLatency,
+		TimeoutDuration:     timeout,
 	}, nil
 }
 

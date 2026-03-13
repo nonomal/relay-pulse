@@ -18,8 +18,12 @@ type ProbeTemplate struct {
 	Headers         map[string]string // 请求头，支持占位符
 	BodyRaw         json.RawMessage   // body 原始 JSON 对象
 	SuccessContains string            // 响应校验关键字，支持 {{EXPECTED_ANSWER}}
-	SlowLatency     string            // 慢请求阈值（可选，如 "5s"）
+	SlowLatency     string            // 慢请求阈值（可选，如 "4s"）
 	Timeout         string            // 超时时间（可选，如 "10s"）
+	Retry           *int              // 额外重试次数（*int 区分 nil vs 0）
+	RetryBaseDelay  string            // 退避基准间隔（可选，如 "200ms"）
+	RetryMaxDelay   string            // 退避最大间隔（可选，如 "2s"）
+	RetryJitter     *float64          // 抖动比例（*float64 区分 nil vs 0）
 }
 
 // probeTemplateFile 是模板 JSON 文件的解析结构
@@ -32,9 +36,15 @@ type probeTemplateFile struct {
 	Body         json.RawMessage   `json:"body"`
 	Response     struct {
 		SuccessContains string `json:"success_contains"`
-		SlowLatency     string `json:"slow_latency"`
-		Timeout         string `json:"timeout"`
 	} `json:"response"`
+	Probe struct {
+		SlowLatency    string   `json:"slow_latency"`
+		Timeout        string   `json:"timeout"`
+		Retry          *int     `json:"retry"`
+		RetryBaseDelay string   `json:"retry_base_delay"`
+		RetryMaxDelay  string   `json:"retry_max_delay"`
+		RetryJitter    *float64 `json:"retry_jitter"`
+	} `json:"probe"`
 }
 
 // LoadProbeTemplate 从 JSON 文件加载探测模板
@@ -57,8 +67,12 @@ func LoadProbeTemplate(filePath string) (*ProbeTemplate, error) {
 		Headers:         parsed.Headers,
 		BodyRaw:         parsed.Body,
 		SuccessContains: strings.TrimSpace(parsed.Response.SuccessContains),
-		SlowLatency:     strings.TrimSpace(parsed.Response.SlowLatency),
-		Timeout:         strings.TrimSpace(parsed.Response.Timeout),
+		SlowLatency:     strings.TrimSpace(parsed.Probe.SlowLatency),
+		Timeout:         strings.TrimSpace(parsed.Probe.Timeout),
+		Retry:           parsed.Probe.Retry,
+		RetryBaseDelay:  strings.TrimSpace(parsed.Probe.RetryBaseDelay),
+		RetryMaxDelay:   strings.TrimSpace(parsed.Probe.RetryMaxDelay),
+		RetryJitter:     parsed.Probe.RetryJitter,
 	}
 
 	if tmpl.Method == "" {

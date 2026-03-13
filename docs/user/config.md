@@ -11,28 +11,16 @@ Relay Pulse 使用 YAML 格式的配置文件，默认路径为 `config.yaml`。
 ### 完整配置示例
 
 ```yaml
-# 全局配置
+# 全局配置（作为最终兜底，模板和 monitor 可覆盖）
 interval: "1m"           # 巡检间隔（支持 Go duration 格式）
 slow_latency: "5s"       # 慢请求阈值
 timeout: "10s"           # 请求超时时间
 
-# 按服务类型覆盖（可选）
-slow_latency_by_service:
-  cc: "15s"              # Claude Code 服务允许更长延迟
-  gm: "3s"               # Gemini 服务要求更快
-timeout_by_service:
-  cc: "30s"              # Claude Code 服务允许更长超时
-  gm: "10s"              # Gemini 服务超时较短
-
-# 重试配置（可选）
+# 重试配置（可选，全局默认值）
 retry: 2                 # 额外重试次数（默认 0，不重试）
 retry_base_delay: "200ms"  # 退避基准间隔
 retry_max_delay: "2s"      # 退避最大间隔
 retry_jitter: 0.2          # 抖动比例（0-1）
-retry_by_service:
-  cc: 3                  # Claude Code 允许更多重试
-retry_base_delay_by_service:
-  cc: "500ms"
 
 # 风险服务商配置（可选）
 risk_providers:
@@ -110,35 +98,11 @@ monitors:
 - **说明**: 超过此阈值的请求被标记为"慢请求"（黄色状态）
 - **示例**: `"3s"`, `"5s"`, `"10s"`
 
-#### `slow_latency_by_service`
-- **类型**: map[string]string (服务类型 → Go duration 格式)
-- **默认值**: 无（使用全局 `slow_latency`）
-- **说明**: 按服务类型覆盖慢请求阈值，key 不区分大小写
-- **示例**:
-  ```yaml
-  slow_latency_by_service:
-    cc: "15s"    # Claude Code 对速度要求较低
-    cx: "10s"    # Codex
-    gm: "3s"     # 模型 API 要求更快
-  ```
-
 #### `timeout`
 - **类型**: string (Go duration 格式)
 - **默认值**: `"10s"`
 - **说明**: 请求超时时间，超过此时间未响应则视为失败（红色状态）
 - **示例**: `"10s"`, `"30s"`, `"1m"`
-
-#### `timeout_by_service`
-- **类型**: map[string]string (服务类型 → Go duration 格式)
-- **默认值**: 无（使用全局 `timeout`）
-- **说明**: 按服务类型覆盖超时时间，key 不区分大小写
-- **示例**:
-  ```yaml
-  timeout_by_service:
-    cc: "30s"    # Claude Code 允许更长超时
-    cx: "45s"    # Codex
-    gm: "10s"    # 模型 API 超时较短
-  ```
 
 #### `degraded_weight`
 - **类型**: float
@@ -148,33 +112,24 @@ monitors:
 
 ### 重试配置
 
-当探测失败时，系统可按指数退避策略进行重试。重试配置支持全局、按服务类型和按监测项三级覆盖。
+当探测失败时，系统可按指数退避策略进行重试。重试配置支持全局、模板和监测项三级覆盖。
 
-**优先级**: `monitor` > `by_service` > `global`
+**优先级**: `monitor` > `template` > `global`
+
+模板通过 `probe` 块配置探测参数（包括 slow_latency、timeout、retry 系列），在 `resolveTemplates` 阶段填入 monitor 级别，作为 monitor 的默认值。
 
 ```yaml
-# 全局重试配置
+# 全局重试配置（最终兜底）
 retry: 2                    # 额外重试次数（默认 0，不重试）
 retry_base_delay: "200ms"   # 退避基准间隔（默认 200ms）
 retry_max_delay: "2s"       # 退避最大间隔（默认 2s）
 retry_jitter: 0.2           # 抖动比例，0-1（默认 0.2，0 表示无抖动）
 
-# 按服务类型覆盖
-retry_by_service:
-  cc: 3                     # Claude Code 允许更多重试
-  gm: 1
-retry_base_delay_by_service:
-  cc: "500ms"
-retry_max_delay_by_service:
-  cc: "5s"
-retry_jitter_by_service:
-  cc: 0.3
-
-# 监测项级覆盖（在 monitors 内配置）
+# 监测项级覆盖（在 monitors 内配置，优先级最高）
 monitors:
   - provider: "example"
     service: "cc"
-    retry: 3                # 覆盖全局和 by_service
+    retry: 3                # 覆盖模板和全局
     retry_base_delay: "1s"
     retry_max_delay: "10s"
     retry_jitter: 0.5
@@ -202,11 +157,6 @@ monitors:
 - **默认值**: `0.2`
 - **说明**: 抖动比例（0-1），在计算的退避间隔基础上增加随机偏移。0 表示无抖动，1 表示最大 100% 的随机偏移
 - **类型区分**: 使用 `*float64` 指针，区分"未设置"（继承上级）和"显式设为 0"（无抖动）
-
-#### `*_by_service` 变体
-- `retry_by_service`、`retry_base_delay_by_service`、`retry_max_delay_by_service`、`retry_jitter_by_service`
-- **类型**: map（服务类型 → 对应值）
-- **说明**: 按服务类型覆盖全局设置，key 不区分大小写
 
 #### 退避公式
 
@@ -1465,49 +1415,22 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 
 ##### `slow_latency`
 - **类型**: string (Go duration 格式)
-- **说明**: 该监测项的自定义慢请求阈值（可选），覆盖 `slow_latency_by_service` 和全局 `slow_latency`
-- **优先级**: `monitor.slow_latency` > `slow_latency_by_service` > 全局 `slow_latency`
+- **说明**: 该监测项的自定义慢请求阈值（可选），覆盖模板和全局 `slow_latency`
+- **优先级**: `monitor.slow_latency` > `template.probe.slow_latency` > 全局 `slow_latency`
 - **示例**: `"5s"`, `"15s"`, `"30s"`
 - **使用场景**:
   - 同一服务的不同通道使用不同的测试模型或 payload，响应时间差异大
   - 特定通道需要更宽松或更严格的延迟阈值
-- **配置示例**:
-  ```yaml
-  slow_latency: "5s"  # 全局默认 5 秒
-  slow_latency_by_service:
-    cc: "15s"  # Claude Code 服务默认 15 秒
-  monitors:
-    - provider: "88code"
-      service: "cc"
-      channel: "vip3"
-      slow_latency: "20s"  # 该通道使用更大模型，允许 20 秒
-    - provider: "88code"
-      service: "cc"
-      channel: "standard"
-      # 不配置，使用 slow_latency_by_service 的 15 秒
-  ```
 
 ##### `timeout`
 - **类型**: string (Go duration 格式)
-- **说明**: 该监测项的自定义超时时间（可选），覆盖 `timeout_by_service` 和全局 `timeout`
-- **优先级**: `monitor.timeout` > `timeout_by_service` > 全局 `timeout`
+- **说明**: 该监测项的自定义超时时间（可选），覆盖模板和全局 `timeout`
+- **优先级**: `monitor.timeout` > `template.probe.timeout` > 全局 `timeout`
 - **示例**: `"10s"`, `"30s"`, `"1m"`
 - **使用场景**:
   - 特定通道的 API 响应较慢，需要更长超时
   - 测试 payload 较大，需要更多处理时间
 - **注意**: 如果 `slow_latency >= timeout`，系统会打印警告，因为慢响应黄灯可能不会触发
-- **配置示例**:
-  ```yaml
-  timeout: "10s"  # 全局默认 10 秒
-  timeout_by_service:
-    cc: "30s"  # Claude Code 服务默认 30 秒
-  monitors:
-    - provider: "88code"
-      service: "cc"
-      channel: "vip3"
-      timeout: "45s"  # 该通道允许 45 秒超时
-      slow_latency: "20s"  # 配套的慢请求阈值
-  ```
 
 ##### `hidden`
 - **类型**: boolean

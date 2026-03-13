@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
 
 	"monitor/internal/logger"
 )
@@ -128,12 +127,26 @@ func (c *AppConfig) resolveTemplates(configDir string) error {
 			m.SuccessContains = tmpl.SuccessContains
 		}
 
-		// 模板默认 slow_latency/timeout（仅当 monitor 未显式配置时填充）
+		// 模板默认探测参数（仅当 monitor 未显式配置时填充）
 		if strings.TrimSpace(m.SlowLatency) == "" && tmpl.SlowLatency != "" {
 			m.SlowLatency = tmpl.SlowLatency
 		}
 		if strings.TrimSpace(m.Timeout) == "" && tmpl.Timeout != "" {
 			m.Timeout = tmpl.Timeout
+		}
+		if m.Retry == nil && tmpl.Retry != nil {
+			v := *tmpl.Retry
+			m.Retry = &v
+		}
+		if strings.TrimSpace(m.RetryBaseDelay) == "" && tmpl.RetryBaseDelay != "" {
+			m.RetryBaseDelay = tmpl.RetryBaseDelay
+		}
+		if strings.TrimSpace(m.RetryMaxDelay) == "" && tmpl.RetryMaxDelay != "" {
+			m.RetryMaxDelay = tmpl.RetryMaxDelay
+		}
+		if m.RetryJitter == nil && tmpl.RetryJitter != nil {
+			v := *tmpl.RetryJitter
+			m.RetryJitter = &v
 		}
 
 		// Headers 合并策略：模板为基础，config 覆盖
@@ -185,53 +198,40 @@ func (c *AppConfig) clone() *AppConfig {
 	}
 
 	clone := &AppConfig{
-		Interval:                     c.Interval,
-		IntervalDuration:             c.IntervalDuration,
-		SlowLatency:                  c.SlowLatency,
-		SlowLatencyDuration:          c.SlowLatencyDuration,
-		SlowLatencyByService:         make(map[string]string, len(c.SlowLatencyByService)),
-		SlowLatencyByServiceDuration: make(map[string]time.Duration, len(c.SlowLatencyByServiceDuration)),
-		Timeout:                      c.Timeout,
-		TimeoutDuration:              c.TimeoutDuration,
-		TimeoutByService:             make(map[string]string, len(c.TimeoutByService)),
-		TimeoutByServiceDuration:     make(map[string]time.Duration, len(c.TimeoutByServiceDuration)),
-		// 重试配置
-		Retry:                           cloneIntPtr(c.Retry),
-		RetryCount:                      c.RetryCount,
-		RetryByService:                  make(map[string]int, len(c.RetryByService)),
-		RetryByServiceCount:             make(map[string]int, len(c.RetryByServiceCount)),
-		RetryBaseDelay:                  c.RetryBaseDelay,
-		RetryBaseDelayDuration:          c.RetryBaseDelayDuration,
-		RetryBaseDelayByService:         make(map[string]string, len(c.RetryBaseDelayByService)),
-		RetryBaseDelayByServiceDuration: make(map[string]time.Duration, len(c.RetryBaseDelayByServiceDuration)),
-		RetryMaxDelay:                   c.RetryMaxDelay,
-		RetryMaxDelayDuration:           c.RetryMaxDelayDuration,
-		RetryMaxDelayByService:          make(map[string]string, len(c.RetryMaxDelayByService)),
-		RetryMaxDelayByServiceDuration:  make(map[string]time.Duration, len(c.RetryMaxDelayByServiceDuration)),
-		RetryJitter:                     cloneFloat64Ptr(c.RetryJitter),
-		RetryJitterValue:                c.RetryJitterValue,
-		RetryJitterByService:            make(map[string]float64, len(c.RetryJitterByService)),
-		RetryJitterByServiceValue:       make(map[string]float64, len(c.RetryJitterByServiceValue)),
-		DegradedWeight:                  c.DegradedWeight,
-		MaxConcurrency:                  c.MaxConcurrency,
-		StaggerProbes:                   staggerPtr,
-		EnableConcurrentQuery:           c.EnableConcurrentQuery,
-		ConcurrentQueryLimit:            c.ConcurrentQueryLimit,
-		EnableBatchQuery:                c.EnableBatchQuery,
-		EnableDBTimelineAgg:             c.EnableDBTimelineAgg,
-		BatchQueryMaxKeys:               c.BatchQueryMaxKeys,
-		CacheTTL:                        c.CacheTTL, // CacheTTL 是值类型，直接复制
-		Storage:                         c.Storage,
-		PublicBaseURL:                   c.PublicBaseURL,
-		DisabledProviders:               make([]disabledProviderConfig, len(c.DisabledProviders)),
-		HiddenProviders:                 make([]hiddenProviderConfig, len(c.HiddenProviders)),
-		RiskProviders:                   make([]riskProviderConfig, len(c.RiskProviders)),
-		Boards:                          c.Boards, // Boards 是值类型（含 AutoMove），直接复制
-		ExposeChannelDetails:            exposeChannelDetailsPtr,
-		ChannelDetailsProviders:         make([]channelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
-		EnableBadges:                    c.EnableBadges,
-		BadgeDefs:                       make(map[string]BadgeDef, len(c.BadgeDefs)),
-		BadgeProviders:                  make([]BadgeProviderConfig, len(c.BadgeProviders)),
+		Interval:                c.Interval,
+		IntervalDuration:        c.IntervalDuration,
+		SlowLatency:             c.SlowLatency,
+		SlowLatencyDuration:     c.SlowLatencyDuration,
+		Timeout:                 c.Timeout,
+		TimeoutDuration:         c.TimeoutDuration,
+		Retry:                   cloneIntPtr(c.Retry),
+		RetryCount:              c.RetryCount,
+		RetryBaseDelay:          c.RetryBaseDelay,
+		RetryBaseDelayDuration:  c.RetryBaseDelayDuration,
+		RetryMaxDelay:           c.RetryMaxDelay,
+		RetryMaxDelayDuration:   c.RetryMaxDelayDuration,
+		RetryJitter:             cloneFloat64Ptr(c.RetryJitter),
+		RetryJitterValue:        c.RetryJitterValue,
+		DegradedWeight:          c.DegradedWeight,
+		MaxConcurrency:          c.MaxConcurrency,
+		StaggerProbes:           staggerPtr,
+		EnableConcurrentQuery:   c.EnableConcurrentQuery,
+		ConcurrentQueryLimit:    c.ConcurrentQueryLimit,
+		EnableBatchQuery:        c.EnableBatchQuery,
+		EnableDBTimelineAgg:     c.EnableDBTimelineAgg,
+		BatchQueryMaxKeys:       c.BatchQueryMaxKeys,
+		CacheTTL:                c.CacheTTL, // CacheTTL 是值类型，直接复制
+		Storage:                 c.Storage,
+		PublicBaseURL:           c.PublicBaseURL,
+		DisabledProviders:       make([]disabledProviderConfig, len(c.DisabledProviders)),
+		HiddenProviders:         make([]hiddenProviderConfig, len(c.HiddenProviders)),
+		RiskProviders:           make([]riskProviderConfig, len(c.RiskProviders)),
+		Boards:                  c.Boards, // Boards 是值类型（含 AutoMove），直接复制
+		ExposeChannelDetails:    exposeChannelDetailsPtr,
+		ChannelDetailsProviders: make([]channelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
+		EnableBadges:            c.EnableBadges,
+		BadgeDefs:               make(map[string]BadgeDef, len(c.BadgeDefs)),
+		BadgeProviders:          make([]BadgeProviderConfig, len(c.BadgeProviders)),
 		SponsorPin: SponsorPinConfig{
 			Enabled:   sponsorPinEnabledPtr,
 			MaxPinned: c.SponsorPin.MaxPinned,
@@ -254,42 +254,6 @@ func (c *AppConfig) clone() *AppConfig {
 	copy(clone.Monitors, c.Monitors)
 
 	// 复制 map
-	for k, v := range c.SlowLatencyByService {
-		clone.SlowLatencyByService[k] = v
-	}
-	for k, v := range c.SlowLatencyByServiceDuration {
-		clone.SlowLatencyByServiceDuration[k] = v
-	}
-	for k, v := range c.TimeoutByService {
-		clone.TimeoutByService[k] = v
-	}
-	for k, v := range c.TimeoutByServiceDuration {
-		clone.TimeoutByServiceDuration[k] = v
-	}
-	for k, v := range c.RetryByService {
-		clone.RetryByService[k] = v
-	}
-	for k, v := range c.RetryByServiceCount {
-		clone.RetryByServiceCount[k] = v
-	}
-	for k, v := range c.RetryBaseDelayByService {
-		clone.RetryBaseDelayByService[k] = v
-	}
-	for k, v := range c.RetryBaseDelayByServiceDuration {
-		clone.RetryBaseDelayByServiceDuration[k] = v
-	}
-	for k, v := range c.RetryMaxDelayByService {
-		clone.RetryMaxDelayByService[k] = v
-	}
-	for k, v := range c.RetryMaxDelayByServiceDuration {
-		clone.RetryMaxDelayByServiceDuration[k] = v
-	}
-	for k, v := range c.RetryJitterByService {
-		clone.RetryJitterByService[k] = v
-	}
-	for k, v := range c.RetryJitterByServiceValue {
-		clone.RetryJitterByServiceValue[k] = v
-	}
 	for id, bd := range c.BadgeDefs {
 		clone.BadgeDefs[id] = bd
 	}

@@ -1,19 +1,13 @@
 interval: "1m"       # 巡检间隔，可写成 "30s"、"1m"、"5m" 等
 slow_latency: "5s"   # 慢请求阈值，超过则从绿降为黄
 
-# 按服务类型覆盖慢请求阈值（可选）
-# key 不区分大小写，未配置的服务使用全局 slow_latency
-# slow_latency_by_service:
-#   cc: "15s"    # Claude Code 对速度要求较低
-#   cx: "10s"    # Codex
-#   gm: "3s"     # 模型 API 要求更快
-
 # ============================================
-# 重试配置
+# 重试配置（全局默认值，模板和 monitor 可覆盖）
 # ============================================
 # 探测失败时自动重试，适用于网络不稳定场景
 # 重试条件：所有 status=0 的错误（除超时外）
 # 超时（context.DeadlineExceeded）不重试，因为已达总超时限制
+# 优先级：monitor > template > global
 
 # 全局重试次数（默认 0，不重试；表示"额外重试次数"，不含首次）
 # retry: 0
@@ -26,20 +20,6 @@ slow_latency: "5s"   # 慢请求阈值，超过则从绿降为黄
 
 # 抖动比例（0-1，默认 0.2；0 表示无抖动）
 # retry_jitter: 0.2
-
-# 按服务类型覆盖重试配置（可选）
-# retry_by_service:
-#   cc: 2        # Claude Code 服务额外重试 2 次
-#   gm: 1        # Gemini 服务额外重试 1 次
-
-# retry_base_delay_by_service:
-#   cc: "300ms"
-
-# retry_max_delay_by_service:
-#   cc: "3s"
-
-# retry_jitter_by_service:
-#   cc: 0.1
 
 # ============================================
 # 并发控制与调度策略

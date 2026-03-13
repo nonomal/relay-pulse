@@ -614,8 +614,8 @@ HTTP 响应
 
 | 分组 | 关键字段 | 说明 |
 |------|----------|------|
-| 探测节奏 | `interval`、`slow_latency`、`timeout` + `*_by_service` 变体 | 全局巡检频率与阈值，优先级：monitor > by_service > global |
-| 重试退避 | `retry`、`retry_base_delay`（默认 200ms）、`retry_max_delay`（默认 2s）、`retry_jitter`（默认 0.2）+ `*_by_service` 变体 | 指数退避重试，`retry` 表示额外重试次数 |
+| 探测节奏 | `interval`、`slow_latency`、`timeout` | 全局巡检频率与阈值（兜底），优先级：monitor > template > global |
+| 重试退避 | `retry`、`retry_base_delay`（默认 200ms）、`retry_max_delay`（默认 2s）、`retry_jitter`（默认 0.2） | 指数退避重试，`retry` 表示额外重试次数 |
 | 运行时 | `degraded_weight`（默认 0.7）、`max_concurrency`（默认 10，-1 无限）、`stagger_probes`（默认 true） | 可用率权重与并发控制 |
 | 查询优化 | `enable_concurrent_query`、`concurrent_query_limit`、`enable_batch_query`、`enable_db_timeline_agg`、`batch_query_max_keys` | API 层数据库查询优化 |
 | 缓存 | `cache_ttl`（按 period 区分，90m/24h=10s，7d/30d=60s） | API 响应缓存 |
@@ -642,7 +642,7 @@ HTTP 响应
 | 覆盖配置 | `interval`、`slow_latency`、`timeout`、`retry`、`retry_base_delay`、`retry_max_delay`、`retry_jitter` | 监测项级覆盖全局设置 |
 | 徽标 | `badges`（BadgeRef 数组）、`risks`（由 risk_providers 自动注入） | 徽标引用与风险标签 |
 
-**配置优先级**: `monitor` > `template` > `by_service` > `global`（适用于 slow_latency、timeout、retry 等所有分级配置；同名字段以更高优先级覆盖，未指定则继承）
+**配置优先级**: `monitor` > `template` > `global`（适用于 slow_latency、timeout、retry 等所有分级配置；同名字段以更高优先级覆盖，未指定则继承。模板值在 resolveTemplates 阶段填入 monitor 级别作为默认值）
 
 **模板占位符**: `{{API_KEY}}` 和 `{{MODEL}}` 在 headers 和 body 中会被自动替换。
 
