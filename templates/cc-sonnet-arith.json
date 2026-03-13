@@ -10,7 +10,7 @@
 	},
 	"body": {
 		"model": "{{MODEL}}",
-		"max_tokens": 10,
+		"max_tokens": 20,
 		"stream": false,
 		"messages": [{
 			"role": "user",
