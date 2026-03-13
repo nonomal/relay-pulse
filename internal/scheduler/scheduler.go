@@ -258,36 +258,67 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	// 组间错峰：将各组均匀分布在巡检周期内（需 stagger_probes 开启且多于 1 组）
 	// 组内紧凑：同一组的模型在 2s 间隔内顺序探测（始终生效）
 	const intraGroupInterval = 2 * time.Second // 组内模型间隔固定 2 秒
-	const minGroupBaseDelay = 5 * time.Second  // 组间最小间隔 5 秒
 
 	// 组间错峰：仅当配置开启且有多个组时生效
 	useInterGroupStagger := cfg.ShouldStaggerProbes() && len(groups) > 1
 	var groupBaseDelay, groupJitterRange time.Duration
 
 	if useInterGroupStagger {
+		minInterval := s.findMinInterval(cfg)
 		if startup {
-			// 启动模式：组间基准间隔动态调整，避免组间重叠导致的瞬时压力
+			// 启动模式：优先填满最小巡检周期，必要时抬高以避免最坏抖动下组间重叠
 			var maxIntraGroupWidth time.Duration
-			groupBaseDelay, groupJitterRange, maxIntraGroupWidth = computeStartupStaggerParams(groups, intraGroupInterval)
+			groupBaseDelay, groupJitterRange, maxIntraGroupWidth = computeStartupStaggerParams(groups, intraGroupInterval, minInterval)
+			totalSpread := groupBaseDelay * time.Duration(len(groups))
+			if minInterval > 0 && totalSpread > minInterval {
+				logger.Warn("scheduler", "启动模式组间错峰总展开超过最小巡检周期，可能跨周期重叠",
+					"group_count", len(groups),
+					"interval", minInterval,
+					"group_base_delay", groupBaseDelay,
+					"total_spread", totalSpread)
+			}
 
 			logger.Info("scheduler", "启动模式：探测将按组错峰执行",
 				"group_count", len(groups),
+				"interval", minInterval,
 				"group_base_delay", groupBaseDelay,
 				"group_jitter_range", groupJitterRange,
 				"max_intra_group_width", maxIntraGroupWidth,
+				"total_spread", totalSpread,
 				"intra_group_interval", intraGroupInterval)
 		} else {
-			// 热更新模式：基于最小 interval 计算组间错峰
-			minInterval := s.findMinInterval(cfg)
+			// 热更新模式：优先填满最小 interval，必要时抬高以避免最坏抖动下组间重叠
 			if minInterval > 0 {
-				groupBaseDelay = minInterval / time.Duration(len(groups))
-				// 确保组间最小间隔
-				if groupBaseDelay < minGroupBaseDelay {
-					groupBaseDelay = minGroupBaseDelay
+				const jitterRatioNum int64 = 1
+				const jitterRatioDen int64 = 20 // ±5%
+
+				idealBaseDelay := minInterval / time.Duration(len(groups))
+				maxIntraGroupWidth := computeMaxIntraGroupWidth(groups, intraGroupInterval)
+				requiredBaseDelay := computeRequiredBaseDelay(maxIntraGroupWidth, jitterRatioNum, jitterRatioDen)
+
+				groupBaseDelay = idealBaseDelay
+				if requiredBaseDelay > groupBaseDelay {
+					groupBaseDelay = requiredBaseDelay
 				}
-				groupJitterRange = groupBaseDelay / 20 // ±5%
+				groupJitterRange = time.Duration(int64(groupBaseDelay) * jitterRatioNum / jitterRatioDen)
+
+				totalSpread := groupBaseDelay * time.Duration(len(groups))
+				if totalSpread > minInterval {
+					logger.Warn("scheduler", "热更新模式组间错峰总展开超过最小巡检周期，可能跨周期重叠",
+						"group_count", len(groups),
+						"interval", minInterval,
+						"group_base_delay", groupBaseDelay,
+						"required_base_delay", requiredBaseDelay,
+						"total_spread", totalSpread)
+				}
+
 				logger.Info("scheduler", "探测将按组错峰执行",
-					"group_count", len(groups), "group_base_delay", groupBaseDelay,
+					"group_count", len(groups),
+					"interval", minInterval,
+					"group_base_delay", groupBaseDelay,
+					"group_jitter_range", groupJitterRange,
+					"max_intra_group_width", maxIntraGroupWidth,
+					"total_spread", totalSpread,
 					"intra_group_interval", intraGroupInterval)
 			} else {
 				useInterGroupStagger = false
@@ -631,41 +662,51 @@ func (s *Scheduler) notifyWakeLocked() {
 	}
 }
 
-// computeStartupStaggerParams 计算启动模式下的组间错峰参数（纯函数，便于测试）
-// 目标：
-//   - groupBaseDelay 至少为 3s
-//   - 考虑最坏抖动时相邻组不重叠：baseDelay - 2*jitterRange >= maxIntraGroupWidth
-//     其中 jitterRange = baseDelay * jitterRatio（启动模式固定 ±10%）
-func computeStartupStaggerParams(groups []monitorGroup, intraGroupInterval time.Duration) (groupBaseDelay, groupJitterRange, maxIntraGroupWidth time.Duration) {
-	const startupMinGroupBaseDelay = 3 * time.Second
-	const jitterRatioNum int64 = 1
-	const jitterRatioDen int64 = 10 // ±10%
-
-	// 计算所有组中的最大组内展开宽度
-	maxIntraGroupWidth = 0
+// computeMaxIntraGroupWidth 计算所有组中的最大组内展开宽度。
+func computeMaxIntraGroupWidth(groups []monitorGroup, intraGroupInterval time.Duration) time.Duration {
+	var maxWidth time.Duration
 	for _, g := range groups {
 		if len(g.monitorIdxs) <= 1 {
 			continue
 		}
 		w := time.Duration(len(g.monitorIdxs)-1) * intraGroupInterval
-		if w > maxIntraGroupWidth {
-			maxIntraGroupWidth = w
+		if w > maxWidth {
+			maxWidth = w
 		}
 	}
+	return maxWidth
+}
 
-	// 要求：baseDelay - 2*jitterRange >= maxWidth
-	// jitterRange = baseDelay * (num/den)
-	// => baseDelay * (1 - 2*num/den) >= maxWidth
-	// => baseDelay >= maxWidth * den / (den - 2*num)
-	requiredBaseDelay := time.Duration(0)
-	denom := jitterRatioDen - 2*jitterRatioNum // = 8
-	if maxIntraGroupWidth > 0 && denom > 0 {
-		// ceil(maxWidth * den / denom)
-		numerator := int64(maxIntraGroupWidth) * jitterRatioDen
-		requiredBaseDelay = time.Duration((numerator + denom - 1) / denom)
+// computeRequiredBaseDelay 计算满足最坏抖动下相邻组不重叠所需的最小组间基准间隔。
+// 要求：baseDelay - 2*jitterRange >= maxWidth
+// jitterRange = baseDelay * (num/den)
+// => baseDelay >= maxWidth * den / (den - 2*num)
+func computeRequiredBaseDelay(maxIntraGroupWidth time.Duration, jitterRatioNum, jitterRatioDen int64) time.Duration {
+	denom := jitterRatioDen - 2*jitterRatioNum
+	if maxIntraGroupWidth <= 0 || denom <= 0 {
+		return 0
 	}
+	numerator := int64(maxIntraGroupWidth) * jitterRatioDen
+	return time.Duration((numerator + denom - 1) / denom)
+}
 
-	groupBaseDelay = startupMinGroupBaseDelay
+// computeStartupStaggerParams 计算启动模式下的组间错峰参数（纯函数，便于测试）
+// 目标：
+//   - groupBaseDelay 优先填满 interval（interval / numGroups）
+//   - 若多模型组内展开导致需要更大间隔，则以 requiredBaseDelay 为准
+//   - 考虑最坏抖动时相邻组不重叠：baseDelay - 2*jitterRange >= maxIntraGroupWidth
+//     其中 jitterRange = baseDelay * jitterRatio（启动模式固定 ±10%）
+func computeStartupStaggerParams(groups []monitorGroup, intraGroupInterval, interval time.Duration) (groupBaseDelay, groupJitterRange, maxIntraGroupWidth time.Duration) {
+	const jitterRatioNum int64 = 1
+	const jitterRatioDen int64 = 10 // ±10%
+
+	maxIntraGroupWidth = computeMaxIntraGroupWidth(groups, intraGroupInterval)
+	requiredBaseDelay := computeRequiredBaseDelay(maxIntraGroupWidth, jitterRatioNum, jitterRatioDen)
+
+	// 优先按 interval / numGroups 填满周期
+	if len(groups) > 0 {
+		groupBaseDelay = interval / time.Duration(len(groups))
+	}
 	if requiredBaseDelay > groupBaseDelay {
 		groupBaseDelay = requiredBaseDelay
 	}
