@@ -137,12 +137,20 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 		successContains = variant.SuccessContains
 	}
 
+	// 模型元数据：variant > template
+	model := variant.Model
+	if model == "" {
+		model = tmpl.Model
+	}
+	requestModel := tmpl.RequestModel
+
 	return &config.ServiceConfig{
 		Provider:            "selftest",
 		Service:             b.Service,
 		BaseURL:             apiURL,
 		APIKey:              apiKey,
-		Model:               variant.Model,
+		Model:               model,
+		RequestModel:        requestModel,
 		URLPattern:          tmpl.URL, // selftest: 使用模板 URL 模式（支持 {{BASE_URL}}/{{MODEL}} 等占位符）
 		Method:              tmpl.Method,
 		Headers:             headers,

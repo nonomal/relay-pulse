@@ -1,4 +1,6 @@
 {
+	"model": "GPT-5 Codex",
+	"request_model": "gpt-5-codex",
 	"url": "{{BASE_URL}}/v1/responses",
 	"method": "POST",
 	"headers": {

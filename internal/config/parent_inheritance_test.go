@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// validateAll 执行 validate + validateResolvedModelConstraints（模拟完整加载链路）
+// 测试不走模板解析，因此直接在 validate() 后补调后置校验
+func validateAll(cfg *AppConfig) error {
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	return cfg.validateResolvedModelConstraints()
+}
+
 func TestValidateMonitorsUniqueByQuadruple(t *testing.T) {
 	cfg := &AppConfig{
 		Monitors: []ServiceConfig{
@@ -32,7 +41,7 @@ func TestValidateMonitorsUniqueByQuadruple(t *testing.T) {
 		},
 	}
 
-	err := cfg.validate()
+	err := validateAll(cfg)
 	if err == nil || !strings.Contains(err.Error(), "重复的监测项") {
 		t.Fatalf("期望重复的监测项错误, got=%v", err)
 	}
@@ -61,7 +70,7 @@ func TestValidateParentRequiresModel(t *testing.T) {
 		},
 	}
 
-	err := cfg.validate()
+	err := validateAll(cfg)
 	if err == nil || !strings.Contains(err.Error(), "有 parent 但缺少 model") {
 		t.Fatalf("期望子通道缺少 model 报错, got=%v", err)
 	}
@@ -90,7 +99,7 @@ func TestValidateReferencedParentRequiresModel(t *testing.T) {
 		},
 	}
 
-	err := cfg.validate()
+	err := validateAll(cfg)
 	if err == nil || !strings.Contains(err.Error(), "被引用为父") {
 		t.Fatalf("期望父通道缺少 model 报错, got=%v", err)
 	}
@@ -140,7 +149,7 @@ func TestValidateParentNotFound(t *testing.T) {
 		},
 	}
 
-	err := cfg.validate()
+	err := validateAll(cfg)
 	if err == nil || !strings.Contains(err.Error(), "找不到父通道") {
 		t.Fatalf("期望找不到父通道错误, got=%v", err)
 	}
@@ -180,7 +189,7 @@ func TestValidateParentMultipleDefinitions(t *testing.T) {
 		},
 	}
 
-	err := cfg.validate()
+	err := validateAll(cfg)
 	if err == nil || !strings.Contains(err.Error(), "存在多个定义") {
 		t.Fatalf("期望父通道多定义报错, got=%v", err)
 	}

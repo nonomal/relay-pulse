@@ -22,7 +22,8 @@ type ServiceConfig struct {
 	Badges         []BadgeRef      `yaml:"badges" json:"-"`                            // 徽标引用（可选，支持 tooltip 覆盖）
 	ResolvedBadges []ResolvedBadge `yaml:"-" json:"badges,omitempty"`                  // 解析后的徽标（由 badges + badge_providers 注入）
 	Channel        string          `yaml:"channel" json:"channel"`                     // 业务通道标识（如 "vip-channel"），用于分类和过滤
-	Model          string          `yaml:"model" json:"model,omitempty"`               // 模型名称（父子结构必填）
+	Model          string          `yaml:"model" json:"model,omitempty"`               // 模型系列名（展示/DB 键；可由 template 提供，config 可覆盖）
+	RequestModel   string          `yaml:"request_model" json:"-"`                     // 实际请求模型 ID（注入 {{MODEL}}/{{REQUEST_MODEL}}，为空时回退 Model）
 	Parent         string          `yaml:"parent" json:"parent,omitempty"`             // 父通道引用，格式 provider/service/channel
 	ChannelName    string          `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
 	ListedSince    string          `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数

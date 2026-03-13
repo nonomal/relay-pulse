@@ -109,6 +109,14 @@ func (c *AppConfig) resolveTemplates(configDir string) error {
 			return fmt.Errorf("monitor[%d] provider=%s service=%s: %w", i, m.Provider, m.Service, err)
 		}
 
+		// 模型元数据：config > template
+		if strings.TrimSpace(m.Model) == "" && tmpl.Model != "" {
+			m.Model = tmpl.Model
+		}
+		if strings.TrimSpace(m.RequestModel) == "" && tmpl.RequestModel != "" {
+			m.RequestModel = tmpl.RequestModel
+		}
+
 		// 仅填充为空的字段（config > template）
 		if m.Method == "" {
 			m.Method = tmpl.Method
@@ -144,6 +152,11 @@ func (c *AppConfig) resolveTemplates(configDir string) error {
 		if m.URLPattern == "" && tmpl.URL != "" {
 			m.URLPattern = tmpl.URL
 		}
+	}
+
+	// 模板解析后执行依赖最终 model 的校验（四元组唯一性、父子关系等）
+	if err := c.validateResolvedModelConstraints(); err != nil {
+		return fmt.Errorf("模板解析后校验失败: %w", err)
 	}
 	return nil
 }

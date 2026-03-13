@@ -84,6 +84,9 @@ func inheritCoreBehavior(child, parent *ServiceConfig) {
 	if child.Body == "" {
 		child.Body = parent.Body
 	}
+	if child.RequestModel == "" {
+		child.RequestModel = parent.RequestModel
+	}
 	if child.SuccessContains == "" {
 		child.SuccessContains = parent.SuccessContains
 	}

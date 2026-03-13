@@ -42,45 +42,46 @@ func (c *AppConfig) validate() error {
 		return err
 	}
 
-	// 1. 四元组唯一性检查
-	ctx := newValidateContext()
-	if err := c.validateMonitorUniqueness(ctx); err != nil {
-		return err
-	}
-
-	// 2-4. 父子约束校验：收集引用、构建索引、验证存在性
-	if err := c.buildAndValidateParentGraph(ctx); err != nil {
-		return err
-	}
-
-	// 5. 循环引用检测
-	if err := c.validateNoCycles(ctx); err != nil {
-		return err
-	}
-
-	// 5.5 多父层警告
-	c.warnMultipleParentLayers()
-
-	// 6. 监测项字段校验
+	// 1. 监测项字段校验（不依赖最终 model，model 可能来自 template）
 	if err := c.validateMonitorFields(); err != nil {
 		return err
 	}
 
-	// 6.5 自动移板配置校验
+	// 2. 自动移板配置校验
 	if err := c.validateBoardAutoMove(); err != nil {
 		return err
 	}
 
-	// 7. Provider 配置校验
+	// 3. Provider 配置校验
 	if err := c.validateProviderConfigs(); err != nil {
 		return err
 	}
 
-	// 8. Badge 配置校验
+	// 4. Badge 配置校验
 	if err := c.validateBadgeConfigs(); err != nil {
 		return err
 	}
 
+	return nil
+}
+
+// validateResolvedModelConstraints 在模板解析后执行依赖最终 model 的校验。
+// model 可能来自 monitor.model，也可能来自 template.model，
+// 因此四元组唯一性、父子关系等校验必须在 resolveTemplates() 之后才能执行。
+func (c *AppConfig) validateResolvedModelConstraints() error {
+	ctx := newValidateContext()
+
+	if err := c.validateMonitorUniqueness(ctx); err != nil {
+		return err
+	}
+	if err := c.buildAndValidateParentGraph(ctx); err != nil {
+		return err
+	}
+	if err := c.validateNoCycles(ctx); err != nil {
+		return err
+	}
+
+	c.warnMultipleParentLayers()
 	return nil
 }
 
@@ -128,8 +129,14 @@ func (c *AppConfig) validateFinal() []error {
 			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 引用了 {{API_KEY}}，但最终 api_key 为空",
 				i, m.Provider, m.Service, m.Channel))
 		}
-		if serviceConfigUsesPlaceholder(m, "{{MODEL}}") && strings.TrimSpace(m.Model) == "" {
-			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 引用了 {{MODEL}}，但最终 model 为空",
+		resolvedRequestModel := strings.TrimSpace(m.RequestModel)
+		if resolvedRequestModel == "" {
+			resolvedRequestModel = strings.TrimSpace(m.Model)
+		}
+		if (serviceConfigUsesPlaceholder(m, "{{MODEL}}") ||
+			serviceConfigUsesPlaceholder(m, "{{REQUEST_MODEL}}")) &&
+			resolvedRequestModel == "" {
+			warns = append(warns, fmt.Errorf("monitor[%d] %s/%s/%s: 引用了 {{MODEL}}/{{REQUEST_MODEL}}，但最终 request_model 与 model 均为空",
 				i, m.Provider, m.Service, m.Channel))
 		}
 

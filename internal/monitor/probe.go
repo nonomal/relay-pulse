@@ -83,11 +83,18 @@ func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) 
 		userID, userIDHash = uidMgr.GetUserIDPair(cfg.Provider, cfg.Service, cfg.Channel, cfg.UserIDRefreshMinutes)
 	}
 
+	// 请求模型回退链：request_model > model
+	requestModel := strings.TrimSpace(cfg.RequestModel)
+	if requestModel == "" {
+		requestModel = cfg.Model
+	}
+
 	// 构建替换器
 	replacePairs := []string{
 		"{{BASE_URL}}", cfg.BaseURL,
 		"{{API_KEY}}", cfg.APIKey,
-		"{{MODEL}}", cfg.Model,
+		"{{MODEL}}", requestModel,
+		"{{REQUEST_MODEL}}", requestModel,
 		"{{USER_ID}}", userID,
 		"{{USER_ID_HASH}}", userIDHash,
 		"{{RAND_UUID}}", uuid.New().String(),
