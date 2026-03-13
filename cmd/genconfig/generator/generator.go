@@ -358,9 +358,8 @@ monitors:
     channel: "standard"
     board: "hot"
     base_url: "https://api.openai.com"
-    template: "cx-codex-base"
-    model: "gpt-4.1"
-    # success_contains 由模板预设，无需手动指定
+    template: "cx-gpt-arith"
+    # model 和 request_model 由模板预设，无需手动指定
 `
 
 const anthropicTemplate = `# Anthropic 监测配置
@@ -384,9 +383,8 @@ monitors:
     channel: "standard"
     board: "hot"
     base_url: "https://api.anthropic.com"
-    template: "cc-haiku-tiny"
-    model: "claude-haiku-4-20250514"
-    # success_contains 由模板预设，无需手动指定
+    template: "cc-haiku-arith"
+    # model 和 request_model 由模板预设，无需手动指定
 `
 
 const customTemplate = `# 自定义 API 监测配置
@@ -438,9 +436,8 @@ monitors:
     channel: "standard"
     board: "hot"
     base_url: "https://generativelanguage.googleapis.com"
-    template: "gm-base"
-    model: "gemini-2.0-flash"
-    # success_contains 由模板预设，无需手动指定
+    template: "gm-flash-arith"
+    # model 和 request_model 由模板预设，无需手动指定
 `
 
 const cohereTemplate = `# Cohere 监测配置
@@ -528,24 +525,22 @@ storage:
     path: "monitor.db"
 
 monitors:
-  # 父通道：定义公共配置（模板 + base_url）
+  # 父通道：定义公共配置（base_url + api_key）
   - provider: "88code"
     service: "cc"
     channel: "vip"
-    model: "claude-sonnet-4-20250514"
     category: "commercial"
     sponsor: "团队"
     sponsor_level: "advanced"
     board: "hot"
     base_url: "https://api.88code.com"
-    template: "cc-haiku-tiny"
-    # success_contains 由模板预设，无需手动指定
+    template: "cc-sonnet-arith"
+    # model 和 request_model 由模板预设
 
-  # 子通道：继承父配置，只需指定 model 和 parent
-  # 模板中的 {{MODEL}} 占位符会自动替换为子通道的 model 值
-  - model: "claude-opus-4-20250514"
+  # 子通道：继承父配置，指定不同的 template
+  - template: "cc-opus-arith"
     parent: "88code/cc/vip"
 
-  - model: "claude-haiku-4-20250514"
+  - template: "cc-haiku-arith"
     parent: "88code/cc/vip"
 `

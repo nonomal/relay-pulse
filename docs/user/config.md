@@ -89,10 +89,9 @@ monitors:
     listed_since: "2024-06-15" # 收录日期（可选）: 用于计算收录天数
     expires_at: "2025-12-31"   # 到期日期（可选）: 过期后自动降级并移入备板
     base_url: "https://api.88code.com"    # 服务商基础地址（模板模式必填）
-    template: "cc-haiku-tiny"             # 引用 templates/ 目录下的模板（模板模式必填）
+    template: "cc-haiku-arith"             # 引用 templates/ 目录下的模板（模板模式必填）
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
-    model: "claude-haiku-4-20250514"      # 模型名称（可选，替换模板中 {{MODEL}}）
-    # success_contains 由模板预设（可选覆盖）
+    # model 和 request_model 由模板预设（可选覆盖）
 ```
 
 ## 配置项详解
@@ -1205,7 +1204,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 ##### `template`（模板模式必填）
 - **类型**: string
 - **说明**: 引用 `templates/` 目录下的 JSON 模板文件（不含扩展名），定义完整的请求方式（url/method/headers/body/success_contains）
-- **示例**: `"cx-codex-base"`、`"cc-haiku-tiny"`、`"gm-base"`
+- **示例**: `"cx-codex-arith"`、`"cc-haiku-arith"`、`"gm-flash-arith"`
 
 ##### `method`（传统模式必填，模板模式可选）
 - **类型**: string
@@ -1288,18 +1287,16 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 - provider: "88code"
   service: "cc"
   channel: "vip"
-  model: "claude-sonnet-4-20250514"  # 父层必须配置 model
   category: "commercial"
   sponsor: "团队"
   sponsor_level: "backbone"
   base_url: "https://api.88code.com"
-  template: "cc-haiku-tiny"          # 模板定义 url/method/headers/body/success_contains
+  template: "cc-sonnet-arith"        # 模板定义 url/method/headers/body/model/request_model
 
-# 子通道：完整继承，只需 parent + model（+ 差异字段）
-- model: "claude-opus-4-20250514"
-  parent: "88code/cc/vip"  # 自动继承 provider/service/channel/template/base_url 等
+# 子通道：完整继承，指定不同 template 切换模型
+- template: "cc-opus-arith"
+  parent: "88code/cc/vip"  # 自动继承 provider/service/channel/base_url 等
   # category 会从父通道继承，也可显式覆盖
-  # 模板中的 {{MODEL}} 占位符会自动替换为子通道的 model 值
 ```
 
 **前端显示**：
@@ -2257,8 +2254,7 @@ monitors:
     category: "commercial"
     sponsor: "团队"
     base_url: "https://api.openai.com"
-    template: "cx-codex-base"       # 模板预设 url/method/headers/body/success_contains
-    model: "gpt-4.1"
+    template: "cx-codex-arith"      # 模板预设 url/method/headers/body/model/request_model
 ```
 
 ### 示例2：Anthropic Claude
@@ -2270,8 +2266,7 @@ monitors:
     category: "public"
     sponsor: "社区"
     base_url: "https://api.anthropic.com"
-    template: "cc-haiku-tiny"       # 模板预设 url/method/headers/body/success_contains
-    model: "claude-haiku-4-20250514"
+    template: "cc-haiku-arith"      # 模板预设 url/method/headers/body/model/request_model
 ```
 
 ### 示例3：自定义 REST API（传统格式）

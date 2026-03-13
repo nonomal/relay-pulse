@@ -77,9 +77,9 @@ func TestTemplateFormatNewStyle(t *testing.T) {
 		baseURL  string
 		template string
 	}{
-		"openai":    {baseURL: "https://api.openai.com", template: "cx-codex-base"},
-		"anthropic": {baseURL: "https://api.anthropic.com", template: "cc-haiku-tiny"},
-		"gemini":    {baseURL: "https://generativelanguage.googleapis.com", template: "gm-base"},
+		"openai":    {baseURL: "https://api.openai.com", template: "cx-gpt-arith"},
+		"anthropic": {baseURL: "https://api.anthropic.com", template: "cc-haiku-arith"},
+		"gemini":    {baseURL: "https://generativelanguage.googleapis.com", template: "gm-flash-arith"},
 	}
 
 	for name, expect := range newStyleTemplates {

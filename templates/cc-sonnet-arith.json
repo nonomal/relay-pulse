@@ -1,4 +1,6 @@
 {
+	"model": "Sonnet",
+	"request_model": "claude-sonnet-4-5-20250929",
 	"url": "{{BASE_URL}}/v1/messages",
 	"method": "POST",
 	"headers": {

@@ -375,14 +375,13 @@
       "submitting": "Отправка..."
     },
     "payloadVariants": {
-      "cc-haiku-tiny": "Haiku лёгкий",
-      "cc-opus-tiny": "Opus лёгкий",
-      "cc-sonnet-tiny": "Sonnet лёгкий",
-      "cx-codex-base": "Codex стандарт",
-      "cx-codexmax-base": "Codex Max стандарт",
-      "cx-codexmini-base": "Codex Mini стандарт",
-      "gm-base": "Стандарт",
-      "gm-thinking": "Thinking"
+      "cc-haiku-arith": "Haiku",
+      "cc-sonnet-arith": "Sonnet",
+      "cc-opus-arith": "Opus",
+      "cx-gpt-arith": "GPT",
+      "cx-codex-arith": "Codex",
+      "gm-flash-arith": "Flash",
+      "gm-pro-arith": "Pro"
     },
     "status": {
       "queued": "В очереди",

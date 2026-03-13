@@ -46,9 +46,9 @@ monitors:
     category: "commercial"           # 必填：商业站(commercial) 或 公益站(public)
     sponsor: "团队自有"              # 必填：提供 API Key 的赞助者
     base_url: "https://api.openai.com"
-    template: "cx-codex-base"        # 引用 templates/cx-codex-base.json 模板
+    template: "cx-codex-arith"        # 引用 templates/cx-codex-arith.json 模板
     api_key: "sk-your-api-key-here"
-    model: "gpt-4.1"
+    # model 和 request_model 由模板预设
 ```
 
 #### 3. 一键启动
@@ -113,8 +113,8 @@ monitors:
     category: "commercial"
     sponsor: "团队自有"
     base_url: "https://api.openai.com"
-    template: "cx-codex-base"
-    model: "gpt-4.1"
+    template: "cx-codex-arith"
+    # model 和 request_model 由模板预设
     # api_key 留空或不填，将从环境变量读取
 ```
 
@@ -209,9 +209,8 @@ monitors:
     category: "commercial"
     sponsor: "团队自有"
     base_url: "https://api.openai.com"
-    template: "cx-codex-base"
+    template: "cx-codex-arith"
     api_key: "sk-openai-key"
-    model: "gpt-4.1"
 
   # Anthropic Claude
   - provider: "anthropic"
@@ -219,9 +218,8 @@ monitors:
     category: "commercial"
     sponsor: "团队自有"
     base_url: "https://api.anthropic.com"
-    template: "cc-haiku-tiny"
+    template: "cc-haiku-arith"
     api_key: "sk-ant-key"
-    model: "claude-haiku-4-20250514"
 
   # Google Gemini
   - provider: "google"
@@ -229,9 +227,8 @@ monitors:
     category: "commercial"
     sponsor: "团队自有"
     base_url: "https://generativelanguage.googleapis.com"
-    template: "gm-base"
+    template: "gm-flash-arith"
     api_key: "your-google-api-key"
-    model: "gemini-2.0-flash"
 ```
 
 ---

@@ -375,14 +375,13 @@
       "submitting": "提交中..."
     },
     "payloadVariants": {
-      "cc-haiku-tiny": "Haiku 轻量",
-      "cc-opus-tiny": "Opus 轻量",
-      "cc-sonnet-tiny": "Sonnet 轻量",
-      "cx-codex-base": "Codex 标准",
-      "cx-codexmax-base": "Codex Max 标准",
-      "cx-codexmini-base": "Codex Mini 标准",
-      "gm-base": "标准",
-      "gm-thinking": "Thinking"
+      "cc-haiku-arith": "Haiku",
+      "cc-sonnet-arith": "Sonnet",
+      "cc-opus-arith": "Opus",
+      "cx-gpt-arith": "GPT",
+      "cx-codex-arith": "Codex",
+      "gm-flash-arith": "Flash",
+      "gm-pro-arith": "Pro"
     },
     "status": {
       "queued": "排队中",

@@ -25,37 +25,60 @@ except ImportError:
 
 # --- 常量 ---
 
-# !include 文件名 → template 名称
+# !include 文件名 → template 名称（含历史模板的兼容映射）
 INCLUDE_TO_TEMPLATE = {
-    "templates/cc-haiku-base.json": "cc-haiku-tiny",
-    "templates/cc-haiku-tiny.json": "cc-haiku-tiny",
-    "templates/cc-sonnet-tiny.json": "cc-sonnet-tiny",
-    "templates/cc-opus-tiny.json": "cc-opus-tiny",
-    "templates/cx-codex-base.json": "cx-codex-base",
-    "templates/cx-codexmini-base.json": "cx-codexmini-base",
-    "templates/cx-codexmax-base.json": "cx-codexmax-base",
-    "templates/cx-gpt52-base.json": "cx-codex-base",
-    "templates/gm-base.json": "gm-base",
-    "templates/gm-thinking.json": "gm-thinking",
-    "templates/gm-generate.json": "gm-generate",
-    "templates/cc-arith.json": "cc-arith",
-    "templates/cx-arith.json": "cx-arith",
-    "templates/gm-arith.json": "gm-arith",
+    # 历史模板 → 最近似的 arith 模板
+    "templates/cc-haiku-base.json": "cc-haiku-arith",
+    "templates/cc-haiku-tiny.json": "cc-haiku-arith",
+    "templates/cc-sonnet-tiny.json": "cc-sonnet-arith",
+    "templates/cc-opus-tiny.json": "cc-opus-arith",
+    "templates/cx-codex-base.json": "cx-codex-arith",
+    "templates/cx-codexmini-base.json": "cx-codex-arith",
+    "templates/cx-codexmax-base.json": "cx-codex-arith",
+    "templates/cx-gpt52-base.json": "cx-codex-arith",
+    "templates/gm-base.json": "gm-flash-arith",
+    "templates/gm-thinking.json": "gm-flash-arith",
+    "templates/gm-generate.json": "gm-flash-arith",
+    # 当前模板
+    "templates/cc-haiku-arith.json": "cc-haiku-arith",
+    "templates/cc-sonnet-arith.json": "cc-sonnet-arith",
+    "templates/cc-opus-arith.json": "cc-opus-arith",
+    "templates/cx-gpt-arith.json": "cx-gpt-arith",
+    "templates/cx-codex-arith.json": "cx-codex-arith",
+    "templates/gm-flash-arith.json": "gm-flash-arith",
+    "templates/gm-pro-arith.json": "gm-pro-arith",
+    # 旧 arith 模板兼容
+    "templates/cc-arith.json": "cc-haiku-arith",
+    "templates/cx-arith.json": "cx-codex-arith",
+    "templates/gm-arith.json": "gm-flash-arith",
 }
 
 # service 类型 → anchor 默认 template
 SERVICE_DEFAULT_TEMPLATE = {
-    "cc": "cc-haiku-tiny",
-    "cx": "cx-codex-base",
-    "gm": "gm-base",
+    "cc": "cc-haiku-arith",
+    "cx": "cx-codex-arith",
+    "gm": "gm-flash-arith",
+}
+
+# 旧 template 名称 → 新 arith 模板名称（用于 remap 已有 template: 字段的配置）
+TEMPLATE_REMAP = {
+    "cc-haiku-tiny": "cc-haiku-arith",
+    "cc-sonnet-tiny": "cc-sonnet-arith",
+    "cc-opus-tiny": "cc-opus-arith",
+    "cc-arith": "cc-haiku-arith",
+    "cx-codex-base": "cx-codex-arith",
+    "cx-codexmax-base": "cx-codex-arith",
+    "cx-codexmini-base": "cx-codex-arith",
+    "cx-arith": "cx-codex-arith",
+    "gm-base": "gm-flash-arith",
+    "gm-thinking": "gm-flash-arith",
+    "gm-generate": "gm-flash-arith",
+    "gm-arith": "gm-flash-arith",
 }
 
 # 模板默认 slow_latency/timeout（与 JSON 模板中的值一致）
-TEMPLATE_DEFAULTS = {
-    "cc-opus-tiny": {"slow_latency": "6s", "timeout": "12s"},
-    "cx-codexmax-base": {"slow_latency": "6s", "timeout": "12s"},
-    "gm-thinking": {"slow_latency": "7s", "timeout": "14s"},
-}
+# 所有 arith 模板统一 5s/10s，无需特殊覆盖
+TEMPLATE_DEFAULTS = {}
 TEMPLATE_DEFAULT_SLOW = "5s"
 TEMPLATE_DEFAULT_TIMEOUT = "10s"
 
@@ -220,9 +243,15 @@ def migrate_monitor(m, data_dir, template_cache, report):
                 service = parts[1]
     service = (service or "").lower()
 
-    # 如果已经有 template，视为已迁移（仍清理冗余字段）
-    if norm(m.get("template")):
-        _cleanup_template_fields(m, norm(m.get("template")), service, data_dir, template_cache, report)
+    # 如果已经有 template，先 remap 旧名称，再清理冗余字段
+    existing_template = norm(m.get("template"))
+    if existing_template:
+        new_name = TEMPLATE_REMAP.get(existing_template)
+        if new_name:
+            m["template"] = new_name
+            report["fields_removed"]["template_remapped"] += 1
+            existing_template = new_name
+        _cleanup_template_fields(m, existing_template, service, data_dir, template_cache, report)
         return "already_migrated"
 
     # --- Rule 3: body "!include" → template ---

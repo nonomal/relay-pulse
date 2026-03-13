@@ -375,14 +375,13 @@
       "submitting": "送信中..."
     },
     "payloadVariants": {
-      "cc-haiku-tiny": "Haiku 軽量",
-      "cc-opus-tiny": "Opus 軽量",
-      "cc-sonnet-tiny": "Sonnet 軽量",
-      "cx-codex-base": "Codex 標準",
-      "cx-codexmax-base": "Codex Max 標準",
-      "cx-codexmini-base": "Codex Mini 標準",
-      "gm-base": "標準",
-      "gm-thinking": "Thinking"
+      "cc-haiku-arith": "Haiku",
+      "cc-sonnet-arith": "Sonnet",
+      "cc-opus-arith": "Opus",
+      "cx-gpt-arith": "GPT",
+      "cx-codex-arith": "Codex",
+      "gm-flash-arith": "Flash",
+      "gm-pro-arith": "Pro"
     },
     "status": {
       "queued": "待機中",

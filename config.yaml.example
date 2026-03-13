@@ -140,9 +140,10 @@ badge_providers:
 # 监测任务配置
 # ============================================
 # 新的模板化配置方式：
-#   - template: 引用 templates/ 目录下的 JSON 模板文件（包含 url/method/headers/body/response）
+#   - template: 引用 templates/ 目录下的 JSON 模板文件（包含 url/method/headers/body/response/model/request_model）
 #   - base_url: 服务商基础地址，模板通过 {{BASE_URL}} 注入
-#   - model: 模型名称，模板通过 {{MODEL}} 注入
+#   - model: 展示名称（由模板预设，也可手动覆盖）
+#   - request_model: 实际请求的模型 ID（由模板预设，请求时优先于 model，通过 {{MODEL}} 注入）
 #   - api_key: API 密钥，模板通过 {{API_KEY}} 注入
 #
 # 模板支持的占位符：
@@ -156,9 +157,9 @@ badge_providers:
 #   {{EXPECTED_ANSWER}}   - 预期答案（与 PROMPT 同步）
 #
 # 可用模板（templates/ 目录）：
-#   CC: cc-haiku-tiny, cc-opus-tiny, cc-sonnet-tiny, cc-arith
-#   CX: cx-codex-base, cx-codexmax-base, cx-codexmini-base, cx-arith
-#   GM: gm-base, gm-thinking, gm-arith
+#   CC: cc-haiku-arith, cc-sonnet-arith, cc-opus-arith
+#   CX: cx-gpt-arith, cx-codex-arith
+#   GM: gm-flash-arith, gm-pro-arith
 
 monitors:
   # --- Claude Code (CC) 示例 ---
@@ -171,26 +172,22 @@ monitors:
     sponsor_level: "beacon"
     channel: "vip3"
     base_url: "https://api.88code.com"
-    template: "cc-haiku-tiny"
+    template: "cc-haiku-arith"
     api_key: "sk-xxxxxxxx"
-    model: "claude-haiku-4-5-20251001"
+    # model 和 request_model 由模板预设，无需手动指定
 
   # --- 同服务商多模型（父子继承）---
-  # 子通道通过 parent 继承 base_url, template, api_key 等公共配置
-  # 只需指定不同的 model 和 channel
+  # 子通道通过 parent 继承 base_url, api_key 等公共配置
+  # 每个子通道指定不同的 template 来选择模型
   - provider: "88code"
     service: "cc"
     channel: "vip3"
     base_url: "https://api.88code.com"
-    template: "cc-haiku-tiny"
+    template: "cc-haiku-arith"
     api_key: "sk-xxxxxxxx"
-    model: "claude-haiku-4-5-20251001"
     category: "commercial"
     sponsor: "团队自有"
-  # - provider: "88code"           # 子通道示例（取消注释使用）
-  #   service: "cc"
-  #   channel: "vip3"
-  #   model: "claude-sonnet-4-5-20250929"
+  # - template: "cc-sonnet-arith"  # 子通道示例（取消注释使用）
   #   parent: "88code/cc/vip3"     # 继承父通道配置
 
   # --- Codex (CX) 示例 ---
@@ -200,35 +197,27 @@ monitors:
     sponsor: "团队自有"
     channel: "standard"
     base_url: "https://api.88code.com"
-    template: "cx-codex-base"
+    template: "cx-codex-arith"
     api_key: "sk-xxxxxxxx"
-    model: "gpt-5-codex"
+    # model 和 request_model 由模板预设
 
   # --- Gemini (GM) 示例 ---
-  # GM 模板的 URL 包含 {{MODEL}} 和 {{API_KEY}}：
-  # {{BASE_URL}}/v1beta/models/{{MODEL}}:streamGenerateContent?key={{API_KEY}}
+  # GM 模板的 URL 包含 {{MODEL}}，API Key 在 header 中：
+  # {{BASE_URL}}/v1beta/models/{{MODEL}}:generateContent
   - provider: "google"
     service: "gm"
     category: "public"
     sponsor: "官方直连"
     channel: "direct"
     base_url: "https://generativelanguage.googleapis.com"
-    template: "gm-base"
+    template: "gm-flash-arith"
     api_key: "AIza..."
-    model: "gemini-2.0-flash"
+    # model 和 request_model 由模板预设
 
   # --- 防缓存模式（算术题）---
-  # 使用 arith 模板，每次探测生成随机算术题
+  # 所有模板均使用 arith 模式，每次探测生成随机算术题
   # 防止服务商缓存固定提示词的响应
-  # - provider: "88code"
-  #   service: "cc"
-  #   category: "commercial"
-  #   sponsor: "团队自有"
-  #   channel: "vip3-arith"
-  #   base_url: "https://api.88code.com"
-  #   template: "cc-arith"
-  #   api_key: "sk-xxxxxxxx"
-  #   model: "claude-haiku-4-5-20251001"
+  # model 和 request_model 由模板预设，无需手动指定
 
   # --- 高级配置：自定义 headers 覆盖模板 ---
   # 模板提供基础 headers，config 中的 headers 会覆盖同名 key
@@ -238,9 +227,8 @@ monitors:
   #   sponsor: "自定义"
   #   channel: "special"
   #   base_url: "https://custom-api.example.com"
-  #   template: "cc-haiku-tiny"
+  #   template: "cc-haiku-arith"
   #   api_key: "sk-custom"
-  #   model: "claude-haiku-4-5-20251001"
   #   headers:
   #     X-Custom-Header: "custom-value"  # 新增 header
   #     User-Agent: "custom-agent/1.0"   # 覆盖模板中的 User-Agent
@@ -252,9 +240,8 @@ monitors:
   #   service: "cc"
   #   channel: "rotating-uid"
   #   base_url: "https://api.88code.com"
-  #   template: "cc-haiku-tiny"
+  #   template: "cc-haiku-arith"
   #   api_key: "sk-xxx"
-  #   model: "claude-haiku-4-5-20251001"
   #   user_id_refresh_minutes: 30  # 每 30 分钟更换 user_id
 
   # --- 冷板示例 ---
@@ -265,6 +252,5 @@ monitors:
   #   board: "cold"
   #   cold_reason: "该渠道长期不稳定，先归档节省探测资源"
   #   base_url: "https://api.example.com"
-  #   template: "cc-haiku-tiny"
+  #   template: "cc-haiku-arith"
   #   api_key: "sk-xxx"
-  #   model: "claude-haiku-4-5-20251001"

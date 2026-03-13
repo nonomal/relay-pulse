@@ -55,20 +55,20 @@ go run ./cmd/genconfig -mode interactive
 ### openai
 生成 OpenAI 监测配置（使用模板格式），包含：
 - 服务商：openai，服务类型：cx
-- 模板：`cx-codex-base`，基础地址：`https://api.openai.com`
-- 默认模型：gpt-4.1，关键字验证：choices
+- 模板：`cx-gpt-arith`，基础地址：`https://api.openai.com`
+- model 和 request_model 由模板预设，算术题防缓存
 
 ### anthropic
 生成 Anthropic Claude 监测配置（使用模板格式），包含：
 - 服务商：anthropic，服务类型：cc
-- 模板：`cc-haiku-tiny`，基础地址：`https://api.anthropic.com`
-- 默认模型：claude-haiku-4-20250514，关键字验证：content
+- 模板：`cc-haiku-arith`，基础地址：`https://api.anthropic.com`
+- model 和 request_model 由模板预设，算术题防缓存
 
 ### gemini
 生成 Google Gemini 监测配置（使用模板格式），包含：
 - 服务商：google，服务类型：gm
-- 模板：`gm-base`，基础地址：`https://generativelanguage.googleapis.com`
-- 默认模型：gemini-2.0-flash，关键字验证：candidates
+- 模板：`gm-flash-arith`，基础地址：`https://generativelanguage.googleapis.com`
+- model 和 request_model 由模板预设，算术题防缓存
 
 ### cohere
 生成 Cohere 监测配置（暂无模板，使用传统格式），包含：
