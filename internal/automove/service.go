@@ -32,15 +32,17 @@ type Service struct {
 	// nil 表示无 override（auto_move 未启用或无需移板）。
 	overrides atomic.Pointer[map[storage.MonitorKey]MonitorOverride]
 
-	stopCh   chan struct{}
-	stopOnce sync.Once
+	stopCh    chan struct{}
+	triggerCh chan struct{} // 热更新后触发立即评估
+	stopOnce  sync.Once
 }
 
 // NewService 创建自动移板服务（不启动 goroutine）。
 func NewService(store storage.Storage, cfg *config.AppConfig) *Service {
 	svc := &Service{
-		storage: store,
-		stopCh:  make(chan struct{}),
+		storage:   store,
+		stopCh:    make(chan struct{}),
+		triggerCh: make(chan struct{}, 1),
 	}
 	svc.cfg = cfg
 	return svc
@@ -75,6 +77,12 @@ func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 
 	// auto_move 仍启用：清理已不再参与自动移板的监测项的旧 override
 	s.purgeStaleOverrides(cfg)
+
+	// 通知 loop 立即重新评估（非阻塞，缓冲区为 1 防止重复信号）
+	select {
+	case s.triggerCh <- struct{}{}:
+	default:
+	}
 }
 
 // purgeStaleOverrides 从当前 override map 中移除不再符合自动移板条件的 key。
@@ -241,6 +249,9 @@ func (s *Service) loop(ctx context.Context) {
 
 		select {
 		case <-timer.C:
+			s.Evaluate(ctx)
+		case <-s.triggerCh:
+			timer.Stop()
 			s.Evaluate(ctx)
 		case <-ctx.Done():
 			timer.Stop()
