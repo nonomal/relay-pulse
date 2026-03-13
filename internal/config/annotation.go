@@ -171,7 +171,7 @@ func deriveSystemAnnotations(task ServiceConfig, _ time.Duration) []Annotation {
 			Icon:     "shield-check",
 			Label:    "官方 API",
 			Tooltip:  "使用服务商提供的官方 API Key",
-			Priority: 75,
+			Priority: 5,
 			Origin:   "system",
 		})
 	}
