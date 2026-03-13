@@ -41,7 +41,7 @@ jobs:
       - name: Lint commit messages
         if: github.event_name == 'push'
         run: |
-          npm install --no-save @commitlint/cli @commitlint/config-conventional
+          npm install --no-save @commitlint/cli@latest @commitlint/config-conventional@latest
           # 处理首推/强推场景：before 为全0或不可达时，从最近 tag 开始检查
           BEFORE="${{ github.event.before }}"
           if [[ "$BEFORE" == "0000000000000000000000000000000000000000" ]] || ! git rev-parse --verify "$BEFORE^{commit}" >/dev/null 2>&1; then
