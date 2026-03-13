@@ -20,7 +20,8 @@ type StatusPoint struct {
 // MonitorLayer 监测层（单个 model 的探测结果）
 type MonitorLayer struct {
 	Model         string              `json:"model"`
-	LayerOrder    int                 `json:"layer_order"` // 0=父，1+=子（按配置顺序）
+	RequestModel  string              `json:"request_model"` // 实际请求模型 ID（优先 request_model，回退 model）
+	LayerOrder    int                 `json:"layer_order"`   // 0=父，1+=子（按配置顺序）
 	CurrentStatus StatusPoint         `json:"current_status"`
 	Timeline      []storage.TimePoint `json:"timeline"`
 }
@@ -106,6 +107,15 @@ func toStatusPoint(current *CurrentStatus) StatusPoint {
 		Latency:   current.Latency,
 		Timestamp: current.Timestamp,
 	}
+}
+
+// resolvedRequestModel 返回最终用于请求的模型 ID。
+// 优先级：request_model > model
+func resolvedRequestModel(task config.ServiceConfig) string {
+	if rm := strings.TrimSpace(task.RequestModel); rm != "" {
+		return rm
+	}
+	return strings.TrimSpace(task.Model)
 }
 
 // statusSeverity 返回状态的严重程度（数值越大越严重）
@@ -331,6 +341,7 @@ func (h *Handler) buildMonitorGroups(
 		}
 		layers = append(layers, MonitorLayer{
 			Model:         b.parent.Model,
+			RequestModel:  resolvedRequestModel(b.parent),
 			LayerOrder:    0,
 			CurrentStatus: parentData.current,
 			Timeline:      parentData.timeline,
@@ -353,6 +364,7 @@ func (h *Handler) buildMonitorGroups(
 			}
 			layers = append(layers, MonitorLayer{
 				Model:         child.Model,
+				RequestModel:  resolvedRequestModel(child),
 				LayerOrder:    i + 1,
 				CurrentStatus: d.current,
 				Timeline:      d.timeline,

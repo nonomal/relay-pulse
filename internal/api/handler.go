@@ -296,6 +296,8 @@ type MonitorResult struct {
 	ListedDays    *int                `json:"listed_days,omitempty"`   // 收录天数（从 listed_since 计算）
 	Channel       string              `json:"channel"`                 // 业务通道标识
 	ChannelName   string              `json:"channel_name,omitempty"`  // Channel 显示名称
+	Model         string              `json:"model,omitempty"`         // 模型展示名
+	RequestModel  string              `json:"request_model,omitempty"` // 实际请求模型 ID
 	Board         string              `json:"board"`                   // 板块：hot/cold
 	ColdReason    string              `json:"cold_reason,omitempty"`   // 冷板原因（仅 cold 有值）
 	ProbeURL      string              `json:"probe_url,omitempty"`     // 探测端点 URL（脱敏后）

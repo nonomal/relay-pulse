@@ -141,10 +141,10 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
   // Tooltip 内容（桌面和移动端共用）
   const TooltipContent = () => (
     <>
-      {/* 多模型信息（如果有） */}
-      {tooltip.data!.model && (
+      {/* 模型信息（显示 requestModel，回退到 model） */}
+      {(tooltip.data!.requestModel || tooltip.data!.model) && (
         <div className="text-accent text-center font-medium text-xs border-b border-default/30 pb-1 mb-1">
-          {t('multiModel.modelPrefix')} {tooltip.data!.model}
+          {t('multiModel.modelPrefix')} {tooltip.data!.requestModel || tooltip.data!.model}
           {tooltip.data!.layerOrder !== undefined && (
             <span className="text-muted text-[10px] ml-1">
               ({t('multiModel.layer', { order: tooltip.data!.layerOrder })})

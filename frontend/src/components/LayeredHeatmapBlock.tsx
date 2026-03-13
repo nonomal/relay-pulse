@@ -182,6 +182,8 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
 
     const timePointForTimestamp = ownTimePoint ?? referenceTimePoint;
 
+    const layerRequestModel = layer.request_model ?? layer.model;
+
     // 极端兜底：所有层都没有该 index（理论上不该发生）
     if (!timePointForTimestamp) {
       return {
@@ -194,6 +196,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
         statusCounts: { ...defaultStatusCounts, missing: 1 },
         slowLatencyMs,
         model: layer.model,
+        requestModel: layerRequestModel,
         layerOrder: layer.layer_order,
       };
     }
@@ -210,6 +213,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
         statusCounts: { ...defaultStatusCounts, missing: 1 },
         slowLatencyMs,
         model: layer.model,
+        requestModel: layerRequestModel,
         layerOrder: layer.layer_order,
       };
     }
@@ -226,6 +230,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
       statusCounts: { ...defaultStatusCounts, ...ownTimePoint.status_counts },
       slowLatencyMs,
       model: layer.model,
+      requestModel: layerRequestModel,
       layerOrder: layer.layer_order,
     };
   };

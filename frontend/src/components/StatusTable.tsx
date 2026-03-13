@@ -80,6 +80,30 @@ function ChannelCell({ channel, probeUrl, templateName, className = '' }: Channe
   );
 }
 
+// ─── 模型列辅助函数 ───────────────────────────────────────────
+
+function getModelDisplay(modelEntries?: ProcessedMonitorData['modelEntries']): string {
+  if (!modelEntries || modelEntries.length === 0) return '-';
+  if (modelEntries.length === 1) {
+    return modelEntries[0].model || modelEntries[0].requestModel || '-';
+  }
+  return modelEntries
+    .map((entry) => entry.model || entry.requestModel)
+    .filter(Boolean)
+    .join(', ');
+}
+
+function getModelTooltip(modelEntries?: ProcessedMonitorData['modelEntries']): string | undefined {
+  if (!modelEntries || modelEntries.length === 0) return undefined;
+  return modelEntries
+    .map((entry) => {
+      const model = entry.model || '-';
+      const rm = entry.requestModel || entry.model || '-';
+      return model === rm ? rm : `${model} → ${rm}`;
+    })
+    .join('\n');
+}
+
 interface StatusTableProps {
   data: ProcessedMonitorData[];
   sortConfig: SortConfig;
@@ -213,6 +237,14 @@ function MobileListItem({
                   templateName={item.templateName}
                   className="text-muted truncate"
                 />
+              )}
+              {item.modelEntries && item.modelEntries.length > 0 && (
+                <span
+                  className="text-[10px] text-muted truncate max-w-[120px]"
+                  title={getModelTooltip(item.modelEntries)}
+                >
+                  {getModelDisplay(item.modelEntries)}
+                </span>
               )}
               {/* 收录时间 */}
               {item.listedDays != null && (
@@ -463,6 +495,9 @@ function StatusTableComponent({
                 {t('table.headers.channel')} <SortIcon columnKey="channel" />
               </div>
             </th>
+            <th className="px-2 py-3 font-medium whitespace-nowrap">
+              {t('table.headers.model')}
+            </th>
             <th
               className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('priceRatio')}
@@ -634,6 +669,14 @@ function StatusTableComponent({
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                 />
+              </td>
+              <td className="px-2 py-1 text-secondary text-xs max-w-[14rem]">
+                <span
+                  className="block truncate"
+                  title={getModelTooltip(item.modelEntries)}
+                >
+                  {getModelDisplay(item.modelEntries)}
+                </span>
               </td>
               <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">
                 {(() => {

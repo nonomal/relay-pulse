@@ -149,6 +149,7 @@
       "sponsor": "Sponsor",
       "service": "Service",
       "channel": "Channel",
+      "model": "Model",
       "priceRatio": "Price Ratio",
       "priceRatioUnit": "¥/$",
       "listedDays": "Listed Days",

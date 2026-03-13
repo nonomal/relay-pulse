@@ -109,6 +109,8 @@ export interface MonitorResult {
   listed_days?: number;                // 收录天数
   channel: string;                     // 业务通道标识
   channel_name?: string;               // Channel 显示名称（可选）
+  model?: string;                      // 模型展示名（可选）
+  request_model?: string;              // 实际请求模型 ID（可选）
   board: BoardValue;                   // 板块：hot/secondary/cold
   cold_reason?: string;                // 冷板原因（仅 cold 有值）
   probe_url?: string;                  // 探测端点 URL（脱敏后）
@@ -181,6 +183,7 @@ export interface ProcessedMonitorData {
   pinned?: boolean;                    // 是否为置顶项（由排序逻辑标记）
   isMultiModel: boolean;               // 是否为多模型监测组
   layers?: MonitorLayer[];             // 原始分层数据（仅多模型组有值）
+  modelEntries?: Array<{ model: string; requestModel: string }>; // 模型展示名与实际请求模型映射
   history: Array<{
     index: number;
     status: StatusKey;
@@ -191,6 +194,7 @@ export interface ProcessedMonitorData {
     statusCounts: StatusCounts; // 各状态计数
     slowLatencyMs?: number;   // 慢请求阈值（毫秒，per-monitor，用于 tooltip 显示）
     model?: string;           // 模型名称（可选，仅多模型时有值）
+    requestModel?: string;    // 实际请求模型 ID（可选）
     layerOrder?: number;      // 层序号（可选，仅多模型时有值）
   }>;
   currentStatus: StatusKey;
@@ -235,6 +239,7 @@ export interface TooltipState {
     statusCounts: StatusCounts; // 各状态计数
     slowLatencyMs?: number;     // 慢请求阈值（毫秒，per-monitor）
     model?: string;             // 模型名称（可选，仅多模型时有值）
+    requestModel?: string;      // 实际请求模型 ID（可选）
     layerOrder?: number;        // 层序号（可选，仅多模型时有值）
   } | null;
 }
@@ -286,6 +291,7 @@ export interface StatusPoint {
 // 监测层（单个 model 的探测结果）
 export interface MonitorLayer {
   model: string;                  // 模型名称
+  request_model?: string;         // 实际请求模型 ID（可选）
   layer_order: number;            // 层序号：0=父，1+=子
   current_status: StatusPoint;    // 当前状态点
   timeline: TimePoint[];          // 时间线数据
@@ -336,5 +342,6 @@ export interface TooltipDataWithLayer {
   statusCounts: StatusCounts; // 各状态计数
   slowLatencyMs?: number;     // 慢请求阈值（毫秒，per-monitor）
   model?: string;             // 模型名称（可选，仅多模型时有值）
+  requestModel?: string;      // 实际请求模型 ID（可选）
   layerOrder?: number;        // 层序号（可选，仅多模型时有值）
 }

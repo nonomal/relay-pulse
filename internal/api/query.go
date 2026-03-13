@@ -382,6 +382,8 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		ListedDays:    listedDays,
 		Channel:       task.Channel,
 		ChannelName:   task.ChannelName,
+		Model:         task.Model,
+		RequestModel:  resolvedRequestModel(task),
 		Board:         task.Board,
 		ColdReason:    task.ColdReason,
 		ProbeURL:      probeURL,

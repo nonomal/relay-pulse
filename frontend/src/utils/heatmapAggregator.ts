@@ -229,6 +229,8 @@ function aggregateGroup(group: HistoryPoint[]): HistoryPoint {
     latency: avgLatency,
     availability: avgAvailability,
     statusCounts: mergedStatusCounts,
+    model: firstPoint.model,
+    requestModel: firstPoint.requestModel,
   };
 
   // 扩展字段：保留原始数据用于详情展示

@@ -293,6 +293,7 @@ function buildHistoryFromTimeline(
   }>,
   slowLatencyMs: number,
   model?: string,
+  requestModel?: string,
   layerOrder?: number
 ): ProcessedMonitorData['history'] {
   return (timeline || []).map((point, index) => ({
@@ -305,6 +306,7 @@ function buildHistoryFromTimeline(
     statusCounts: mapStatusCounts(point.status_counts),
     slowLatencyMs,
     model,
+    requestModel,
     layerOrder,
   }));
 }
@@ -332,7 +334,15 @@ export function convertLegacyDataToProcessedData(
 ): ProcessedMonitorData {
   const itemSlowLatencyMs = item.slow_latency_ms ?? globalSlowLatencyMs;
 
-  const history = buildHistoryFromTimeline(item.timeline, itemSlowLatencyMs);
+  const legacyModel = item.model?.trim() || item.request_model?.trim() || undefined;
+  const legacyRequestModel = item.request_model?.trim() || legacyModel;
+  const modelEntries = legacyModel
+    ? [{ model: legacyModel, requestModel: legacyRequestModel ?? legacyModel }]
+    : undefined;
+
+  const history = buildHistoryFromTimeline(
+    item.timeline, itemSlowLatencyMs, legacyModel, legacyRequestModel
+  );
   const uptime = calculateUptime(history);
 
   const currentStatus = item.current_status
@@ -368,6 +378,7 @@ export function convertLegacyDataToProcessedData(
     templateName: item.template_name,
     intervalMs: item.interval_ms ?? 0,
     slowLatencyMs: itemSlowLatencyMs,
+    modelEntries,
     history,
     currentStatus,
     uptime,
@@ -384,12 +395,30 @@ export function convertGroupToProcessedData(
 ): ProcessedMonitorData {
   const itemSlowLatencyMs = group.slow_latency_ms ?? globalSlowLatencyMs;
 
+  // 构建模型映射
+  const modelEntries = group.layers
+    .map((layer) => {
+      const model = layer.model?.trim() || '';
+      const requestModel = layer.request_model?.trim() || model;
+      return model ? { model, requestModel } : null;
+    })
+    .filter((entry): entry is { model: string; requestModel: string } => entry !== null);
+
+  // composite history 的模型标识：单层直接用该层，多层用 "/" 拼接
+  const compositeModel = modelEntries.length <= 1
+    ? modelEntries[0]?.model
+    : modelEntries.map((e) => e.model).join(' / ');
+  const compositeRequestModel = modelEntries.length <= 1
+    ? modelEntries[0]?.requestModel
+    : modelEntries.map((e) => e.requestModel).join(' / ');
+
   const compositeTimeline = buildCompositeTimelineFromLayers(group.layers);
   const history = compositeTimeline.length > 0
     ? buildHistoryFromTimeline(
         compositeTimeline,
         itemSlowLatencyMs,
-        i18n.t('multiModel.composite'),
+        compositeModel,
+        compositeRequestModel,
         undefined
       )
     : [];
@@ -434,6 +463,7 @@ export function convertGroupToProcessedData(
     templateName: group.template_name,
     intervalMs: group.interval_ms ?? 0,
     slowLatencyMs: itemSlowLatencyMs,
+    modelEntries: modelEntries.length > 0 ? modelEntries : undefined,
     history,
     currentStatus,
     uptime,
