@@ -8,7 +8,7 @@ import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { AnnotationCell } from './annotations';
 import { FavoriteButton } from './FavoriteButton';
-import { getStatusConfig, getTimeRanges } from '../constants';
+import { getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
@@ -120,8 +120,7 @@ function MobileListItem({
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
 }) {
-  const { t, i18n } = useTranslation();
-  const STATUS = getStatusConfig(t);
+  const { i18n } = useTranslation();
   const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
   // 聚合热力图数据
@@ -227,11 +226,8 @@ function MobileListItem({
 
         {/* 状态、可用率、时间和延迟 */}
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-elevated border border-default">
+          <div className="flex items-center p-1.5 rounded-full bg-elevated border border-default">
             <StatusDot status={item.currentStatus} size="sm" />
-            <span className={`text-xs font-bold ${STATUS[item.currentStatus].text}`}>
-              {STATUS[item.currentStatus].label}
-            </span>
           </div>
           <span
             className="text-sm font-mono font-bold"
@@ -347,7 +343,6 @@ function StatusTableComponent({
 }: StatusTableProps) {
   const { t, i18n } = useTranslation();
   const [isMobile, setIsMobile] = useState(false);
-  const STATUS = getStatusConfig(t);
 
   // 检测是否为平板/移动端（< 960px，兼容 Safari ≤13）
   useEffect(() => {
@@ -504,9 +499,14 @@ function StatusTableComponent({
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('currentStatus'))}
               tabIndex={0}
               role="button"
-              title={t('table.headers.status')}
             >
-              <SortIcon columnKey="currentStatus" />
+              <div className="flex items-center">
+                <div className="flex flex-col leading-tight max-w-[4rem]">
+                  <span>{t('table.headers.statusLine1')}</span>
+                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.statusLine2')}</span>
+                </div>
+                <SortIcon columnKey="currentStatus" />
+              </div>
             </th>
             <th
               className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
@@ -653,12 +653,7 @@ function StatusTableComponent({
                 {item.listedDays != null ? `${item.listedDays}d` : '-'}
               </td>
               <td className="px-2 py-1">
-                <div className="flex items-center gap-1.5 whitespace-nowrap">
-                  <StatusDot status={item.currentStatus} size="sm" />
-                  <span className={STATUS[item.currentStatus].text}>
-                    {STATUS[item.currentStatus].label}
-                  </span>
-                </div>
+                <StatusDot status={item.currentStatus} size="sm" />
               </td>
               <td className="px-2 py-1 font-mono font-bold whitespace-nowrap">
                 <span style={{ color: availabilityToColor(item.uptime) }}>

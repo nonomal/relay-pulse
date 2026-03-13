@@ -6,7 +6,7 @@ import { HeatmapBlock } from './HeatmapBlock';
 import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
 import { ExternalLink } from './ExternalLink';
 import { FavoriteButton } from './FavoriteButton';
-import { getStatusConfig, getTimeRanges } from '../constants';
+import { getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { formatPriceRatioStructured } from '../utils/format';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
@@ -59,7 +59,6 @@ function StatusCardComponent({
     [item.history]
   );
 
-  const STATUS = getStatusConfig(t);
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
   const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
@@ -158,11 +157,8 @@ function StatusCardComponent({
         {/* 右侧：状态 + 时间 */}
         <div className="flex sm:flex-col items-start sm:items-end gap-2 sm:gap-1.5">
           {/* 状态徽章 */}
-          <div className="flex items-center gap-2 px-3 py-1.5 sm:py-1 rounded-full bg-elevated border border-default">
+          <div className="flex items-center p-1.5 rounded-full bg-elevated border border-default">
             <StatusDot status={item.currentStatus} />
-            <span className={`text-xs font-bold ${STATUS[item.currentStatus].text}`}>
-              {STATUS[item.currentStatus].label}
-            </span>
           </div>
 
           {/* 最后监测时间 */}
