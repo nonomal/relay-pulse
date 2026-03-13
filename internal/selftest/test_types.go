@@ -2,6 +2,7 @@ package selftest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -75,30 +76,110 @@ func (t *TestType) ResolveVariant(variantID string) (*PayloadVariant, error) {
 	}
 }
 
-// Global test type registry
-var testTypeRegistry = make(map[string]*TestType)
+// testTypeRegistry 全局注册表，受 registryMu 保护
+var (
+	registryMu       sync.RWMutex
+	testTypeRegistry = make(map[string]*TestType)
+)
 
 // RegisterTestType registers a new test type in the global registry
 func RegisterTestType(t *TestType) {
+	registryMu.Lock()
 	testTypeRegistry[t.ID] = t
+	registryMu.Unlock()
 }
 
 // GetTestType retrieves a test type by ID
 func GetTestType(id string) (*TestType, bool) {
+	registryMu.RLock()
 	t, ok := testTypeRegistry[id]
+	registryMu.RUnlock()
 	return t, ok
 }
 
 // ListTestTypes returns all registered test types sorted by ID for stable output
 func ListTestTypes() []*TestType {
+	registryMu.RLock()
 	types := make([]*TestType, 0, len(testTypeRegistry))
 	for _, t := range testTypeRegistry {
 		types = append(types, t)
 	}
+	registryMu.RUnlock()
+
 	sort.Slice(types, func(i, j int) bool {
 		return types[i].ID < types[j].ID
 	})
 	return types
+}
+
+// InitTemplates 扫描 templates/ 目录，按文件名约定（{service}-*-arith.json）
+// 动态填充已注册 TestType 的 Variants 和 DefaultVariant。
+// 应在 SetTemplatesDir 之后、创建 TestJobManager 之前调用。
+func InitTemplates(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return fmt.Errorf("读取模板目录失败 %s: %w", dir, err)
+	}
+
+	// 按 service 前缀分组收集变体（仅匹配 {service}-*-arith.json）
+	grouped := make(map[string][]*PayloadVariant)
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
+			continue
+		}
+		filename := entry.Name()
+		variantID := strings.TrimSuffix(filename, ".json")
+
+		// 文件名约定：{service}-{model}-arith.json
+		if !strings.HasSuffix(variantID, "-arith") {
+			continue
+		}
+
+		// 取第一个 '-' 之前的部分作为 service 前缀
+		idx := strings.IndexByte(variantID, '-')
+		if idx <= 0 {
+			continue
+		}
+		service := variantID[:idx]
+
+		grouped[service] = append(grouped[service], &PayloadVariant{
+			ID:       variantID,
+			Filename: filename,
+		})
+	}
+
+	// 排序并设置 Order
+	for _, variants := range grouped {
+		sort.Slice(variants, func(i, j int) bool {
+			return variants[i].ID < variants[j].ID
+		})
+		for i := range variants {
+			variants[i].Order = i + 1
+		}
+	}
+
+	// 原子替换注册表：构建新 map，一次性替换
+	registryMu.Lock()
+	next := make(map[string]*TestType, len(testTypeRegistry))
+	totalVariants := 0
+	for id, current := range testTypeRegistry {
+		updated := *current // 浅拷贝元数据（Name/Builder 等不变）
+		if variants, ok := grouped[id]; ok && len(variants) > 0 {
+			updated.Variants = variants
+			updated.DefaultVariant = variants[0].ID
+			totalVariants += len(variants)
+		} else {
+			updated.Variants = nil
+			updated.DefaultVariant = ""
+		}
+		next[id] = &updated
+	}
+	testTypeRegistry = next
+	registryMu.Unlock()
+
+	logger.Info("selftest", "自助测试模板已刷新",
+		"templates_dir", dir, "variants", totalVariants)
+	return nil
 }
 
 // TemplateBuilder 从 templates/ 目录加载 JSON 模板构建测试配置
@@ -160,48 +241,24 @@ func (b *TemplateBuilder) Build(apiURL, apiKey string, variant *PayloadVariant) 
 	}, nil
 }
 
-// init registers built-in test types
+// init registers built-in test types with metadata only.
+// Variants are populated later by InitTemplates after the templates directory is known.
 func init() {
-	ccVariants := []*PayloadVariant{
-		{ID: "cc-haiku-arith", Filename: "cc-haiku-arith.json", Order: 1},
-		{ID: "cc-sonnet-arith", Filename: "cc-sonnet-arith.json", Order: 2},
-		{ID: "cc-opus-arith", Filename: "cc-opus-arith.json", Order: 3},
-	}
-
-	cxVariants := []*PayloadVariant{
-		{ID: "cx-gpt-arith", Filename: "cx-gpt-arith.json", Order: 1},
-		{ID: "cx-codex-arith", Filename: "cx-codex-arith.json", Order: 2},
-	}
-
-	gmVariants := []*PayloadVariant{
-		{ID: "gm-flash-arith", Filename: "gm-flash-arith.json", Order: 1},
-		{ID: "gm-pro-arith", Filename: "gm-pro-arith.json", Order: 2},
-	}
-
 	RegisterTestType(&TestType{
-		ID:             "cc",
-		Name:           "Claude Code (cc)",
-		Description:    "",
-		DefaultVariant: "cc-haiku-arith",
-		Variants:       ccVariants,
-		Builder:        &TemplateBuilder{Service: "cc"},
+		ID:      "cc",
+		Name:    "Claude Code (cc)",
+		Builder: &TemplateBuilder{Service: "cc"},
 	})
 
 	RegisterTestType(&TestType{
-		ID:             "cx",
-		Name:           "Codex (cx)",
-		Description:    "",
-		DefaultVariant: "cx-codex-arith",
-		Variants:       cxVariants,
-		Builder:        &TemplateBuilder{Service: "cx"},
+		ID:      "cx",
+		Name:    "Codex (cx)",
+		Builder: &TemplateBuilder{Service: "cx"},
 	})
 
 	RegisterTestType(&TestType{
-		ID:             "gm",
-		Name:           "Gemini (gm)",
-		Description:    "",
-		DefaultVariant: "gm-flash-arith",
-		Variants:       gmVariants,
-		Builder:        &TemplateBuilder{Service: "gm"},
+		ID:      "gm",
+		Name:    "Gemini (gm)",
+		Builder: &TemplateBuilder{Service: "gm"},
 	})
 }

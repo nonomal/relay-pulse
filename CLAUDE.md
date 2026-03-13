@@ -93,10 +93,6 @@ go mod tidy
 go run ./cmd/verify/main.go -provider <name> -service <name> [-v]
 # 示例: go run ./cmd/verify/main.go -provider AICodeMirror -service cc -v
 
-# 配置文件生成器
-go run ./cmd/genconfig -list                                          # 列出可用模板
-go run ./cmd/genconfig -mode template -template openai -output config.yaml  # 从模板生成
-go run ./cmd/genconfig -mode interactive                               # 交互式生成
 ```
 
 ### 前端 (React)
@@ -155,15 +151,12 @@ make ci
 
 ### 后端架构
 
-Go 后端遵循**分层架构**，核心包 11 个 + 独立通知子模块：
+Go 后端遵循**分层架构**，核心包 10 个 + 独立通知子模块：
 
 ```
 cmd/
 ├── server/main.go         → 应用入口，依赖注入
-├── verify/main.go         → 单项验证 CLI
-└── genconfig/             → 配置生成器 CLI
-    ├── main.go
-    └── generator/         → 模板注册与生成逻辑
+└── verify/main.go         → 单项验证 CLI
 
 internal/
 ├── config/                → 配置管理（19 源文件 + 5 测试，按职责拆分）
@@ -781,7 +774,6 @@ vim config.yaml
   - `internal/scheduler/disabled_test.go` - 禁用逻辑
   - `internal/automove/availability_test.go` - 自动移板可用率计算
   - `internal/automove/service_test.go` - 自动移板服务
-  - `cmd/genconfig/generator/generator_test.go` - 配置生成器
 - 使用 `go test -v` 查看详细输出
 
 ### 前端测试

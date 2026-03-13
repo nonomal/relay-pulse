@@ -64,10 +64,16 @@ func resolveConfigDir(configFile string) string {
 	return configDir
 }
 
+// initSelfTestTemplates 初始化模板目录并扫描动态变体注册表
+func initSelfTestTemplates(configFile string) error {
+	dir := filepath.Join(resolveConfigDir(configFile), "templates")
+	selftest.SetTemplatesDir(dir)
+	return selftest.InitTemplates(dir)
+}
+
 // newSelfTestManager 基于 Normalize 后的配置创建 TestJobManager
 // 注意：cfg.SelfTest 的默认值和 Duration 解析已由 Normalize 完成
-func newSelfTestManager(cfg *config.AppConfig, configFile string) *selftest.TestJobManager {
-	selftest.SetTemplatesDir(filepath.Join(resolveConfigDir(configFile), "templates"))
+func newSelfTestManager(cfg *config.AppConfig) *selftest.TestJobManager {
 	return selftest.NewTestJobManager(
 		cfg.SelfTest.MaxConcurrent,
 		cfg.SelfTest.MaxQueueSize,
@@ -293,7 +299,11 @@ func main() {
 	// 初始化自助测试管理器（如果启用）
 	var selfTestMgr *selftest.TestJobManager
 	if cfg.SelfTest.Enabled {
-		selfTestMgr = newSelfTestManager(cfg, configFile)
+		if err := initSelfTestTemplates(configFile); err != nil {
+			logger.Error("main", "初始化自助测试模板失败", "error", err)
+			os.Exit(1)
+		}
+		selfTestMgr = newSelfTestManager(cfg)
 		server.GetHandler().SetSelfTestManager(selfTestMgr)
 		logger.Info("main", "自助测试功能已启用",
 			"max_concurrent", cfg.SelfTest.MaxConcurrent,
@@ -393,6 +403,13 @@ func main() {
 			logger.Info("main", "历史数据归档任务已在热更新后停用")
 		}
 
+		// === SelfTest: 刷新模板变体注册表（模板文件可能已新增/删除） ===
+		if newCfg.SelfTest.Enabled {
+			if err := initSelfTestTemplates(configFile); err != nil {
+				logger.Error("main", "热更新自助测试模板失败", "error", err)
+			}
+		}
+
 		// === SelfTest: RecreateOnChange（drain + 重建） ===
 		if selfTestConfigChanged(selfTestAppliedCfg, newCfg) {
 			if selfTestMgr != nil {
@@ -400,7 +417,7 @@ func main() {
 			}
 
 			if newCfg.SelfTest.Enabled {
-				selfTestMgr = newSelfTestManager(newCfg, configFile)
+				selfTestMgr = newSelfTestManager(newCfg)
 				server.GetHandler().SetSelfTestManager(selfTestMgr)
 				logger.Info("main", "自助测试配置热更新已生效",
 					"max_concurrent", newCfg.SelfTest.MaxConcurrent,
