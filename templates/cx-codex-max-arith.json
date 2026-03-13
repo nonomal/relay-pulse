@@ -11,6 +11,7 @@
 	},
 	"body": {
 		"model": "{{MODEL}}",
+		"instructions": "You are Codex, based on GPT-5. You are running as a coding agent in the Codex CLI on a user's computer.",
 		"input": [
 			{
 				"type": "message",
@@ -18,7 +19,12 @@
 				"content": [{ "type": "input_text", "text": "{{PROMPT}}" }]
 			}
 		],
-		"max_output_tokens": 10,
+		"tools": [],
+		"tool_choice": "auto",
+		"parallel_tool_calls": false,
+		"reasoning": { "effort": "low", "summary": "auto" },
+		"store": false,
+		"max_output_tokens": 20,
 		"stream": true
 	},
 	"response": {
