@@ -6,7 +6,8 @@
 	"headers": {
 		"Authorization": "Bearer {{API_KEY}}",
 		"Content-Type": "application/json",
-		"Anthropic-Version": "2023-06-01"
+		"Anthropic-Version": "2023-06-01",
+		"User-Agent": "Claude-Code/1.0"
 	},
 	"body": {
 		"model": "{{MODEL}}",

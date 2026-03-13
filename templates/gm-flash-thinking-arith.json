@@ -5,7 +5,8 @@
 	"method": "POST",
 	"headers": {
 		"Content-Type": "application/json",
-		"x-goog-api-key": "{{API_KEY}}"
+		"x-goog-api-key": "{{API_KEY}}",
+		"User-Agent": "GeminiCLI/1.0"
 	},
 	"body": {
 		"contents": [{
