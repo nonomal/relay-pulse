@@ -119,11 +119,6 @@ type AppConfig struct {
 	// 用于临时下架整个服务商（如商家不配合整改）
 	HiddenProviders []hiddenProviderConfig `yaml:"hidden_providers" json:"hidden_providers"`
 
-	// 风险服务商列表
-	// 列表中的 provider 会自动继承 risks 到对应的所有 monitors
-	// 用于标记存在风险的服务商（如跑路风险）
-	RiskProviders []riskProviderConfig `yaml:"risk_providers" json:"risk_providers"`
-
 	// ===== 功能开关 =====
 
 	// 热板/冷板功能配置（默认禁用，保持向后兼容）
@@ -155,20 +150,16 @@ type AppConfig struct {
 	// GitHub 通用配置（token/proxy/timeout）
 	GitHub GitHubConfig `yaml:"github" json:"github"`
 
-	// ===== 徽标系统 =====
+	// ===== 注解系统 =====
 
-	// 是否启用徽标系统（默认 false）
-	// 开启后会显示 API Key 来源、监测频率等徽标
-	// 未配置任何徽标时，默认显示"官方 API Key"徽标
-	EnableBadges bool `yaml:"enable_badges" json:"enable_badges"`
+	// 是否返回 annotations[]（默认 false）
+	// 仅控制 API 是否输出注解数组，不清空 category/sponsor_level/interval_ms 等事实字段
+	EnableAnnotations bool `yaml:"enable_annotations" json:"enable_annotations"`
 
-	// 全局徽标定义（map 格式，key 为徽标 ID）
-	// Label 和 Tooltip 由前端 i18n 提供，后端只存储 id/kind/variant/weight/url
-	BadgeDefs map[string]BadgeDef `yaml:"badge_definitions" json:"badge_definitions"`
-
-	// provider 级徽标注入配置
-	// 列表中的 provider 会自动继承 badges 到对应的所有 monitors
-	BadgeProviders []BadgeProviderConfig `yaml:"badge_providers" json:"badge_providers"`
+	// 统一注解规则
+	// 规则按配置顺序应用；同 ID 后写覆盖前写
+	// 每条规则先 remove 再 add，支持"删旧换新"场景
+	AnnotationRules []AnnotationRule `yaml:"annotation_rules" json:"annotation_rules"`
 
 	// ===== 监测项列表 =====
 

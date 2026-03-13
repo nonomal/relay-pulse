@@ -17,7 +17,7 @@
 //   - monitor.go: ServiceConfig 定义
 //   - helpers.go: 辅助函数
 //   - enums.go: 枚举类型定义
-//   - badges.go: 徽标相关类型
+//   - annotation.go: 注解相关类型
 //   - features.go: 功能模块配置类型
 //   - storage_config.go: 存储配置类型
 //   - external.go: 外部服务配置类型

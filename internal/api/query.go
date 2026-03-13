@@ -32,7 +32,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	batchQueryMaxKeys := h.config.BatchQueryMaxKeys
 	slowLatencyMs := int(h.config.SlowLatencyDuration / time.Millisecond)
 	sponsorPin := h.config.SponsorPin
-	enableBadges := h.config.EnableBadges
+	enableAnnotations := h.config.EnableAnnotations
 	boardsEnabled := h.config.Boards.Enabled
 	h.cfgMu.RUnlock()
 
@@ -79,7 +79,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	tryBatch := enableBatchQuery && (period == "7d" || period == "30d") && len(filteredData) <= batchQueryMaxKeys
 	if tryBatch {
 		mode = "batch"
-		response, err = h.getStatusBatch(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg)
+		response, err = h.getStatusBatch(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, enableAnnotations, enableDBTimelineAgg)
 		if err != nil {
 			logger.Warn("api", "批量查询失败，回退到并发/串行模式", "error", err, "monitors", len(filteredData), "period", period)
 		}
@@ -89,10 +89,10 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	if err != nil || !tryBatch {
 		if enableConcurrent {
 			mode = "concurrent"
-			response, err = h.getStatusConcurrent(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
+			response, err = h.getStatusConcurrent(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableAnnotations)
 		} else {
 			mode = "serial"
-			response, err = h.getStatusSerial(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, enableBadges)
+			response, err = h.getStatusSerial(ctx, filteredData, startTime, endTime, period, degradedWeight, timeFilter, enableAnnotations)
 		}
 	}
 
@@ -101,7 +101,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 	}
 
 	// 构建 groups（仅包含有 model 的监测项）
-	groups, err := h.buildMonitorGroups(ctx, filteredLayered, startTime, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg, enableConcurrent, concurrentLimit, enableBatchQuery, batchQueryMaxKeys)
+	groups, err := h.buildMonitorGroups(ctx, filteredLayered, startTime, endTime, period, degradedWeight, timeFilter, enableAnnotations, enableDBTimelineAgg, enableConcurrent, concurrentLimit, enableBatchQuery, batchQueryMaxKeys)
 	if err != nil {
 		return nil, err
 	}
@@ -123,11 +123,11 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 
 	// 序列化为 JSON
 	meta := gin.H{
-		"period":          period,
-		"timeline_mode":   timelineMode,
-		"count":           len(response),
-		"slow_latency_ms": slowLatencyMs,
-		"enable_badges":   enableBadges,
+		"period":             period,
+		"timeline_mode":      timelineMode,
+		"count":              len(response),
+		"slow_latency_ms":    slowLatencyMs,
+		"enable_annotations": enableAnnotations,
 		"sponsor_pin": gin.H{
 			"enabled":    sponsorPin.IsEnabled(),
 			"max_pinned": sponsorPin.MaxPinned,
@@ -163,7 +163,7 @@ func (h *Handler) queryAndSerialize(ctx context.Context, period, align string, t
 
 // getStatusBatch 批量查询（GetLatestBatch + GetHistoryBatch/GetTimelineAggBatch）
 // 将 N 个监测项的查询从 2N 次 SQL 往返降为 2 次，显著优化 7d/30d 场景性能
-func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool, enableDBTimelineAgg bool) ([]MonitorResult, error) {
+func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableAnnotations bool, enableDBTimelineAgg bool) ([]MonitorResult, error) {
 	store := h.storage.WithContext(ctx)
 
 	// 构建查询 key 列表
@@ -233,11 +233,11 @@ func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceC
 		}
 		if aggMap != nil {
 			// timeline 由 DB 聚合结果生成（与 buildTimeline 输出格式一致）
-			res := h.buildMonitorResult(task, latestMap[key], nil, endTime, period, degradedWeight, timeFilter, enableBadges)
+			res := h.buildMonitorResult(task, latestMap[key], nil, endTime, period, degradedWeight, timeFilter, enableAnnotations)
 			res.Timeline = h.buildTimelineFromAgg(aggMap[key], endTime, period, degradedWeight)
 			results[i] = res
 		} else {
-			results[i] = h.buildMonitorResult(task, latestMap[key], historyMap[key], endTime, period, degradedWeight, timeFilter, enableBadges)
+			results[i] = h.buildMonitorResult(task, latestMap[key], historyMap[key], endTime, period, degradedWeight, timeFilter, enableAnnotations)
 		}
 	}
 
@@ -245,7 +245,7 @@ func (h *Handler) getStatusBatch(ctx context.Context, monitors []config.ServiceC
 }
 
 // getStatusSerial 串行查询（原有逻辑）
-func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool) ([]MonitorResult, error) {
+func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableAnnotations bool) ([]MonitorResult, error) {
 	// 初始化为空切片，确保 JSON 序列化时返回 [] 而不是 null
 	response := make([]MonitorResult, 0, len(monitors))
 	store := h.storage.WithContext(ctx)
@@ -266,7 +266,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 		}
 
 		// 构建响应
-		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter, enableBadges)
+		result := h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter, enableAnnotations)
 		response = append(response, result)
 	}
 
@@ -274,7 +274,7 @@ func (h *Handler) getStatusSerial(ctx context.Context, monitors []config.Service
 }
 
 // getStatusConcurrent 并发查询（使用 errgroup + 并发限制）
-func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, limit int, enableBadges bool) ([]MonitorResult, error) {
+func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.ServiceConfig, since, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, limit int, enableAnnotations bool) ([]MonitorResult, error) {
 	// 使用请求的 context（支持取消）
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(limit) // 限制最大并发度
@@ -301,7 +301,7 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 			}
 
 			// 构建响应（固定位置写入，保持顺序）
-			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter, enableBadges)
+			results[i] = h.buildMonitorResult(task, latest, history, endTime, period, degradedWeight, timeFilter, enableAnnotations)
 			return nil
 		})
 	}
@@ -315,8 +315,8 @@ func (h *Handler) getStatusConcurrent(ctx context.Context, monitors []config.Ser
 }
 
 // buildMonitorResult 构建单个监测项的响应结构
-// enableBadges 控制是否返回徽标相关字段（SponsorLevel、Risks、Badges、IntervalMs）
-func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableBadges bool) MonitorResult {
+// enableAnnotations 仅控制 annotations[] 是否输出，不影响事实字段
+func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.ProbeRecord, history []*storage.ProbeRecord, endTime time.Time, period string, degradedWeight float64, timeFilter *TimeFilter, enableAnnotations bool) MonitorResult {
 	// 转换为时间轴数据
 	timeline := h.buildTimeline(history, endTime, period, degradedWeight, timeFilter)
 
@@ -348,18 +348,11 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		}
 	}
 
-	// 当徽标系统禁用时，清空所有徽标相关字段
-	// 注意：category 字段保留用于筛选功能，仅前端控制「益」标签显示
-	sponsorLevel := task.SponsorLevel
-	risks := task.Risks
-	badges := task.ResolvedBadges
-	intervalMs := task.IntervalDuration.Milliseconds()
-
-	if !enableBadges {
-		sponsorLevel = ""
-		risks = nil
-		badges = nil
-		intervalMs = 0
+	// enable_annotations 仅控制 annotations[] 是否输出
+	// 事实字段（category, sponsor_level, interval_ms）始终返回
+	annotations := task.Annotations
+	if !enableAnnotations {
+		annotations = nil
 	}
 
 	// 根据配置决定是否暴露通道技术细节（probe_url, template_name）
@@ -382,9 +375,8 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		Category:      task.Category,
 		Sponsor:       task.Sponsor,
 		SponsorURL:    task.SponsorURL,
-		SponsorLevel:  sponsorLevel,
-		Risks:         risks,
-		Badges:        badges,
+		SponsorLevel:  task.SponsorLevel,
+		Annotations:   annotations,
 		PriceMin:      task.PriceMin,
 		PriceMax:      task.PriceMax,
 		ListedDays:    listedDays,
@@ -394,7 +386,7 @@ func (h *Handler) buildMonitorResult(task config.ServiceConfig, latest *storage.
 		ColdReason:    task.ColdReason,
 		ProbeURL:      probeURL,
 		TemplateName:  templateName,
-		IntervalMs:    intervalMs,
+		IntervalMs:    task.IntervalDuration.Milliseconds(),
 		SlowLatencyMs: task.SlowLatencyDuration.Milliseconds(),
 		Current:       current,
 		Timeline:      timeline,

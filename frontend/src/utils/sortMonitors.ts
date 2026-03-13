@@ -7,7 +7,7 @@ const STATUS_WEIGHT: Record<string, number> = {
   MISSING: 1,
   UNAVAILABLE: 1,
 };
-import { calculateBadgeScore, SPONSOR_WEIGHTS } from './badgeUtils';
+import { SPONSOR_WEIGHTS } from './annotationUtils';
 
 /**
  * 对监控数据进行排序
@@ -15,7 +15,6 @@ import { calculateBadgeScore, SPONSOR_WEIGHTS } from './badgeUtils';
  * 排序规则：
  * 1. 按主排序字段排序（支持 asc/desc）
  * 2. 特殊字段处理：
- *    - badgeScore: 按徽标综合分数排序（公益站+10，赞助正向，风险负向）
  *    - currentStatus: 按状态权重排序
  *    - uptime: uptime < 0 视为无数据，始终排最后
  *    - latency: 不可用状态的延迟不参与排序，排最后（无二级排序）
@@ -61,11 +60,7 @@ function comparePrimary(
   let bValue: number | string;
 
   // 特殊字段处理
-  if (key === 'badgeScore') {
-    // 徽标分数排序
-    aValue = calculateBadgeScore(a);
-    bValue = calculateBadgeScore(b);
-  } else if (key === 'currentStatus') {
+  if (key === 'currentStatus') {
     aValue = STATUS_WEIGHT[a.currentStatus as StatusKey] ?? 0;
     bValue = STATUS_WEIGHT[b.currentStatus as StatusKey] ?? 0;
   } else if (key === 'uptime') {
@@ -233,8 +228,8 @@ function meetsPinCriteria(
   // 必须有赞助级别
   if (!item.sponsorLevel) return false;
 
-  // 有风险标记的不参与置顶
-  if (item.risks?.length) return false;
+  // 有负向注解的不参与置顶
+  if (item.annotations?.some(a => a.family === 'negative')) return false;
 
   // 可用率必须达标（-1 表示无数据，不符合条件）
   if (item.uptime < 0 || item.uptime < config.min_uptime) return false;

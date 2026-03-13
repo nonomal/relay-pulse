@@ -144,7 +144,7 @@
   },
   "table": {
     "headers": {
-      "badge": "徽标",
+      "annotation": "标注",
       "provider": "服务商",
       "sponsor": "赞助者",
       "service": "服务",
@@ -164,7 +164,6 @@
       "trend": "质量趋势"
     },
     "sorting": {
-      "badge": "徽标",
       "provider": "服务商",
       "uptime": "可用率",
       "status": "当前状态",
@@ -233,7 +232,7 @@
       },
       "neutralMaintenance": {
         "title": "开源透明运营",
-        "text": "全站代码遵循 MIT 协议完全开源，支持私有化部署验证。赞助商享有置顶展示、专属徽标和高频监测权益，但可用率等监测数据始终客观真实"
+        "text": "全站代码遵循 MIT 协议完全开源，支持私有化部署验证。赞助商享有置顶展示、专属标签和高频监测权益，但可用率等监测数据始终客观真实"
       },
       "monitoringScope": {
         "title": "全栈协议校验",
@@ -274,61 +273,6 @@
     "shareShort": "分享",
     "linkCopied": "链接已复制到剪贴板",
     "copyFailed": "复制失败，请手动复制链接"
-  },
-  "badges": {
-    "sponsor": {
-      "public": {
-        "name": "公益链路",
-        "tooltip": "公益服务商，免费接入监测"
-      },
-      "signal": {
-        "name": "信号链路",
-        "tooltip": "个人用户通道"
-      },
-      "pulse": {
-        "name": "脉冲链路",
-        "tooltip": "基础服务商通道"
-      },
-      "beacon": {
-        "name": "信标链路",
-        "tooltip": "商业赞助通道，高频监测"
-      },
-      "backbone": {
-        "name": "骨干链路",
-        "tooltip": "商业进阶通道，更高频率监测"
-      },
-      "core": {
-        "name": "核心链路",
-        "tooltip": "最高级赞助通道，核心基础设施级保障"
-      }
-    },
-    "risk": {
-      "tooltip": "存在风险，请谨慎使用",
-      "clickToView": "点击查看讨论"
-    },
-    "public": {
-      "tooltip": "免费公益服务站点"
-    },
-    "commercial": {
-      "tooltip": "商业付费服务站点"
-    },
-    "generic": {
-      "api_key_user": {
-        "label": "用户API",
-        "tooltip": "由用户赞助监测 API Key"
-      },
-      "api_key_official": {
-        "label": "官方API",
-        "tooltip": "由服务商赞助监测 API Key"
-      },
-      "official_baseline": {
-        "label": "官方基准",
-        "tooltip": "RelayPulse 官方基准通道，用于基准对比"
-      }
-    },
-    "frequency": {
-      "tooltip": "监测频率: {{interval}}"
-    }
   },
   "externalLink": {
     "title": "即将离开 RelayPulse",

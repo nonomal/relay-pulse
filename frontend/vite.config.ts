@@ -10,6 +10,13 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       strictPort: true,
+      proxy: {
+        '/api': 'http://localhost:8080',
+        '/health': 'http://localhost:8080',
+        '/ready': 'http://localhost:8080',
+        '/sitemap.xml': 'http://localhost:8080',
+        '/robots.txt': 'http://localhost:8080',
+      },
     },
     plugins: [
       react(),

@@ -6,13 +6,13 @@ import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
 import { ExternalLink } from './ExternalLink';
-import { BadgeCell } from './badges';
+import { AnnotationCell } from './annotations';
 import { FavoriteButton } from './FavoriteButton';
 import { getStatusConfig, getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
-import { hasAnyBadge, hasAnyBadgeInList } from '../utils/badgeUtils';
+import { hasAnyAnnotation, hasAnyAnnotationInList } from '../utils/annotationUtils';
 import { formatPriceRatioStructured } from '../utils/format';
 import { getServiceIconComponent } from './ServiceIcon';
 import type { ProcessedMonitorData, SortConfig } from '../types';
@@ -86,7 +86,7 @@ interface StatusTableProps {
   isInitialSort?: boolean;   // 是否为初始排序状态（控制高亮显示）
   timeRange: string;
   slowLatencyMs: number;
-  enableBadges?: boolean;      // 徽标系统总开关，默认 true
+  enableAnnotations?: boolean;      // 注解系统总开关，默认 true
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
   showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
@@ -102,8 +102,7 @@ interface StatusTableProps {
 function MobileListItem({
   item,
   slowLatencyMs,
-  enableBadges = true,
-  showCategoryTag = true,
+  enableAnnotations = true,
   showProvider = true,
   showSponsor = true,
   isFavorite,
@@ -113,8 +112,7 @@ function MobileListItem({
 }: {
   item: ProcessedMonitorData;
   slowLatencyMs: number;
-  enableBadges?: boolean;
-  showCategoryTag?: boolean;
+  enableAnnotations?: boolean;
   showProvider?: boolean;
   showSponsor?: boolean;
   isFavorite: boolean;
@@ -132,8 +130,8 @@ function MobileListItem({
     [item.history]
   );
 
-  // 检查是否有徽标需要显示
-  const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
+  // 检查是否有注解需要显示
+  const hasItemAnnotations = hasAnyAnnotation(item, { enableAnnotations });
 
   // 卡片左边框颜色（仅基于赞助级别，置顶改用背景色）
   const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
@@ -141,7 +139,7 @@ function MobileListItem({
   // 是否显示左边框（仅基于赞助级别）
   const hasLeftBorder = !!item.sponsorLevel;
 
-  // 置顶项使用对应徽标颜色的极淡背景色
+  // 置顶项使用对应注解颜色的极淡背景色
   const pinnedBgClass = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
   const baseBgClass = pinnedBgClass || 'bg-surface/60';
 
@@ -157,14 +155,9 @@ function MobileListItem({
         minHeight: cardMinHeight,
       }}
     >
-      {/* 徽标行 - 仅在有徽标时显示 */}
-      {hasItemBadges && (
-        <BadgeCell
-          item={item}
-          showCategoryTag={showCategoryTag}
-          showSponsor={showSponsor}
-          showRisk={true}
-        />
+      {/* 注解行 - 仅在有注解时显示 */}
+      {hasItemAnnotations && (
+        <AnnotationCell annotations={item.annotations} />
       )}
 
       {/* 主要信息行 */}
@@ -251,8 +244,6 @@ function MobileListItem({
             {item.lastCheckTimestamp && (
               <span>
                 {new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, {
-                  month: '2-digit',
-                  day: '2-digit',
                   hour: '2-digit',
                   minute: '2-digit',
                 })}
@@ -298,7 +289,6 @@ function MobileSortMenu({
   const { t } = useTranslation();
 
   const sortOptions = [
-    { key: 'badgeScore', label: t('table.sorting.badge') },
     { key: 'providerName', label: t('table.sorting.provider') },
     { key: 'uptime', label: t('table.sorting.uptime') },
     { key: 'currentStatus', label: t('table.sorting.status') },
@@ -345,8 +335,7 @@ function StatusTableComponent({
   isInitialSort = false,
   timeRange,
   slowLatencyMs,
-  enableBadges = true,
-  showCategoryTag = true,
+  enableAnnotations = true,
   showProvider = true,
   showSponsor = true,
   isFavorite,
@@ -398,8 +387,7 @@ function StatusTableComponent({
             <MobileListItem
               item={item}
               slowLatencyMs={slowLatencyMs}
-              enableBadges={enableBadges}
-              showCategoryTag={showCategoryTag}
+              enableAnnotations={enableAnnotations}
               showProvider={showProvider}
               showSponsor={showSponsor}
               isFavorite={isFavorite(item.id)}
@@ -429,8 +417,8 @@ function StatusTableComponent({
     );
   }
 
-  // 检查是否有任何徽标需要显示
-  const hasBadges = hasAnyBadgeInList(data, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
+  // 检查是否有任何注解需要显示
+  const hasAnnotations = hasAnyAnnotationInList(data, { enableAnnotations });
 
   // 桌面端：表格视图
   return (
@@ -438,24 +426,16 @@ function StatusTableComponent({
       <table className="w-full text-left border-collapse bg-transparent">
         <thead>
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
-            {/* 徽标列 - 仅在有徽标时显示，可排序 */}
-            {hasBadges && (
-              <th
-                className="px-2 py-3 font-medium w-12 cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-                onClick={() => onSort('badgeScore')}
-                onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('badgeScore'))}
-                tabIndex={0}
-                role="button"
-              >
-                <div className="flex items-center">
-                  {t('table.headers.badge')} <SortIcon columnKey="badgeScore" />
-                </div>
+            {/* 注解列 - 仅在有注解时显示 */}
+            {hasAnnotations && (
+              <th className="px-1 py-3 font-medium w-20">
+                {t('table.headers.annotation')}
               </th>
             )}
             {/* 服务商列（合并赞助者） */}
             {showProvider && (
               <th
-                className="px-3 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+                className="px-3 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
                 onClick={() => onSort('providerName')}
                 onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('providerName'))}
                 tabIndex={0}
@@ -467,7 +447,7 @@ function StatusTableComponent({
               </th>
             )}
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('serviceType')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('serviceType'))}
               tabIndex={0}
@@ -478,7 +458,7 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('channel')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('channel'))}
               tabIndex={0}
@@ -489,7 +469,7 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('priceRatio')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('priceRatio'))}
               tabIndex={0}
@@ -504,14 +484,14 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('listedDays')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('listedDays'))}
               tabIndex={0}
               role="button"
             >
               <div className="flex items-center">
-                <div className="flex flex-col leading-tight max-w-[4.5rem]">
+                <div className="flex flex-col leading-tight">
                   <span>{t('table.headers.listedDaysLine1')}</span>
                   <span className="text-[10px] opacity-50 font-normal">{t('table.headers.listedDaysLine2')}</span>
                 </div>
@@ -519,22 +499,17 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('currentStatus')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('currentStatus'))}
               tabIndex={0}
               role="button"
+              title={t('table.headers.status')}
             >
-              <div className="flex items-center">
-                <div className="flex flex-col leading-tight max-w-[4rem]">
-                  <span>{t('table.headers.statusLine1')}</span>
-                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.statusLine2')}</span>
-                </div>
-                <SortIcon columnKey="currentStatus" />
-              </div>
+              <SortIcon columnKey="currentStatus" />
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('uptime')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('uptime'))}
               tabIndex={0}
@@ -545,14 +520,14 @@ function StatusTableComponent({
               </div>
             </th>
             <th
-              className="px-2 py-3 font-medium cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
+              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('latency')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('latency'))}
               tabIndex={0}
               role="button"
             >
               <div className="flex items-center">
-                <div className="flex flex-col leading-tight max-w-[4rem]">
+                <div className="flex flex-col leading-tight">
                   <span>{t('table.headers.lastCheckLine1')}</span>
                   <span className="text-[10px] opacity-50 font-normal">{t('table.headers.lastCheckLine2')}</span>
                 </div>
@@ -572,22 +547,19 @@ function StatusTableComponent({
         <tbody className="divide-y divide-default/50 text-sm">
           {data.map((item, rowIndex) => {
             const ServiceIcon = getCachedServiceIcon(item.serviceType);
-            const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
+            const hasItemAnnotations = hasAnyAnnotation(item, { enableAnnotations });
             const pinnedBg = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
             return (
             <tr
               key={item.id}
               className={`group hover:bg-elevated/40 transition-[background-color,color] ${pinnedBg} ${sponsorLevelToBorderClass(item.sponsorLevel)}`}
             >
-              {/* 徽标列 - 使用 BadgeCell 统一渲染 */}
-              {hasBadges && (
-                <td className="px-2 py-1">
-                  {hasItemBadges ? (
-                    <BadgeCell
-                      item={item}
-                      showCategoryTag={showCategoryTag}
-                      showSponsor={showSponsor}
-                      showRisk={true}
+              {/* 注解列 */}
+              {hasAnnotations && (
+                <td className="px-1 py-1 w-20 max-w-20">
+                  {hasItemAnnotations ? (
+                    <AnnotationCell
+                      annotations={item.annotations}
                       tooltipPlacement={rowIndex === 0 ? 'bottom' : 'top'}
                     />
                   ) : null}
@@ -626,8 +598,7 @@ function StatusTableComponent({
                           </button>
                         )}
                       </div>
-                      {/* 官方 API Key (api_key_official) 时隐藏赞助者 */}
-                      {showSponsor && item.sponsor && !item.badges?.some(b => b.id === 'api_key_official') && (
+                      {showSponsor && item.sponsor && (
                         <span className="text-[9px] text-muted leading-none">
                           <ExternalLink href={item.sponsorUrl} inline>{item.sponsor}</ExternalLink>
                         </span>
@@ -697,7 +668,7 @@ function StatusTableComponent({
               <td className="px-2 py-1">
                 {item.lastCheckTimestamp ? (
                   <div className="text-xs text-secondary font-mono flex flex-col gap-0.5">
-                    <span>{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                    <span>{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span>
                     {item.lastCheckLatency !== undefined && (
                       <span
                         className="text-[10px] font-mono"

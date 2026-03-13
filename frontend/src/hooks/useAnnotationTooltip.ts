@@ -7,12 +7,12 @@ export interface TooltipPosition {
 }
 
 /**
- * 徽标 Tooltip 悬停管理 Hook
+ * 注解 Tooltip 悬停管理 Hook
  * - 700ms 延迟显示
  * - 自动计算位置（优先向上，空间不足向下）
  * - 支持强制指定方向
  */
-export function useBadgeTooltip(
+export function useAnnotationTooltip(
   triggerRef: React.RefObject<HTMLElement | null>,
   preferredPlacement: 'top' | 'bottom' | 'auto' = 'auto'
 ) {

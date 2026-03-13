@@ -97,24 +97,26 @@ storage:
   #   sslmode: "disable"
 
 # ============================================
-# 通用徽标系统配置
+# 标签系统配置
 # ============================================
-enable_badges: true
+enable_annotations: true
 
-badge_definitions:
-  api_key_user:
-    kind: "source"
-    variant: "info"
-    weight: 50
-  api_key_official:
-    kind: "source"
-    variant: "success"
-    weight: 80
+# key_type 字段：控制 API Key 来源标签（系统自动派生）
+#   - 空值或 "official"（默认）：自动标注"官方 API"
+#   - "user"：自动标注"用户 Key"
+# 无需在 annotation_rules 中手动配置，只需在 monitor 上设置 key_type 即可
 
-badge_providers:
-  - provider: "88code"
-    badges:
-      - "api_key_official"
+# annotation_rules 仍可用于高级自定义标签（覆盖或移除系统派生标签）
+# annotation_rules:
+#   - match:
+#       provider: "example"
+#     remove: ["key_type"]  # 移除系统派生的 key_type 标签
+#     add:
+#       - id: "key_type"
+#         family: "positive"
+#         label: "平台托管 Key"
+#         icon: "shield-check"
+#         priority: 90
 
 # ============================================
 # 监测任务配置
@@ -180,6 +182,17 @@ monitors:
     template: "cx-codex-arith"
     api_key: "sk-xxxxxxxx"
     # model 和 request_model 由模板预设
+
+  # --- 用户 Key 通道示例 ---
+  # key_type: user 标记该通道使用用户自有的 API Key
+  # - provider: "example"
+  #   service: "cc"
+  #   category: "commercial"
+  #   channel: "user-key"
+  #   key_type: "user"      # 自动标注"用户 Key"标签
+  #   template: "cc-haiku-arith"
+  #   base_url: "https://api.example.com"
+  #   api_key: "sk-user-key"
 
   # --- Gemini (GM) 示例 ---
   # GM 模板的 URL 包含 {{MODEL}}，API Key 在 header 中：

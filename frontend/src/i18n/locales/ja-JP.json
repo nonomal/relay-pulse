@@ -144,7 +144,7 @@
   },
   "table": {
     "headers": {
-      "badge": "バッジ",
+      "annotation": "アノテーション",
       "provider": "プロバイダ",
       "sponsor": "スポンサー",
       "service": "サービス",
@@ -164,7 +164,6 @@
       "trend": "品質トレンド"
     },
     "sorting": {
-      "badge": "バッジ",
       "provider": "プロバイダ",
       "uptime": "稼働率",
       "status": "現在の状態",
@@ -233,7 +232,7 @@
       },
       "neutralMaintenance": {
         "title": "オープンで透明な運用",
-        "text": "全コードはMITライセンスで完全オープンソース、セルフホストで検証可能。スポンサーは置頂表示、専用バッジ、高頻度モニタリングを享受できますが、可用率などの監視データは常に客観的かつ正確です"
+        "text": "全コードはMITライセンスで完全オープンソース、セルフホストで検証可能。スポンサーは置頂表示、専用タグ、高頻度モニタリングを享受できますが、可用率などの監視データは常に客観的かつ正確です"
       },
       "monitoringScope": {
         "title": "フルスタックプロトコル検証",
@@ -274,61 +273,6 @@
     "shareShort": "共有",
     "linkCopied": "リンクをクリップボードにコピーしました",
     "copyFailed": "コピーに失敗しました。リンクを手動でコピーしてください"
-  },
-  "badges": {
-    "sponsor": {
-      "public": {
-        "name": "パブリック",
-        "tooltip": "公益プロバイダー、無料監視"
-      },
-      "signal": {
-        "name": "シグナル",
-        "tooltip": "個人ユーザーチャネル"
-      },
-      "pulse": {
-        "name": "パルス",
-        "tooltip": "基本プロバイダーチャネル"
-      },
-      "beacon": {
-        "name": "ビーコン",
-        "tooltip": "商業スポンサーチャネル、高頻度監視"
-      },
-      "backbone": {
-        "name": "バックボーン",
-        "tooltip": "上級商業スポンサー、より高頻度な監視"
-      },
-      "core": {
-        "name": "コア",
-        "tooltip": "最上位スポンサー、コアインフラ監視"
-      }
-    },
-    "risk": {
-      "tooltip": "リスクが検出されました。ご注意ください",
-      "clickToView": "クリックして詳細を表示"
-    },
-    "public": {
-      "tooltip": "無料の公益サービスサイト"
-    },
-    "commercial": {
-      "tooltip": "商用の有料サービスサイト"
-    },
-    "generic": {
-      "api_key_user": {
-        "label": "ユーザーAPI",
-        "tooltip": "ユーザーがスポンサーする監視用APIキー"
-      },
-      "api_key_official": {
-        "label": "公式API",
-        "tooltip": "プロバイダーがスポンサーする監視用APIキー"
-      },
-      "official_baseline": {
-        "label": "基準",
-        "tooltip": "ベンチマーク比較用のRelayPulse公式基準チャンネル"
-      }
-    },
-    "frequency": {
-      "tooltip": "検出間隔: {{interval}}"
-    }
   },
   "externalLink": {
     "title": "RelayPulse を離れます",

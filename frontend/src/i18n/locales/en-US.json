@@ -144,7 +144,7 @@
   },
   "table": {
     "headers": {
-      "badge": "Badge",
+      "annotation": "Annotations",
       "provider": "Provider",
       "sponsor": "Sponsor",
       "service": "Service",
@@ -164,7 +164,6 @@
       "trend": "Quality trend"
     },
     "sorting": {
-      "badge": "Badge",
       "provider": "Provider",
       "uptime": "Uptime",
       "status": "Current status",
@@ -233,7 +232,7 @@
       },
       "neutralMaintenance": {
         "title": "Open and Transparent Operations",
-        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsors receive pinned display, exclusive badges, and high-frequency monitoring, but availability data remains objective and accurate"
+        "text": "Entire codebase is open source under MIT license, self-hosting available for verification. Sponsors receive pinned display, exclusive tags, and high-frequency monitoring, but availability data remains objective and accurate"
       },
       "monitoringScope": {
         "title": "Full-Stack Protocol Verification",
@@ -274,61 +273,6 @@
     "shareShort": "Share",
     "linkCopied": "Link copied to clipboard",
     "copyFailed": "Failed to copy, please copy the link manually"
-  },
-  "badges": {
-    "sponsor": {
-      "public": {
-        "name": "Public",
-        "tooltip": "Public welfare provider, free monitoring"
-      },
-      "signal": {
-        "name": "Signal",
-        "tooltip": "Individual user channel"
-      },
-      "pulse": {
-        "name": "Pulse",
-        "tooltip": "Standard provider channel"
-      },
-      "beacon": {
-        "name": "Beacon",
-        "tooltip": "Commercial sponsor, high-frequency monitoring"
-      },
-      "backbone": {
-        "name": "Backbone",
-        "tooltip": "Advanced commercial sponsor"
-      },
-      "core": {
-        "name": "Core",
-        "tooltip": "Top-tier sponsor, core infrastructure monitoring"
-      }
-    },
-    "risk": {
-      "tooltip": "Risk detected, use with caution",
-      "clickToView": "Click to view discussion"
-    },
-    "public": {
-      "tooltip": "Free public service site"
-    },
-    "commercial": {
-      "tooltip": "Commercial paid service site"
-    },
-    "generic": {
-      "api_key_user": {
-        "label": "User API",
-        "tooltip": "Monitoring API Key sponsored by user"
-      },
-      "api_key_official": {
-        "label": "Official API",
-        "tooltip": "Monitoring API Key sponsored by provider"
-      },
-      "official_baseline": {
-        "label": "Baseline",
-        "tooltip": "RelayPulse official baseline channel for benchmark comparison"
-      }
-    },
-    "frequency": {
-      "tooltip": "Check interval: {{interval}}"
-    }
   },
   "externalLink": {
     "title": "Leaving RelayPulse",

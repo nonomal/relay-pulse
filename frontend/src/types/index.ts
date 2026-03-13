@@ -76,24 +76,20 @@ export interface SponsorPinConfig {
   min_level: SponsorLevel;
 }
 
-// 风险徽标（单级）
-export interface RiskBadge {
-  label: string;           // 简短标签，如"跑路风险"
-  discussionUrl?: string;  // 讨论页面链接（可选）
-}
+// 注解 family 类型
+export type AnnotationFamily = 'positive' | 'neutral' | 'negative';
 
-// 通用徽标类型
-export type BadgeKind = 'source' | 'info' | 'feature';
-export type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info';
-
-// 通用徽标（来自 API）
-export interface GenericBadge {
-  id: string;                   // 徽标唯一标识（如 "api_key_user"）
-  kind: BadgeKind;              // 分类：source/info/feature
-  variant: BadgeVariant;        // 样式：default/success/warning/danger
-  weight?: number;              // 排序权重（越大越靠前，默认 0）
-  url?: string;                 // 可选：点击跳转链接
-  tooltip_override?: string;    // monitor 级 tooltip 覆盖（可选）
+// 注解（来自 API）
+export interface Annotation {
+  id: string;                    // 唯一标识（如 "public_service", "sponsor_beacon", "risk_flight"）
+  family: AnnotationFamily;      // positive=正向, neutral=中性, negative=负向
+  icon?: string;                 // 图标标识（对应 lucide 图标名）
+  label: string;                 // 显示文本（后端直出）
+  tooltip?: string;              // 提示文本（后端直出）
+  href?: string;                 // 可选链接
+  priority: number;              // 排序权重（正向加分，负向扣分）
+  origin: string;                // system | rule | config
+  metadata?: Record<string, unknown>; // 运行时元数据（如 interval_ms）
 }
 
 export interface MonitorResult {
@@ -107,8 +103,7 @@ export interface MonitorResult {
   sponsor: string;                     // 赞助者
   sponsor_url?: string;                // 赞助者链接
   sponsor_level?: SponsorLevel;        // 赞助等级：public/signal/pulse/beacon/backbone/core
-  risks?: RiskBadge[];                 // 风险徽标数组
-  badges?: GenericBadge[];             // 通用徽标数组
+  annotations?: Annotation[];          // 注解数组
   price_min?: number;                  // 参考倍率下限
   price_max?: number;                  // 参考倍率
   listed_days?: number;                // 收录天数
@@ -130,7 +125,7 @@ export interface ApiResponse {
     count: number;
     timeline_mode?: 'raw' | 'aggregated';  // 时间线模式：raw=原始记录，aggregated=聚合数据
     slow_latency_ms?: number;  // 慢延迟阈值（毫秒），用于延迟颜色渐变
-    enable_badges?: boolean;   // 徽标系统总开关（默认 true）
+    enable_annotations?: boolean;   // 注解系统总开关（默认 true）
     sponsor_pin?: SponsorPinConfig;  // 赞助商置顶配置
     boards?: BoardsConfig;     // 板块配置
     board_counts?: BoardCounts; // 各板块通道数量
@@ -171,8 +166,7 @@ export interface ProcessedMonitorData {
   sponsor: string;                     // 赞助者
   sponsorUrl?: string | null;          // 赞助者链接
   sponsorLevel?: SponsorLevel;         // 赞助商等级
-  risks?: RiskBadge[];                 // 风险徽标数组
-  badges?: GenericBadge[];             // 通用徽标数组
+  annotations?: Annotation[];          // 注解数组
   priceMin?: number | null;            // 参考倍率下限
   priceMax?: number | null;            // 参考倍率
   listedDays?: number | null;          // 收录天数
@@ -309,8 +303,7 @@ export interface MonitorGroup {
   sponsor: string;
   sponsor_url?: string;
   sponsor_level?: SponsorLevel;
-  risks?: RiskBadge[];
-  badges?: GenericBadge[];
+  annotations?: Annotation[];
   price_min?: number;
   price_max?: number;
   listed_days?: number;

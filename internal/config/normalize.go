@@ -30,13 +30,13 @@ func (c *AppConfig) normalize() error {
 		return err
 	}
 
-	// 5. 构建 Provider/Badge 映射索引
+	// 5. 构建 Provider 映射索引
 	ctx := newNormalizeContext()
 	if err := c.buildNormalizeIndexes(ctx); err != nil {
 		return err
 	}
 
-	// 6. 规范化每个监测项（不含徽标解析，徽标需在继承后处理）
+	// 6. 规范化每个监测项（不含注解解析，注解需在继承后处理）
 	if err := c.normalizeMonitorsPreInheritance(ctx); err != nil {
 		return err
 	}
@@ -46,8 +46,8 @@ func (c *AppConfig) normalize() error {
 		return err
 	}
 
-	// 8. 继承后处理：徽标解析、board/cold_reason 清理
-	// 必须在继承之后，确保子通道继承的 Badges 能正确解析为 ResolvedBadges
+	// 8. 继承后处理：注解解析、board/cold_reason 清理
+	// 必须在继承之后，确保子通道的注解能正确解析
 	if err := c.normalizeMonitorsPostInheritance(ctx); err != nil {
 		return err
 	}
@@ -61,11 +61,8 @@ type normalizeContext struct {
 	// Provider 可见性映射
 	disabledProviderMap map[string]string // provider -> reason
 	hiddenProviderMap   map[string]string // provider -> reason
-	riskProviderMap     map[string][]RiskBadge
-
-	// Badge 体系索引
-	badgeDefMap      map[string]BadgeDef   // id -> def（含内置默认）
-	badgeProviderMap map[string][]BadgeRef // provider -> badges
+	// Annotation 体系
+	annotationRules []AnnotationRule
 }
 
 // newNormalizeContext 创建并初始化 normalizeContext
@@ -73,9 +70,6 @@ func newNormalizeContext() *normalizeContext {
 	return &normalizeContext{
 		disabledProviderMap: make(map[string]string),
 		hiddenProviderMap:   make(map[string]string),
-		riskProviderMap:     make(map[string][]RiskBadge),
-		badgeDefMap:         make(map[string]BadgeDef),
-		badgeProviderMap:    make(map[string][]BadgeRef),
 	}
 }
 
@@ -511,7 +505,7 @@ func (c *AppConfig) normalizeStorageConfig() error {
 	return nil
 }
 
-// buildNormalizeIndexes 构建 Provider/Badge 映射索引
+// buildNormalizeIndexes 构建 Provider 映射索引
 // 这些索引用于后续 normalizeMonitors() 中的状态注入
 func (c *AppConfig) buildNormalizeIndexes(ctx *normalizeContext) error {
 	// 构建禁用的服务商映射（provider -> reason）
@@ -540,44 +534,8 @@ func (c *AppConfig) buildNormalizeIndexes(ctx *normalizeContext) error {
 		ctx.hiddenProviderMap[provider] = strings.TrimSpace(hp.Reason)
 	}
 
-	// 构建 risk_providers 快速查找 map
-	for i, rp := range c.RiskProviders {
-		provider := strings.ToLower(strings.TrimSpace(rp.Provider))
-		if provider == "" {
-			return fmt.Errorf("risk_providers[%d]: provider 不能为空", i)
-		}
-		if _, exists := ctx.riskProviderMap[provider]; exists {
-			return fmt.Errorf("risk_providers[%d]: provider '%s' 重复配置", i, rp.Provider)
-		}
-		ctx.riskProviderMap[provider] = rp.Risks
-	}
-
-	// 构建 badges 定义 map（id -> def），并填充默认值
-	// 先加载内置默认徽标，再加载用户配置（用户配置可覆盖内置）
-
-	// 1. 加载内置默认徽标
-	for id, bd := range defaultBadgeDefs {
-		ctx.badgeDefMap[id] = bd
-	}
-
-	// 2. 加载用户配置的徽标（可覆盖内置）
-	for id, bd := range c.BadgeDefs {
-		// 填充默认值
-		if bd.Kind == "" {
-			bd.Kind = BadgeKindInfo
-		}
-		if bd.Variant == "" {
-			bd.Variant = BadgeVariantDefault
-		}
-		bd.ID = id // 确保 ID 字段与 map key 一致
-		ctx.badgeDefMap[id] = bd
-	}
-
-	// 构建 badge_providers 快速查找 map（provider -> []BadgeRef）
-	for _, bp := range c.BadgeProviders {
-		provider := strings.ToLower(strings.TrimSpace(bp.Provider))
-		ctx.badgeProviderMap[provider] = bp.Badges
-	}
+	// 构建 annotation_rules
+	ctx.annotationRules = append(ctx.annotationRules, c.AnnotationRules...)
 
 	return nil
 }

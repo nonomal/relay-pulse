@@ -122,7 +122,7 @@ export default function ProviderPage() {
 
   // 数据获取 - 先获取全部数据用于构建映射
   // Provider 页面不启用置顶功能（isInitialSort=false）
-  const { data: allData, loading, error, stats, slowLatencyMs, enableBadges, boardsEnabled, boardsEnabledLoaded, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
+  const { data: allData, loading, error, stats, slowLatencyMs, enableAnnotations, boardsEnabled, boardsEnabledLoaded, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -465,7 +465,7 @@ export default function ProviderPage() {
                   sortConfig={sortConfig}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
-                  enableBadges={enableBadges}
+                  enableAnnotations={enableAnnotations}
                   showCategoryTag={false}
                   showProvider={!isEmbedMode}
                   showSponsor={false}
@@ -485,7 +485,7 @@ export default function ProviderPage() {
                       item={item}
                       timeRange={timeRange}
                       slowLatencyMs={slowLatencyMs}
-                      enableBadges={enableBadges}
+                      enableAnnotations={enableAnnotations}
                       showCategoryTag={false}
                       showProvider={!isEmbedMode}
                       isFavorite={isFavorite}

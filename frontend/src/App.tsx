@@ -177,7 +177,7 @@ function App() {
     });
   };
 
-  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableBadges, boardsEnabled, boardsEnabledLoaded, boardCounts, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
+  const { loading, error, data, rawData, stats, providers, slowLatencyMs, enableAnnotations, boardsEnabled, boardsEnabledLoaded, boardCounts, allMonitorIds, allMonitorIdsSupported, refetch } = useMonitorData({
     timeRange,
     timeAlign,
     timeFilter,
@@ -700,7 +700,7 @@ function App() {
                   isInitialSort={isInitialSort}
                   timeRange={timeRange}
                   slowLatencyMs={slowLatencyMs}
-                  enableBadges={isScreenshotMode ? false : enableBadges}
+                  enableAnnotations={isScreenshotMode ? false : enableAnnotations}
                   showCategoryTag={!isScreenshotMode}
                   showSponsor={!isScreenshotMode}
                   isFavorite={isFavorite}
@@ -720,7 +720,7 @@ function App() {
                       item={item}
                       timeRange={timeRange}
                       slowLatencyMs={slowLatencyMs}
-                      enableBadges={enableBadges}
+                      enableAnnotations={enableAnnotations}
                       isFavorite={isFavorite}
                       onToggleFavorite={toggleFavorite}
                       onBlockHover={handleBlockHover}

@@ -250,46 +250,6 @@ describe('sortMonitors', () => {
     });
   });
 
-  describe('徽标分数排序', () => {
-    it('公益站比同等条件的商业站优先', () => {
-      const data = [
-        createMockData({ id: '1', category: 'commercial', lastCheckLatency: 100 }),
-        createMockData({ id: '2', category: 'public', lastCheckLatency: 100 }),
-      ];
-      const config: SortConfig = { key: 'badgeScore', direction: 'desc' };
-
-      const result = sortMonitors(data, config);
-
-      expect(result.map((d) => d.id)).toEqual(['2', '1']); // 公益站优先
-    });
-
-    it('pulse 赞助的商业站优先于无赞助的公益站', () => {
-      const data = [
-        createMockData({ id: '1', category: 'public', sponsorLevel: undefined }),
-        createMockData({ id: '2', category: 'commercial', sponsorLevel: 'pulse' }),
-      ];
-      const config: SortConfig = { key: 'badgeScore', direction: 'desc' };
-
-      const result = sortMonitors(data, config);
-
-      // pulse(40) > public(10)
-      expect(result.map((d) => d.id)).toEqual(['2', '1']);
-    });
-
-    it('公益站 + pulse 赞助优先于商业站 + pulse 赞助', () => {
-      const data = [
-        createMockData({ id: '1', category: 'commercial', sponsorLevel: 'pulse', lastCheckLatency: 100 }),
-        createMockData({ id: '2', category: 'public', sponsorLevel: 'pulse', lastCheckLatency: 100 }),
-      ];
-      const config: SortConfig = { key: 'badgeScore', direction: 'desc' };
-
-      const result = sortMonitors(data, config);
-
-      // public(10) + pulse(40) = 50 > commercial(0) + pulse(40) = 40
-      expect(result.map((d) => d.id)).toEqual(['2', '1']);
-    });
-  });
-
   describe('priceRatio 排序 (使用 priceMin/priceMax)', () => {
     it('按倍率升序排序，null 值排最后', () => {
       const data = [

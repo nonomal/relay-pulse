@@ -27,29 +27,28 @@ type MonitorLayer struct {
 
 // MonitorGroup 监测组（父子/多模型结构的聚合单元）
 type MonitorGroup struct {
-	Provider      string                 `json:"provider"`
-	ProviderName  string                 `json:"provider_name,omitempty"`
-	ProviderSlug  string                 `json:"provider_slug"`
-	ProviderURL   string                 `json:"provider_url"`
-	Service       string                 `json:"service"`
-	ServiceName   string                 `json:"service_name,omitempty"`
-	Category      string                 `json:"category"`
-	Sponsor       string                 `json:"sponsor"`
-	SponsorURL    string                 `json:"sponsor_url"`
-	SponsorLevel  config.SponsorLevel    `json:"sponsor_level,omitempty"`
-	Risks         []config.RiskBadge     `json:"risks,omitempty"`
-	Badges        []config.ResolvedBadge `json:"badges,omitempty"`
-	PriceMin      *float64               `json:"price_min,omitempty"`
-	PriceMax      *float64               `json:"price_max,omitempty"`
-	ListedDays    *int                   `json:"listed_days,omitempty"`
-	Channel       string                 `json:"channel"`
-	ChannelName   string                 `json:"channel_name,omitempty"`
-	Board         string                 `json:"board"`
-	ColdReason    string                 `json:"cold_reason,omitempty"`
-	ProbeURL      string                 `json:"probe_url,omitempty"`
-	TemplateName  string                 `json:"template_name,omitempty"`
-	IntervalMs    int64                  `json:"interval_ms"`
-	SlowLatencyMs int64                  `json:"slow_latency_ms"`
+	Provider      string              `json:"provider"`
+	ProviderName  string              `json:"provider_name,omitempty"`
+	ProviderSlug  string              `json:"provider_slug"`
+	ProviderURL   string              `json:"provider_url"`
+	Service       string              `json:"service"`
+	ServiceName   string              `json:"service_name,omitempty"`
+	Category      string              `json:"category"`
+	Sponsor       string              `json:"sponsor"`
+	SponsorURL    string              `json:"sponsor_url"`
+	SponsorLevel  config.SponsorLevel `json:"sponsor_level,omitempty"`
+	Annotations   []config.Annotation `json:"annotations,omitempty"`
+	PriceMin      *float64            `json:"price_min,omitempty"`
+	PriceMax      *float64            `json:"price_max,omitempty"`
+	ListedDays    *int                `json:"listed_days,omitempty"`
+	Channel       string              `json:"channel"`
+	ChannelName   string              `json:"channel_name,omitempty"`
+	Board         string              `json:"board"`
+	ColdReason    string              `json:"cold_reason,omitempty"`
+	ProbeURL      string              `json:"probe_url,omitempty"`
+	TemplateName  string              `json:"template_name,omitempty"`
+	IntervalMs    int64               `json:"interval_ms"`
+	SlowLatencyMs int64               `json:"slow_latency_ms"`
 
 	CurrentStatus int            `json:"current_status"` // 组级最差状态：0>2>1>-1
 	Layers        []MonitorLayer `json:"layers"`
@@ -133,7 +132,7 @@ func pickWorstStatus(a, b int) int {
 
 // buildMonitorGroupFromParent 从父通道配置构建 MonitorGroup 的元数据部分
 // exposeChannelDetails 控制是否暴露通道技术细节（probe_url, template_name）
-func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool, exposeChannelDetails bool) MonitorGroup {
+func buildMonitorGroupFromParent(parent config.ServiceConfig, enableAnnotations bool, exposeChannelDetails bool) MonitorGroup {
 	// 生成 slug：优先使用配置的 provider_slug，回退到 provider 小写
 	slug := parent.ProviderSlug
 	if slug == "" {
@@ -152,16 +151,10 @@ func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool,
 		}
 	}
 
-	// 当徽标系统禁用时，清空所有徽标相关字段（与 buildMonitorResult 一致）
-	sponsorLevel := parent.SponsorLevel
-	risks := parent.Risks
-	badges := parent.ResolvedBadges
-	intervalMs := parent.IntervalDuration.Milliseconds()
-	if !enableBadges {
-		sponsorLevel = ""
-		risks = nil
-		badges = nil
-		intervalMs = 0
+	// enable_annotations 仅控制 annotations[] 是否输出（与 buildMonitorResult 一致）
+	annotations := parent.Annotations
+	if !enableAnnotations {
+		annotations = nil
 	}
 
 	// 根据配置决定是否暴露通道技术细节（probe_url, template_name）
@@ -181,9 +174,8 @@ func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool,
 		Category:      parent.Category,
 		Sponsor:       parent.Sponsor,
 		SponsorURL:    parent.SponsorURL,
-		SponsorLevel:  sponsorLevel,
-		Risks:         risks,
-		Badges:        badges,
+		SponsorLevel:  parent.SponsorLevel,
+		Annotations:   annotations,
 		PriceMin:      parent.PriceMin,
 		PriceMax:      parent.PriceMax,
 		ListedDays:    listedDays,
@@ -193,7 +185,7 @@ func buildMonitorGroupFromParent(parent config.ServiceConfig, enableBadges bool,
 		ColdReason:    parent.ColdReason,
 		ProbeURL:      probeURL,
 		TemplateName:  templateName,
-		IntervalMs:    intervalMs,
+		IntervalMs:    parent.IntervalDuration.Milliseconds(),
 		SlowLatencyMs: parent.SlowLatencyDuration.Milliseconds(),
 		CurrentStatus: -1,
 		Layers:        make([]MonitorLayer, 0),
@@ -208,7 +200,7 @@ func (h *Handler) buildMonitorGroups(
 	period string,
 	degradedWeight float64,
 	timeFilter *TimeFilter,
-	enableBadges bool,
+	enableAnnotations bool,
 	enableDBTimelineAgg bool,
 	enableConcurrent bool,
 	concurrentLimit int,
@@ -237,7 +229,7 @@ func (h *Handler) buildMonitorGroups(
 
 	tryBatch := enableBatchQuery && (period == "7d" || period == "30d") && len(layerTasks) <= batchQueryMaxKeys
 	if tryBatch {
-		layerResults, err = h.getStatusBatch(ctx, layerTasks, since, endTime, period, degradedWeight, timeFilter, enableBadges, enableDBTimelineAgg)
+		layerResults, err = h.getStatusBatch(ctx, layerTasks, since, endTime, period, degradedWeight, timeFilter, enableAnnotations, enableDBTimelineAgg)
 		if err != nil {
 			logger.Warn("api", "groups 批量查询失败，回退到并发/串行模式", "error", err, "monitors", len(layerTasks), "period", period)
 		}
@@ -245,9 +237,9 @@ func (h *Handler) buildMonitorGroups(
 
 	if err != nil || !tryBatch {
 		if enableConcurrent {
-			layerResults, err = h.getStatusConcurrent(ctx, layerTasks, since, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableBadges)
+			layerResults, err = h.getStatusConcurrent(ctx, layerTasks, since, endTime, period, degradedWeight, timeFilter, concurrentLimit, enableAnnotations)
 		} else {
-			layerResults, err = h.getStatusSerial(ctx, layerTasks, since, endTime, period, degradedWeight, timeFilter, enableBadges)
+			layerResults, err = h.getStatusSerial(ctx, layerTasks, since, endTime, period, degradedWeight, timeFilter, enableAnnotations)
 		}
 	}
 	if err != nil {
@@ -319,7 +311,7 @@ func (h *Handler) buildMonitorGroups(
 		exposeChannelDetails := h.config.ShouldExposeChannelDetails(b.parent.Provider)
 		h.cfgMu.RUnlock()
 
-		group := buildMonitorGroupFromParent(b.parent, enableBadges, exposeChannelDetails)
+		group := buildMonitorGroupFromParent(b.parent, enableAnnotations, exposeChannelDetails)
 
 		layers := make([]MonitorLayer, 0, 1+len(b.children))
 

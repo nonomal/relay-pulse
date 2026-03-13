@@ -48,7 +48,7 @@ func (c *AppConfig) applyParentInheritance() error {
 		inheritedRetry := inheritRetry(child, parent)
 		inheritMeta(child, parent)
 		inheritState(child, parent)
-		inheritBadgesAndDisplay(child, parent)
+		inheritDisplayAndPricing(child, parent)
 
 		// 修复继承后的 Duration 字段
 		if err := fixInheritedDurations(i, child, inheritedTimings, inheritedRetry); err != nil {
@@ -186,11 +186,15 @@ func inheritRetry(child, parent *ServiceConfig) inheritedRetryFlags {
 }
 
 // inheritMeta 继承元数据配置
-// 包括：Category、Sponsor、Provider 相关元数据、Board 配置
+// 包括：Category、KeyType、Sponsor、Provider 相关元数据、Board 配置
 func inheritMeta(child, parent *ServiceConfig) {
 	// Category: 必填字段，但子通道可能想继承
 	if child.Category == "" {
 		child.Category = parent.Category
+	}
+	// KeyType: 空值表示未显式配置，可从父通道继承
+	if child.KeyType == "" {
+		child.KeyType = parent.KeyType
 	}
 	// Sponsor: 继承（通常同一 provider 的赞助者相同）
 	if child.Sponsor == "" {
@@ -243,15 +247,10 @@ func inheritState(child, parent *ServiceConfig) {
 	}
 }
 
-// inheritBadgesAndDisplay 继承徽标和显示相关配置
-// 包括：Badges、ChannelName、定价信息、收录日期
-func inheritBadgesAndDisplay(child, parent *ServiceConfig) {
-	// Badges: 子为空时继承父的徽标（替换策略，非合并）
-	if len(child.Badges) == 0 && len(parent.Badges) > 0 {
-		child.Badges = make([]BadgeRef, len(parent.Badges))
-		copy(child.Badges, parent.Badges)
-	}
-
+// inheritDisplayAndPricing 继承显示和定价相关配置
+// 包括：ChannelName、定价信息、收录日期
+// 注意：Annotations 不在此继承，它们在 normalizeMonitorsPostInheritance 中独立解析
+func inheritDisplayAndPricing(child, parent *ServiceConfig) {
 	// 显示名称继承（子为空时继承）
 	if child.ChannelName == "" {
 		child.ChannelName = parent.ChannelName

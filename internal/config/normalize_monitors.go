@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"net/url"
-	"sort"
 	"strings"
 	"time"
 
@@ -12,7 +11,7 @@ import (
 
 // normalizeMonitorsPreInheritance 继承前的监测项规范化
 // 包括：派生字段重置、时间配置下发、重试配置下发、元数据规范化、Provider 状态注入
-// 注意：不包括 board 默认值填充和徽标解析，这些需要在继承后处理
+// 注意：不包括 board 默认值填充和注解解析，这些需要在继承后处理
 func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error {
 	for i := range c.Monitors {
 		// 注意：以下 yaml:"-" 字段在热更新/复用 slice 元素的场景下，旧值可能残留。
@@ -24,8 +23,7 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 		c.Monitors[i].RetryBaseDelayDuration = 0
 		c.Monitors[i].RetryMaxDelayDuration = 0
 		c.Monitors[i].RetryJitterValue = 0
-		c.Monitors[i].Risks = nil          // 由 ctx.riskProviderMap 重新注入
-		c.Monitors[i].ResolvedBadges = nil // 由徽标解析逻辑重新计算（在 post-inheritance 阶段）
+		c.Monitors[i].Annotations = nil // 由 annotation 解析逻辑重新计算（在 post-inheritance 阶段）
 
 		// 解析 monitor 级 slow_latency（如有配置）
 		if trimmed := strings.TrimSpace(c.Monitors[i].SlowLatency); trimmed != "" {
@@ -161,6 +159,9 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 		// 标准化 category 为小写（与 Validate 的 isValidCategory 保持一致）
 		c.Monitors[i].Category = strings.ToLower(strings.TrimSpace(c.Monitors[i].Category))
 
+		// 标准化 key_type 为小写（空值表示默认 official）
+		c.Monitors[i].KeyType = strings.ToLower(strings.TrimSpace(c.Monitors[i].KeyType))
+
 		// 旧赞助等级兼容迁移（持续 1 个版本周期）
 		if migrated, ok := c.Monitors[i].SponsorLevel.deprecatedToNew(); ok {
 			logger.Warn("config", "monitor 使用已废弃的赞助等级，已自动迁移",
@@ -222,11 +223,6 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 			}
 		}
 
-		// 从 risk_providers 注入风险徽标到对应的 monitors
-		if risks, exists := ctx.riskProviderMap[normalizedProvider]; exists {
-			c.Monitors[i].Risks = risks
-		}
-
 		// Proxy 规范化（TrimSpace + scheme 小写化 + 去掉尾部 /）
 		// 无条件先做 TrimSpace，确保空白字符串被清空
 		c.Monitors[i].Proxy = strings.TrimSpace(c.Monitors[i].Proxy)
@@ -249,7 +245,7 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 }
 
 // normalizeMonitorsPostInheritance 继承后的监测项规范化
-// 包括：board 默认值填充、provider_slug 默认值填充、cold_reason 清理、徽标解析
+// 包括：board 默认值填充、provider_slug 默认值填充、cold_reason 清理、注解解析
 // 必须在 applyParentInheritance() 之后调用，确保继承的字段能正确处理
 func (c *AppConfig) normalizeMonitorsPostInheritance(ctx *normalizeContext) error {
 	for i := range c.Monitors {
@@ -285,70 +281,10 @@ func (c *AppConfig) normalizeMonitorsPostInheritance(ctx *normalizeContext) erro
 		}
 		c.Monitors[i].ProviderSlug = slug
 
-		// 从 badge_providers + monitors[].badges 解析徽标
-		// 必须在继承后处理，确保子通道继承的 Badges 能正确解析为 ResolvedBadges
-		// 仅在启用徽标系统时处理
-		if c.EnableBadges {
-			normalizedProvider := strings.ToLower(strings.TrimSpace(c.Monitors[i].Provider))
-			var refs []BadgeRef
-			if injected, ok := ctx.badgeProviderMap[normalizedProvider]; ok && len(injected) > 0 {
-				refs = append(refs, injected...)
-			}
-			if len(c.Monitors[i].Badges) > 0 {
-				refs = append(refs, c.Monitors[i].Badges...)
-			}
-
-			// 如果没有配置任何徽标，注入默认徽标
-			if len(refs) == 0 {
-				refs = []BadgeRef{{ID: "api_key_official"}}
-			}
-
-			// 去重并解析为 ResolvedBadge
-			order := make([]string, 0, len(refs))
-			resolvedMap := make(map[string]ResolvedBadge, len(refs))
-			for _, ref := range refs {
-				id := strings.TrimSpace(ref.ID)
-				if id == "" {
-					continue
-				}
-				def, exists := ctx.badgeDefMap[id]
-				if !exists {
-					continue // 验证阶段已检查，此处跳过
-				}
-
-				// monitor 级 tooltip 覆盖
-				tooltipOverride := strings.TrimSpace(ref.Tooltip)
-
-				if _, seen := resolvedMap[id]; !seen {
-					order = append(order, id)
-				}
-				resolvedMap[id] = ResolvedBadge{
-					ID:              id,
-					Kind:            def.Kind,
-					Variant:         def.Variant,
-					Weight:          def.Weight,
-					URL:             def.URL,
-					TooltipOverride: tooltipOverride,
-				}
-			}
-
-			// 按 kind 组顺序 → weight desc → id asc 排序
-			result := make([]ResolvedBadge, 0, len(order))
-			for _, id := range order {
-				result = append(result, resolvedMap[id])
-			}
-			sort.SliceStable(result, func(a, b int) bool {
-				kindOrder := map[BadgeKind]int{BadgeKindSource: 0, BadgeKindFeature: 1, BadgeKindInfo: 2}
-				if kindOrder[result[a].Kind] != kindOrder[result[b].Kind] {
-					return kindOrder[result[a].Kind] < kindOrder[result[b].Kind]
-				}
-				if result[a].Weight != result[b].Weight {
-					return result[a].Weight > result[b].Weight // desc
-				}
-				return result[a].ID < result[b].ID // asc
-			})
-			c.Monitors[i].ResolvedBadges = result
-		}
+		// Annotation 解析：系统派生 + annotation_rules
+		// 始终在规范化阶段解析；enable_annotations 仅控制 API 是否返回 annotations[]
+		annotations := resolveAnnotations(c.Monitors[i], ctx.annotationRules, c.IntervalDuration)
+		c.Monitors[i].Annotations = annotations
 	}
 
 	return nil

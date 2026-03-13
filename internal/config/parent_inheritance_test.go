@@ -744,12 +744,17 @@ func TestChildInheritsProviderNameFromParent(t *testing.T) {
 	}
 }
 
-// TestChildInheritsBadgesResolvedBadgesFromParent 验证子项继承父 badges 后，ResolvedBadges 在 post-inheritance 阶段正确重算
-func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
+// TestAnnotationRulesApplyToParentAndChild 验证 annotation_rules 对父子通道独立生效
+func TestAnnotationRulesApplyToParentAndChild(t *testing.T) {
 	cfg := &AppConfig{
-		EnableBadges: true,
-		BadgeDefs: map[string]BadgeDef{
-			"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 10},
+		EnableAnnotations: true,
+		AnnotationRules: []AnnotationRule{
+			{
+				Match: AnnotationMatch{Provider: "demo"},
+				Add: []Annotation{
+					{ID: "official_api", Family: AnnotationFamilyPositive, Label: "官方 API", Priority: 100},
+				},
+			},
 		},
 		Monitors: []ServiceConfig{
 			{
@@ -761,13 +766,11 @@ func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
 				URLPattern: "{{BASE_URL}}",
 				Method:     "POST",
 				Category:   "public",
-				Badges:     []BadgeRef{{ID: "api_key_user"}},
 			},
 			{
 				Model:    "child",
 				Parent:   "demo/cc/vip",
 				Category: "public",
-				// Badges 留空：应继承父通道
 			},
 		},
 	}
@@ -779,12 +782,31 @@ func TestChildInheritsBadgesResolvedBadgesFromParent(t *testing.T) {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
+	// 父子都应独立匹配 annotation_rules
+	parent := &cfg.Monitors[0]
 	child := &cfg.Monitors[1]
-	if len(child.ResolvedBadges) != 1 {
-		t.Fatalf("child should have 1 badge, got %d", len(child.ResolvedBadges))
+
+	// 两者都应有 public_service（系统派生）+ official_api（规则匹配）
+	findAnnotation := func(annotations []Annotation, id string) *Annotation {
+		for i := range annotations {
+			if annotations[i].ID == id {
+				return &annotations[i]
+			}
+		}
+		return nil
 	}
-	if child.ResolvedBadges[0].ID != "api_key_user" {
-		t.Fatalf("child badge = %q, want %q", child.ResolvedBadges[0].ID, "api_key_user")
+
+	if a := findAnnotation(parent.Annotations, "official_api"); a == nil {
+		t.Error("parent should have official_api annotation from rule match")
+	}
+	if a := findAnnotation(child.Annotations, "official_api"); a == nil {
+		t.Error("child should have official_api annotation from rule match")
+	}
+	if a := findAnnotation(parent.Annotations, "public_service"); a == nil {
+		t.Error("parent should have public_service annotation (category=public)")
+	}
+	if a := findAnnotation(child.Annotations, "public_service"); a == nil {
+		t.Error("child should have public_service annotation (category=public)")
 	}
 }
 

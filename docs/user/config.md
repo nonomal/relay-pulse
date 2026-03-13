@@ -22,7 +22,12 @@ retry_base_delay: "200ms"  # 退避基准间隔
 retry_max_delay: "2s"      # 退避最大间隔
 retry_jitter: 0.2          # 抖动比例（0-1）
 
-# 风险服务商配置（可选）
+# 标签系统（可选）
+enable_annotations: true
+# key_type 字段控制 API Key 来源标签（默认所有通道自动标注"官方 API"）
+# 用户 Key 通道设置 key_type: user 即自动切换为"用户 Key"标签
+
+# 风险服务商配置（旧版兼容，推荐迁移到 annotation_rules）
 risk_providers:
   - provider: "risky-provider"
     risks:
@@ -70,6 +75,7 @@ monitors:
     category: "commercial"     # 分类（必填）: commercial 或 public
     sponsor: "团队自有"         # 赞助者（必填）
     sponsor_level: "beacon"    # 赞助等级（可选）: public/signal/pulse/beacon/backbone/core
+    key_type: "official"       # API Key 类型（可选）: official（默认）或 user
     channel: "vip"             # 业务通道（可选）
     board: "hot"               # 板块（可选）: hot（默认）、secondary 或 cold
     price_min: 0.05            # 参考倍率下限（可选）
@@ -219,7 +225,7 @@ sponsor_pin:
    - 最终置顶数量受 `max_pinned` 全局截断限制
    - 其余项按可用率降序排序
 
-3. **视觉效果**: 置顶项显示对应徽标颜色的淡色背景（5% 透明度）
+3. **视觉效果**: 置顶项显示对应标签颜色的淡色背景（5% 透明度）
 
 4. **交互行为**:
    - 用户点击任意排序按钮后，置顶效果失效
@@ -1478,218 +1484,226 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
 - **说明**: 停用原因（可选，用于运维审计）
 - **示例**: `"商家已跑路"`, `"服务永久关闭"`
 
-### 徽标系统配置
+### 标签系统配置
 
-用于在监测项上显示各类信息徽标（如赞助等级、分类标签、风险警告、监测频率、API Key 来源等）。
+用于在监测项上显示各类标签（如赞助等级、分类标签、风险警告、监测频率、API Key 来源等）。采用统一的 `Annotation` 模型，后端直出所有展示信息（label/tooltip/icon），前端仅负责渲染。
 
-#### `enable_badges`
+#### `enable_annotations`
 - **类型**: boolean
 - **默认值**: `false`
-- **说明**: 徽标系统总开关，控制**所有**徽标类型的显示
+- **说明**: 标签系统总开关，控制 API 是否返回 `annotations[]` 字段
 - **行为**:
-  - `true`: 启用徽标系统，显示所有徽标
-  - `false`: 禁用徽标系统，隐藏所有徽标（API 响应中相关字段被清空）
-- **影响范围**: 此开关控制以下所有徽标类型：
-  | 徽标类型 | 说明 | `enable_badges: false` 时 |
-  |---------|------|--------------------------|
-  | 赞助徽标 | public/signal/pulse/beacon/backbone/core 等级 | 隐藏 |
-  | 分类标签 | 公益站「益」标签 | 隐藏 |
-  | 风险徽标 | 风险警告标识 | 隐藏 |
-  | 监测频率 | 监测间隔指示器 | 隐藏 |
-  | 通用徽标 | API Key 来源等自定义徽标 | 隐藏 |
-- **默认徽标**: 启用后，未配置任何通用徽标时自动显示"官方 API Key"（`api_key_official`）徽标
-- **覆盖规则**: 手工配置的徽标会**完全覆盖**默认徽标（不是合并）
-- **注意**: `category` 字段仍会返回用于筛选功能，仅视觉标签被隐藏
+  - `true`: 启用标签系统，API 返回 `annotations[]`
+  - `false`: 禁用标签系统，API 不返回标签相关字段
+- **注意**:
+  - 此开关**仅控制标签展示**，不影响 `category`、`sponsor_level` 等事实字段的返回
+  - 禁用时前端无法判断负向标签，因此负向标签的置顶排除规则也会失效。如需使用赞助置顶功能，建议保持 `enable_annotations: true`
 
 **示例**:
 ```yaml
-# 启用徽标系统
-enable_badges: true
-
-# 场景 1：无配置 → 自动显示 api_key_official + 监测频率
-monitors:
-  - provider: "Example"
-    service: "api"
-    # badges 未配置，自动注入默认徽标
-
-# 场景 2：手工配置 → 覆盖默认徽标
-monitors:
-  - provider: "Example"
-    service: "api"
-    badges:
-      - "api_key_user"  # 配置后，不再显示 api_key_official
+enable_annotations: true
 ```
 
-#### 徽标类型说明
+#### 语义分组 (AnnotationFamily)
 
-| 类型 (kind) | 说明 | 示例图标 |
-|-------------|------|----------|
-| `source` | 数据/Key 来源 | 用户轮廓、盾牌勾号 |
-| `info` | 信息提示 | 圆形带 i |
-| `feature` | 功能特性 | 闪电符号 |
+每个标签属于一个语义分组，决定渲染区域和视觉样式：
 
-| 样式 (variant) | 颜色 | 适用场景 |
-|----------------|------|----------|
-| `default` | 灰色 | 一般信息（真正中性或禁用状态，较少使用） |
-| `success` | 绿色 | 正向信息（官方 API、功能支持） |
-| `warning` | 黄色 | 警告信息 |
-| `danger` | 红色 | 风险信息 |
-| `info` | 蓝色 | 信息类（社区贡献、用户提供的 Key） |
+| Family | 含义 | 前端颜色 | 适用场景 |
+|--------|------|---------|---------|
+| `positive` | 正向 | 绿色 | 赞助等级、官方标识 |
+| `neutral` | 中性 | 蓝色 | 公益站、高频监测、信息类标签 |
+| `negative` | 负向 | 黄色/红色 | 风险警告（前端用 `\|` 分隔符与正向/中性标签隔开） |
 
-#### 全局徽标定义 (`badge_definitions`)
+**排序规则**：标签按 `family 分组`（positive → neutral → negative）→ `priority 降序` → `id 字母序` 排列。
 
-定义所有可复用的徽标，在 `badge_providers` 或 `monitors.badges` 中通过 `id` 引用：
+#### 系统自动派生标签
+
+以下标签由后端根据监测项事实属性自动生成，**无需配置**：
+
+| 事实属性 | 条件 | 生成的标签 | Family | 图标 |
+|---------|------|-----------|--------|------|
+| `key_type` | 空/`official` | `key_type`（官方 API） | positive | shield-check |
+| `key_type` | `= "user"` | `key_type`（用户 Key） | neutral | user |
+| `category` | `= "public"` | `public_service`（公益站） | neutral | heart |
+| `sponsor_level` | 有效等级 | `sponsor_{level}`（赞助链路） | positive | 按等级映射 |
+| `interval` | 始终生成 | `monitor_frequency`（监测间隔） | neutral | activity |
+
+**赞助等级标签映射**：
+
+| SponsorLevel | 标签 ID | Label | Priority |
+|-------------|---------|-------|----------|
+| `public` | `sponsor_public` | 公益链路 | 10 |
+| `signal` | `sponsor_signal` | 信号链路 | 20 |
+| `pulse` | `sponsor_pulse` | 脉冲链路 | 40 |
+| `beacon` | `sponsor_beacon` | 信标链路 | 60 |
+| `backbone` | `sponsor_backbone` | 骨干链路 | 80 |
+| `core` | `sponsor_core` | 核心链路 | 100 |
+
+**`key_type` 字段**：所有通道默认自动派生"官方 API"标签（`id: key_type`），设置 `key_type: user` 时自动切换为"用户 Key"标签。`annotation_rules` 可通过 `remove: ["key_type"]` 移除或覆盖此标签。
+
+#### 标签规则 (`annotation_rules`)
+
+通过规则引擎为匹配条件的监测项添加或移除标签，替代原有的 `badge_definitions` + `badge_providers`：
 
 ```yaml
-badge_definitions:
-  # API Key 来源类徽标
-  api_key_user:
-    kind: "source"       # 类型：source/info/feature
-    variant: "info"      # 样式：default/success/warning/danger/info
-    weight: 50           # 排序权重，数值越大越靠前（默认 0）
-  api_key_official:
-    kind: "source"
-    variant: "success"   # 绿色徽标，表示官方 API
-    weight: 80           # 官方 API 排在用户提交之前
-  # 功能特性类徽标
-  stream_support:
-    kind: "feature"
-    variant: "success"
-    weight: 50
-    url: "https://docs.example.com/streaming"  # 可选：点击跳转链接
+annotation_rules:
+  # 为风险服务商添加警告标签
+  - match:
+      provider: "risky-vendor"
+    add:
+      - id: "risk_flight"
+        family: "negative"
+        icon: "alert-triangle"
+        label: "跑路风险"
+        tooltip: "该服务商存在跑路风险，请谨慎充值"
+        href: "https://github.com/org/repo/discussions/123"
+        priority: 90
+
+  # 覆盖系统派生的 key_type 标签（如需自定义文案）
+  - match:
+      provider: "88code"
+    remove: ["key_type"]
+    add:
+      - id: "key_type"
+        family: "positive"
+        icon: "shield-check"
+        label: "平台托管 Key"
+        priority: 90
+
+  # 移除特定通道的 key_type 标签
+  - match:
+      provider: "88code"
+      channel: "test-channel"
+    remove: ["key_type"]
 ```
 
-**内置徽标**：
+##### 匹配条件 (`match`)
 
-以下徽标为系统内置，无需在 `badge_definitions` 中定义即可直接使用：
+所有非空字段必须同时匹配（AND 逻辑），空字段表示不限。匹配时忽略大小写。
 
-| ID | Kind | Variant | Weight | 说明 |
-|----|------|---------|--------|------|
-| `api_key_user` | source | info | 50 | 用户提供的 API Key |
-| `api_key_official` | source | success | 80 | 官方/服务商提供的 API Key |
-| `official_baseline` | source | info | 80 | RelayPulse 官方基准通道，用于基准对比 |
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `provider` | string | 匹配服务商名称 |
+| `service` | string | 匹配服务类型 |
+| `channel` | string | 匹配通道名称 |
+| `model` | string | 匹配模型名称 |
+| `category` | string | 匹配分类（commercial/public） |
+| `sponsor_level` | string | 匹配赞助等级 |
 
-**`official_baseline` 徽标**：
-- **图标**: 靶心/准星图案
-- **用途**: 标识 RelayPulse 项目官方的基准监测通道
-- **使用场景**: 作为性能和可用性的基准参考点
-
-**使用示例**：
-```yaml
-# 为官方基准通道添加 official_baseline 徽标
-badge_providers:
-  - provider: "relaypulse"
-    badges:
-      - "official_baseline"
-```
-
-**字段说明**：
+##### 标签字段 (`add[]`)
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `kind` | string | 是 | - | 徽标类型：`source`/`info`/`feature` |
-| `variant` | string | 否 | `default` | 样式变体：`default`/`success`/`warning`/`danger`/`info` |
-| `weight` | number | 否 | `0` | 排序权重，越大越靠前 |
-| `url` | string | 否 | - | 可选的点击跳转链接 |
+| `id` | string | 是 | - | 唯一标识（同 id 去重，后规则覆盖先规则） |
+| `family` | string | 否 | `neutral` | 语义分组：`positive`/`neutral`/`negative` |
+| `icon` | string | 否 | - | 图标标识（前端 icon registry 映射） |
+| `label` | string | 是 | - | 显示文本（后端直出，无需前端 i18n） |
+| `tooltip` | string | 否 | - | 提示文本 |
+| `href` | string | 否 | - | 可选的点击跳转链接 |
+| `priority` | number | 否 | `50` | 排序权重，越大越靠前。未指定或设为 0 时自动填充为 50 |
 
-#### Provider 级别徽标注入 (`badge_providers`)
+##### 移除标签 (`remove[]`)
 
-为同一服务商的所有监测项自动注入指定徽标：
+字符串数组，指定要移除的标签 `id`。可用于子通道取消继承的标签。
 
-```yaml
-badge_providers:
-  - provider: "88code"
-    badges:
-      - "api_key_official"   # 简写形式：直接引用徽标 id
-  - provider: "duckcoding"
-    badges:
-      - id: "api_key_user"   # 对象形式：可覆盖 tooltip
-        tooltip_override: "用户 @example 提供的 API Key"
-```
+##### 规则执行顺序
 
-**支持的引用格式**：
-
-1. **简写形式**：直接写徽标 id 字符串
-   ```yaml
-   badges:
-     - "api_key_official"
-   ```
-
-2. **对象形式**：可覆盖 tooltip 文本
-   ```yaml
-   badges:
-     - id: "api_key_user"
-       tooltip_override: "自定义提示文本"
-   ```
-
-#### Monitor 级别徽标 (`badges`)
-
-在单个监测项中配置徽标，会与 `badge_providers` 中的 provider 级别徽标合并：
-
-```yaml
-monitors:
-  - provider: "duckcoding"
-    service: "cc"
-    # ... 其他配置
-    badges:
-      - "stream_support"         # 简写形式
-      - id: "api_key_user"       # 对象形式
-        tooltip_override: "特定通道的 API Key 说明"
-```
-
-#### 徽标合并规则
-
-1. **来源合并**：Provider 级别 + Monitor 级别徽标自动合并
-2. **去重**：相同 `id` 的徽标只保留一个（Monitor 级别优先）
-3. **排序**：按 `weight` 降序排列（越大越靠前）
-4. **覆盖**：Monitor 级别的 `tooltip_override` 优先于 Provider 级别
+1. 按配置顺序依次应用所有匹配的规则
+2. 每条规则内先执行 `remove`，再执行 `add`
+3. 同 `id` 标签去重，后添加的覆盖先添加的
+4. 规则标签（origin: `rule`）与系统自动派生标签（origin: `system`）合并后统一排序
 
 #### 前端显示
 
-- 徽标显示在监测项的"徽标"列
-- Label 和 Tooltip 通过 i18n 翻译（键名：`badges.generic.<id>.label`、`badges.generic.<id>.tooltip`）
-- 如果配置了 `tooltip_override`，则优先使用覆盖文本
-- 监测频率指示器会自动显示在徽标区域（根据监测项的 `interval` 配置）
+- 标签显示在监测项的"标签"列
+- Label 和 Tooltip 直接使用后端 API 返回的字段（不走前端 i18n）
+- 标签按 family 分组渲染：positive（绿区）→ neutral（蓝区）→ negative（红区，前有分隔符）
+- 有 `href` 的标签可点击跳转
+- 有 `negative` family 标签的监测项**不会被赞助通道置顶**
+
+#### 兼容旧配置：`risk_providers`
+
+`risk_providers` 仍可使用，系统会自动将其转换为 `annotation_rules`（family: `negative`）。建议迁移到 `annotation_rules` 以获得更灵活的控制。
+
+```yaml
+# 旧写法（仍支持）
+risk_providers:
+  - provider: "risky-provider"
+    risks:
+      - label: "跑路风险"
+        discussion_url: "https://github.com/org/repo/discussions/123"
+
+# 等价的新写法（推荐）
+annotation_rules:
+  - match:
+      provider: "risky-provider"
+    add:
+      - id: "risk_跑路风险"
+        family: "negative"
+        icon: "warning"
+        label: "跑路风险"
+        href: "https://github.com/org/repo/discussions/123"
+        priority: 50
+```
 
 #### 完整配置示例
 
 ```yaml
-# 1. 定义全局徽标
-badge_definitions:
-  api_key_user:
-    kind: "source"
-    variant: "info"      # 蓝色，表示社区贡献
-    weight: 50
-  api_key_official:
-    kind: "source"
-    variant: "success"   # 绿色，表示官方 API
-    weight: 80
-  stream_support:
-    kind: "feature"
-    variant: "success"
-    weight: 60
+# 启用标签系统
+enable_annotations: true
 
-# 2. Provider 级别注入
-badge_providers:
-  - provider: "88code"
-    badges:
-      - "api_key_official"
-  - provider: "community-relay"
-    badges:
-      - id: "api_key_user"
-        tooltip_override: "社区用户提供的 API Key，欢迎申请收录"
+# 标签规则（key_type 标签由系统自动派生，无需手动配置）
+annotation_rules:
+  # 为基准通道添加标识
+  - match:
+      provider: "relaypulse"
+    add:
+      - id: "official_baseline"
+        family: "neutral"
+        icon: "crosshair"
+        label: "官方基准"
+        tooltip: "RelayPulse 官方基准监测通道"
+        priority: 80
 
-# 3. Monitor 级别配置
+  # 社区贡献标记
+  - match:
+      provider: "community-relay"
+    add:
+      - id: "community_key"
+        family: "neutral"
+        icon: "info"
+        label: "社区 Key"
+        tooltip: "社区用户提供的 API Key"
+        priority: 50
+
+  # 风险标记
+  - match:
+      provider: "risky-vendor"
+    add:
+      - id: "risk_flight"
+        family: "negative"
+        icon: "alert-triangle"
+        label: "跑路风险"
+        href: "https://github.com/org/repo/discussions/456"
+        priority: 90
+
+# 以下标签由系统自动派生，无需配置：
+# - 所有监测项 → key_type 标签（默认"官方 API"，key_type: user 时"用户 Key"）
+# - category=public 的监测项 → public_service 标签
+# - 有 sponsor_level 的监测项 → sponsor_{level} 标签
+# - 所有监测项 → monitor_frequency 标签（显示监测间隔）
+
 monitors:
   - provider: "88code"
     service: "cc"
-    # 自动继承 api_key_official 徽标
+    # 自动获得：key_type（系统派生，默认"官方 API"）+ sponsor_core（系统派生）
     # ...
 
-  - provider: "88code"
-    service: "cx"
-    badges:
-      - "stream_support"  # 额外添加流式支持徽标
+  - provider: "community-relay"
+    service: "cc"
+    category: "public"
+    key_type: "user"   # 标注"用户 Key"
+    # 自动获得：key_type（系统派生，"用户 Key"）+ community_key（规则）+ public_service（系统派生）
     # ...
 ```
 
@@ -1795,34 +1809,24 @@ monitors:
 | API 返回 | ❌ 永不返回 | ❌ 默认不返回，可用 `include_hidden=true` 查看 |
 | 适用场景 | 商家跑路、服务永久关闭 | 临时整改、待观察 |
 
-### 风险服务商配置
+### 风险服务商配置（旧版兼容）
 
-用于标记存在风险的服务商。风险标签会自动继承到该服务商的所有监测项，在前端以红色风险徽标展示。
+> **迁移提示**：`risk_providers` 仍可使用，系统会自动将其转换为 `annotation_rules`（family: `negative`）。建议迁移到 `annotation_rules` 以获得更灵活的控制。详见[标签系统配置](#标签系统配置)中的"兼容旧配置"部分。
 
 ```yaml
 risk_providers:
   - provider: "risky-provider"       # provider 名称（需精确匹配 monitors 中的 provider）
     risks:
-      - label: "跑路风险"             # 简短标签（前端红色徽标显示）
+      - label: "跑路风险"             # 简短标签（前端红色标签显示）
         discussion_url: "https://github.com/org/repo/discussions/123"  # 讨论链接（可选）
       - label: "资金安全存疑"
 ```
 
-#### `risk_providers[].provider`
-- **类型**: string
-- **说明**: 服务商名称，需与 `monitors` 中的 `provider` 字段精确匹配
-
-#### `risk_providers[].risks`
-- **类型**: RiskBadge 数组
-- **字段**:
-  - `label` (string，必填): 风险简短标签，如"跑路风险"、"资金安全存疑"
-  - `discussion_url` (string，可选): 关联的 GitHub Discussion 链接，用户点击风险徽标可跳转
-
 #### 行为说明
 
-- 风险标签会自动注入到匹配 provider 的**所有**监测项的 `risks` 字段
-- 前端以红色 `danger` 样式展示风险徽标
-- 有风险标记的监测项**不会被赞助通道置顶**（`sponsor_pin` 规则排除有 risks 的项）
+- 风险标签会自动转换为 `negative` family 的 annotation，注入到匹配 provider 的所有监测项
+- 前端以红色/黄色样式展示负向标签
+- 有负向标签的监测项**不会被赞助通道置顶**
 - 与 `hidden_providers`、`disabled_providers` 独立生效，可同时配置
 
 ## 环境变量覆盖

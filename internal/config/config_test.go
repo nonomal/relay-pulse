@@ -3,9 +3,17 @@ package config
 import (
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 )
+
+// findAnnotationByID 在注解列表中查找指定 ID 的注解
+func findAnnotationByID(annotations []Annotation, id string) *Annotation {
+	for i := range annotations {
+		if annotations[i].ID == id {
+			return &annotations[i]
+		}
+	}
+	return nil
+}
 
 // Test consecutive hyphens in slug
 func TestConsecutiveHyphensSlug(t *testing.T) {
@@ -70,120 +78,32 @@ func TestBaseURLNormalization(t *testing.T) {
 	}
 }
 
-// TestBadgeRefUnmarshalYAML tests BadgeRef YAML parsing (string and object formats)
-func TestBadgeRefUnmarshalYAML(t *testing.T) {
+// TestAnnotationFamilyValidation tests AnnotationFamily isValid method
+func TestAnnotationFamilyValidation(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name            string
-		yamlInput       string
-		expectedID      string
-		expectedTooltip string
-		shouldErr       bool
+		family  AnnotationFamily
+		isValid bool
 	}{
-		{
-			name:            "字符串格式",
-			yamlInput:       `"api_key_official"`,
-			expectedID:      "api_key_official",
-			expectedTooltip: "",
-			shouldErr:       false,
-		},
-		{
-			name:            "对象格式无 tooltip",
-			yamlInput:       `id: "api_key_user"`,
-			expectedID:      "api_key_user",
-			expectedTooltip: "",
-			shouldErr:       false,
-		},
-		{
-			name:            "对象格式带 tooltip",
-			yamlInput:       "id: \"api_key_user\"\ntooltip_override: \"由 @zhangsan 贡献\"",
-			expectedID:      "api_key_user",
-			expectedTooltip: "由 @zhangsan 贡献",
-			shouldErr:       false,
-		},
-		{
-			name:            "字符串格式带空格",
-			yamlInput:       `"  api_key_official  "`,
-			expectedID:      "api_key_official",
-			expectedTooltip: "",
-			shouldErr:       false,
-		},
+		{AnnotationFamilyPositive, true},
+		{AnnotationFamilyNeutral, true},
+		{AnnotationFamilyNegative, true},
+		{AnnotationFamily("invalid"), false},
+		{AnnotationFamily(""), false},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var ref BadgeRef
-			err := yaml.Unmarshal([]byte(tt.yamlInput), &ref)
-
-			if tt.shouldErr {
-				if err == nil {
-					t.Errorf("Unmarshal should return error for %q", tt.yamlInput)
-				}
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("Unmarshal failed: %v", err)
-			}
-
-			if ref.ID != tt.expectedID {
-				t.Errorf("ID = %q, want %q", ref.ID, tt.expectedID)
-			}
-			if ref.Tooltip != tt.expectedTooltip {
-				t.Errorf("Tooltip = %q, want %q", ref.Tooltip, tt.expectedTooltip)
+		t.Run("Family_"+string(tt.family), func(t *testing.T) {
+			if got := tt.family.isValid(); got != tt.isValid {
+				t.Errorf("AnnotationFamily(%q).isValid() = %v, want %v", tt.family, got, tt.isValid)
 			}
 		})
 	}
 }
 
-// TestBadgeKindVariantValidation tests BadgeKind and BadgeVariant IsValid methods
-func TestBadgeKindVariantValidation(t *testing.T) {
-	t.Parallel()
-
-	kindTests := []struct {
-		kind    BadgeKind
-		isValid bool
-	}{
-		{BadgeKindSource, true},
-		{BadgeKindInfo, true},
-		{BadgeKindFeature, true},
-		{BadgeKind("invalid"), false},
-		{BadgeKind(""), false},
-	}
-
-	for _, tt := range kindTests {
-		t.Run("Kind_"+string(tt.kind), func(t *testing.T) {
-			if got := tt.kind.isValid(); got != tt.isValid {
-				t.Errorf("BadgeKind(%q).isValid() = %v, want %v", tt.kind, got, tt.isValid)
-			}
-		})
-	}
-
-	variantTests := []struct {
-		variant BadgeVariant
-		isValid bool
-	}{
-		{BadgeVariantDefault, true},
-		{BadgeVariantSuccess, true},
-		{BadgeVariantWarning, true},
-		{BadgeVariantDanger, true},
-		{BadgeVariantInfo, true},
-		{BadgeVariant("invalid"), false},
-		{BadgeVariant(""), false},
-	}
-
-	for _, tt := range variantTests {
-		t.Run("Variant_"+string(tt.variant), func(t *testing.T) {
-			if got := tt.variant.isValid(); got != tt.isValid {
-				t.Errorf("BadgeVariant(%q).isValid() = %v, want %v", tt.variant, got, tt.isValid)
-			}
-		})
-	}
-}
-
-// TestBadgesValidation tests Validate() for badges configuration
-func TestBadgesValidation(t *testing.T) {
+// TestAnnotationRulesValidation tests Validate() for annotation_rules configuration
+func TestAnnotationRulesValidation(t *testing.T) {
 	t.Parallel()
 
 	baseMonitor := ServiceConfig{
@@ -203,84 +123,72 @@ func TestBadgesValidation(t *testing.T) {
 		errMsg    string
 	}{
 		{
-			name: "有效的 badges 定义",
+			name: "有效的 annotation_rules",
 			config: AppConfig{
-				BadgeDefs: map[string]BadgeDef{
-					"api_key_user":     {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 5},
-					"api_key_official": {Kind: BadgeKindSource, Variant: BadgeVariantSuccess, Weight: 10},
+				AnnotationRules: []AnnotationRule{
+					{
+						Match: AnnotationMatch{Provider: "demo"},
+						Add: []Annotation{
+							{ID: "official_key", Label: "官方 Key", Family: AnnotationFamilyPositive},
+						},
+					},
 				},
 				Monitors: []ServiceConfig{baseMonitor},
 			},
 			shouldErr: false,
 		},
 		{
-			name: "badges kind 无效",
+			name: "annotation id 为空",
 			config: AppConfig{
-				BadgeDefs: map[string]BadgeDef{
-					"test": {Kind: BadgeKind("invalid"), Variant: BadgeVariantDefault},
-				},
-				Monitors: []ServiceConfig{baseMonitor},
-			},
-			shouldErr: true,
-			errMsg:    "kind",
-		},
-		{
-			name: "badges variant 无效",
-			config: AppConfig{
-				BadgeDefs: map[string]BadgeDef{
-					"test": {Kind: BadgeKindSource, Variant: BadgeVariant("invalid")},
-				},
-				Monitors: []ServiceConfig{baseMonitor},
-			},
-			shouldErr: true,
-			errMsg:    "variant",
-		},
-		{
-			name: "badges weight 超出范围",
-			config: AppConfig{
-				BadgeDefs: map[string]BadgeDef{
-					"test": {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 101},
-				},
-				Monitors: []ServiceConfig{baseMonitor},
-			},
-			shouldErr: true,
-			errMsg:    "weight",
-		},
-		{
-			name: "badge_providers 引用不存在的 badge",
-			config: AppConfig{
-				BadgeDefs: map[string]BadgeDef{
-					"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantDefault},
-				},
-				BadgeProviders: []BadgeProviderConfig{
-					{Provider: "demo", Badges: []BadgeRef{{ID: "nonexistent"}}},
-				},
-				Monitors: []ServiceConfig{baseMonitor},
-			},
-			shouldErr: true,
-			errMsg:    "未找到徽标定义",
-		},
-		{
-			name: "monitors.badges 引用不存在的 badge",
-			config: AppConfig{
-				BadgeDefs: map[string]BadgeDef{
-					"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantDefault},
-				},
-				Monitors: []ServiceConfig{
+				AnnotationRules: []AnnotationRule{
 					{
-						Provider:   "demo",
-						Service:    "cc",
-						Category:   "commercial",
-						Sponsor:    "test",
-						BaseURL:    "https://example.com",
-						URLPattern: "{{BASE_URL}}",
-						Method:     "POST",
-						Badges:     []BadgeRef{{ID: "nonexistent"}},
+						Match: AnnotationMatch{Provider: "demo"},
+						Add:   []Annotation{{ID: "", Label: "test"}},
 					},
 				},
+				Monitors: []ServiceConfig{baseMonitor},
 			},
 			shouldErr: true,
-			errMsg:    "未找到徽标定义",
+			errMsg:    "id 不能为空",
+		},
+		{
+			name: "annotation family 无效",
+			config: AppConfig{
+				AnnotationRules: []AnnotationRule{
+					{
+						Match: AnnotationMatch{Provider: "demo"},
+						Add:   []Annotation{{ID: "test", Label: "test", Family: "invalid"}},
+					},
+				},
+				Monitors: []ServiceConfig{baseMonitor},
+			},
+			shouldErr: true,
+			errMsg:    "family",
+		},
+		{
+			name: "annotation priority 超出范围",
+			config: AppConfig{
+				AnnotationRules: []AnnotationRule{
+					{
+						Match: AnnotationMatch{Provider: "demo"},
+						Add:   []Annotation{{ID: "test", Label: "test", Priority: 201}},
+					},
+				},
+				Monitors: []ServiceConfig{baseMonitor},
+			},
+			shouldErr: true,
+			errMsg:    "priority",
+		},
+		{
+			name: "规则缺少 add 和 remove",
+			config: AppConfig{
+				AnnotationRules: []AnnotationRule{
+					{Match: AnnotationMatch{Provider: "demo"}},
+				},
+				Monitors: []ServiceConfig{baseMonitor},
+			},
+			shouldErr: true,
+			errMsg:    "必须至少包含",
 		},
 	}
 
@@ -303,34 +211,29 @@ func TestBadgesValidation(t *testing.T) {
 	}
 }
 
-// TestBadgesNormalize tests Normalize() for badge injection and merging
-func TestBadgesNormalize(t *testing.T) {
+// TestAnnotationsNormalize tests Normalize() for annotation resolution
+func TestAnnotationsNormalize(t *testing.T) {
 	t.Parallel()
 
 	cfg := &AppConfig{
-		EnableBadges: true, // 启用徽标系统
-		BadgeDefs: map[string]BadgeDef{
-			"api_key_user":      {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 5},
-			"api_key_official":  {Kind: BadgeKindSource, Variant: BadgeVariantSuccess, Weight: 10},
-			"feature_streaming": {Kind: BadgeKindFeature, Variant: BadgeVariantDefault, Weight: 3},
-		},
-		BadgeProviders: []BadgeProviderConfig{
-			{Provider: "demo", Badges: []BadgeRef{{ID: "api_key_official"}}},
+		AnnotationRules: []AnnotationRule{
+			{
+				Match: AnnotationMatch{Provider: "demo"},
+				Add: []Annotation{
+					{ID: "official_key", Label: "官方 Key", Family: AnnotationFamilyPositive, Icon: "shield-check", Priority: 80},
+				},
+			},
 		},
 		Monitors: []ServiceConfig{
 			{
-				Provider:   "demo",
-				Service:    "cc",
-				Category:   "commercial",
-				Sponsor:    "test",
-				BaseURL:    "https://example.com",
-				URLPattern: "{{BASE_URL}}",
-				Method:     "POST",
-				// Monitor 级覆盖 tooltip
-				Badges: []BadgeRef{
-					{ID: "api_key_user", Tooltip: "由 @zhangsan 贡献"},
-					{ID: "feature_streaming"},
-				},
+				Provider:     "demo",
+				Service:      "cc",
+				Category:     "commercial",
+				Sponsor:      "test",
+				SponsorLevel: SponsorLevelBeacon,
+				BaseURL:      "https://example.com",
+				URLPattern:   "{{BASE_URL}}",
+				Method:       "POST",
 			},
 			{
 				Provider:   "other",
@@ -340,7 +243,6 @@ func TestBadgesNormalize(t *testing.T) {
 				BaseURL:    "https://other.com",
 				URLPattern: "{{BASE_URL}}",
 				Method:     "POST",
-				// 无配置：应注入默认徽标 api_key_official
 			},
 		},
 	}
@@ -349,52 +251,37 @@ func TestBadgesNormalize(t *testing.T) {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
-	// 验证 demo 监测项的徽标
+	// demo monitor 应有: key_type (system) + sponsor_beacon (system) + official_key (rule) + monitor_frequency (system)
 	demoMonitor := cfg.Monitors[0]
-	if len(demoMonitor.ResolvedBadges) != 3 {
-		t.Fatalf("demo monitor should have 3 badges, got %d", len(demoMonitor.ResolvedBadges))
+	if findAnnotationByID(demoMonitor.Annotations, "sponsor_beacon") == nil {
+		t.Error("demo monitor should have sponsor_beacon annotation")
+	}
+	if findAnnotationByID(demoMonitor.Annotations, "official_key") == nil {
+		t.Error("demo monitor should have official_key annotation from rule")
+	}
+	if a := findAnnotationByID(demoMonitor.Annotations, "key_type"); a == nil {
+		t.Error("demo monitor should have key_type annotation")
+	} else if a.Label != "官方 API" {
+		t.Errorf("demo key_type label = %q, want %q", a.Label, "官方 API")
 	}
 
-	// 验证排序：source kind 在前 (weight desc)，feature 在后
-	// 期望顺序：api_key_official (source, weight=10), api_key_user (source, weight=5), feature_streaming (feature, weight=3)
-	expectedOrder := []string{"api_key_official", "api_key_user", "feature_streaming"}
-	for i, expected := range expectedOrder {
-		if demoMonitor.ResolvedBadges[i].ID != expected {
-			t.Errorf("Badge[%d].ID = %q, want %q", i, demoMonitor.ResolvedBadges[i].ID, expected)
-		}
-	}
-
-	// 验证 tooltip 覆盖
-	for _, badge := range demoMonitor.ResolvedBadges {
-		if badge.ID == "api_key_user" {
-			if badge.TooltipOverride != "由 @zhangsan 贡献" {
-				t.Errorf("api_key_user TooltipOverride = %q, want %q", badge.TooltipOverride, "由 @zhangsan 贡献")
-			}
-		}
-	}
-
-	// 验证 other 监测项注入默认徽标（未配置时自动注入 api_key_official）
+	// other monitor 应有: key_type (system) + public_service (system) + monitor_frequency (system)
 	otherMonitor := cfg.Monitors[1]
-	if len(otherMonitor.ResolvedBadges) != 1 {
-		t.Fatalf("other monitor should have 1 default badge, got %d", len(otherMonitor.ResolvedBadges))
+	if findAnnotationByID(otherMonitor.Annotations, "public_service") == nil {
+		t.Error("other monitor should have public_service annotation")
 	}
-	if otherMonitor.ResolvedBadges[0].ID != "api_key_official" {
-		t.Errorf("other monitor default badge = %q, want %q", otherMonitor.ResolvedBadges[0].ID, "api_key_official")
+	if a := findAnnotationByID(otherMonitor.Annotations, "key_type"); a == nil {
+		t.Error("other monitor should have default key_type annotation")
+	} else if a.Label != "官方 API" {
+		t.Errorf("other monitor key_type label = %q, want %q", a.Label, "官方 API")
 	}
 }
 
-// TestBadgesDisabled tests that badges are not injected when EnableBadges is false
-func TestBadgesDisabled(t *testing.T) {
+// TestAnnotationsSystemDerived tests that monitor_frequency is always derived for monitors with valid interval
+func TestAnnotationsSystemDerived(t *testing.T) {
 	t.Parallel()
 
 	cfg := &AppConfig{
-		EnableBadges: false, // 禁用徽标系统
-		BadgeDefs: map[string]BadgeDef{
-			"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantDefault, Weight: 5},
-		},
-		BadgeProviders: []BadgeProviderConfig{
-			{Provider: "demo", Badges: []BadgeRef{{ID: "api_key_user"}}},
-		},
 		Monitors: []ServiceConfig{
 			{
 				Provider:   "demo",
@@ -412,68 +299,37 @@ func TestBadgesDisabled(t *testing.T) {
 		t.Fatalf("Normalize() failed: %v", err)
 	}
 
-	// 徽标系统禁用时不应有任何徽标
-	if len(cfg.Monitors[0].ResolvedBadges) != 0 {
-		t.Errorf("badges should be empty when EnableBadges=false, got %d", len(cfg.Monitors[0].ResolvedBadges))
+	// 商业站无赞助无配置规则，应有系统派生的 key_type + monitor_frequency 注解
+	anns := cfg.Monitors[0].Annotations
+	if len(anns) != 2 {
+		t.Errorf("commercial monitor with no rules should have 2 annotations (key_type + monitor_frequency), got %d", len(anns))
+	}
+	if findAnnotationByID(anns, "key_type") == nil {
+		t.Error("expected key_type annotation")
+	}
+	if findAnnotationByID(anns, "monitor_frequency") == nil {
+		t.Error("expected monitor_frequency annotation")
 	}
 }
 
-// TestBadgesDefaultOverride tests that configured badges override default badges
-func TestBadgesDefaultOverride(t *testing.T) {
+// TestAnnotationsClone tests Clone() for annotations deep copy
+func TestAnnotationsClone(t *testing.T) {
 	t.Parallel()
 
 	cfg := &AppConfig{
-		EnableBadges: true,
-		BadgeDefs: map[string]BadgeDef{
-			"api_key_user": {Kind: BadgeKindSource, Variant: BadgeVariantInfo, Weight: 50},
-		},
-		Monitors: []ServiceConfig{
+		AnnotationRules: []AnnotationRule{
 			{
-				Provider:   "demo",
-				Service:    "cc",
-				Category:   "commercial",
-				Sponsor:    "test",
-				BaseURL:    "https://example.com",
-				URLPattern: "{{BASE_URL}}",
-				Method:     "POST",
-				// 手动配置 api_key_user，覆盖默认的 api_key_official
-				Badges: []BadgeRef{{ID: "api_key_user"}},
+				Match:  AnnotationMatch{Provider: "demo"},
+				Add:    []Annotation{{ID: "test", Label: "original"}},
+				Remove: []string{"other"},
 			},
-		},
-	}
-
-	if err := cfg.normalize(); err != nil {
-		t.Fatalf("Normalize() failed: %v", err)
-	}
-
-	monitor := cfg.Monitors[0]
-	if len(monitor.ResolvedBadges) != 1 {
-		t.Fatalf("monitor should have 1 badge, got %d", len(monitor.ResolvedBadges))
-	}
-	// 应显示用户配置的 api_key_user，而不是默认的 api_key_official
-	if monitor.ResolvedBadges[0].ID != "api_key_user" {
-		t.Errorf("badge = %q, want %q", monitor.ResolvedBadges[0].ID, "api_key_user")
-	}
-}
-
-// TestBadgesClone tests Clone() for badges deep copy
-func TestBadgesClone(t *testing.T) {
-	t.Parallel()
-
-	cfg := &AppConfig{
-		BadgeDefs: map[string]BadgeDef{
-			"test": {Kind: BadgeKindSource, Variant: BadgeVariantDefault},
-		},
-		BadgeProviders: []BadgeProviderConfig{
-			{Provider: "demo", Badges: []BadgeRef{{ID: "test"}}},
 		},
 		Monitors: []ServiceConfig{
 			{
 				Provider: "demo",
 				Service:  "cc",
-				Badges:   []BadgeRef{{ID: "test", Tooltip: "original"}},
-				ResolvedBadges: []ResolvedBadge{
-					{ID: "test", Kind: BadgeKindSource, Variant: BadgeVariantDefault, TooltipOverride: "original"},
+				Annotations: []Annotation{
+					{ID: "test", Label: "original", Family: AnnotationFamilyPositive},
 				},
 			},
 		},
@@ -481,26 +337,20 @@ func TestBadgesClone(t *testing.T) {
 
 	clone := cfg.clone()
 
-	// 修改原始配置（map 需要通过临时变量修改）
-	modifiedDef := cfg.BadgeDefs["test"]
-	modifiedDef.Kind = BadgeKindFeature
-	cfg.BadgeDefs["test"] = modifiedDef
-	cfg.BadgeProviders[0].Badges[0].ID = "modified"
-	cfg.Monitors[0].Badges[0].Tooltip = "modified"
-	cfg.Monitors[0].ResolvedBadges[0].TooltipOverride = "modified"
+	// 修改原始配置
+	cfg.AnnotationRules[0].Add[0].Label = "modified"
+	cfg.AnnotationRules[0].Remove[0] = "modified"
+	cfg.Monitors[0].Annotations[0].Label = "modified"
 
 	// 验证克隆不受影响
-	if clone.BadgeDefs["test"].Kind != BadgeKindSource {
-		t.Errorf("Clone BadgeDefs should not be affected, got Kind = %q", clone.BadgeDefs["test"].Kind)
+	if clone.AnnotationRules[0].Add[0].Label != "original" {
+		t.Errorf("Clone AnnotationRules.Add should not be affected, got Label = %q", clone.AnnotationRules[0].Add[0].Label)
 	}
-	if clone.BadgeProviders[0].Badges[0].ID != "test" {
-		t.Errorf("Clone BadgeProviders should not be affected, got ID = %q", clone.BadgeProviders[0].Badges[0].ID)
+	if clone.AnnotationRules[0].Remove[0] != "other" {
+		t.Errorf("Clone AnnotationRules.Remove should not be affected, got = %q", clone.AnnotationRules[0].Remove[0])
 	}
-	if clone.Monitors[0].Badges[0].Tooltip != "original" {
-		t.Errorf("Clone Monitors.Badges should not be affected, got Tooltip = %q", clone.Monitors[0].Badges[0].Tooltip)
-	}
-	if clone.Monitors[0].ResolvedBadges[0].TooltipOverride != "original" {
-		t.Errorf("Clone Monitors.ResolvedBadges should not be affected, got TooltipOverride = %q", clone.Monitors[0].ResolvedBadges[0].TooltipOverride)
+	if clone.Monitors[0].Annotations[0].Label != "original" {
+		t.Errorf("Clone Monitors.Annotations should not be affected, got Label = %q", clone.Monitors[0].Annotations[0].Label)
 	}
 }
 
@@ -787,5 +637,209 @@ func TestAppConfigNormalizeWithInvalidCacheTTL(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "cache_ttl") {
 		t.Errorf("error should mention cache_ttl, got: %v", err)
+	}
+}
+
+// TestKeyTypeUserDerived tests key_type=user derives "用户 Key" annotation with normalization
+func TestKeyTypeUserDerived(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		Monitors: []ServiceConfig{
+			{
+				Provider:   "demo",
+				Service:    "cc",
+				Category:   "commercial",
+				Sponsor:    "test",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				KeyType:    " User ", // 大小写混合 + 空格，测试规范化
+			},
+		},
+	}
+
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("Validate() failed: %v", err)
+	}
+	if err := cfg.normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	if cfg.Monitors[0].KeyType != "user" {
+		t.Fatalf("monitor KeyType = %q, want %q", cfg.Monitors[0].KeyType, "user")
+	}
+
+	a := findAnnotationByID(cfg.Monitors[0].Annotations, "key_type")
+	if a == nil {
+		t.Fatal("expected key_type annotation")
+	}
+	if a.Label != "用户 Key" {
+		t.Errorf("key_type label = %q, want %q", a.Label, "用户 Key")
+	}
+	if a.Family != AnnotationFamilyNeutral {
+		t.Errorf("key_type family = %q, want %q", a.Family, AnnotationFamilyNeutral)
+	}
+	if a.Icon != "user" {
+		t.Errorf("key_type icon = %q, want %q", a.Icon, "user")
+	}
+	if a.Priority != 75 {
+		t.Errorf("key_type priority = %d, want %d", a.Priority, 75)
+	}
+	if a.Origin != "system" {
+		t.Errorf("key_type origin = %q, want %q", a.Origin, "system")
+	}
+}
+
+// TestKeyTypeValidation tests Validate() rejects invalid key_type values
+func TestKeyTypeValidation(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		Monitors: []ServiceConfig{
+			{
+				Provider:   "demo",
+				Service:    "cc",
+				Category:   "commercial",
+				Sponsor:    "test",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				KeyType:    "custom",
+			},
+		},
+	}
+
+	err := cfg.validate()
+	if err == nil {
+		t.Fatal("Validate() should return error for invalid key_type")
+	}
+	if !strings.Contains(err.Error(), "key_type") {
+		t.Fatalf("Validate() error = %q, should contain %q", err.Error(), "key_type")
+	}
+}
+
+// TestKeyTypeAnnotationRuleOverride tests annotation_rules can override system key_type
+func TestKeyTypeAnnotationRuleOverride(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		AnnotationRules: []AnnotationRule{
+			{
+				Match:  AnnotationMatch{Provider: "demo"},
+				Remove: []string{"key_type"}, // 移除系统派生的 key_type
+				Add: []Annotation{
+					{ID: "key_type", Label: "平台托管 Key", Family: AnnotationFamilyPositive, Icon: "shield-check", Priority: 90},
+				},
+			},
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider:   "demo",
+				Service:    "cc",
+				Category:   "commercial",
+				Sponsor:    "test",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+			},
+		},
+	}
+
+	if err := cfg.normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	a := findAnnotationByID(cfg.Monitors[0].Annotations, "key_type")
+	if a == nil {
+		t.Fatal("expected key_type annotation after rule override")
+	}
+	if a.Label != "平台托管 Key" {
+		t.Errorf("key_type label = %q, want %q", a.Label, "平台托管 Key")
+	}
+	if a.Origin != "rule" {
+		t.Errorf("key_type origin = %q, want %q", a.Origin, "rule")
+	}
+	if a.Priority != 90 {
+		t.Errorf("key_type priority = %d, want %d", a.Priority, 90)
+	}
+}
+
+// TestKeyTypeParentInheritance tests child monitor inherits key_type from parent
+func TestKeyTypeParentInheritance(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		Monitors: []ServiceConfig{
+			{
+				Provider:   "demo",
+				Service:    "cc",
+				Channel:    "vip",
+				Model:      "base",
+				Category:   "commercial",
+				Sponsor:    "test",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+				KeyType:    "user",
+			},
+			{
+				Model:  "child",
+				Parent: "demo/cc/vip",
+			},
+		},
+	}
+
+	if err := cfg.validate(); err != nil {
+		t.Fatalf("Validate() failed: %v", err)
+	}
+	if err := cfg.normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	child := cfg.Monitors[1]
+	if child.KeyType != "user" {
+		t.Fatalf("child.KeyType = %q, want %q", child.KeyType, "user")
+	}
+
+	a := findAnnotationByID(child.Annotations, "key_type")
+	if a == nil {
+		t.Fatal("child should have inherited key_type annotation")
+	}
+	if a.Label != "用户 Key" {
+		t.Errorf("child key_type label = %q, want %q", a.Label, "用户 Key")
+	}
+}
+
+// TestKeyTypeRemoveOnly tests annotation_rules can remove system key_type without adding replacement
+func TestKeyTypeRemoveOnly(t *testing.T) {
+	t.Parallel()
+
+	cfg := &AppConfig{
+		AnnotationRules: []AnnotationRule{
+			{
+				Match:  AnnotationMatch{Provider: "demo"},
+				Remove: []string{"key_type"},
+			},
+		},
+		Monitors: []ServiceConfig{
+			{
+				Provider:   "demo",
+				Service:    "cc",
+				Category:   "commercial",
+				Sponsor:    "test",
+				BaseURL:    "https://example.com",
+				URLPattern: "{{BASE_URL}}",
+				Method:     "POST",
+			},
+		},
+	}
+
+	if err := cfg.normalize(); err != nil {
+		t.Fatalf("Normalize() failed: %v", err)
+	}
+
+	if a := findAnnotationByID(cfg.Monitors[0].Annotations, "key_type"); a != nil {
+		t.Errorf("key_type annotation should have been removed by rule, but found: %+v", *a)
 	}
 }

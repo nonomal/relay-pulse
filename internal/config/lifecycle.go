@@ -225,13 +225,11 @@ func (c *AppConfig) clone() *AppConfig {
 		PublicBaseURL:           c.PublicBaseURL,
 		DisabledProviders:       make([]disabledProviderConfig, len(c.DisabledProviders)),
 		HiddenProviders:         make([]hiddenProviderConfig, len(c.HiddenProviders)),
-		RiskProviders:           make([]riskProviderConfig, len(c.RiskProviders)),
 		Boards:                  c.Boards, // Boards 是值类型（含 AutoMove），直接复制
 		ExposeChannelDetails:    exposeChannelDetailsPtr,
 		ChannelDetailsProviders: make([]channelDetailsProviderConfig, len(c.ChannelDetailsProviders)),
-		EnableBadges:            c.EnableBadges,
-		BadgeDefs:               make(map[string]BadgeDef, len(c.BadgeDefs)),
-		BadgeProviders:          make([]BadgeProviderConfig, len(c.BadgeProviders)),
+		EnableAnnotations:       c.EnableAnnotations,
+		AnnotationRules:         make([]AnnotationRule, len(c.AnnotationRules)),
 		SponsorPin: SponsorPinConfig{
 			Enabled:   sponsorPinEnabledPtr,
 			MaxPinned: c.SponsorPin.MaxPinned,
@@ -248,29 +246,20 @@ func (c *AppConfig) clone() *AppConfig {
 	// 复制 slice
 	copy(clone.DisabledProviders, c.DisabledProviders)
 	copy(clone.HiddenProviders, c.HiddenProviders)
-	copy(clone.RiskProviders, c.RiskProviders)
 	copy(clone.ChannelDetailsProviders, c.ChannelDetailsProviders)
-	copy(clone.BadgeProviders, c.BadgeProviders)
+	copy(clone.AnnotationRules, c.AnnotationRules)
 	copy(clone.Monitors, c.Monitors)
 
-	// 复制 map
-	for id, bd := range c.BadgeDefs {
-		clone.BadgeDefs[id] = bd
-	}
-
-	// 深拷贝 risk_providers 中的 risks slice
-	for i := range clone.RiskProviders {
-		if len(c.RiskProviders[i].Risks) > 0 {
-			clone.RiskProviders[i].Risks = make([]RiskBadge, len(c.RiskProviders[i].Risks))
-			copy(clone.RiskProviders[i].Risks, c.RiskProviders[i].Risks)
+	// 深拷贝 annotation_rules 中的 slices
+	for i := range clone.AnnotationRules {
+		if len(c.AnnotationRules[i].Add) > 0 {
+			clone.AnnotationRules[i].Add = make([]Annotation, len(c.AnnotationRules[i].Add))
+			copy(clone.AnnotationRules[i].Add, c.AnnotationRules[i].Add)
+			deepCopyAnnotationMetadata(clone.AnnotationRules[i].Add)
 		}
-	}
-
-	// 深拷贝 badge_providers 中的 badges slice
-	for i := range clone.BadgeProviders {
-		if len(c.BadgeProviders[i].Badges) > 0 {
-			clone.BadgeProviders[i].Badges = make([]BadgeRef, len(c.BadgeProviders[i].Badges))
-			copy(clone.BadgeProviders[i].Badges, c.BadgeProviders[i].Badges)
+		if len(c.AnnotationRules[i].Remove) > 0 {
+			clone.AnnotationRules[i].Remove = make([]string, len(c.AnnotationRules[i].Remove))
+			copy(clone.AnnotationRules[i].Remove, c.AnnotationRules[i].Remove)
 		}
 	}
 
@@ -283,20 +272,11 @@ func (c *AppConfig) clone() *AppConfig {
 				clone.Monitors[i].Headers[k] = v
 			}
 		}
-		// risks slice
-		if len(c.Monitors[i].Risks) > 0 {
-			clone.Monitors[i].Risks = make([]RiskBadge, len(c.Monitors[i].Risks))
-			copy(clone.Monitors[i].Risks, c.Monitors[i].Risks)
-		}
-		// badges refs slice
-		if len(c.Monitors[i].Badges) > 0 {
-			clone.Monitors[i].Badges = make([]BadgeRef, len(c.Monitors[i].Badges))
-			copy(clone.Monitors[i].Badges, c.Monitors[i].Badges)
-		}
-		// resolved badges slice
-		if len(c.Monitors[i].ResolvedBadges) > 0 {
-			clone.Monitors[i].ResolvedBadges = make([]ResolvedBadge, len(c.Monitors[i].ResolvedBadges))
-			copy(clone.Monitors[i].ResolvedBadges, c.Monitors[i].ResolvedBadges)
+		// annotations slice
+		if len(c.Monitors[i].Annotations) > 0 {
+			clone.Monitors[i].Annotations = make([]Annotation, len(c.Monitors[i].Annotations))
+			copy(clone.Monitors[i].Annotations, c.Monitors[i].Annotations)
+			deepCopyAnnotationMetadata(clone.Monitors[i].Annotations)
 		}
 		// 指针字段深拷贝
 		clone.Monitors[i].PriceMin = cloneFloat64Ptr(c.Monitors[i].PriceMin)
@@ -306,6 +286,41 @@ func (c *AppConfig) clone() *AppConfig {
 	}
 
 	return clone
+}
+
+// deepCopyAnnotationMetadata 深拷贝 Annotation slice 中每个元素的 Metadata map。
+// 递归处理 JSON-like 值：标量直接复制，map[string]any 和 []any 递归拷贝。
+func deepCopyAnnotationMetadata(anns []Annotation) {
+	for i := range anns {
+		if anns[i].Metadata != nil {
+			anns[i].Metadata = deepCopyAnyMap(anns[i].Metadata)
+		}
+	}
+}
+
+// deepCopyAnyMap 递归深拷贝 map[string]any
+func deepCopyAnyMap(m map[string]any) map[string]any {
+	cp := make(map[string]any, len(m))
+	for k, v := range m {
+		cp[k] = deepCopyAnyValue(v)
+	}
+	return cp
+}
+
+// deepCopyAnyValue 递归深拷贝 JSON-like 值（标量/map[string]any/[]any）
+func deepCopyAnyValue(v any) any {
+	switch val := v.(type) {
+	case map[string]any:
+		return deepCopyAnyMap(val)
+	case []any:
+		cp := make([]any, len(val))
+		for i, elem := range val {
+			cp[i] = deepCopyAnyValue(elem)
+		}
+		return cp
+	default:
+		return v // 标量（int64, float64, string, bool, nil）直接返回
+	}
 }
 
 // cloneIntPtr 深拷贝 *int 指针

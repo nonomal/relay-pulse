@@ -57,8 +57,8 @@ func (c *AppConfig) validate() error {
 		return err
 	}
 
-	// 4. Badge 配置校验
-	if err := c.validateBadgeConfigs(); err != nil {
+	// 4. Annotation 规则校验
+	if err := c.validateAnnotationRules(); err != nil {
 		return err
 	}
 
@@ -428,6 +428,14 @@ func (c *AppConfig) validateMonitorFields() error {
 			return fmt.Errorf("monitor[%d]: sponsor_level '%s' 无效，必须是 public/signal/pulse/beacon/backbone/core 之一（或留空）", i, m.SponsorLevel)
 		}
 
+		// KeyType 枚举检查（可选字段，空值视为 official）
+		switch strings.ToLower(strings.TrimSpace(m.KeyType)) {
+		case "", "official", "user":
+			// 有效值
+		default:
+			return fmt.Errorf("monitor[%d]: key_type '%s' 无效，必须是 official/user（或留空）", i, m.KeyType)
+		}
+
 		// Board 枚举检查（可选字段，空值视为 hot）
 		normalizedBoard := strings.ToLower(strings.TrimSpace(m.Board))
 		switch normalizedBoard {
@@ -533,91 +541,42 @@ func (c *AppConfig) validateProviderConfigs() error {
 		disabledProviderSet[provider] = struct{}{}
 	}
 
-	// 验证 risk_providers
-	for i, rp := range c.RiskProviders {
-		if strings.TrimSpace(rp.Provider) == "" {
-			return fmt.Errorf("risk_providers[%d]: provider 不能为空", i)
-		}
-		if len(rp.Risks) == 0 {
-			return fmt.Errorf("risk_providers[%d]: risks 不能为空", i)
-		}
-		for j, risk := range rp.Risks {
-			if strings.TrimSpace(risk.Label) == "" {
-				return fmt.Errorf("risk_providers[%d].risks[%d]: label 不能为空", i, j)
-			}
-			if risk.DiscussionURL != "" {
-				if err := validateURL(risk.DiscussionURL, "discussion_url"); err != nil {
-					return fmt.Errorf("risk_providers[%d].risks[%d]: %w", i, j, err)
-				}
-			}
-		}
-	}
-
 	return nil
 }
 
-// validateBadgeConfigs 校验 Badge 相关配置
-func (c *AppConfig) validateBadgeConfigs() error {
-	// 验证 badges（全局徽标定义）
-	for id, bd := range c.BadgeDefs {
-		if strings.TrimSpace(id) == "" {
-			return fmt.Errorf("badge_definitions: id 不能为空")
+// validateAnnotationRules 校验 annotation_rules 配置
+func (c *AppConfig) validateAnnotationRules() error {
+	for i, rule := range c.AnnotationRules {
+		// 至少需要 add 或 remove 之一
+		if len(rule.Add) == 0 && len(rule.Remove) == 0 {
+			return fmt.Errorf("annotation_rules[%d]: 必须至少包含 add 或 remove", i)
 		}
 
-		// 允许空值通过校验（Normalize() 会填充默认值）
-		if bd.Kind != "" && !bd.Kind.isValid() {
-			return fmt.Errorf("badge_definitions[%s]: kind '%s' 无效，必须是 source/info/feature", id, bd.Kind)
-		}
-		if bd.Variant != "" && !bd.Variant.isValid() {
-			return fmt.Errorf("badge_definitions[%s]: variant '%s' 无效，必须是 default/success/warning/danger/info", id, bd.Variant)
-		}
-		if bd.Weight < 0 || bd.Weight > 100 {
-			return fmt.Errorf("badge_definitions[%s]: weight 必须在 0-100 范围内", id)
-		}
-		if bd.URL != "" {
-			if err := validateURL(bd.URL, "url"); err != nil {
-				return fmt.Errorf("badge_definitions[%s]: %w", id, err)
+		// 校验 add 中的注解
+		for j, ann := range rule.Add {
+			if strings.TrimSpace(ann.ID) == "" {
+				return fmt.Errorf("annotation_rules[%d].add[%d]: id 不能为空", i, j)
+			}
+			if strings.TrimSpace(ann.Label) == "" && strings.TrimSpace(ann.ID) == "" {
+				return fmt.Errorf("annotation_rules[%d].add[%d]: label 不能为空", i, j)
+			}
+			if ann.Family != "" && !ann.Family.isValid() {
+				return fmt.Errorf("annotation_rules[%d].add[%d]: family '%s' 无效，必须是 positive/neutral/negative", i, j, ann.Family)
+			}
+			if ann.Priority < 0 || ann.Priority > 200 {
+				return fmt.Errorf("annotation_rules[%d].add[%d]: priority 必须在 0-200 范围内", i, j)
+			}
+			if ann.Href != "" {
+				if err := validateURL(ann.Href, "href"); err != nil {
+					return fmt.Errorf("annotation_rules[%d].add[%d]: %w", i, j, err)
+				}
 			}
 		}
-	}
 
-	// 验证 badge_providers
-	badgeProviderSet := make(map[string]struct{})
-	for i, bp := range c.BadgeProviders {
-		provider := strings.ToLower(strings.TrimSpace(bp.Provider))
-		if provider == "" {
-			return fmt.Errorf("badge_providers[%d]: provider 不能为空", i)
-		}
-		if _, exists := badgeProviderSet[provider]; exists {
-			return fmt.Errorf("badge_providers[%d]: provider '%s' 重复配置", i, bp.Provider)
-		}
-		badgeProviderSet[provider] = struct{}{}
-		for j, ref := range bp.Badges {
-			refID := strings.TrimSpace(ref.ID)
-			if refID == "" {
-				return fmt.Errorf("badge_providers[%d].badges[%d]: id 不能为空", i, j)
-			}
-			// 检查用户配置和内置默认徽标
-			_, inUserDefs := c.BadgeDefs[refID]
-			_, inDefaultDefs := defaultBadgeDefs[refID]
-			if !inUserDefs && !inDefaultDefs {
-				return fmt.Errorf("badge_providers[%d].badges[%d]: 未找到徽标定义 '%s'", i, j, refID)
-			}
-		}
-	}
-
-	// 验证 monitors[].badges
-	for i, m := range c.Monitors {
-		for j, ref := range m.Badges {
-			refID := strings.TrimSpace(ref.ID)
-			if refID == "" {
-				return fmt.Errorf("monitors[%d].badges[%d]: id 不能为空", i, j)
-			}
-			// 检查用户配置和内置默认徽标
-			_, inUserDefs := c.BadgeDefs[refID]
-			_, inDefaultDefs := defaultBadgeDefs[refID]
-			if !inUserDefs && !inDefaultDefs {
-				return fmt.Errorf("monitors[%d].badges[%d]: 未找到徽标定义 '%s'", i, j, refID)
+		// 校验 remove 中的 ID
+		for j, id := range rule.Remove {
+			if strings.TrimSpace(id) == "" {
+				return fmt.Errorf("annotation_rules[%d].remove[%d]: id 不能为空", i, j)
 			}
 		}
 	}

@@ -11,8 +11,8 @@ import { availabilityToColor, latencyToColor, sponsorLevelToCardBorderColor, spo
 import { formatPriceRatioStructured } from '../utils/format';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { getServiceIconComponent } from './ServiceIcon';
-import { BadgeCell } from './badges';
-import { hasAnyBadge } from '../utils/badgeUtils';
+import { AnnotationCell } from './annotations';
+import { hasAnyAnnotation } from '../utils/annotationUtils';
 import type { ProcessedMonitorData } from '../types';
 
 type HistoryPoint = ProcessedMonitorData['history'][number];
@@ -30,7 +30,7 @@ interface StatusCardProps {
   item: ProcessedMonitorData;
   timeRange: string;
   slowLatencyMs: number;
-  enableBadges?: boolean;      // 徽标系统总开关，默认 true
+  enableAnnotations?: boolean;      // 注解系统总开关，默认 true
   showCategoryTag?: boolean; // 是否显示分类标签（推荐/公益），默认 true
   showProvider?: boolean;    // 是否显示服务商名称，默认 true
   showSponsor?: boolean;     // 是否显示赞助者信息，默认 true
@@ -44,10 +44,8 @@ function StatusCardComponent({
   item,
   timeRange,
   slowLatencyMs,
-  enableBadges = true,
-  showCategoryTag = true,
+  enableAnnotations = true,
   showProvider = true,
-  showSponsor = true,
   isFavorite,
   onToggleFavorite,
   onBlockHover,
@@ -65,8 +63,8 @@ function StatusCardComponent({
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
   const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
-  // 检查是否有徽标需要显示
-  const hasItemBadges = hasAnyBadge(item, { enableBadges, showCategoryTag, showSponsor, showRisk: true });
+  // 检查是否有注解需要显示
+  const hasAnnotations = hasAnyAnnotation(item, { enableAnnotations });
 
   // 卡片左边框颜色（仅基于赞助级别，置顶改用背景色）
   const borderColor = sponsorLevelToCardBorderColor(item.sponsorLevel);
@@ -74,7 +72,7 @@ function StatusCardComponent({
   // 是否显示左边框（仅基于赞助级别）
   const hasLeftBorder = !!item.sponsorLevel;
 
-  // 置顶项使用对应徽标颜色的极淡背景色
+  // 置顶项使用对应注解颜色的极淡背景色
   const pinnedBgClass = item.pinned ? sponsorLevelToPinnedBgClass(item.sponsorLevel) : '';
   const baseBgClass = pinnedBgClass || 'bg-surface/60';
 
@@ -83,15 +81,10 @@ function StatusCardComponent({
       className={`group relative ${baseBgClass} border border-default hover:border-accent/30 ${hasLeftBorder ? 'rounded-l-sm border-l-2' : 'rounded-l-2xl'} rounded-r-2xl p-4 sm:p-6 transition-all duration-300 hover:shadow-accent-lg backdrop-blur-sm overflow-hidden`}
       style={borderColor ? { borderLeftColor: borderColor } : undefined}
     >
-      {/* 徽标行 - 仅在有徽标时显示 */}
-      {hasItemBadges && (
+      {/* 注解行 - 仅在有注解时显示 */}
+      {hasAnnotations && (
         <div className="mb-4">
-          <BadgeCell
-            item={item}
-            showCategoryTag={showCategoryTag}
-            showSponsor={showSponsor}
-            showRisk={true}
-          />
+          <AnnotationCell annotations={item.annotations} />
         </div>
       )}
 

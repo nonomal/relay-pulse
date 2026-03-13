@@ -54,7 +54,7 @@ export function useMonitorData({
   const [reloadToken, setReloadToken] = useState(0);
   const skipCacheRef = useRef(false); // 使用 ref 避免触发 effect 重新执行
   const [slowLatencyMs, setSlowLatencyMs] = useState<number>(5000); // 默认 5 秒
-  const [enableBadges, setEnableBadges] = useState<boolean>(true); // 徽标系统总开关（默认启用）
+  const [enableAnnotations, setEnableAnnotations] = useState<boolean>(true); // 注解系统总开关（默认启用）
   const [boardsEnabled, setBoardsEnabled] = useState<boolean>(false); // 板块功能开关（默认禁用）
   const [boardsEnabledLoaded, setBoardsEnabledLoaded] = useState<boolean>(false); // 是否已从 API 获取板块开关状态
   const [boardCounts, setBoardCounts] = useState<BoardCounts | undefined>(undefined); // 各板块通道数量
@@ -136,8 +136,8 @@ export function useMonitorData({
             setSlowLatencyMs(json.meta.slow_latency_ms);
           }
 
-          // 提取徽标系统总开关（默认 true，兼容旧后端）
-          setEnableBadges(json.meta.enable_badges !== false);
+          // 提取注解系统总开关（默认 true）
+          setEnableAnnotations(json.meta.enable_annotations !== false);
 
           // 提取赞助商置顶配置
           if (json.meta.sponsor_pin) {
@@ -332,7 +332,7 @@ export function useMonitorData({
     channels,
     providers,
     slowLatencyMs,
-    enableBadges,
+    enableAnnotations,
     boardsEnabled,  // 板块功能开关
     boardsEnabledLoaded,  // 是否已从 API 获取板块开关状态
     boardCounts,    // 各板块通道数量

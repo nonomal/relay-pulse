@@ -9,7 +9,7 @@
 
 ## 项目概览
 
-这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化、实时状态追踪，并内建**指数退避重试**、**徽标/赞助体系**、**事件通知**、**自助测试**和**多模型监测（父子通道继承）**等能力。
+这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化、实时状态追踪，并内建**指数退避重试**、**标签/赞助体系**、**事件通知**、**自助测试**和**多模型监测（父子通道继承）**等能力。
 
 ### 项目文档
 
@@ -165,8 +165,9 @@ internal/
 │   ├── storage_config.go → StorageConfig / RetentionConfig / ArchiveConfig
 │   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig / BoardAutoMoveConfig
 │   ├── external.go       → GitHubConfig / AnnouncementsConfig / CacheTTLConfig
-│   ├── badges.go         → BadgeDef / BadgeRef / ResolvedBadge / RiskBadge
-│   ├── enums.go          → SponsorLevel / BadgeKind / BadgeVariant
+│   ├── badges.go         → RiskBadge（旧版兼容）
+│   ├── annotation.go     → Annotation / AnnotationFamily / AnnotationRule / AnnotationMatch
+│   ├── enums.go          → SponsorLevel
 │   ├── parent_inheritance.go → 父子通道配置继承
 │   ├── template.go       → 模板加载（templates/*.json → ServiceConfig）
 │   ├── userid.go         → 用户标识生成（{{USER_ID}} 占位符）
@@ -250,7 +251,7 @@ notifier/                  → 独立通知子模块（独立 go.mod）
 7. **Parent-child 继承**: 多模型监测通过 `parent` 字段继承公共配置
 8. **事件驱动通知**: `events.Detector` 基于阈值状态机生成 UP/DOWN 事件
 9. **指数退避重试**: `retry_*` + jitter 统一控制失败重试节奏
-10. **功能开关分层**: boards/badges/selftest/events/announcements 可按需启用
+10. **功能开关分层**: boards/annotations/selftest/events/announcements 可按需启用
 11. **自动移板**: `automove.Service` 基于 7 天可用率自动在 hot ↔ secondary 间切换通道
 
 ### 日志系统
@@ -312,10 +313,9 @@ frontend/src/
 │   ├── ExternalLink / ExternalLinkModal → 外链安全
 │   ├── CommunityMenu / SubscribeButton / Toast → 社区与通知
 │   ├── icons/TelegramIcon.tsx     → 图标
-│   └── badges/                    → 徽标子系统（8 文件）
-│       ├── BadgeCell / GenericBadge / BadgeTooltip
-│       ├── CategoryBadge / SponsorBadge / PublicBadge
-│       ├── FrequencyIndicator / RiskBadge
+│   └── annotations/               → 标签子系统（4 文件）
+│       ├── AnnotationChip / AnnotationCell
+│       ├── AnnotationTooltip
 │       └── index.ts
 ├── hooks/                     → 自定义 Hooks（10 文件）
 │   ├── useMonitorData.ts     → API 轮询与数据管理
@@ -326,14 +326,14 @@ frontend/src/
 │   ├── useSyncLanguage.ts    → URL ↔ i18n 语言同步
 │   ├── useUrlState.ts        → URL 查询参数状态
 │   ├── useSeoMeta.ts         → 动态 SEO meta
-│   ├── useBadgeTooltip.ts    → 徽标 tooltip 逻辑
+│   ├── useBadgeTooltip.ts    → 标签 tooltip 逻辑
 │   └── useTheme.ts           → 主题状态管理
 ├── utils/                     → 工具函数（10+ 文件）
 │   ├── sortMonitors.ts       → 监测项排序逻辑
 │   ├── heatmapAggregator.ts  → 热力图数据聚合
 │   ├── color.ts              → 颜色工具（渐变、HSL）
 │   ├── mediaQuery.ts         → 响应式断点管理
-│   ├── badgeUtils.ts         → 徽标渲染工具
+│   ├── badgeUtils.ts         → 标签渲染工具
 │   ├── format.ts             → 数字/日期格式化
 │   ├── analytics.ts          → 分析追踪
 │   ├── share.ts              → 分享功能
@@ -350,7 +350,7 @@ frontend/src/
 **关键模式：**
 - **嵌套路由**: `LanguageLayout` 负责语言同步，`Outlet` 渲染子页面（App / ProviderPage / SelfTestPage）
 - **自定义 Hooks**: `useMonitorData` / `useSelfTest` / `useAnnouncements` 等分离数据逻辑
-- **徽标/赞助子系统**: `badges/` 组件 + `badgeUtils` + `useBadgeTooltip`
+- **标签/赞助子系统**: `annotations/` 组件 + `badgeUtils` + `useBadgeTooltip`
 - **多模型展示**: `LayeredHeatmapBlock` + `MultiModelIndicator` 处理父子通道
 - **TypeScript**: `types/` 中的接口实现完整类型安全
 - **Tailwind CSS**: v4 实用优先的样式
@@ -536,7 +536,7 @@ useEffect(() => {
 6. **归档与清理**: `storage.Archiver` 每日导出 CSV/CSV.GZ；`storage.Cleaner` 按 retention 清理过期数据
 7. **事件检测**: `events.Detector` 基于连续计数阈值生成 UP/DOWN 事件
 8. **API 聚合**: `api.Handler` 执行批量/并发查询，组装 `data + groups + meta` 并通过 singleflight 缓存
-9. **前端渲染**: `useMonitorData` 轮询 `/api/status`，展示 boards/badges/多模型热力图
+9. **前端渲染**: `useMonitorData` 轮询 `/api/status`，展示 boards/annotations/多模型热力图
 10. **通知派发**: `notifier` 独立进程轮询 `/api/events`，推送 Telegram/QQ 通知
 
 ### 状态码系统
@@ -622,7 +622,7 @@ HTTP 响应
 | Provider 策略 | `disabled_providers`、`hidden_providers`、`risk_providers` | 批量禁用/隐藏/风险标记 |
 | 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_down/up`、`min_probes`、`check_interval`） | 热板/备板/冷板 + 自动移板 |
 | 展示控制 | `expose_channel_details`、`channel_details_providers`、`public_base_url` | 通道技术细节暴露 |
-| 赞助/徽标 | `sponsor_pin`、`enable_badges`、`badge_definitions`、`badge_providers` | 置顶与徽标体系 |
+| 赞助/标签 | `sponsor_pin`、`enable_annotations`、`annotation_rules` | 置顶与标签体系 |
 | 功能模块 | `selftest`、`events`、`announcements`、`github` | 自测/事件/公告/GitHub 配置 |
 | 存储 | `storage`（含 type/sqlite/postgres/retention/archive） | 数据库与数据生命周期 |
 
@@ -640,7 +640,7 @@ HTTP 响应
 | 模板配置 | `template`、`base_url`、`url_pattern` | 模板引用 + 基础地址（新格式，推荐） |
 | 探测配置 | `url`、`method`、`headers`、`body`、`success_contains`、`api_key`、`proxy`、`env_var_name` | HTTP 探测参数（传统格式或模板自动填充） |
 | 覆盖配置 | `interval`、`slow_latency`、`timeout`、`retry`、`retry_base_delay`、`retry_max_delay`、`retry_jitter` | 监测项级覆盖全局设置 |
-| 徽标 | `badges`（BadgeRef 数组）、`risks`（由 risk_providers 自动注入） | 徽标引用与风险标签 |
+| 标签 | `annotations`（运行时由 annotation_rules + 系统派生填充） | 标签与风险标记 |
 
 **配置优先级**: `monitor` > `template` > `global`（适用于 slow_latency、timeout、retry 等所有分级配置；同名字段以更高优先级覆盖，未指定则继承。模板值在 resolveTemplates 阶段填入 monitor 级别作为默认值）
 
@@ -725,7 +725,7 @@ vim config.yaml
     "timeline_mode": "aggregated",
     "count": 3,
     "slow_latency_ms": 5000,
-    "enable_badges": true,
+    "enable_annotations": true,
     "sponsor_pin": { "enabled": true, "max_pinned": 3, "..." : "..." },
     "boards": { "enabled": true },
     "all_monitor_ids": ["provider-service-channel"]
@@ -782,7 +782,7 @@ vim config.yaml
 - 测试文件：`frontend/src/utils/*.test.ts`
 - 关键测试：
   - `sortMonitors.test.ts` - 排序逻辑（主排序、二级延迟排序、边界情况）
-  - `badgeUtils.test.ts` - 徽标工具
+  - `badgeUtils.test.ts` - 标签工具
   - `heatmapAggregator.test.ts` - 热力图聚合
   - `color.test.ts` - 颜色工具
 
