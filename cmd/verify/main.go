@@ -147,7 +147,7 @@ func main() {
 	}
 
 	// 变量注入：替换模板占位符
-	probeURL, probeBody, probeHeaders, _ := monitor.InjectVariables(target, nil)
+	probeURL, probeBody, probeHeaders, _, _, _ := monitor.InjectVariables(target, nil)
 
 	// 构建输出标识
 	var targetInfo string

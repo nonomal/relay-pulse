@@ -53,7 +53,7 @@ func (p *SelfTestProber) Probe(ctx context.Context, cfg *config.ServiceConfig) *
 	}
 
 	// 变量注入（复用 monitor.InjectVariables）
-	probeURL, probeBody, probeHeaders, probeSuccessContains := monitor.InjectVariables(cfg, nil)
+	probeURL, probeBody, probeHeaders, probeSuccessContains, _, _ := monitor.InjectVariables(cfg, nil)
 	// 使用注入后的 successContains（支持 {{EXPECTED_ANSWER}} 等占位符）
 
 	reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(probeBody)))

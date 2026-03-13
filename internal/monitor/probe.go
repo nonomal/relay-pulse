@@ -56,7 +56,7 @@ func NewProber(storage storage.RecordStorage, userIDMgr *identity.UserIDManager)
 }
 
 // InjectVariables 替换所有占位符，返回临时副本（不修改共享 ServiceConfig）
-func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) (url, body string, headers map[string]string, successContains string) {
+func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) (url, body string, headers map[string]string, successContains, prompt, expectedAnswer string) {
 	// 回退：非模板监测项可能没有 URLPattern，直接使用 BaseURL
 	url = cfg.URLPattern
 	if url == "" {
@@ -72,7 +72,7 @@ func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) 
 	}
 
 	// 生成动态提示词（仅在模板使用 {{PROMPT}} 时）
-	prompt, expectedAnswer := "", ""
+	prompt, expectedAnswer = "", ""
 	if strings.Contains(body, "{{PROMPT}}") || strings.Contains(successContains, "{{EXPECTED_ANSWER}}") {
 		prompt, expectedAnswer = GenerateArithmeticPrompt()
 	}
@@ -103,7 +103,7 @@ func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) 
 		headers[k] = replacer.Replace(v)
 	}
 
-	return url, body, headers, successContains
+	return url, body, headers, successContains, prompt, expectedAnswer
 }
 
 // Probe 执行单次探测（支持可配置重试）
@@ -164,6 +164,8 @@ func (p *Prober) Probe(ctx context.Context, cfg *config.ServiceConfig) *ProbeRes
 	var actualAttempts int
 	// 保存最后一次的响应体（用于最终诊断日志）
 	var lastBodyBytes []byte
+	// 保存最后一次的算术题信息（用于日志）
+	var lastPrompt, lastExpectedAnswer string
 
 	// 重试循环（使用标签以便从 select 中正确跳出）
 retryLoop:
@@ -188,7 +190,9 @@ retryLoop:
 		}
 
 		// 变量注入：创建临时副本替换所有占位符（不修改共享 ServiceConfig）
-		probeURL, probeBody, probeHeaders, probeSuccessContains := InjectVariables(cfg, p.userIDMgr)
+		probeURL, probeBody, probeHeaders, probeSuccessContains, probePrompt, probeExpectedAnswer := InjectVariables(cfg, p.userIDMgr)
+		// 保留最后一次的算术题信息用于日志
+		lastPrompt, lastExpectedAnswer = probePrompt, probeExpectedAnswer
 
 		// 准备请求体（去除首尾空白，某些 API 对此敏感）
 		reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(probeBody)))
@@ -368,9 +372,26 @@ retryLoop:
 	}
 
 	// 日志（不打印敏感信息）
-	logger.Info("probe", "探测完成",
+	logArgs := []any{
 		"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model,
-		"code", result.HttpCode, "latency_ms", result.Latency, "status", result.Status, "sub_status", result.SubStatus)
+		"code", result.HttpCode, "latency_ms", result.Latency, "status", result.Status, "sub_status", result.SubStatus,
+	}
+	if lastPrompt != "" {
+		logArgs = append(logArgs, "prompt", lastPrompt, "expected", lastExpectedAnswer)
+	}
+	if len(lastBodyBytes) > 0 {
+		snippet := strings.TrimSpace(AggregateResponseText(lastBodyBytes))
+		if snippet == "" {
+			snippet = strings.TrimSpace(string(lastBodyBytes))
+		}
+		if len(snippet) > 200 {
+			snippet = snippet[:200] + "..."
+		}
+		if snippet != "" {
+			logArgs = append(logArgs, "response", snippet)
+		}
+	}
+	logger.Info("probe", "探测完成", logArgs...)
 
 	return result
 }
