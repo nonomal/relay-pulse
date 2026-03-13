@@ -107,7 +107,9 @@ function parseSortParam(param: string | null): SortConfig {
   const direction = param.substring(lastUnderscore + 1);
 
   if (direction === 'asc' || direction === 'desc') {
-    return { key, direction };
+    // 旧排序 key 迁移到 lastCheck（latency 保留原语义，不迁移）
+    const migratedKey = key === 'currentStatus' ? 'lastCheck' : key;
+    return { key: migratedKey, direction };
   }
 
   return { key: param, direction: DEFAULTS.sortDirection };

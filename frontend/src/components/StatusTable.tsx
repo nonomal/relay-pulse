@@ -82,15 +82,11 @@ function ChannelCell({ channel, probeUrl, templateName, className = '' }: Channe
 
 // ─── 模型列辅助函数 ───────────────────────────────────────────
 
-function getModelDisplay(modelEntries?: ProcessedMonitorData['modelEntries']): string {
-  if (!modelEntries || modelEntries.length === 0) return '-';
-  if (modelEntries.length === 1) {
-    return modelEntries[0].model || modelEntries[0].requestModel || '-';
-  }
+function getModelDisplayList(modelEntries?: ProcessedMonitorData['modelEntries']): string[] {
+  if (!modelEntries || modelEntries.length === 0) return [];
   return modelEntries
-    .map((entry) => entry.model || entry.requestModel)
-    .filter(Boolean)
-    .join(', ');
+    .map((entry) => entry.model || entry.requestModel || '-')
+    .filter(Boolean);
 }
 
 function getModelTooltip(modelEntries?: ProcessedMonitorData['modelEntries']): string | undefined {
@@ -238,14 +234,18 @@ function MobileListItem({
                   className="text-muted truncate"
                 />
               )}
-              {item.modelEntries && item.modelEntries.length > 0 && (
-                <span
-                  className="text-[10px] text-muted truncate max-w-[120px]"
-                  title={getModelTooltip(item.modelEntries)}
-                >
-                  {getModelDisplay(item.modelEntries)}
-                </span>
-              )}
+              {item.modelEntries && item.modelEntries.length > 0 && (() => {
+                const models = getModelDisplayList(item.modelEntries);
+                if (models.length === 0) return null;
+                return (
+                  <span
+                    className="text-[10px] text-muted truncate max-w-[120px]"
+                    title={getModelTooltip(item.modelEntries)}
+                  >
+                    {models.length === 1 ? models[0] : `${models[0]} +${models.length - 1}`}
+                  </span>
+                );
+              })()}
               {/* 收录时间 */}
               {item.listedDays != null && (
                 <span className="text-[10px] text-muted font-mono flex-shrink-0">
@@ -319,8 +319,7 @@ function MobileSortMenu({
   const sortOptions = [
     { key: 'providerName', label: t('table.sorting.provider') },
     { key: 'uptime', label: t('table.sorting.uptime') },
-    { key: 'currentStatus', label: t('table.sorting.status') },
-    { key: 'latency', label: t('table.sorting.latency') },
+    { key: 'lastCheck', label: t('table.sorting.lastCheck') },
     { key: 'serviceType', label: t('table.sorting.service') },
     { key: 'priceRatio', label: t('table.sorting.priceRatio') },
     { key: 'listedDays', label: t('table.sorting.listedDays') },
@@ -530,21 +529,6 @@ function StatusTableComponent({
             </th>
             <th
               className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-              onClick={() => onSort('currentStatus')}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('currentStatus'))}
-              tabIndex={0}
-              role="button"
-            >
-              <div className="flex items-center">
-                <div className="flex flex-col leading-tight max-w-[4rem]">
-                  <span>{t('table.headers.statusLine1')}</span>
-                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.statusLine2')}</span>
-                </div>
-                <SortIcon columnKey="currentStatus" />
-              </div>
-            </th>
-            <th
-              className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
               onClick={() => onSort('uptime')}
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('uptime'))}
               tabIndex={0}
@@ -556,8 +540,8 @@ function StatusTableComponent({
             </th>
             <th
               className="px-2 py-3 font-medium whitespace-nowrap cursor-pointer hover:text-accent transition-colors focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
-              onClick={() => onSort('latency')}
-              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('latency'))}
+              onClick={() => onSort('lastCheck')}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSort('lastCheck'))}
               tabIndex={0}
               role="button"
             >
@@ -566,7 +550,7 @@ function StatusTableComponent({
                   <span>{t('table.headers.lastCheckLine1')}</span>
                   <span className="text-[10px] opacity-50 font-normal">{t('table.headers.lastCheckLine2')}</span>
                 </div>
-                <SortIcon columnKey="latency" />
+                <SortIcon columnKey="lastCheck" />
               </div>
             </th>
             <th className="pl-2 pr-4 py-3 font-medium w-[360px] min-w-[320px]">
@@ -671,12 +655,24 @@ function StatusTableComponent({
                 />
               </td>
               <td className="px-2 py-1 text-secondary text-xs max-w-[14rem]">
-                <span
-                  className="block truncate"
-                  title={getModelTooltip(item.modelEntries)}
-                >
-                  {getModelDisplay(item.modelEntries)}
-                </span>
+                {(() => {
+                  const models = getModelDisplayList(item.modelEntries);
+                  if (models.length === 0) return <span className="text-muted">-</span>;
+                  if (models.length === 1) {
+                    return (
+                      <span className="block truncate" title={getModelTooltip(item.modelEntries)}>
+                        {models[0]}
+                      </span>
+                    );
+                  }
+                  return (
+                    <div className="flex flex-col gap-0.5" title={getModelTooltip(item.modelEntries)}>
+                      {models.map((m, i) => (
+                        <span key={i} className="block truncate">{m}</span>
+                      ))}
+                    </div>
+                  );
+                })()}
               </td>
               <td className="px-2 py-1 font-mono text-xs whitespace-nowrap">
                 {(() => {
@@ -695,30 +691,30 @@ function StatusTableComponent({
               <td className="px-2 py-1 font-mono text-xs text-secondary whitespace-nowrap">
                 {item.listedDays != null ? `${item.listedDays}d` : '-'}
               </td>
-              <td className="px-2 py-1">
-                <StatusDot status={item.currentStatus} size="sm" />
-              </td>
               <td className="px-2 py-1 font-mono font-bold whitespace-nowrap">
                 <span style={{ color: availabilityToColor(item.uptime) }}>
                   {item.uptime >= 0 ? `${item.uptime}%` : '--'}
                 </span>
               </td>
               <td className="px-2 py-1">
-                {item.lastCheckTimestamp ? (
-                  <div className="text-xs text-secondary font-mono flex flex-col gap-0.5">
-                    <span>{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span>
-                    {item.lastCheckLatency !== undefined && (
-                      <span
-                        className="text-[10px] font-mono"
-                        style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, item.slowLatencyMs ?? slowLatencyMs) }}
-                      >
-                        {item.lastCheckLatency}ms
-                      </span>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-muted text-xs">-</span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  <StatusDot status={item.currentStatus} size="sm" />
+                  {item.lastCheckTimestamp ? (
+                    <div className="text-xs text-secondary font-mono flex flex-col gap-0.5">
+                      {item.lastCheckLatency !== undefined && (
+                        <span
+                          className="text-[10px] font-mono"
+                          style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, item.slowLatencyMs ?? slowLatencyMs) }}
+                        >
+                          {item.lastCheckLatency}ms
+                        </span>
+                      )}
+                      <span className="text-[10px] text-muted">{new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, { hour: '2-digit', minute: '2-digit' })}</span>
+                    </div>
+                  ) : (
+                    <span className="text-muted text-xs">-</span>
+                  )}
+                </div>
               </td>
               <td className="pl-2 pr-4 py-1.5 align-middle">
                 <div className="flex items-center gap-[2px] h-5 w-full overflow-hidden rounded-sm">

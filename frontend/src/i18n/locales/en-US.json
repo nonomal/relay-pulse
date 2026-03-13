@@ -155,9 +155,6 @@
       "listedDays": "Listed Days",
       "listedDaysLine1": "Listed",
       "listedDaysLine2": "Days",
-      "status": "Current status",
-      "statusLine1": "Current",
-      "statusLine2": "status",
       "uptime": "Uptime",
       "lastCheck": "Last check",
       "lastCheckLine1": "Last",
@@ -167,11 +164,10 @@
     "sorting": {
       "provider": "Provider",
       "uptime": "Uptime",
-      "status": "Current status",
+      "lastCheck": "Status/Latency",
       "service": "Service type",
       "priceRatio": "Price Ratio",
-      "listedDays": "Listed",
-      "latency": "Latency"
+      "listedDays": "Listed"
     },
     "categoryLabels": {
       "promoted": "Commercial",

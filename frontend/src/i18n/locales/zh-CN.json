@@ -155,9 +155,6 @@
       "listedDays": "收录天数",
       "listedDaysLine1": "收录",
       "listedDaysLine2": "天数",
-      "status": "当前状态",
-      "statusLine1": "当前",
-      "statusLine2": "状态",
       "uptime": "可用率",
       "lastCheck": "最后监测",
       "lastCheckLine1": "最后",
@@ -167,11 +164,10 @@
     "sorting": {
       "provider": "服务商",
       "uptime": "可用率",
-      "status": "当前状态",
+      "lastCheck": "状态/延迟",
       "service": "服务类型",
       "priceRatio": "倍率",
-      "listedDays": "收录",
-      "latency": "延迟"
+      "listedDays": "收录"
     },
     "categoryLabels": {
       "promoted": "商业站",

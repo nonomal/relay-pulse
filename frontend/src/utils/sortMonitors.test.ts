@@ -432,4 +432,116 @@ describe('sortMonitors', () => {
       expect(result.map((d) => d.id)).toEqual(['3', '1', '2']);
     });
   });
+
+  describe('lastCheck 组合排序（状态优先 + 延迟次级）', () => {
+    it('降序：按状态权重排序 AVAILABLE > DEGRADED > UNAVAILABLE', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'UNAVAILABLE', lastCheckLatency: 50 }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.currentStatus)).toEqual([
+        'AVAILABLE',
+        'DEGRADED',
+        'UNAVAILABLE',
+      ]);
+    });
+
+    it('升序：按状态权重排序 UNAVAILABLE > DEGRADED > AVAILABLE', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+        createMockData({ id: '2', currentStatus: 'UNAVAILABLE', lastCheckLatency: 50 }),
+        createMockData({ id: '3', currentStatus: 'DEGRADED', lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.currentStatus)).toEqual([
+        'UNAVAILABLE',
+        'DEGRADED',
+        'AVAILABLE',
+      ]);
+    });
+
+    it('状态相同时按延迟升序排序', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'AVAILABLE', lastCheckLatency: 500 }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '3', currentStatus: 'AVAILABLE', lastCheckLatency: 250 }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.lastCheckLatency)).toEqual([100, 250, 500]);
+    });
+
+    it('MISSING 始终排最后（降序）', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'MISSING', lastCheckLatency: undefined }),
+        createMockData({ id: '2', currentStatus: 'UNAVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '3', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.currentStatus)).toEqual([
+        'AVAILABLE',
+        'UNAVAILABLE',
+        'MISSING',
+      ]);
+    });
+
+    it('MISSING 始终排最后（升序）', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'MISSING', lastCheckLatency: undefined }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+        createMockData({ id: '3', currentStatus: 'UNAVAILABLE', lastCheckLatency: 100 }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'asc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.currentStatus)).toEqual([
+        'UNAVAILABLE',
+        'AVAILABLE',
+        'MISSING',
+      ]);
+    });
+
+    it('undefined 延迟在同状态内排最后', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'AVAILABLE', lastCheckLatency: undefined }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '3', currentStatus: 'AVAILABLE', lastCheckLatency: 200 }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      expect(result.map((d) => d.id)).toEqual(['2', '3', '1']);
+    });
+
+    it('混合状态和延迟的完整排序', () => {
+      const data = [
+        createMockData({ id: '1', currentStatus: 'DEGRADED', lastCheckLatency: 300 }),
+        createMockData({ id: '2', currentStatus: 'AVAILABLE', lastCheckLatency: 500 }),
+        createMockData({ id: '3', currentStatus: 'UNAVAILABLE', lastCheckLatency: 50 }),
+        createMockData({ id: '4', currentStatus: 'AVAILABLE', lastCheckLatency: 100 }),
+        createMockData({ id: '5', currentStatus: 'MISSING', lastCheckLatency: undefined }),
+      ];
+      const config: SortConfig = { key: 'lastCheck', direction: 'desc' };
+
+      const result = sortMonitors(data, config);
+
+      // AVAILABLE(100ms, 500ms) → DEGRADED(300ms) → UNAVAILABLE(50ms) → MISSING
+      expect(result.map((d) => d.id)).toEqual(['4', '2', '1', '3', '5']);
+    });
+  });
 });

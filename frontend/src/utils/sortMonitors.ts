@@ -4,8 +4,8 @@ import type { ProcessedMonitorData, SortConfig, StatusKey, SponsorPinConfig } fr
 const STATUS_WEIGHT: Record<string, number> = {
   AVAILABLE: 3,
   DEGRADED: 2,
-  MISSING: 1,
   UNAVAILABLE: 1,
+  MISSING: 0,
 };
 import { SPONSOR_WEIGHTS } from './annotationUtils';
 
@@ -37,8 +37,8 @@ export function sortMonitors(
     if (comparison !== 0) {
       return comparison;
     }
-    // 延迟主排序时不使用二级排序（UNAVAILABLE 的延迟不参与排序）
-    if (sortConfig.key === 'latency') {
+    // 延迟/最后监测主排序时不使用二级排序（内部已包含完整排序逻辑）
+    if (sortConfig.key === 'latency' || sortConfig.key === 'lastCheck') {
       return 0;
     }
     // 其他字段：二级排序按延迟升序
@@ -69,6 +69,8 @@ function comparePrimary(
     return comparePriceRatio(a.priceMin, a.priceMax, b.priceMin, b.priceMax, direction);
   } else if (key === 'listedDays') {
     return compareListedDays(a.listedDays, b.listedDays, direction);
+  } else if (key === 'lastCheck') {
+    return compareLastCheck(a, b, direction);
   } else if (key === 'latency') {
     return compareLatencyPrimary(a, b, direction);
   } else {
@@ -180,6 +182,35 @@ function compareLatency(
   if (bLatency === undefined) return -1;
   // 按延迟升序（低延迟优先）
   return aLatency - bLatency;
+}
+
+/**
+ * 最后监测组合排序：状态优先，状态相同时按延迟升序
+ *
+ * 规则：
+ * 1. MISSING 状态始终排最后（不受 asc/desc 影响）
+ * 2. 其他状态按 STATUS_WEIGHT 排序（受 direction 影响）
+ * 3. 状态相同时，按延迟升序（低延迟优先，undefined 排最后）
+ */
+function compareLastCheck(
+  a: ProcessedMonitorData,
+  b: ProcessedMonitorData,
+  direction: 'asc' | 'desc'
+): number {
+  const aWeight = STATUS_WEIGHT[a.currentStatus as StatusKey] ?? 0;
+  const bWeight = STATUS_WEIGHT[b.currentStatus as StatusKey] ?? 0;
+
+  // MISSING 始终排最后
+  if (aWeight === 0 && bWeight !== 0) return 1;
+  if (aWeight !== 0 && bWeight === 0) return -1;
+
+  // 按状态权重排序
+  if (aWeight !== bWeight) {
+    return direction === 'asc' ? aWeight - bWeight : bWeight - aWeight;
+  }
+
+  // 状态相同：按延迟升序
+  return compareLatency(a.lastCheckLatency, b.lastCheckLatency);
 }
 
 /**

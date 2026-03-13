@@ -154,31 +154,30 @@ function StatusCardComponent({
           </div>
         </div>
 
-        {/* 右侧：状态 + 时间 */}
+        {/* 右侧：状态 + 延迟 + 时间 */}
         <div className="flex sm:flex-col items-start sm:items-end gap-2 sm:gap-1.5">
-          {/* 状态徽章 */}
-          <div className="flex items-center p-1.5 rounded-full bg-elevated border border-default">
+          <div className="flex items-center gap-1.5">
             <StatusDot status={item.currentStatus} />
-          </div>
-
-          {/* 最后监测时间 */}
-          {item.lastCheckTimestamp && (
-            <div className="text-[10px] text-muted font-mono flex flex-col items-start sm:items-end gap-0.5">
-              <span className="whitespace-nowrap">
-                {new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, {
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
-              {item.lastCheckLatency !== undefined && (
-                <span style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, item.slowLatencyMs ?? slowLatencyMs) }}>
-                  {item.lastCheckLatency}ms
+            {item.lastCheckTimestamp ? (
+              <div className="text-[10px] text-muted font-mono flex flex-col items-start sm:items-end gap-0.5">
+                {item.lastCheckLatency !== undefined && (
+                  <span style={{ color: item.currentStatus === 'UNAVAILABLE' ? 'hsl(var(--text-muted))' : latencyToColor(item.lastCheckLatency, item.slowLatencyMs ?? slowLatencyMs) }}>
+                    {item.lastCheckLatency}ms
+                  </span>
+                )}
+                <span className="whitespace-nowrap">
+                  {new Date(item.lastCheckTimestamp * 1000).toLocaleString(i18n.language, {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
-              )}
-            </div>
-          )}
+              </div>
+            ) : (
+              <span className="text-muted text-xs">-</span>
+            )}
+          </div>
         </div>
       </div>
 

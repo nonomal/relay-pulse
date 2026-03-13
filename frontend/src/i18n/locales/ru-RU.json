@@ -155,9 +155,6 @@
       "listedDays": "Дней в списке",
       "listedDaysLine1": "Дней",
       "listedDaysLine2": "",
-      "status": "Статус",
-      "statusLine1": "Статус",
-      "statusLine2": "",
       "uptime": "Доступн.",
       "lastCheck": "Проверка",
       "lastCheckLine1": "Проверка",
@@ -167,11 +164,10 @@
     "sorting": {
       "provider": "Провайдер",
       "uptime": "Доступность",
-      "status": "Текущее состояние",
+      "lastCheck": "Статус/Задержка",
       "service": "Тип сервиса",
       "priceRatio": "Цен. коэф.",
-      "listedDays": "Дней",
-      "latency": "Задержка"
+      "listedDays": "Дней"
     },
     "categoryLabels": {
       "promoted": "Коммерческий",

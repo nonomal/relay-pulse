@@ -155,9 +155,6 @@
       "listedDays": "掲載日数",
       "listedDaysLine1": "掲載",
       "listedDaysLine2": "日数",
-      "status": "現在の状態",
-      "statusLine1": "現在の",
-      "statusLine2": "状態",
       "uptime": "稼働率",
       "lastCheck": "最終チェック",
       "lastCheckLine1": "最終",
@@ -167,11 +164,10 @@
     "sorting": {
       "provider": "プロバイダ",
       "uptime": "稼働率",
-      "status": "現在の状態",
+      "lastCheck": "状態/レイテンシ",
       "service": "サービス種別",
       "priceRatio": "倍率",
-      "listedDays": "掲載",
-      "latency": "レイテンシ"
+      "listedDays": "掲載"
     },
     "categoryLabels": {
       "promoted": "商用サイト",
