@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
+import { ChannelTypeIcon } from './ChannelTypeIcon';
 import { ExternalLink } from './ExternalLink';
 import { AnnotationCell } from './annotations';
 import { FavoriteButton } from './FavoriteButton';
@@ -35,18 +36,26 @@ const getCachedServiceIcon = (serviceType: string) => {
 // 通道单元格组件（带自定义 CSS tooltip，替代原生 title 属性）
 interface ChannelCellProps {
   channel?: string;
+  rawChannel?: string;
   probeUrl?: string;
   templateName?: string;
   className?: string;
 }
 
-function ChannelCell({ channel, probeUrl, templateName, className = '' }: ChannelCellProps) {
+function ChannelCell({ channel, rawChannel, probeUrl, templateName, className = '' }: ChannelCellProps) {
   const { t } = useTranslation();
   const hasTooltip = !!(probeUrl || templateName);
 
+  const channelContent = (
+    <>
+      <ChannelTypeIcon channel={rawChannel} />
+      <span className="min-w-0 truncate">{channel || '-'}</span>
+    </>
+  );
+
   // 无 tooltip 时直接显示文本
   if (!hasTooltip) {
-    return <span className={`inline-block truncate ${className}`}>{channel || '-'}</span>;
+    return <span className={`inline-flex items-center gap-1 ${className}`}>{channelContent}</span>;
   }
 
   // 统一向上弹出，避免被页脚遮挡
@@ -54,8 +63,8 @@ function ChannelCell({ channel, probeUrl, templateName, className = '' }: Channe
   const tooltipPositionClass = 'bottom-full left-0';
 
   return (
-    <span className={`relative group/channel inline-flex items-center cursor-help ${className}`}>
-      <span className="truncate">{channel || '-'}</span>
+    <span className={`relative group/channel inline-flex items-center gap-1 cursor-help ${className}`}>
+      {channelContent}
       {/* CSS tooltip - 悬停后显示，支持鼠标移入复制内容 */}
       {/* pointer-events-none 防止不可见时拦截鼠标事件，hover 时启用 */}
       <span
@@ -229,6 +238,7 @@ function MobileListItem({
               {item.channel && (
                 <ChannelCell
                   channel={item.channelName || item.channel}
+                  rawChannel={item.channel}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                   className="text-muted truncate"
@@ -451,7 +461,7 @@ function StatusTableComponent({
     <div className="overflow-x-auto rounded-2xl border border-default/50 shadow-xl bg-surface/40 backdrop-blur-sm">
       <table className="w-full text-left border-collapse bg-transparent">
         <colgroup>
-          {hasAnnotations && <col className="w-20" />}
+          {hasAnnotations && <col className="w-px" />}
           {showProvider && <col className="w-px" />}
           <col className="w-px" />
           <col className="w-px" />
@@ -466,7 +476,7 @@ function StatusTableComponent({
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 注解列 - 仅在有注解时显示 */}
             {hasAnnotations && (
-              <th className="px-1 py-3 font-medium w-20">
+              <th className="px-1 py-3 font-medium min-w-24">
                 {t('table.headers.annotation')}
               </th>
             )}
@@ -587,7 +597,7 @@ function StatusTableComponent({
             >
               {/* 注解列 */}
               {hasAnnotations && (
-                <td className="px-1 py-1 w-20 max-w-20">
+                <td className="px-1 py-1 min-w-24">
                   {hasItemAnnotations ? (
                     <AnnotationCell
                       annotations={item.annotations}
@@ -662,6 +672,7 @@ function StatusTableComponent({
               <td className="px-2 py-1 text-secondary text-xs">
                 <ChannelCell
                   channel={item.channelName || item.channel}
+                  rawChannel={item.channel}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                   className="max-w-[10rem]"
