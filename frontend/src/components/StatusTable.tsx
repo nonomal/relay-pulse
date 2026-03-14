@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, memo } from 'react';
-import { FixedSizeList as List, type ListChildComponentProps } from 'react-window';
+import { List, type RowComponentProps } from 'react-window';
 import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, Filter } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
@@ -132,6 +132,40 @@ interface StatusTableProps {
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
   onFilterProvider?: (providerId: string) => void; // 按服务商筛选
+}
+
+// react-window v2 虚拟列表行组件（rowComponent 接口）
+interface MobileRowProps {
+  data: ProcessedMonitorData[];
+  slowLatencyMs: number;
+  enableAnnotations: boolean;
+  showProvider: boolean;
+  showSponsor: boolean;
+  isFavorite: (id: string) => boolean;
+  onToggleFavorite: (id: string) => void;
+  onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
+  onBlockLeave: () => void;
+}
+
+function MobileRow({ index, style, data, slowLatencyMs, enableAnnotations, showProvider, showSponsor, isFavorite, onToggleFavorite, onBlockHover, onBlockLeave }: RowComponentProps<MobileRowProps>) {
+  const item = data[index];
+  return (
+    <div style={style}>
+      <div style={{ marginBottom: 8 }}>
+        <MobileListItem
+          item={item}
+          slowLatencyMs={slowLatencyMs}
+          enableAnnotations={enableAnnotations}
+          showProvider={showProvider}
+          showSponsor={showSponsor}
+          isFavorite={isFavorite(item.id)}
+          onToggleFavorite={() => onToggleFavorite(item.id)}
+          onBlockHover={onBlockHover}
+          onBlockLeave={onBlockLeave}
+        />
+      </div>
+    </div>
+  );
 }
 
 // 移动端卡片列表项组件
@@ -422,41 +456,17 @@ function StatusTableComponent({
       MOBILE_MAX_HEIGHT
     );
 
-    // 虚拟列表行渲染函数（itemSize=208，卡片高度200，底部留8px间距）
-    const renderMobileRow = ({ index, style }: ListChildComponentProps) => {
-      const item = data[index];
-      return (
-        <div style={style}>
-          <div style={{ marginBottom: 8 }}>
-            <MobileListItem
-              item={item}
-              slowLatencyMs={slowLatencyMs}
-              enableAnnotations={enableAnnotations}
-              showProvider={showProvider}
-              showSponsor={showSponsor}
-              isFavorite={isFavorite(item.id)}
-              onToggleFavorite={() => onToggleFavorite(item.id)}
-              onBlockHover={onBlockHover}
-              onBlockLeave={onBlockLeave}
-            />
-          </div>
-        </div>
-      );
-    };
-
     return (
       <div>
         <MobileSortMenu sortConfig={sortConfig} isInitialSort={isInitialSort} onSort={onSort} />
         <List
-          height={mobileListHeight}
-          itemCount={data.length}
-          itemSize={MOBILE_ROW_HEIGHT}
-          width="100%"
+          style={{ height: mobileListHeight, width: '100%' }}
+          rowCount={data.length}
+          rowHeight={MOBILE_ROW_HEIGHT}
           overscanCount={3}
-          itemKey={(index) => data[index].id}
-        >
-          {renderMobileRow}
-        </List>
+          rowComponent={MobileRow}
+          rowProps={{ data, slowLatencyMs, enableAnnotations, showProvider, showSponsor, isFavorite, onToggleFavorite, onBlockHover, onBlockLeave }}
+        />
       </div>
     );
   }
