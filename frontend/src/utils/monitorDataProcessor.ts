@@ -400,7 +400,7 @@ export function convertGroupToProcessedData(
     .map((layer) => {
       const model = layer.model?.trim() || '';
       const requestModel = layer.request_model?.trim() || model;
-      return model ? { model, requestModel } : null;
+      return (model || requestModel) ? { model, requestModel } : null;
     })
     .filter((entry): entry is { model: string; requestModel: string } => entry !== null);
 

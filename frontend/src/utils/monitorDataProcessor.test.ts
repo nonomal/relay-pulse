@@ -341,6 +341,25 @@ describe('monitorDataProcessor', () => {
       expect(result.uptime).toBe(88);
     });
 
+    it('仅有 request_model 时也保留模型映射', () => {
+      const result = convertGroupToProcessedData(
+        group({
+          current_status: 1,
+          layers: [layer({
+            model: '',
+            request_model: 'claude-haiku-4-5-20251001',
+            current_status: { status: 1, latency: 88, timestamp: 3000 },
+            timeline: [tp({ availability: 100 })],
+          })],
+        }),
+        5000,
+      );
+
+      expect(result.modelEntries).toEqual([
+        { model: '', requestModel: 'claude-haiku-4-5-20251001' },
+      ]);
+    });
+
     it('无父层时选择时间戳最新的层', () => {
       const result = convertGroupToProcessedData(
         group({

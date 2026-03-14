@@ -13,6 +13,7 @@ import { getTimeRanges } from '../constants';
 import { availabilityToColor, latencyToColor, sponsorLevelToBorderClass, sponsorLevelToCardBorderColor, sponsorLevelToPinnedBgClass } from '../utils/color';
 import { aggregateHeatmap } from '../utils/heatmapAggregator';
 import { createMediaQueryEffect } from '../utils/mediaQuery';
+import { shortenModelName } from '../utils/modelName';
 import { hasAnyAnnotation, hasAnyAnnotationInList } from '../utils/annotationUtils';
 import { formatPriceRatioStructured } from '../utils/format';
 import { getServiceIconComponent } from './ServiceIcon';
@@ -101,7 +102,7 @@ function ChannelCell({ channel, serviceType, probeUrl, templateName, coldReason,
 function getModelDisplayList(modelEntries?: ProcessedMonitorData['modelEntries']): string[] {
   if (!modelEntries || modelEntries.length === 0) return [];
   return modelEntries
-    .map((entry) => entry.requestModel || entry.model || '-')
+    .map((entry) => entry.model || shortenModelName(entry.requestModel) || '-')
     .filter(Boolean);
 }
 
