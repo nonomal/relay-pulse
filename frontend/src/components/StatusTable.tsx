@@ -46,7 +46,7 @@ function ChannelCell({ channel, probeUrl, templateName, className = '' }: Channe
 
   // 无 tooltip 时直接显示文本
   if (!hasTooltip) {
-    return <span className={className}>{channel || '-'}</span>;
+    return <span className={`inline-block truncate ${className}`}>{channel || '-'}</span>;
   }
 
   // 统一向上弹出，避免被页脚遮挡
@@ -450,6 +450,18 @@ function StatusTableComponent({
   return (
     <div className="overflow-x-auto rounded-2xl border border-default/50 shadow-xl bg-surface/40 backdrop-blur-sm">
       <table className="w-full text-left border-collapse bg-transparent">
+        <colgroup>
+          {hasAnnotations && <col className="w-20" />}
+          {showProvider && <col className="w-px" />}
+          <col className="w-px" />
+          <col className="w-px" />
+          <col className="w-px" />
+          <col className="w-px" />
+          <col className="w-px" />
+          <col className="w-px" />
+          <col className="w-px" />
+          <col className="w-full" />
+        </colgroup>
         <thead>
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 注解列 - 仅在有注解时显示 */}
@@ -553,7 +565,7 @@ function StatusTableComponent({
                 <SortIcon columnKey="lastCheck" />
               </div>
             </th>
-            <th className="pl-2 pr-4 py-3 font-medium w-[360px] min-w-[320px]">
+            <th className="pl-2 pr-4 py-3 font-medium min-w-[320px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-default px-1 rounded">
@@ -588,7 +600,7 @@ function StatusTableComponent({
               {showProvider && (
                 <td className="px-2 py-1.5">
                   <div className="flex items-center h-8 group/provider">
-                    <div className="flex flex-col gap-0 flex-1 min-w-0">
+                    <div className="flex flex-col gap-0 flex-1 min-w-0 max-w-[13rem]">
                       <div className="flex items-center gap-1.5">
                         <span className="font-medium text-primary text-sm leading-tight truncate">
                           <ExternalLink href={item.providerUrl} inline requireConfirm>{item.providerName}</ExternalLink>
@@ -652,6 +664,7 @@ function StatusTableComponent({
                   channel={item.channelName || item.channel}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
+                  className="max-w-[10rem]"
                 />
               </td>
               <td className="px-2 py-1 text-secondary text-xs max-w-[14rem]">
