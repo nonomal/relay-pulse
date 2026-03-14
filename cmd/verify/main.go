@@ -147,7 +147,7 @@ func main() {
 	}
 
 	// 变量注入：替换模板占位符
-	probeURL, probeBody, probeHeaders, _, _, _ := monitor.InjectVariables(target, nil)
+	probeURL, probeBody, probeHeaders, probeSuccessContains, _, _ := monitor.InjectVariables(target, nil)
 
 	// 构建输出标识
 	var targetInfo string
@@ -196,7 +196,7 @@ func main() {
 		}
 		fmt.Printf("  URL: %s\n", verboseURL)
 		fmt.Printf("  Method: %s\n", target.Method)
-		fmt.Printf("  Success Contains: %s\n", target.SuccessContains)
+		fmt.Printf("  Success Contains: %s\n", probeSuccessContains)
 		fmt.Printf("  Headers:\n")
 		for k, v := range probeHeaders {
 			// 隐藏 API key
@@ -348,11 +348,11 @@ func main() {
 
 	// 判断结果
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
-		if target.SuccessContains != "" {
-			if strings.Contains(respStr, target.SuccessContains) {
-				fmt.Printf("✅ 成功! HTTP %d, 延迟 %dms, 响应包含 '%s'\n", resp.StatusCode, latency.Milliseconds(), target.SuccessContains)
+		if probeSuccessContains != "" {
+			if strings.Contains(respStr, probeSuccessContains) {
+				fmt.Printf("✅ 成功! HTTP %d, 延迟 %dms, 响应包含 '%s'\n", resp.StatusCode, latency.Milliseconds(), probeSuccessContains)
 			} else {
-				fmt.Printf("⚠️  HTTP %d 但响应不包含 '%s'\n", resp.StatusCode, target.SuccessContains)
+				fmt.Printf("⚠️  HTTP %d 但响应不包含 '%s'\n", resp.StatusCode, probeSuccessContains)
 				os.Exit(1)
 			}
 		} else {

@@ -17,7 +17,7 @@
 		}],
 		"generationConfig": {
 			"temperature": 0,
-			"maxOutputTokens": 10,
+			"maxOutputTokens": 256,
 			"thinkingConfig": { "thinkingBudget": 0 }
 		}
 	},
