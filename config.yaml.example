@@ -60,6 +60,13 @@ sponsor_pin:
 # ============================================
 boards:
   enabled: false
+  auto_move:
+    enabled: false
+    threshold_cold: 10.0      # 低于该值自动移入冷板（sticky，需人工 auto_cold_exempt 解除）
+    threshold_down: 50.0      # hot → secondary
+    threshold_up: 55.0        # secondary → hot
+    min_probes: 10
+    check_interval: "30m"
 
 # ============================================
 # 自助测试功能配置
@@ -244,6 +251,17 @@ monitors:
   #   sponsor: "xxx"
   #   board: "cold"
   #   cold_reason: "该渠道长期不稳定，先归档节省探测资源"
+  #   base_url: "https://api.example.com"
+  #   template: "cc-haiku-arith"
+  #   api_key: "sk-xxx"
+
+  # --- 自动冷板恢复示例 ---
+  # 当 auto_move 自动将通道移入冷板后，需人工设置 auto_cold_exempt 解除：
+  # - provider: "恢复商家"
+  #   service: "cc"
+  #   channel: "vip"
+  #   category: "commercial"
+  #   auto_cold_exempt: true   # 清除 runtime 自动冷板，保持为 true 期间不再自动冷板
   #   base_url: "https://api.example.com"
   #   template: "cc-haiku-arith"
   #   api_key: "sk-xxx"

@@ -70,11 +70,15 @@ func (c *SponsorPinConfig) IsEnabled() bool {
 	return *c.Enabled
 }
 
-// BoardAutoMoveConfig 基于 7 天可用率在 hot/secondary 间自动移板的配置
-// 仅 hot ↔ secondary，不涉及 cold（cold 停止探测，无法自判回升）
+// BoardAutoMoveConfig 基于 7 天可用率自动在 hot/secondary/cold 间移板的配置。
+// 自动冷板为粘性状态，不会自动恢复，需人工设置 auto_cold_exempt 解除。
 type BoardAutoMoveConfig struct {
 	// 是否启用自动移板（默认 false）
 	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// 冷板阈值：可用率低于此值 → cold（默认 10.0，百分比 0-100）
+	// 自动冷板是 sticky 的，不会自动恢复，需通过 auto_cold_exempt 手动解除
+	ThresholdCold float64 `yaml:"threshold_cold" json:"threshold_cold"`
 
 	// 降级阈值：hot 板可用率低于此值 → secondary（默认 50.0，百分比 0-100）
 	ThresholdDown float64 `yaml:"threshold_down" json:"threshold_down"`

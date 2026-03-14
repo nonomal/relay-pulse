@@ -606,6 +606,61 @@ func TestApplyBoardOverrides_PSCPropagation(t *testing.T) {
 	}
 }
 
+// TestApplyBoardOverrides_ColdReasonPropagation 测试冷板原因传播到 root 和子模型
+func TestApplyBoardOverrides_ColdReasonPropagation(t *testing.T) {
+	svc := automove.NewService(nil, &config.AppConfig{})
+	svc.SetOverrides(map[storage.MonitorKey]automove.MonitorOverride{
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: ""}: {
+			Board:      "cold",
+			ColdReason: "7天可用率 5.0% 低于自动冷板阈值 10%，已自动移入冷板",
+		},
+	})
+
+	h := &Handler{
+		config:    &config.AppConfig{},
+		autoMover: svc,
+	}
+
+	monitors := []config.ServiceConfig{
+		{Provider: "acme", Service: "cc", Channel: "vip", Board: "hot"},
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: "gpt-4o", Parent: "acme/cc/vip", Board: "hot"},
+	}
+
+	result := h.applyBoardOverrides(monitors)
+
+	if result[0].Board != "cold" || result[0].ColdReason == "" {
+		t.Fatalf("root: board=%s cold_reason=%q", result[0].Board, result[0].ColdReason)
+	}
+	if result[1].Board != "cold" || result[1].ColdReason != result[0].ColdReason {
+		t.Fatalf("child: board=%s cold_reason=%q (expected same as root)", result[1].Board, result[1].ColdReason)
+	}
+}
+
+// TestApplyBoardOverrides_ClearsColdReasonOnNonCold 测试非冷板 override 清除旧 ColdReason
+func TestApplyBoardOverrides_ClearsColdReasonOnNonCold(t *testing.T) {
+	svc := automove.NewService(nil, &config.AppConfig{})
+	svc.SetOverrides(map[storage.MonitorKey]automove.MonitorOverride{
+		{Provider: "acme", Service: "cc", Channel: "vip", Model: ""}: {Board: "secondary"},
+	})
+
+	h := &Handler{
+		config:    &config.AppConfig{},
+		autoMover: svc,
+	}
+
+	monitors := []config.ServiceConfig{
+		{Provider: "acme", Service: "cc", Channel: "vip", Board: "cold", ColdReason: "历史原因"},
+	}
+
+	result := h.applyBoardOverrides(monitors)
+	if result[0].Board != "secondary" {
+		t.Fatalf("board=%s, want secondary", result[0].Board)
+	}
+	if result[0].ColdReason != "" {
+		t.Fatalf("cold_reason=%q, want empty", result[0].ColdReason)
+	}
+}
+
 // TestApplyBoardOverrides_RootWithModel 测试 root 有 model 但无 parent 时走精确匹配
 func TestApplyBoardOverrides_RootWithModel(t *testing.T) {
 	svc := automove.NewService(nil, &config.AppConfig{})

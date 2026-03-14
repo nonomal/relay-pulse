@@ -266,6 +266,12 @@ monitors:
     board: "cold"              # 冷板：停止探测，仅展示历史
     cold_reason: "该渠道长期不稳定，先归档节省探测资源"  # 归档原因（可选）
     # ...
+
+  # 自动冷板恢复：解除 runtime cold override
+  - provider: "recover-provider"
+    service: "cc"
+    auto_cold_exempt: true     # 清除 runtime 自动冷板，保持为 true 期间不再自动冷板
+    # ...
 ```
 
 #### `boards.enabled`
@@ -280,13 +286,32 @@ monitors:
 - **说明**: 监测项所属板块
   - `hot`: 主板，正常监测，实时更新数据（默认）
   - `secondary`: 备板，正常监测，用于新上线或观察期通道
-  - `cold`: 冷板，停止监测，仅展示历史数据。若通道 1 个月可用率为 0%，运营者应手动将其移入冷板并注明 `cold_reason`
+  - `cold`: 冷板，停止监测，仅展示历史数据。可手动配置，也可在启用 `boards.auto_move` 时因 7 天可用率低于 `threshold_cold` 被自动移入；自动冷板为 sticky，不会自动恢复
 
 #### 监测项 `cold_reason`
 - **类型**: string
 - **默认值**: `""`（空）
 - **说明**: 移入冷板的原因说明（仅用于 `board: cold` 的监测项）
 - **约束**: 仅当 `board: cold` 时有效；如果在非冷板项中配置，启动时会输出警告并自动清空
+
+#### 监测项 `auto_cold_exempt`
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 人工解除自动冷板。设为 `true` 时会立即清除该通道的 runtime cold override，并在保持为 `true` 期间不再自动移入冷板
+- **用法**: 管理员将 `auto_cold_exempt: true` 加入 config.yaml → 热更新触发清除 → scheduler 恢复探测 → 通道重新参与可用率评估
+
+#### `boards.auto_move`
+
+基于 7 天可用率自动移板。阈值关系：`threshold_cold < threshold_down < threshold_up`
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `enabled` | bool | `false` | 是否启用自动移板 |
+| `threshold_cold` | float64 | `10.0` | 低于该值自动移入冷板（sticky，不自动恢复） |
+| `threshold_down` | float64 | `50.0` | hot 板低于该值降到 secondary |
+| `threshold_up` | float64 | `55.0` | secondary 板达到该值升回 hot |
+| `min_probes` | int | `10` | 7 天内最少探测次数，不足则跳过判断（保护新通道） |
+| `check_interval` | string | `"30m"` | 自动移板评估周期 |
 
 #### 与现有机制的关系
 

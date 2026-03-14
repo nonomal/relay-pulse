@@ -210,7 +210,7 @@ internal/
 │   ├── ssrf_guard.go     → SSRF 防护
 │   ├── safe_http_client.go → 沙箱化 HTTP 客户端
 │   └── errors.go         → 错误类型
-├── automove/              → 自动移板（基于 7 天可用率在 hot ↔ secondary 间切换）
+├── automove/              → 自动移板（基于 7 天可用率在 hot/secondary/cold 间切换）
 │   ├── availability.go   → 可用率计算
 │   └── service.go        → 自动移板服务编排
 ├── announcements/         → GitHub Discussions 公告（3 文件）
@@ -252,7 +252,7 @@ notifier/                  → 独立通知子模块（独立 go.mod）
 8. **事件驱动通知**: `events.Detector` 基于阈值状态机生成 UP/DOWN 事件
 9. **指数退避重试**: `retry_*` + jitter 统一控制失败重试节奏
 10. **功能开关分层**: boards/annotations/selftest/events/announcements 可按需启用
-11. **自动移板**: `automove.Service` 基于 7 天可用率自动在 hot ↔ secondary 间切换通道
+11. **自动移板**: `automove.Service` 基于 7 天可用率自动在 hot/secondary/cold 间切换通道（cold 为 sticky，需 `auto_cold_exempt` 手动解除）
 
 ### 日志系统
 
@@ -620,7 +620,7 @@ HTTP 响应
 | 查询优化 | `enable_concurrent_query`、`concurrent_query_limit`、`enable_batch_query`、`enable_db_timeline_agg`、`batch_query_max_keys` | API 层数据库查询优化 |
 | 缓存 | `cache_ttl`（按 period 区分，90m/24h=10s，7d/30d=60s） | API 响应缓存 |
 | Provider 策略 | `disabled_providers`、`hidden_providers`、`risk_providers` | 批量禁用/隐藏/风险标记 |
-| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_down/up`、`min_probes`、`check_interval`） | 热板/备板/冷板 + 自动移板 |
+| 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_cold/down/up`、`min_probes`、`check_interval`） | 热板/备板/冷板 + 自动移板 |
 | 展示控制 | `expose_channel_details`、`channel_details_providers`、`public_base_url` | 通道技术细节暴露 |
 | 赞助/标签 | `sponsor_pin`、`enable_annotations`、`annotation_rules` | 置顶与标签体系 |
 | 功能模块 | `selftest`、`events`、`announcements`、`github` | 自测/事件/公告/GitHub 配置 |
@@ -636,7 +636,7 @@ HTTP 响应
 | 显示名称 | `provider_name`、`service_name`、`channel_name` | UI 显示名称（可选，未配置时回退到标识字段） |
 | 业务属性 | `category`（commercial/public）、`sponsor`、`sponsor_url`、`sponsor_level`、`price_min`、`price_max`、`listed_since`、`expires_at` | 分类、赞助与倍率 |
 | 多模型 | `model`（模型名称）、`parent`（格式 `provider/service/channel`） | 父子通道继承体系 |
-| 生命周期 | `disabled`/`disabled_reason`、`hidden`/`hidden_reason`、`board`（hot/secondary/cold）、`cold_reason` | 停用/隐藏/板块控制 |
+| 生命周期 | `disabled`/`disabled_reason`、`hidden`/`hidden_reason`、`board`（hot/secondary/cold）、`cold_reason`、`auto_cold_exempt` | 停用/隐藏/板块控制 |
 | 模板配置 | `template`、`base_url`、`url_pattern` | 模板引用 + 基础地址（新格式，推荐） |
 | 探测配置 | `url`、`method`、`headers`、`body`、`success_contains`、`api_key`、`proxy`、`env_var_name` | HTTP 探测参数（传统格式或模板自动填充） |
 | 覆盖配置 | `interval`、`slow_latency`、`timeout`、`retry`、`retry_base_delay`、`retry_max_delay`、`retry_jitter` | 监测项级覆盖全局设置 |

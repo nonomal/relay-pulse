@@ -2,6 +2,7 @@ package automove
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"strings"
 	"sync"
@@ -13,20 +14,24 @@ import (
 	"monitor/internal/storage"
 )
 
-// MonitorOverride 运行时覆盖字段（不修改配置，仅在 API 层应用）。
+// MonitorOverride 运行时覆盖字段（不修改配置，仅在 API 层和 scheduler 层应用）。
 type MonitorOverride struct {
-	Board        string              // 板块覆盖（"hot"/"secondary"）
+	Board        string              // 板块覆盖（"hot"/"secondary"/"cold"）
+	ColdReason   string              // 冷板原因（仅 Board=="cold" 时有值）
 	SponsorLevel config.SponsorLevel // 赞助等级覆盖（空值表示不覆盖）
 }
 
 // Service 自动移板服务。
-// 定期基于 7 天可用率和赞助到期状态评估 hot ↔ secondary 归属，维护运行时 override map。
-// 调度器和配置文件不受影响，仅在 API 层覆盖 board/sponsor_level 字段。
+// 定期基于 7 天可用率和赞助到期状态评估 hot/secondary/cold 归属，维护运行时 override map。
+// cold override 是 sticky 的：一旦生成，后续评估不再重新评估该项，仅可通过 auto_cold_exempt 手动解除。
 type Service struct {
 	storage storage.Storage
 
 	cfgMu sync.RWMutex
 	cfg   *config.AppConfig
+
+	callbackMu       sync.RWMutex
+	onOverrideChange func() // override 变更时通知 scheduler/events 刷新
 
 	// 原子指针替换：evaluate 生成新 map → Store；Handler 读取 → Load。
 	// nil 表示无 override（auto_move 未启用或无需移板）。
@@ -63,7 +68,7 @@ func (s *Service) Stop() {
 
 // UpdateConfig 热更新配置。若 auto_move 被禁用，立即清空 override。
 // 若仍启用，清理新配置中已不再参与自动移板的监测项的旧 override
-// （board 变为 cold、被 disabled/hidden、或变为子通道的情况）。
+// （board 变为 cold、被 disabled/hidden、变为子通道，或设置了 auto_cold_exempt 的情况）。
 func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 	s.cfgMu.Lock()
 	s.cfg = cfg
@@ -71,7 +76,7 @@ func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 
 	// 若禁用，立即清空 override
 	if !cfg.Boards.Enabled || !cfg.Boards.AutoMove.Enabled {
-		s.overrides.Store(nil)
+		s.replaceOverrides(nil)
 		return
 	}
 
@@ -87,14 +92,18 @@ func (s *Service) UpdateConfig(cfg *config.AppConfig) {
 
 // purgeStaleOverrides 从当前 override map 中移除不再符合自动移板条件的 key。
 // 保留条件与 evaluate() 一致：非 disabled、非 hidden、无 parent、board != cold。
+// 当 auto_cold_exempt=true 时，会立即清除已有的 cold override。
 func (s *Service) purgeStaleOverrides(cfg *config.AppConfig) {
 	ptr := s.overrides.Load()
 	if ptr == nil {
 		return
 	}
 
-	// 构建仍可参与自动移板的 key 集合（与 evaluate 中的过滤逻辑一致）
-	eligible := make(map[storage.MonitorKey]struct{})
+	// 构建仍可参与自动移板的 key 集合及其 exempt 状态
+	type eligibleInfo struct {
+		autoColdExempt bool
+	}
+	eligible := make(map[storage.MonitorKey]eligibleInfo)
 	for _, m := range cfg.Monitors {
 		if m.Disabled || m.Hidden {
 			continue
@@ -115,22 +124,24 @@ func (s *Service) purgeStaleOverrides(cfg *config.AppConfig) {
 			Channel:  m.Channel,
 			Model:    m.Model,
 		}
-		eligible[key] = struct{}{}
+		eligible[key] = eligibleInfo{autoColdExempt: m.AutoColdExempt}
 	}
 
 	// 构建新 map，仅保留仍符合条件的 override（不原地修改，保证并发安全）
 	filtered := make(map[storage.MonitorKey]MonitorOverride)
 	for key, ov := range *ptr {
-		if _, ok := eligible[key]; ok {
-			filtered[key] = ov
+		info, ok := eligible[key]
+		if !ok {
+			continue // 不再参与自动移板（disabled/hidden/parent/manual-cold/已移除）
 		}
+		// auto_cold_exempt 清除 cold override（人工恢复信号）
+		if info.autoColdExempt && isColdBoard(ov.Board) {
+			continue
+		}
+		filtered[key] = ov
 	}
 
-	if len(filtered) == 0 {
-		s.overrides.Store(nil)
-	} else {
-		s.overrides.Store(&filtered)
-	}
+	s.replaceOverrides(filtered)
 }
 
 // GetBoardOverride 查询指定监测项的 override。
@@ -155,6 +166,7 @@ func (s *Service) Overrides() map[storage.MonitorKey]MonitorOverride {
 }
 
 // SetOverrides 替换当前 override map（用于测试注入）。
+// 注意：不触发 onOverrideChange 回调，避免测试中的意外副作用。
 func (s *Service) SetOverrides(overrides map[storage.MonitorKey]MonitorOverride) {
 	if len(overrides) == 0 {
 		s.overrides.Store(nil)
@@ -163,31 +175,117 @@ func (s *Service) SetOverrides(overrides map[storage.MonitorKey]MonitorOverride)
 	}
 }
 
+// SetOnOverrideChange 设置 override 变更回调。
+// 回调异步触发，用于通知 scheduler/events 等运行时依赖刷新状态。
+func (s *Service) SetOnOverrideChange(fn func()) {
+	s.callbackMu.Lock()
+	s.onOverrideChange = fn
+	s.callbackMu.Unlock()
+}
+
+// IsCold 返回指定监测项是否被 runtime override 判定为冷板。
+// 支持 exact match 和同 PSC 父通道 cold override 向子模型的传播。
+func (s *Service) IsCold(key storage.MonitorKey) bool {
+	if s == nil {
+		return false
+	}
+	overrides := s.currentOverrides()
+	if len(overrides) == 0 {
+		return false
+	}
+	// exact match
+	if ov, ok := overrides[key]; ok && isColdBoard(ov.Board) {
+		return true
+	}
+	// PSC 传播：同 provider/service/channel 的父通道有 cold override
+	for k, ov := range overrides {
+		if !isColdBoard(ov.Board) {
+			continue
+		}
+		if k.Provider == key.Provider && k.Service == key.Service && k.Channel == key.Channel {
+			return true
+		}
+	}
+	return false
+}
+
+// ApplyOverrides 将 override map 应用到监测项列表（静态函数，不依赖 Service 实例）。
+// exact match 作用于 root 监测项；PSC 回退仅作用于有 parent 的子模型。
+// Board/ColdReason/SponsorLevel 字段会被覆盖。
+func ApplyOverrides(monitors []config.ServiceConfig, overrides map[storage.MonitorKey]MonitorOverride) []config.ServiceConfig {
+	if len(overrides) == 0 {
+		return monitors
+	}
+
+	// 构建 PSC 级别的 override 索引
+	pscOverrides := make(map[string]MonitorOverride, len(overrides))
+	for key, ov := range overrides {
+		pscKey := key.Provider + "|" + key.Service + "|" + key.Channel
+		pscOverrides[pscKey] = ov
+	}
+
+	copied := make([]config.ServiceConfig, len(monitors))
+	copy(copied, monitors)
+	for i := range copied {
+		key := storage.MonitorKey{
+			Provider: copied[i].Provider,
+			Service:  copied[i].Service,
+			Channel:  copied[i].Channel,
+			Model:    copied[i].Model,
+		}
+
+		// 精确匹配：root 监测项直接命中 override
+		if ov, ok := overrides[key]; ok {
+			applyOverrideToMonitor(&copied[i], ov)
+			continue
+		}
+
+		// PSC 回退：子模型继承父通道的 override
+		if strings.TrimSpace(copied[i].Parent) != "" {
+			pscKey := copied[i].Provider + "|" + copied[i].Service + "|" + copied[i].Channel
+			if ov, ok := pscOverrides[pscKey]; ok {
+				applyOverrideToMonitor(&copied[i], ov)
+			}
+		}
+	}
+	return copied
+}
+
+func applyOverrideToMonitor(m *config.ServiceConfig, ov MonitorOverride) {
+	if ov.Board != "" {
+		m.Board = ov.Board
+		if isColdBoard(ov.Board) {
+			m.ColdReason = ov.ColdReason
+		} else {
+			m.ColdReason = ""
+		}
+	}
+	if ov.SponsorLevel != "" {
+		m.SponsorLevel = ov.SponsorLevel
+	}
+}
+
 // Evaluate 执行一次完整的可用率评估和移板判断。
 // 可导出，供测试和启动时首次调用。
 func (s *Service) Evaluate(ctx context.Context) {
 	snap := s.snapshot()
 	if snap == nil {
-		s.overrides.Store(nil)
+		s.replaceOverrides(nil)
 		return
 	}
 
 	if !snap.boardsEnabled || !snap.autoMove.Enabled {
-		s.overrides.Store(nil)
+		s.replaceOverrides(nil)
 		return
 	}
 
 	overrides, stats := s.evaluate(ctx, snap)
 
-	// 原子替换
-	if len(overrides) == 0 {
-		s.overrides.Store(nil)
-	} else {
-		s.overrides.Store(&overrides)
-	}
+	s.replaceOverrides(overrides)
 
 	logger.Info("AutoMover", "评估完成",
 		"checked", stats.checked,
+		"cooled", stats.cooled,
 		"demoted", stats.demoted,
 		"promoted", stats.promoted,
 		"expired", stats.expired,
@@ -207,10 +305,60 @@ type evalSnapshot struct {
 
 type evalStats struct {
 	checked          int
+	cooled           int
 	demoted          int
 	promoted         int
 	expired          int
 	skippedMinProbes int
+}
+
+// replaceOverrides 原子替换 override map，并在内容实际变化时触发回调。
+func (s *Service) replaceOverrides(overrides map[storage.MonitorKey]MonitorOverride) {
+	current := s.currentOverrides()
+	if overridesEqual(current, overrides) {
+		return
+	}
+
+	if len(overrides) == 0 {
+		s.overrides.Store(nil)
+	} else {
+		cp := make(map[storage.MonitorKey]MonitorOverride, len(overrides))
+		for k, v := range overrides {
+			cp[k] = v
+		}
+		s.overrides.Store(&cp)
+	}
+	s.notifyOverrideChange()
+}
+
+func (s *Service) notifyOverrideChange() {
+	s.callbackMu.RLock()
+	cb := s.onOverrideChange
+	s.callbackMu.RUnlock()
+	if cb != nil {
+		go cb()
+	}
+}
+
+func overridesEqual(a, b map[storage.MonitorKey]MonitorOverride) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for k, av := range a {
+		if bv, ok := b[k]; !ok || bv != av {
+			return false
+		}
+	}
+	return true
+}
+
+func isColdBoard(board string) bool {
+	return strings.EqualFold(strings.TrimSpace(board), "cold")
+}
+
+func makeAutoColdReason(availability, threshold float64) string {
+	return fmt.Sprintf("7天可用率 %.1f%% 低于自动冷板阈值 %.0f%%，已自动移入冷板",
+		availability, threshold)
 }
 
 func (s *Service) snapshot() *evalSnapshot {
@@ -293,11 +441,13 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 	today := nowUTC.Truncate(24 * time.Hour)
 	// 与 WebUI 的 7d day 对齐保持一致：endTime 为下一天 00:00 UTC
 	endTime := alignToNextUTCDay(nowUTC)
+	currentOverrides := s.currentOverrides()
 
 	// 收集 hot/secondary 的根监测项（排除 parent/disabled/hidden/cold）
 	type candidate struct {
-		key         storage.MonitorKey
-		configBoard string
+		key            storage.MonitorKey
+		configBoard    string
+		autoColdExempt bool
 	}
 	var candidates []candidate
 
@@ -324,6 +474,16 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 			Model:    m.Model,
 		}
 
+		// 已有 cold override 是 sticky 的：直接保留，不再重新评估
+		// 但 auto_cold_exempt 的项跳过 sticky 保留（人工恢复信号优先）
+		if ov, ok := currentOverrides[key]; ok && isColdBoard(ov.Board) {
+			if !m.AutoColdExempt {
+				overrides[key] = ov
+				continue
+			}
+			// exempt: 不保留 cold，继续进入正常评估流程
+		}
+
 		// 到期检查：到期日当天仍有效，次日起自动降级并移入备板
 		if expiresAt := strings.TrimSpace(m.ExpiresAt); expiresAt != "" {
 			if expiresDate, err := time.Parse("2006-01-02", expiresAt); err == nil && today.After(expiresDate) {
@@ -342,8 +502,9 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 		}
 
 		candidates = append(candidates, candidate{
-			key:         key,
-			configBoard: board,
+			key:            key,
+			configBoard:    board,
+			autoColdExempt: m.AutoColdExempt,
 		})
 	}
 
@@ -397,10 +558,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 		}
 	}
 
-	// 读取当前 override 状态，用于计算"有效板块"
-	currentOverrides := s.currentOverrides()
-
-	// 双阈值评估：以"有效板块"（config + 当前 override）为基准
+	// 冷板/双阈值评估：以"有效板块"（config + 当前 override）为基准
 	for _, c := range candidates {
 		stats.checked++
 		records := allHistory[c.key]
@@ -414,6 +572,21 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 		effectiveBoard := c.configBoard
 		if ov, ok := currentOverrides[c.key]; ok && ov.Board != "" {
 			effectiveBoard = ov.Board
+		}
+
+		// 冷板判断：可用率低于 threshold_cold 且未被 exempt
+		if !c.autoColdExempt && availability < snap.autoMove.ThresholdCold {
+			overrides[c.key] = MonitorOverride{
+				Board:      "cold",
+				ColdReason: makeAutoColdReason(availability, snap.autoMove.ThresholdCold),
+			}
+			stats.cooled++
+			logger.Info("AutoMover", "自动移板: *→cold",
+				"monitor", c.key.Provider+"/"+c.key.Service+"/"+c.key.Channel,
+				"from", effectiveBoard,
+				"availability", availability,
+				"threshold_cold", snap.autoMove.ThresholdCold)
+			continue
 		}
 
 		switch effectiveBoard {

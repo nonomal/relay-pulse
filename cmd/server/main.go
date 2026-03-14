@@ -215,6 +215,12 @@ func main() {
 		}
 	}
 
+	// 创建自动移板服务（始终创建，内部根据 enabled 决定是否实际评估）
+	// 在 scheduler 之前创建并首次评估，确保重启后能基于 DB 历史重建 runtime cold override，
+	// 避免 scheduler 首轮调度到本应停探的通道。
+	autoMover := automove.NewService(store, cfg)
+	autoMover.Evaluate(ctx)
+
 	// 创建调度器（支持通过 config.yaml 配置 interval）
 	interval := cfg.IntervalDuration
 	if interval <= 0 {
@@ -222,6 +228,7 @@ func main() {
 	}
 	userIDMgr := identity.NewUserIDManager()
 	sched := scheduler.NewScheduler(store, interval, userIDMgr)
+	sched.SetAutoMover(autoMover)
 
 	// 创建事件服务（如果启用）
 	eventSvc, err := events.NewService(events.ServiceConfig{
@@ -242,8 +249,6 @@ func main() {
 	}
 	if eventSvc.IsEnabled() {
 		sched.SetEventService(eventSvc)
-		// 初始化活跃模型索引
-		eventSvc.UpdateActiveModels(cfg.Monitors, cfg.Boards.Enabled)
 		logger.Info("main", "事件服务已启用",
 			"mode", eventSvc.GetMode(),
 			"down_threshold", cfg.Events.DownThreshold,
@@ -254,22 +259,31 @@ func main() {
 
 	sched.Start(ctx, cfg)
 
-	// 创建自动移板服务（始终创建，内部根据 enabled 决定是否实际评估）
-	autoMover := automove.NewService(store, cfg)
-	autoMover.Start(ctx)
-	if cfg.Boards.Enabled && cfg.Boards.AutoMove.Enabled {
-		logger.Info("main", "自动移板服务已启用",
-			"threshold_down", cfg.Boards.AutoMove.ThresholdDown,
-			"threshold_up", cfg.Boards.AutoMove.ThresholdUp,
-			"check_interval", cfg.Boards.AutoMove.CheckInterval,
-			"min_probes", cfg.Boards.AutoMove.MinProbes)
-	}
-
 	// 创建API服务器
 	server := api.NewServer(store, cfg, "8080", autoMover)
 
 	// runtimeMu 保护热更新回调与关闭序列之间对 mutable 组件实例的并发访问
 	var runtimeMu sync.Mutex
+	runtimeCfg := cfg
+
+	// 连接 override 变更回调：当 autoMover 产生新 cold override 时通知 scheduler/events 刷新
+	autoMover.SetOnOverrideChange(func() {
+		runtimeMu.Lock()
+		defer runtimeMu.Unlock()
+		if ctx.Err() != nil {
+			return
+		}
+		sched.UpdateConfig(runtimeCfg)
+	})
+	autoMover.Start(ctx)
+	if cfg.Boards.Enabled && cfg.Boards.AutoMove.Enabled {
+		logger.Info("main", "自动移板服务已启用",
+			"threshold_cold", cfg.Boards.AutoMove.ThresholdCold,
+			"threshold_down", cfg.Boards.AutoMove.ThresholdDown,
+			"threshold_up", cfg.Boards.AutoMove.ThresholdUp,
+			"check_interval", cfg.Boards.AutoMove.CheckInterval,
+			"min_probes", cfg.Boards.AutoMove.MinProbes)
+	}
 
 	// 提前注册公告 API 路由（使用支持动态替换的 Handler），避免热启用后无路由入口
 	announcementsHandler := announcements.NewHandler(nil)
@@ -338,9 +352,12 @@ func main() {
 		}
 
 		// === 已有热更新支持的组件 ===
-		sched.UpdateConfig(newCfg)
+		// 顺序重要：先更新 autoMover（可能清除/生成 cold override），
+		// 再更新 scheduler（基于最新 override 重建任务堆），最后更新 server
+		runtimeCfg = newCfg
 		server.UpdateConfig(newCfg)
 		autoMover.UpdateConfig(newCfg)
+		sched.UpdateConfig(newCfg)
 
 		// 重新运行 channel 迁移（支持运行时添加 channel）
 		if err := store.MigrateChannelData(buildChannelMigrationMappings(newCfg.Monitors)); err != nil {

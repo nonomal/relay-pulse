@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"monitor/internal/automove"
 	"monitor/internal/config"
 	"monitor/internal/storage"
 )
@@ -381,5 +382,44 @@ func TestMaxConcurrency(t *testing.T) {
 		case <-time.After(5 * time.Second):
 			t.Fatalf("timeout waiting for remaining probe %d", i)
 		}
+	}
+}
+
+func TestRebuildTasks_SkipsRuntimeColdPSC(t *testing.T) {
+	store := newTestStore(t)
+	s := NewScheduler(store, 30*time.Second, nil)
+
+	autoMover := automove.NewService(nil, &config.AppConfig{})
+	autoMover.SetOverrides(map[storage.MonitorKey]automove.MonitorOverride{
+		{Provider: "cold", Service: "svc", Channel: "vip"}: {
+			Board:      "cold",
+			ColdReason: "auto cold",
+		},
+	})
+	s.SetAutoMover(autoMover)
+
+	root := mkMonitor("cold", "svc", "vip", "", "https://example.com", 30*time.Second)
+	child := mkMonitor("cold", "svc", "vip", "gpt-4o", "https://example.com", 30*time.Second)
+	child.Parent = "cold/svc/vip"
+	hot := mkMonitor("hot", "svc", "std", "", "https://example.com", 30*time.Second)
+
+	cfg := &config.AppConfig{
+		Boards:           config.BoardsConfig{Enabled: true},
+		IntervalDuration: 30 * time.Second,
+		MaxConcurrency:   1,
+		StaggerProbes:    boolPtr(false),
+		Monitors:         []config.ServiceConfig{root, child, hot},
+	}
+
+	s.rebuildTasks(cfg, false)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.tasks) != 1 {
+		t.Fatalf("task count = %d, want 1 (only hot monitor)", len(s.tasks))
+	}
+	got := s.tasks[0].monitor.Provider + "/" + s.tasks[0].monitor.Service + "/" + s.tasks[0].monitor.Channel
+	if got != "hot/svc/std" {
+		t.Fatalf("remaining task = %s, want hot/svc/std", got)
 	}
 }

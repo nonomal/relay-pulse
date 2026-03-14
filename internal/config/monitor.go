@@ -75,6 +75,10 @@ type ServiceConfig struct {
 	Board      string `yaml:"board" json:"board"`
 	ColdReason string `yaml:"cold_reason" json:"cold_reason,omitempty"` // 冷板原因（可选）
 
+	// AutoColdExempt 手动解除自动冷板。
+	// 设为 true 时会清除 runtime cold override，并在保持为 true 期间不再自动移入冷板。
+	AutoColdExempt bool `yaml:"auto_cold_exempt" json:"-"`
+
 	// 通道级慢请求阈值（可选，覆盖模板和全局 slow_latency）
 	// 支持 Go duration 格式，例如 "5s"、"15s"
 	// 优先级：monitor > template.probe > global

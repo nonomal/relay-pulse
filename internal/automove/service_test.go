@@ -799,3 +799,307 @@ func TestEvaluate_ChildMonitorsExcluded(t *testing.T) {
 		t.Error("expected no override for child monitors (have parent)")
 	}
 }
+
+// === 自动冷板测试 ===
+
+func TestEvaluate_AutoCold_DemotesToCold(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "bad", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 20) // 可用率 0%
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "bad", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	ov, ok := svc.GetBoardOverride(key)
+	if !ok {
+		t.Fatal("expected cold override")
+	}
+	if ov.Board != "cold" {
+		t.Fatalf("expected board=cold, got %s", ov.Board)
+	}
+	if ov.ColdReason == "" {
+		t.Fatal("expected ColdReason to be populated")
+	}
+}
+
+func TestEvaluate_AutoCold_Sticky(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "sticky", Service: "cc", Channel: "vip"}
+	// 即使可用率恢复到 100%，sticky cold 也不应被清除
+	store.history[key] = makeRecords(1, 20)
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "sticky", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	// 预注入 cold override
+	svc.SetOverrides(map[storage.MonitorKey]MonitorOverride{
+		key: {Board: "cold", ColdReason: "之前自动冷板"},
+	})
+	svc.Evaluate(context.Background())
+
+	ov, ok := svc.GetBoardOverride(key)
+	if !ok {
+		t.Fatal("expected sticky cold override to be preserved")
+	}
+	if ov.Board != "cold" {
+		t.Fatalf("expected board=cold, got %s", ov.Board)
+	}
+	if ov.ColdReason != "之前自动冷板" {
+		t.Fatalf("expected original ColdReason, got %q", ov.ColdReason)
+	}
+}
+
+func TestEvaluate_AutoCold_MinProbesProtection(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "new", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 5) // 不足 min_probes
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "new", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	_, ok := svc.GetBoardOverride(key)
+	if ok {
+		t.Fatal("expected no override: min_probes not met")
+	}
+}
+
+func TestEvaluate_AutoColdExempt_SkipsColdDecision(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "exempt", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 20) // 可用率 0%，但已 exempt
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "exempt", Service: "cc", Channel: "vip", Board: "hot", AutoColdExempt: true},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	ov, ok := svc.GetBoardOverride(key)
+	if !ok {
+		t.Fatal("expected override (should demote to secondary, not cold)")
+	}
+	if ov.Board == "cold" {
+		t.Fatal("auto_cold_exempt should prevent cold board")
+	}
+	if ov.Board != "secondary" {
+		t.Fatalf("expected board=secondary, got %s", ov.Board)
+	}
+}
+
+func TestUpdateConfig_AutoColdExemptPurgesColdOverride(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "recover", Service: "cc", Channel: "vip"}
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "recover", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.SetOverrides(map[storage.MonitorKey]MonitorOverride{
+		key: {Board: "cold", ColdReason: "auto cold"},
+	})
+
+	// 热更新：设置 auto_cold_exempt
+	cfg2 := &config.AppConfig{
+		Boards:            cfg.Boards,
+		DegradedWeight:    cfg.DegradedWeight,
+		BatchQueryMaxKeys: cfg.BatchQueryMaxKeys,
+		Monitors: []config.ServiceConfig{
+			{Provider: "recover", Service: "cc", Channel: "vip", Board: "hot", AutoColdExempt: true},
+		},
+	}
+	svc.UpdateConfig(cfg2)
+
+	if _, ok := svc.GetBoardOverride(key); ok {
+		t.Fatal("expected cold override to be purged by auto_cold_exempt")
+	}
+}
+
+func TestOnOverrideChange_CalledOnColdTransition(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "cb", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 20)
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "cb", Service: "cc", Channel: "vip", Board: "hot"},
+		},
+	}
+
+	called := make(chan struct{}, 1)
+	svc := NewService(store, cfg)
+	svc.SetOnOverrideChange(func() {
+		select {
+		case called <- struct{}{}:
+		default:
+		}
+	})
+	svc.Evaluate(context.Background())
+
+	select {
+	case <-called:
+		// ok
+	case <-time.After(time.Second):
+		t.Fatal("expected onOverrideChange callback to fire")
+	}
+}
+
+func TestIsCold_PSCPropagation(t *testing.T) {
+	svc := NewService(nil, &config.AppConfig{})
+	svc.SetOverrides(map[storage.MonitorKey]MonitorOverride{
+		{Provider: "p", Service: "s", Channel: "c", Model: "root"}: {Board: "cold", ColdReason: "test"},
+	})
+
+	// 同 PSC 的子模型也应被判定为 cold
+	if !svc.IsCold(storage.MonitorKey{Provider: "p", Service: "s", Channel: "c", Model: "child"}) {
+		t.Fatal("expected IsCold to propagate to child model via PSC")
+	}
+	// 不同 PSC 不应被判定
+	if svc.IsCold(storage.MonitorKey{Provider: "p", Service: "s", Channel: "other"}) {
+		t.Fatal("expected IsCold to not propagate to different channel")
+	}
+}
+
+func TestApplyOverrides_ColdReasonPropagation(t *testing.T) {
+	overrides := map[storage.MonitorKey]MonitorOverride{
+		{Provider: "p", Service: "s", Channel: "c"}: {Board: "cold", ColdReason: "auto cold test"},
+	}
+
+	monitors := []config.ServiceConfig{
+		{Provider: "p", Service: "s", Channel: "c", Board: "hot"},
+		{Provider: "p", Service: "s", Channel: "c", Model: "gpt-4o", Parent: "p/s/c", Board: "hot"},
+	}
+
+	result := ApplyOverrides(monitors, overrides)
+
+	if result[0].Board != "cold" || result[0].ColdReason != "auto cold test" {
+		t.Fatalf("root: board=%s cold_reason=%q", result[0].Board, result[0].ColdReason)
+	}
+	if result[1].Board != "cold" || result[1].ColdReason != "auto cold test" {
+		t.Fatalf("child: board=%s cold_reason=%q", result[1].Board, result[1].ColdReason)
+	}
+}
+
+func TestApplyOverrides_ClearsColdReasonOnNonCold(t *testing.T) {
+	overrides := map[storage.MonitorKey]MonitorOverride{
+		{Provider: "p", Service: "s", Channel: "c"}: {Board: "secondary"},
+	}
+
+	monitors := []config.ServiceConfig{
+		{Provider: "p", Service: "s", Channel: "c", Board: "cold", ColdReason: "旧原因"},
+	}
+
+	result := ApplyOverrides(monitors, overrides)
+
+	if result[0].Board != "secondary" {
+		t.Fatalf("board=%s, want secondary", result[0].Board)
+	}
+	if result[0].ColdReason != "" {
+		t.Fatalf("cold_reason=%q, want empty", result[0].ColdReason)
+	}
+}

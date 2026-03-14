@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"monitor/internal/automove"
 	"monitor/internal/config"
 	"monitor/internal/events"
 	"monitor/internal/identity"
@@ -66,7 +67,8 @@ func (h *taskHeap) Pop() any {
 // 支持每个监测项独立的巡检间隔
 type Scheduler struct {
 	prober       *monitor.Prober
-	eventService *events.Service // 事件服务（可选）
+	eventService *events.Service   // 事件服务（可选）
+	autoMover    *automove.Service // 自动移板服务（可选，用于 runtime cold 跳过）
 
 	mu      sync.Mutex
 	running bool
@@ -97,8 +99,16 @@ func NewScheduler(store storage.RecordStorage, interval time.Duration, userIDMgr
 // 用于探测完成后检测状态变更并产生事件
 func (s *Scheduler) SetEventService(svc *events.Service) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.eventService = svc
+	s.mu.Unlock()
+}
+
+// SetAutoMover 设置自动移板服务。
+// 调度器会基于 runtime cold override 跳过对应 PSC 的 root/子模型任务。
+func (s *Scheduler) SetAutoMover(svc *automove.Service) {
+	s.mu.Lock()
+	s.autoMover = svc
+	s.mu.Unlock()
 }
 
 // Start 启动调度器
@@ -112,6 +122,9 @@ func (s *Scheduler) Start(ctx context.Context, cfg *config.AppConfig) {
 	s.ctx, s.cancel = context.WithCancel(ctx)
 	s.mu.Unlock()
 
+	// 初始化事件服务的活跃模型索引（需在任务堆构建前完成，考虑 runtime cold override）
+	s.updateActiveModels(cfg)
+
 	// 保存初始配置并初始化任务堆（启动时错峰）
 	s.rebuildTasks(cfg, true)
 
@@ -123,16 +136,36 @@ func (s *Scheduler) Start(ctx context.Context, cfg *config.AppConfig) {
 
 // UpdateConfig 更新配置（热更新时调用）
 func (s *Scheduler) UpdateConfig(cfg *config.AppConfig) {
-	// 先更新事件服务的活跃模型索引（在任务重建之前）
-	// 确保新任务执行时能读到最新的活跃模型列表
-	if s.eventService != nil && s.eventService.IsEnabled() {
-		s.eventService.UpdateActiveModels(cfg.Monitors, cfg.Boards.Enabled)
-	}
+	s.updateActiveModels(cfg)
 
 	// 再重建任务堆（会唤醒调度循环，新任务可能立即执行）
 	s.rebuildTasks(cfg, false)
 
 	logger.Info("scheduler", "配置已更新，调度任务已重建")
+}
+
+// updateActiveModels 刷新事件服务的活跃模型索引（考虑 runtime cold override）
+func (s *Scheduler) updateActiveModels(cfg *config.AppConfig) {
+	if cfg == nil {
+		return
+	}
+
+	s.mu.Lock()
+	eventSvc := s.eventService
+	autoMover := s.autoMover
+	s.mu.Unlock()
+
+	if eventSvc == nil || !eventSvc.IsEnabled() {
+		return
+	}
+
+	monitors := cfg.Monitors
+	if autoMover != nil {
+		if overrides := autoMover.Overrides(); len(overrides) > 0 {
+			monitors = automove.ApplyOverrides(monitors, overrides)
+		}
+	}
+	eventSvc.UpdateActiveModels(monitors, cfg.Boards.Enabled)
 }
 
 // TriggerNow 立即触发所有任务的巡检
@@ -190,6 +223,19 @@ func (s *Scheduler) Stop() {
 	logger.Info("scheduler", "调度器已停止")
 }
 
+// isRuntimeCold 检查监测项是否被 runtime cold override 覆盖
+func isRuntimeCold(autoMover *automove.Service, cfg *config.AppConfig, m config.ServiceConfig) bool {
+	if cfg == nil || !cfg.Boards.Enabled || autoMover == nil {
+		return false
+	}
+	return autoMover.IsCold(storage.MonitorKey{
+		Provider: m.Provider,
+		Service:  m.Service,
+		Channel:  m.Channel,
+		Model:    m.Model,
+	})
+}
+
 // rebuildTasks 根据配置重建调度任务堆
 // startup=true 时使用启动模式错峰（固定 2 秒间隔）
 func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
@@ -204,6 +250,7 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	autoMover := s.autoMover
 
 	monitorCount := len(cfg.Monitors)
 	if monitorCount == 0 {
@@ -221,8 +268,8 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 			disabledCount++
 			continue
 		}
-		// 冷板项：启用 boards 后不创建探测任务，仅展示历史数据
-		if cfg.Boards.Enabled && m.Board == "cold" {
+		// 冷板项：启用 boards 后不创建探测任务，仅展示历史数据（含 runtime cold）
+		if cfg.Boards.Enabled && (m.Board == "cold" || isRuntimeCold(autoMover, cfg, m)) {
 			coldCount++
 		}
 	}
@@ -251,8 +298,8 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 		"max_concurrency", maxConcurrency, "total", monitorCount,
 		"disabled", disabledCount, "active", activeCount)
 
-	// 构建多模型监测组（按 provider/service/channel 分组）
-	groups := buildMonitorGroups(cfg)
+	// 构建多模型监测组（按 provider/service/channel 分组，跳过 runtime cold）
+	groups := buildMonitorGroupsWithColdSkip(cfg, autoMover)
 
 	// 调度策略计算
 	// 组间错峰：将各组均匀分布在巡检周期内（需 stagger_probes 开启且多于 1 组）
@@ -264,7 +311,7 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 	var groupBaseDelay, groupJitterRange time.Duration
 
 	if useInterGroupStagger {
-		minInterval := s.findMinInterval(cfg)
+		minInterval := findMinIntervalWithAutoMover(cfg, autoMover)
 		if startup {
 			// 启动模式：优先填满最小巡检周期，必要时抬高以避免最坏抖动下组间重叠
 			var maxIntraGroupWidth time.Duration
@@ -384,14 +431,19 @@ func (s *Scheduler) rebuildTasks(cfg *config.AppConfig, startup bool) {
 
 // findMinInterval 找到所有活跃监测项中最小的 interval（跳过已禁用和冷板的）
 func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
+	s.mu.Lock()
+	autoMover := s.autoMover
+	s.mu.Unlock()
+	return findMinIntervalWithAutoMover(cfg, autoMover)
+}
+
+func findMinIntervalWithAutoMover(cfg *config.AppConfig, autoMover *automove.Service) time.Duration {
 	minInterval := cfg.IntervalDuration
 	for _, m := range cfg.Monitors {
-		// 跳过已禁用的监测项
 		if m.Disabled {
 			continue
 		}
-		// 跳过冷板项：启用 boards 后不参与调度
-		if cfg.Boards.Enabled && m.Board == "cold" {
+		if cfg.Boards.Enabled && (m.Board == "cold" || isRuntimeCold(autoMover, cfg, m)) {
 			continue
 		}
 		if m.IntervalDuration > 0 && (minInterval == 0 || m.IntervalDuration < minInterval) {
@@ -401,10 +453,22 @@ func (s *Scheduler) findMinInterval(cfg *config.AppConfig) time.Duration {
 	return minInterval
 }
 
+// buildMonitorGroupsWithColdSkip 按 provider/service/channel 分组监测项，同时跳过 runtime cold
+func buildMonitorGroupsWithColdSkip(cfg *config.AppConfig, autoMover *automove.Service) []monitorGroup {
+	return buildMonitorGroupsFiltered(cfg, func(m config.ServiceConfig) bool {
+		return isRuntimeCold(autoMover, cfg, m)
+	})
+}
+
 // buildMonitorGroups 按 provider/service/channel 分组监测项
 // 返回分组列表，组内按 layer_order 排序（父层优先），组间按首个配置索引排序
 // 仅包含活跃监测项（跳过 disabled 和 cold board）
 func buildMonitorGroups(cfg *config.AppConfig) []monitorGroup {
+	return buildMonitorGroupsFiltered(cfg, nil)
+}
+
+// buildMonitorGroupsFiltered 分组监测项的核心实现，extraSkip 为可选的额外跳过判断
+func buildMonitorGroupsFiltered(cfg *config.AppConfig, extraSkip func(config.ServiceConfig) bool) []monitorGroup {
 	if len(cfg.Monitors) == 0 {
 		return nil
 	}
@@ -423,6 +487,10 @@ func buildMonitorGroups(cfg *config.AppConfig) []monitorGroup {
 		}
 		// 跳过冷板项（启用 boards 功能时）
 		if cfg.Boards.Enabled && m.Board == "cold" {
+			continue
+		}
+		// 跳过额外过滤的项（如 runtime cold）
+		if extraSkip != nil && extraSkip(m) {
 			continue
 		}
 

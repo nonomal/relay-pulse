@@ -504,8 +504,15 @@ func (c *AppConfig) validateBoardAutoMove() error {
 		return nil // 未启用时跳过校验
 	}
 	// 阈值范围校验（0 值视为未配置，Normalize 将填充默认值）
+	if am.ThresholdCold != 0 && (am.ThresholdCold < 0 || am.ThresholdCold > 100) {
+		return fmt.Errorf("boards.auto_move.threshold_cold 必须在 0-100 范围内，当前值: %.2f", am.ThresholdCold)
+	}
 	if am.ThresholdDown != 0 && (am.ThresholdDown < 0 || am.ThresholdDown > 100) {
 		return fmt.Errorf("boards.auto_move.threshold_down 必须在 0-100 范围内，当前值: %.2f", am.ThresholdDown)
+	}
+	// cold < down 关系校验（两者都非零时检查）
+	if am.ThresholdCold != 0 && am.ThresholdDown != 0 && am.ThresholdCold >= am.ThresholdDown {
+		return fmt.Errorf("boards.auto_move.threshold_cold(%.2f) 必须小于 threshold_down(%.2f)", am.ThresholdCold, am.ThresholdDown)
 	}
 	if am.ThresholdUp != 0 && (am.ThresholdUp < 0 || am.ThresholdUp > 100) {
 		return fmt.Errorf("boards.auto_move.threshold_up 必须在 0-100 范围内，当前值: %.2f", am.ThresholdUp)

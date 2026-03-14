@@ -249,6 +249,9 @@ func (c *AppConfig) normalizeGlobalDefaults() error {
 // 包括：sponsor_pin, selftest, events, github, announcements
 func (c *AppConfig) normalizeFeatureConfigs() error {
 	// 自动移板配置默认值与解析
+	if c.Boards.AutoMove.ThresholdCold == 0 {
+		c.Boards.AutoMove.ThresholdCold = 10.0
+	}
 	if c.Boards.AutoMove.ThresholdDown == 0 {
 		c.Boards.AutoMove.ThresholdDown = 50.0
 	}
@@ -275,6 +278,13 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 			c.Boards.AutoMove.CheckInterval = "30m"
 		}
 		c.Boards.AutoMove.CheckIntervalDuration = d
+	}
+	// 默认值填充后的阈值一致性校验（覆盖用户省略字段导致的组合非法情况）
+	if c.Boards.AutoMove.Enabled {
+		if c.Boards.AutoMove.ThresholdCold >= c.Boards.AutoMove.ThresholdDown {
+			return fmt.Errorf("boards.auto_move.threshold_cold(%.2f) 必须小于 threshold_down(%.2f)，冷板阈值必须低于降级阈值",
+				c.Boards.AutoMove.ThresholdCold, c.Boards.AutoMove.ThresholdDown)
+		}
 	}
 
 	// 赞助通道置顶配置默认值
