@@ -39,12 +39,13 @@ interface ChannelCellProps {
   serviceType?: string;
   probeUrl?: string;
   templateName?: string;
+  coldReason?: string;
   className?: string;
 }
 
-function ChannelCell({ channel, serviceType, probeUrl, templateName, className = '' }: ChannelCellProps) {
+function ChannelCell({ channel, serviceType, probeUrl, templateName, coldReason, className = '' }: ChannelCellProps) {
   const { t } = useTranslation();
-  const hasTooltip = !!(probeUrl || templateName);
+  const hasTooltip = !!(probeUrl || templateName || coldReason);
 
   const channelContent = (
     <>
@@ -81,6 +82,12 @@ function ChannelCell({ channel, serviceType, probeUrl, templateName, className =
             <span className="flex flex-col">
               <span className="text-muted text-[10px]">{t('table.channelTooltip.template')}</span>
               <span className="text-primary font-mono text-[11px] break-all">{templateName}</span>
+            </span>
+          )}
+          {coldReason && (
+            <span className="flex flex-col">
+              <span className="text-muted text-[10px]">{t('table.channelTooltip.coldReason', '冷板原因')}</span>
+              <span className="text-warning text-[11px] break-all">{coldReason}</span>
             </span>
           )}
         </span>
@@ -238,10 +245,10 @@ function MobileListItem({
               {item.channel && (
                 <ChannelCell
                   channel={item.channelName || item.channel}
-
                   serviceType={item.serviceType}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
+                  coldReason={item.coldReason}
                   className="text-muted truncate"
                 />
               )}
@@ -673,10 +680,10 @@ function StatusTableComponent({
               <td className="px-2 py-1 text-secondary text-xs">
                 <ChannelCell
                   channel={item.channelName || item.channel}
-
                   serviceType={item.serviceType}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
+                  coldReason={item.coldReason}
                   className="max-w-[10rem]"
                 />
               </td>

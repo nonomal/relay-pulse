@@ -191,7 +191,8 @@
     },
     "channelTooltip": {
       "probeUrl": "Probe URL",
-      "template": "Body Template"
+      "template": "Body Template",
+      "coldReason": "Cold Reason"
     },
     "filterByProvider": "Filter by this provider"
   },

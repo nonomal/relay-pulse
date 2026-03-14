@@ -191,7 +191,8 @@
     },
     "channelTooltip": {
       "probeUrl": "探測URL",
-      "template": "リクエストテンプレート"
+      "template": "リクエストテンプレート",
+      "coldReason": "コールド理由"
     },
     "filterByProvider": "このプロバイダーでフィルター"
   },

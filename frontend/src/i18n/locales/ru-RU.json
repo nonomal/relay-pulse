@@ -191,7 +191,8 @@
     },
     "channelTooltip": {
       "probeUrl": "URL проверки",
-      "template": "Шаблон запроса"
+      "template": "Шаблон запроса",
+      "coldReason": "Причина"
     },
     "filterByProvider": "Фильтровать по провайдеру"
   },
