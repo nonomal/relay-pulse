@@ -184,6 +184,11 @@
       "24h": "24h",
       "days": "{{count}}d"
     },
+    "channelType": {
+      "official": "官方通道",
+      "reverse": "逆向通道",
+      "mixed": "混合通道"
+    },
     "channelTooltip": {
       "probeUrl": "探测地址",
       "template": "请求体模板"

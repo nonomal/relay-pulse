@@ -184,6 +184,11 @@
       "24h": "24h",
       "days": "{{count}}d"
     },
+    "channelType": {
+      "official": "Official channel",
+      "reverse": "Reverse channel",
+      "mixed": "Mixed channel"
+    },
     "channelTooltip": {
       "probeUrl": "Probe URL",
       "template": "Body Template"

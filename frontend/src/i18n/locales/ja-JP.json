@@ -184,6 +184,11 @@
       "24h": "24h",
       "days": "{{count}}d"
     },
+    "channelType": {
+      "official": "公式チャネル",
+      "reverse": "リバースチャネル",
+      "mixed": "混合チャネル"
+    },
     "channelTooltip": {
       "probeUrl": "探測URL",
       "template": "リクエストテンプレート"

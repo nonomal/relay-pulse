@@ -184,6 +184,11 @@
       "24h": "24ч",
       "days": "{{count}}д"
     },
+    "channelType": {
+      "official": "Официальный канал",
+      "reverse": "Реверс-канал",
+      "mixed": "Смешанный канал"
+    },
     "channelTooltip": {
       "probeUrl": "URL проверки",
       "template": "Шаблон запроса"
