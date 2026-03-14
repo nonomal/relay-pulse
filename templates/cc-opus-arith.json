@@ -1,6 +1,6 @@
 {
 	"model": "Opus",
-	"request_model": "claude-opus-4-5-20251101",
+	"request_model": "claude-opus-4-6",
 	"url": "{{BASE_URL}}/v1/messages",
 	"method": "POST",
 	"headers": {
