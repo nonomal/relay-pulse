@@ -101,7 +101,7 @@ function ChannelCell({ channel, serviceType, probeUrl, templateName, coldReason,
 function getModelDisplayList(modelEntries?: ProcessedMonitorData['modelEntries']): string[] {
   if (!modelEntries || modelEntries.length === 0) return [];
   return modelEntries
-    .map((entry) => entry.model || entry.requestModel || '-')
+    .map((entry) => entry.requestModel || entry.model || '-')
     .filter(Boolean);
 }
 
@@ -109,9 +109,9 @@ function getModelTooltip(modelEntries?: ProcessedMonitorData['modelEntries']): s
   if (!modelEntries || modelEntries.length === 0) return undefined;
   return modelEntries
     .map((entry) => {
-      const model = entry.model || '-';
       const rm = entry.requestModel || entry.model || '-';
-      return model === rm ? rm : `${model} → ${rm}`;
+      const model = entry.model || '';
+      return model && model !== rm ? `${rm} (${model})` : rm;
     })
     .join('\n');
 }
@@ -583,7 +583,7 @@ function StatusTableComponent({
                 <SortIcon columnKey="lastCheck" />
               </div>
             </th>
-            <th className="pl-2 pr-4 py-3 font-medium min-w-[320px]">
+            <th className="pl-2 pr-4 py-3 font-medium min-w-[260px]">
               <div className="flex items-center gap-2">
                 {t('table.headers.trend')}
                 <span className="text-[10px] normal-case opacity-50 border border-default px-1 rounded">
