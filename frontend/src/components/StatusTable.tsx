@@ -102,18 +102,14 @@ function ChannelCell({ channel, serviceType, probeUrl, templateName, coldReason,
 function getModelDisplayList(modelEntries?: ProcessedMonitorData['modelEntries']): string[] {
   if (!modelEntries || modelEntries.length === 0) return [];
   return modelEntries
-    .map((entry) => entry.model || shortenModelName(entry.requestModel) || '-')
+    .map((entry) => shortenModelName(entry.requestModel) || entry.model || '-')
     .filter(Boolean);
 }
 
 function getModelTooltip(modelEntries?: ProcessedMonitorData['modelEntries']): string | undefined {
   if (!modelEntries || modelEntries.length === 0) return undefined;
   return modelEntries
-    .map((entry) => {
-      const rm = entry.requestModel || entry.model || '-';
-      const model = entry.model || '';
-      return model && model !== rm ? `${rm} (${model})` : rm;
-    })
+    .map((entry) => entry.requestModel || entry.model || '-')
     .join('\n');
 }
 
