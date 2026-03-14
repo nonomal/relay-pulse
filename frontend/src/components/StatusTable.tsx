@@ -543,8 +543,8 @@ function StatusTableComponent({
             >
               <div className="flex items-center">
                 <div className="flex flex-col leading-tight">
-                  <span>{t('table.headers.priceRatio')}</span>
-                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.priceRatioUnit')}</span>
+                  <span>{t('table.headers.priceRatioLine1')}</span>
+                  <span className="text-[10px] opacity-50 font-normal">{t('table.headers.priceRatioLine2')}</span>
                 </div>
                 <SortIcon columnKey="priceRatio" />
               </div>
