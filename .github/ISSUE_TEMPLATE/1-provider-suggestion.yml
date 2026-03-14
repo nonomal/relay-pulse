@@ -12,6 +12,8 @@ body:
         1. 我们会在 3 个工作日内审核配置
         2. 如有问题会在 Issue 中联系您联调
         3. 配置验证通过后上线监测
+        4. 阅读并确认入驻须知
+        5. 通过 QQ（18058344）发送真实 API Key、支付赞助费，配置联调上线
 
         **重要**：请勿在此填写真实 API Key，提交后通过 QQ（18058344）单独发送。
 
@@ -92,11 +94,13 @@ body:
       options:
         - label: 我不会在 Issue 中填写真实 API Key
           required: true
-        - label: 我会在提交 Issue 后，通过 QQ（18058344）单独发送真实 API Key，并注明本 Issue 链接
+        - label: 我会在提交 Issue 后，通过 QQ（18058344）单独发送真实 API Key 并支付赞助费，并注明本 Issue 链接
           required: true
         - label: 我已通过 [API 自助测试](https://relaypulse.top/selftest) 验证端点可用性
           required: true
         - label: 我同意所提供的 API Key 将基于监测目的使用，包括但不限于可用性监测（连通性、延迟）和深度质量检测
+          required: true
+        - label: 我承诺所申请收录的通道实际提供的模型质量与所声明的渠道一致，如不一致，接受平台采取包括但不限于加负向标签、下架、移入冷板等处理
           required: true
 
   - type: textarea
