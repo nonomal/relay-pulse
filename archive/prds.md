@@ -262,7 +262,7 @@ func performCheck(cfg ServiceConfig) LatestStatus {
 		return LatestStatus{Status: 0, Latency: 0, Time: time.Now().Unix()}
 	}
 	defer resp.Body.Close()
-	
+
 	// 丢弃Body数据，只读取少量以完成连接
 	io.CopyN(io.Discard, resp.Body, 1024)
 
@@ -279,7 +279,7 @@ func performCheck(cfg ServiceConfig) LatestStatus {
 		status = 2 // Latency too high
 	}
 
-	log.Printf("[Probe] %s-%s | Code: %d | Latency: %dms | Status: %d", 
+	log.Printf("[Probe] %s-%s | Code: %d | Latency: %dms | Status: %d",
 		cfg.Provider, cfg.Service, resp.StatusCode, latency, status)
 
 	return LatestStatus{Status: status, Latency: latency, Time: time.Now().Unix()}
@@ -297,7 +297,7 @@ func runAllChecks() {
 
 	var wg sync.WaitGroup
 	// 限制并发数防止把本机跑挂，虽然 Goroutine 很轻
-	sem := make(chan struct{}, 10) 
+	sem := make(chan struct{}, 10)
 
 	for _, task := range tasks {
 		wg.Add(1)
@@ -321,7 +321,7 @@ func runAllChecks() {
 
 func startScheduler() {
 	ticker := time.NewTicker(1 * time.Minute)
-	
+
 	// 启动时立即跑一次
 	go runAllChecks()
 
@@ -337,7 +337,7 @@ func startScheduler() {
 // 生成模拟历史数据，但强制最后一个点为真实状态
 func generateMockTimeline(period string, current LatestStatus) []TimePoint {
 	points := make([]TimePoint, 0)
-	
+
 	count := 24
 	step := time.Hour
 	format := "15:04"
@@ -355,7 +355,7 @@ func generateMockTimeline(period string, current LatestStatus) []TimePoint {
 	now := time.Now()
 	for i := count - 1; i >= 0; i-- {
 		t := now.Add(-time.Duration(i) * step)
-		
+
 		// 默认逻辑
 		s := 1
 		l := rand.Intn(200) + 50
@@ -459,7 +459,7 @@ func main() {
 
 	port := "8080"
 	fmt.Printf("\n🚀 监控服务已启动\n👉 API 地址: http://localhost:%s/api/status\n👉 配置文件: %s (支持热更新)\n\n", port, configFile)
-	
+
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
