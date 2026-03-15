@@ -184,6 +184,7 @@ func TestPG_Init_Columns(t *testing.T) {
 	for _, col := range []string{
 		"id", "provider", "service", "channel", "model",
 		"status", "sub_status", "http_code", "latency", "timestamp",
+		"error_detail",
 	} {
 		if !pgColumnExists(t, store, "probe_history", col) {
 			t.Errorf("probe_history missing column %q", col)

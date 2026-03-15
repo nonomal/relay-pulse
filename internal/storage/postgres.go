@@ -108,7 +108,8 @@ func (s *PostgresStorage) Init() error {
 		sub_status TEXT NOT NULL DEFAULT '',
 		http_code INTEGER NOT NULL DEFAULT 0,
 		latency INTEGER NOT NULL,
-		timestamp BIGINT NOT NULL
+		timestamp BIGINT NOT NULL,
+		error_detail TEXT NOT NULL DEFAULT ''
 	);
 	`
 
@@ -128,6 +129,9 @@ func (s *PostgresStorage) Init() error {
 		return err
 	}
 	if err := s.ensureModelColumn(); err != nil {
+		return err
+	}
+	if err := s.ensureErrorDetailColumn(); err != nil {
 		return err
 	}
 
@@ -300,6 +304,35 @@ func (s *PostgresStorage) ensureModelColumn() error {
 	return nil
 }
 
+// ensureErrorDetailColumn 在旧表上添加 error_detail 列（向后兼容）
+func (s *PostgresStorage) ensureErrorDetailColumn() error {
+	ctx := s.effectiveCtx()
+	checkQuery := `
+		SELECT COUNT(*)
+		FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name = 'probe_history' AND column_name = 'error_detail'
+	`
+
+	var count int
+	err := s.pool.QueryRow(ctx, checkQuery).Scan(&count)
+	if err != nil {
+		return fmt.Errorf("查询 PostgreSQL 表结构失败: %w", err)
+	}
+
+	if count > 0 {
+		return nil // 列已存在，无需添加
+	}
+
+	// 添加列
+	alterQuery := `ALTER TABLE probe_history ADD COLUMN error_detail TEXT NOT NULL DEFAULT ''`
+	if _, err := s.pool.Exec(ctx, alterQuery); err != nil {
+		return fmt.Errorf("添加 error_detail 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 probe_history 表添加 error_detail 列 (PostgreSQL)")
+	return nil
+}
+
 // MigrateChannelData 根据配置将 channel 为空的旧数据迁移到指定 channel
 func (s *PostgresStorage) MigrateChannelData(mappings []ChannelMigrationMapping) error {
 	ctx := s.effectiveCtx()
@@ -377,8 +410,8 @@ func (s *PostgresStorage) Close() error {
 func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO probe_history (provider, service, channel, model, status, sub_status, http_code, latency, timestamp)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		INSERT INTO probe_history (provider, service, channel, model, status, sub_status, http_code, latency, timestamp, error_detail)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`
 
@@ -392,6 +425,7 @@ func (s *PostgresStorage) SaveRecord(record *ProbeRecord) error {
 		record.HttpCode,
 		record.Latency,
 		record.Timestamp,
+		record.ErrorDetail,
 	).Scan(&record.ID)
 
 	if err != nil {

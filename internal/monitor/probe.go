@@ -27,16 +27,17 @@ import (
 
 // ProbeResult 探测结果
 type ProbeResult struct {
-	Provider  string
-	Service   string
-	Channel   string
-	Model     string            // 模型标识
-	Status    int               // 1=绿, 0=红, 2=黄
-	SubStatus storage.SubStatus // 细分状态（黄色/红色原因）
-	HttpCode  int               // HTTP 状态码（0 表示非 HTTP 错误）
-	Latency   int               // ms
-	Timestamp int64
-	Error     error
+	Provider        string
+	Service         string
+	Channel         string
+	Model           string            // 模型标识
+	Status          int               // 1=绿, 0=红, 2=黄
+	SubStatus       storage.SubStatus // 细分状态（黄色/红色原因）
+	HttpCode        int               // HTTP 状态码（0 表示非 HTTP 错误）
+	Latency         int               // ms
+	Timestamp       int64
+	Error           error
+	ResponseSnippet string // 失败响应摘要（status=0 时组装，截断前 512 字节）
 }
 
 // Prober 探测器
@@ -399,6 +400,24 @@ retryLoop:
 		}
 	}
 	logger.Info("probe", "探测完成", logArgs...)
+
+	// 组装失败响应摘要：仅 status=0 时写入，用于持久化排障
+	if result.Status == 0 {
+		const maxErrorDetailLen = 512
+		var snippet string
+		if len(lastBodyBytes) > 0 {
+			snippet = strings.TrimSpace(AggregateResponseText(lastBodyBytes))
+			if snippet == "" {
+				snippet = strings.TrimSpace(string(lastBodyBytes))
+			}
+		} else if result.Error != nil {
+			snippet = result.Error.Error()
+		}
+		if len(snippet) > maxErrorDetailLen {
+			snippet = snippet[:maxErrorDetailLen]
+		}
+		result.ResponseSnippet = snippet
+	}
 
 	return result
 }
@@ -828,15 +847,16 @@ func ExtractTextFromSSE(body []byte) string {
 // 返回保存后的记录（包含生成的 ID）和错误
 func (p *Prober) SaveResult(result *ProbeResult) (*storage.ProbeRecord, error) {
 	record := &storage.ProbeRecord{
-		Provider:  result.Provider,
-		Service:   result.Service,
-		Channel:   result.Channel,
-		Model:     result.Model,
-		Status:    result.Status,
-		SubStatus: result.SubStatus,
-		HttpCode:  result.HttpCode,
-		Latency:   result.Latency,
-		Timestamp: result.Timestamp,
+		Provider:    result.Provider,
+		Service:     result.Service,
+		Channel:     result.Channel,
+		Model:       result.Model,
+		Status:      result.Status,
+		SubStatus:   result.SubStatus,
+		HttpCode:    result.HttpCode,
+		Latency:     result.Latency,
+		Timestamp:   result.Timestamp,
+		ErrorDetail: result.ResponseSnippet,
 	}
 
 	if err := p.storage.SaveRecord(record); err != nil {

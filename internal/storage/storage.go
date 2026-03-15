@@ -24,16 +24,17 @@ const (
 
 // ProbeRecord 探测记录
 type ProbeRecord struct {
-	ID        int64
-	Provider  string
-	Service   string
-	Channel   string    // 业务通道标识
-	Model     string    // 模型标识（可为空，兼容旧数据）
-	Status    int       // 1=绿, 0=红, 2=黄
-	SubStatus SubStatus // 细分状态（黄色/红色原因）
-	HttpCode  int       // HTTP 状态码（0 表示非 HTTP 错误，如网络错误）
-	Latency   int       // ms
-	Timestamp int64     // Unix时间戳
+	ID          int64
+	Provider    string
+	Service     string
+	Channel     string    // 业务通道标识
+	Model       string    // 模型标识（可为空，兼容旧数据）
+	Status      int       // 1=绿, 0=红, 2=黄
+	SubStatus   SubStatus // 细分状态（黄色/红色原因）
+	HttpCode    int       // HTTP 状态码（0 表示非 HTTP 错误，如网络错误）
+	Latency     int       // ms
+	Timestamp   int64     // Unix时间戳
+	ErrorDetail string    // 失败摘要（仅 status=0 时写入，截断前 512 字节）
 }
 
 // TimePoint 时间轴数据点（用于前端展示）

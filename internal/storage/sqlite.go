@@ -68,7 +68,8 @@ func (s *SQLiteStorage) Init() error {
 		status INTEGER NOT NULL,
 		sub_status TEXT NOT NULL DEFAULT '',
 		latency INTEGER NOT NULL,
-		timestamp INTEGER NOT NULL
+		timestamp INTEGER NOT NULL,
+		error_detail TEXT NOT NULL DEFAULT ''
 	);
 	`
 
@@ -88,6 +89,9 @@ func (s *SQLiteStorage) Init() error {
 		return err
 	}
 	if err := s.ensureModelColumn(); err != nil {
+		return err
+	}
+	if err := s.ensureErrorDetailColumn(); err != nil {
 		return err
 	}
 
@@ -324,6 +328,51 @@ func (s *SQLiteStorage) ensureModelColumn() error {
 	return nil
 }
 
+// ensureErrorDetailColumn 在旧表上添加 error_detail 列（向后兼容）
+func (s *SQLiteStorage) ensureErrorDetailColumn() error {
+	ctx := s.effectiveCtx()
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(probe_history)`)
+	if err != nil {
+		return fmt.Errorf("查询表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	hasColumn := false
+	for rows.Next() {
+		var (
+			cid          int
+			name         string
+			colType      string
+			notNull      int
+			defaultValue sql.NullString
+			pk           int
+		)
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("扫描表结构失败: %w", err)
+		}
+		if name == "error_detail" {
+			hasColumn = true
+			break
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历表结构失败: %w", err)
+	}
+
+	if hasColumn {
+		return nil // 列已存在，无需添加
+	}
+
+	// 添加列
+	if _, err := s.db.ExecContext(ctx, `ALTER TABLE probe_history ADD COLUMN error_detail TEXT NOT NULL DEFAULT ''`); err != nil {
+		return fmt.Errorf("添加 error_detail 列失败: %w", err)
+	}
+
+	logger.Info("storage", "已为 probe_history 表添加 error_detail 列")
+	return nil
+}
+
 // MigrateChannelData 根据配置将 channel 为空的旧数据迁移到指定 channel
 func (s *SQLiteStorage) MigrateChannelData(mappings []ChannelMigrationMapping) error {
 	ctx := s.effectiveCtx()
@@ -404,8 +453,8 @@ func (s *SQLiteStorage) Close() error {
 func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 	ctx := s.effectiveCtx()
 	query := `
-		INSERT INTO probe_history (provider, service, channel, model, status, sub_status, http_code, latency, timestamp)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO probe_history (provider, service, channel, model, status, sub_status, http_code, latency, timestamp, error_detail)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	result, err := s.db.ExecContext(ctx, query,
@@ -418,6 +467,7 @@ func (s *SQLiteStorage) SaveRecord(record *ProbeRecord) error {
 		record.HttpCode,
 		record.Latency,
 		record.Timestamp,
+		record.ErrorDetail,
 	)
 
 	if err != nil {
