@@ -42,8 +42,8 @@
   },
   "header": {
     "tagline": "实时监测API中转服务可用性矩阵",
-    "recommendBtn": "申请收录",
-    "recommendBtnShort": "收录",
+    "contactBtn": "联系我们",
+    "contactBtnShort": "联系",
     "stats": {
       "healthy": "正常运行",
       "issues": "异常告警"
@@ -461,6 +461,92 @@
       "newSubmission": "提交新申请"
     }
   },
+  "contact": {
+    "meta": {
+      "title": "联系我们 | RelayPulse",
+      "description": "申请收录、变更通道配置或提交反馈"
+    },
+    "title": "联系我们",
+    "description": "选择您需要的服务，我们将为您提供帮助",
+    "apply": {
+      "title": "申请收录",
+      "description": "提交新的 API 服务到 RelayPulse 监测平台"
+    },
+    "change": {
+      "title": "申请变更",
+      "description": "修改已收录通道的配置信息（如地址、密钥等）"
+    },
+    "feedback": {
+      "title": "提交反馈",
+      "description": "建议、问题反馈或其他事务"
+    }
+  },
+  "changeRequest": {
+    "meta": {
+      "title": "申请变更 | RelayPulse",
+      "description": "修改已收录通道的配置信息"
+    },
+    "title": "申请变更",
+    "subtitle": "使用您的 API Key 验证身份，修改已收录通道的配置",
+    "steps": {
+      "auth": "身份验证",
+      "edit": "编辑信息",
+      "test": "连通测试",
+      "review": "确认提交"
+    },
+    "back": "返回",
+    "next": "下一步",
+    "auth": {
+      "title": "身份验证",
+      "description": "请输入您在本平台已收录通道的 API Key，系统将自动匹配对应的通道",
+      "placeholder": "输入 API Key",
+      "submit": "验证",
+      "invalidKey": "请输入有效的 API Key（至少 10 个字符）",
+      "authFailed": "API Key 验证失败"
+    },
+    "edit": {
+      "title": "编辑通道信息",
+      "description": "修改 {{channel}} 通道的配置信息，留空表示不修改",
+      "selectChannel": "选择通道",
+      "multipleChannels": "您的 API Key 匹配到多个通道，请选择需要变更的通道",
+      "current": "当前值",
+      "noChange": "不修改",
+      "newApiKeyPlaceholder": "如需更换 API Key，请在此输入新的",
+      "noChanges": "请至少修改一个字段"
+    },
+    "fields": {
+      "providerName": "服务商名称",
+      "providerUrl": "官网地址",
+      "channelName": "通道名称",
+      "category": "类别",
+      "sponsorLevel": "赞助等级",
+      "baseUrl": "API 基础地址",
+      "newApiKey": "新 API Key"
+    },
+    "test": {
+      "title": "连通性测试",
+      "description": "您修改了监测相关配置，需要通过连通性测试后才能提交",
+      "run": "运行测试",
+      "running": "测试中，请稍候...",
+      "passed": "测试通过",
+      "failed": "测试未通过",
+      "latency": "延迟",
+      "retry": "重新测试",
+      "requestFailed": "测试请求失败"
+    },
+    "review": {
+      "title": "确认变更",
+      "description": "请确认以下变更信息无误后提交",
+      "target": "目标通道",
+      "submit": "提交变更",
+      "submitFailed": "提交失败"
+    },
+    "done": {
+      "title": "变更请求已提交",
+      "description": "您的变更请求已提交，请保存以下编号用于查询进度",
+      "newRequest": "提交新的变更"
+    }
+  },
   "admin": {
     "meta": {
       "title": "管理后台"
@@ -505,7 +591,8 @@
     },
     "tabs": {
       "submissions": "申请管理",
-      "monitors": "通道管理"
+      "monitors": "通道管理",
+      "changes": "变更请求"
     },
     "monitors": {
       "backToList": "← 返回列表",
@@ -582,6 +669,36 @@
         "requiredFields": "Provider、Service、Channel 为必填",
         "create": "创建"
       }
+    },
+    "changes": {
+      "empty": "暂无变更请求",
+      "colPublicId": "编号",
+      "colTarget": "目标通道",
+      "colStatus": "状态",
+      "colApplyMode": "模式",
+      "colCreatedAt": "提交时间",
+      "modeAuto": "自动",
+      "modeManual": "人工",
+      "statusPending": "待审核",
+      "statusApproved": "已批准",
+      "statusRejected": "已驳回",
+      "statusApplied": "已应用",
+      "approve": "批准",
+      "reject": "驳回",
+      "apply": "应用",
+      "delete": "删除",
+      "confirmDelete": "确认删除此变更请求？",
+      "proposedChanges": "拟变更内容",
+      "currentSnapshot": "当前快照",
+      "testInfo": "测试信息",
+      "testLatency": "延迟",
+      "testHttpCode": "HTTP 状态码",
+      "testPassedAt": "测试通过时间",
+      "newApiKey": "新 API Key",
+      "adminNote": "审核备注",
+      "adminNotePlaceholder": "输入审核备注...",
+      "rejectNotePlaceholder": "输入驳回原因...",
+      "confirmReject": "确认驳回"
     },
     "detail": {
       "back": "返回列表",

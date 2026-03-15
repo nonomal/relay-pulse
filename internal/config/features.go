@@ -123,6 +123,15 @@ type OnboardingConfig struct {
 	ContactInfo string `yaml:"contact_info" json:"contact_info"`
 }
 
+// ChangeRequestConfig 变更请求功能配置（独立于 Onboarding，共享 admin_token 和 encryption_key）
+type ChangeRequestConfig struct {
+	// 是否启用变更请求功能（默认禁用）
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// 每 IP 每天最大提交数（默认 3）
+	MaxPerIPPerDay int `yaml:"max_per_ip_per_day" json:"-"`
+}
+
 // BoardsConfig 热板/冷板功能配置
 // 用于将监测项分为热板（正常监测）和冷板（停止监测，仅展示历史）
 type BoardsConfig struct {

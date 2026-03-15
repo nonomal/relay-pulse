@@ -42,8 +42,8 @@
   },
   "header": {
     "tagline": "Real-time availability matrix for API relay services",
-    "recommendBtn": "Submit provider",
-    "recommendBtnShort": "Submit",
+    "contactBtn": "Contact Us",
+    "contactBtnShort": "Contact",
     "stats": {
       "healthy": "Operational",
       "issues": "Issues detected"
@@ -458,6 +458,92 @@
       "newSubmission": "New Application"
     }
   },
+  "contact": {
+    "meta": {
+      "title": "Contact Us | RelayPulse",
+      "description": "Apply for listing, request changes, or submit feedback"
+    },
+    "title": "Contact Us",
+    "description": "Choose the service you need, and we'll help you",
+    "apply": {
+      "title": "Apply for Listing",
+      "description": "Submit a new API service to the RelayPulse monitoring platform"
+    },
+    "change": {
+      "title": "Request Changes",
+      "description": "Modify the configuration of an already-listed channel (e.g. URL, API key)"
+    },
+    "feedback": {
+      "title": "Submit Feedback",
+      "description": "Suggestions, bug reports, or other inquiries"
+    }
+  },
+  "changeRequest": {
+    "meta": {
+      "title": "Request Changes | RelayPulse",
+      "description": "Modify the configuration of an already-listed channel"
+    },
+    "title": "Request Changes",
+    "subtitle": "Verify your identity with your API Key to modify a listed channel's configuration",
+    "steps": {
+      "auth": "Verify",
+      "edit": "Edit",
+      "test": "Test",
+      "review": "Review"
+    },
+    "back": "Back",
+    "next": "Next",
+    "auth": {
+      "title": "Identity Verification",
+      "description": "Enter the API Key of your listed channel. The system will match the corresponding channel(s).",
+      "placeholder": "Enter API Key",
+      "submit": "Verify",
+      "invalidKey": "Please enter a valid API Key (at least 10 characters)",
+      "authFailed": "API Key verification failed"
+    },
+    "edit": {
+      "title": "Edit Channel Info",
+      "description": "Modify the configuration of channel {{channel}}. Leave blank to keep current value.",
+      "selectChannel": "Select Channel",
+      "multipleChannels": "Your API Key matches multiple channels. Please select the one you want to modify.",
+      "current": "Current",
+      "noChange": "No change",
+      "newApiKeyPlaceholder": "Enter new API Key if you want to replace it",
+      "noChanges": "Please modify at least one field"
+    },
+    "fields": {
+      "providerName": "Provider Name",
+      "providerUrl": "Website URL",
+      "channelName": "Channel Name",
+      "category": "Category",
+      "sponsorLevel": "Sponsor Level",
+      "baseUrl": "API Base URL",
+      "newApiKey": "New API Key"
+    },
+    "test": {
+      "title": "Connectivity Test",
+      "description": "You modified monitoring-related fields. A connectivity test is required before submission.",
+      "run": "Run Test",
+      "running": "Testing, please wait...",
+      "passed": "Test Passed",
+      "failed": "Test Failed",
+      "latency": "Latency",
+      "retry": "Retry Test",
+      "requestFailed": "Test request failed"
+    },
+    "review": {
+      "title": "Confirm Changes",
+      "description": "Please review the changes below before submitting",
+      "target": "Target Channel",
+      "submit": "Submit Changes",
+      "submitFailed": "Submission failed"
+    },
+    "done": {
+      "title": "Change Request Submitted",
+      "description": "Your change request has been submitted. Save the ID below to track progress.",
+      "newRequest": "Submit Another Request"
+    }
+  },
   "admin": {
     "meta": {
       "title": "Admin Dashboard"
@@ -502,7 +588,8 @@
     },
     "tabs": {
       "submissions": "Submissions",
-      "monitors": "Monitors"
+      "monitors": "Monitors",
+      "changes": "Changes"
     },
     "monitors": {
       "backToList": "← Back to list",
@@ -579,6 +666,36 @@
         "requiredFields": "Provider, Service, and Channel are required",
         "create": "Create"
       }
+    },
+    "changes": {
+      "empty": "No change requests",
+      "colPublicId": "ID",
+      "colTarget": "Target Channel",
+      "colStatus": "Status",
+      "colApplyMode": "Mode",
+      "colCreatedAt": "Submitted",
+      "modeAuto": "Auto",
+      "modeManual": "Manual",
+      "statusPending": "Pending",
+      "statusApproved": "Approved",
+      "statusRejected": "Rejected",
+      "statusApplied": "Applied",
+      "approve": "Approve",
+      "reject": "Reject",
+      "apply": "Apply",
+      "delete": "Delete",
+      "confirmDelete": "Delete this change request?",
+      "proposedChanges": "Proposed Changes",
+      "currentSnapshot": "Current Snapshot",
+      "testInfo": "Test Info",
+      "testLatency": "Latency",
+      "testHttpCode": "HTTP Code",
+      "testPassedAt": "Test Passed At",
+      "newApiKey": "New API Key",
+      "adminNote": "Admin Note",
+      "adminNotePlaceholder": "Enter review note...",
+      "rejectNotePlaceholder": "Enter rejection reason...",
+      "confirmReject": "Confirm Reject"
     },
     "detail": {
       "back": "Back to list",

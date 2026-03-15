@@ -217,12 +217,16 @@ func (h *Handler) GetSelfTest(c *gin.Context) {
 			resp.FinishedAt = &finishedAt
 		}
 
-		// 测试通过时签发 proof（供 onboarding 提交使用）
+		// 测试通过时签发 proof（供 onboarding/change 提交使用）
 		if job.ProbeStatus == 1 {
-			if svc := h.getOnboardingService(); svc != nil {
-				apiKey := mgr.GetJobAPIKey(jobID)
-				if apiKey != "" {
+			apiKey := mgr.GetJobAPIKey(jobID)
+			if apiKey != "" {
+				// 优先使用 onboarding 服务签发，fallback 到 change 服务
+				if svc := h.getOnboardingService(); svc != nil {
 					proof := svc.IssueProof(jobID, job.TestType, job.APIURL, apiKey)
+					resp.TestProof = &proof
+				} else if chSvc := h.getChangeService(); chSvc != nil {
+					proof := chSvc.IssueProof(jobID, job.TestType, job.APIURL, apiKey)
 					resp.TestProof = &proof
 				}
 			}

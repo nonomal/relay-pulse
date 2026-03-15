@@ -409,7 +409,19 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 		return err
 	}
 
+	c.normalizeChangeRequestConfig()
+
 	return nil
+}
+
+// normalizeChangeRequestConfig 规范化变更请求配置
+func (c *AppConfig) normalizeChangeRequestConfig() {
+	if !c.ChangeRequests.Enabled {
+		return
+	}
+	if c.ChangeRequests.MaxPerIPPerDay <= 0 {
+		c.ChangeRequests.MaxPerIPPerDay = 3
+	}
 }
 
 // normalizeOnboardingConfig 规范化自助收录配置

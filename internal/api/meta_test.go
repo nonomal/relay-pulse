@@ -599,6 +599,15 @@ func TestIsValidHomePath(t *testing.T) {
 		{path: "/ru/", valid: true},
 		{path: "/ja/", valid: true},
 
+		// 有效静态页面路径
+		{path: "/contact", valid: true},
+		{path: "/selftest", valid: true},
+		{path: "/en/contact", valid: true},
+
+		// 表单页不索引
+		{path: "/contact/apply", valid: false},
+		{path: "/contact/change", valid: false},
+
 		// 无效路径
 		{path: "/foo", valid: false},
 		{path: "/foo/bar", valid: false},

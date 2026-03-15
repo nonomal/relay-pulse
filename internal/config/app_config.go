@@ -144,6 +144,9 @@ type AppConfig struct {
 	// 服务商自助收录配置
 	Onboarding OnboardingConfig `yaml:"onboarding" json:"onboarding"`
 
+	// 变更请求配置
+	ChangeRequests ChangeRequestConfig `yaml:"change_requests" json:"change_requests"`
+
 	// 状态订阅通知（事件）配置
 	Events EventsConfig `yaml:"events" json:"events"`
 

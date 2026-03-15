@@ -181,6 +181,19 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 	router.POST("/api/admin/submissions/:id/reject", handler.AdminRejectSubmission)
 	router.POST("/api/admin/submissions/:id/publish", handler.AdminPublishSubmission)
 
+	// 变更请求 API 路由
+	router.POST("/api/change/auth", handler.AuthChange)
+	router.POST("/api/change/submit", handler.SubmitChange)
+	router.GET("/api/change/:id", handler.GetChangeStatus)
+
+	// 管理后台 — 变更请求 API（需 Bearer token 鉴权）
+	router.GET("/api/admin/changes", handler.AdminListChanges)
+	router.GET("/api/admin/changes/:id", handler.AdminGetChange)
+	router.POST("/api/admin/changes/:id/approve", handler.AdminApproveChange)
+	router.POST("/api/admin/changes/:id/reject", handler.AdminRejectChange)
+	router.POST("/api/admin/changes/:id/apply", handler.AdminApplyChange)
+	router.DELETE("/api/admin/changes/:id", handler.AdminDeleteChange)
+
 	// 管理后台 — monitors.d/ CRUD API（需 Bearer token 鉴权）
 	router.GET("/api/admin/templates", handler.AdminListTemplates)
 	router.GET("/api/admin/monitors", handler.AdminListMonitors)

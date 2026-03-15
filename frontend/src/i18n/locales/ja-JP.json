@@ -42,8 +42,8 @@
   },
   "header": {
     "tagline": "API中継サービスの可用性マトリクスをリアルタイム監視",
-    "recommendBtn": "掲載申請",
-    "recommendBtnShort": "申請",
+    "contactBtn": "お問い合わせ",
+    "contactBtnShort": "問合せ",
     "stats": {
       "healthy": "正常稼働",
       "issues": "異常アラート"
@@ -428,6 +428,92 @@
       "newSubmission": "新規申請"
     }
   },
+  "contact": {
+    "meta": {
+      "title": "お問い合わせ | RelayPulse",
+      "description": "掲載申請、変更リクエスト、フィードバックの送信"
+    },
+    "title": "お問い合わせ",
+    "description": "必要なサービスを選択してください",
+    "apply": {
+      "title": "掲載申請",
+      "description": "新しいAPIサービスをRelayPulse監視プラットフォームに追加"
+    },
+    "change": {
+      "title": "変更リクエスト",
+      "description": "掲載済みチャネルの設定を変更（URL、APIキーなど）"
+    },
+    "feedback": {
+      "title": "フィードバック",
+      "description": "ご提案、バグ報告、その他のお問い合わせ"
+    }
+  },
+  "changeRequest": {
+    "meta": {
+      "title": "変更リクエスト | RelayPulse",
+      "description": "掲載済みチャネルの設定を変更"
+    },
+    "title": "変更リクエスト",
+    "subtitle": "APIキーで本人確認を行い、掲載済みチャネルの設定を変更します",
+    "steps": {
+      "auth": "認証",
+      "edit": "編集",
+      "test": "テスト",
+      "review": "確認"
+    },
+    "back": "戻る",
+    "next": "次へ",
+    "auth": {
+      "title": "本人確認",
+      "description": "掲載済みチャネルのAPIキーを入力してください。システムが対応するチャネルを自動的に検索します。",
+      "placeholder": "APIキーを入力",
+      "submit": "認証",
+      "invalidKey": "有効なAPIキーを入力してください（10文字以上）",
+      "authFailed": "APIキーの認証に失敗しました"
+    },
+    "edit": {
+      "title": "チャネル情報の編集",
+      "description": "チャネル {{channel}} の設定を変更します。空欄の場合は現在の値を維持します。",
+      "selectChannel": "チャネルを選択",
+      "multipleChannels": "APIキーが複数のチャネルに一致しました。変更するチャネルを選択してください。",
+      "current": "現在の値",
+      "noChange": "変更なし",
+      "newApiKeyPlaceholder": "APIキーを変更する場合は新しいキーを入力",
+      "noChanges": "少なくとも1つのフィールドを変更してください"
+    },
+    "fields": {
+      "providerName": "プロバイダー名",
+      "providerUrl": "ウェブサイトURL",
+      "channelName": "チャネル名",
+      "category": "カテゴリ",
+      "sponsorLevel": "スポンサーレベル",
+      "baseUrl": "APIベースURL",
+      "newApiKey": "新しいAPIキー"
+    },
+    "test": {
+      "title": "接続テスト",
+      "description": "監視関連のフィールドを変更しました。送信前に接続テストが必要です。",
+      "run": "テスト実行",
+      "running": "テスト中...",
+      "passed": "テスト合格",
+      "failed": "テスト不合格",
+      "latency": "レイテンシ",
+      "retry": "再テスト",
+      "requestFailed": "テストリクエストに失敗しました"
+    },
+    "review": {
+      "title": "変更の確認",
+      "description": "以下の変更内容を確認して送信してください",
+      "target": "対象チャネル",
+      "submit": "変更を送信",
+      "submitFailed": "送信に失敗しました"
+    },
+    "done": {
+      "title": "変更リクエストが送信されました",
+      "description": "リクエストが送信されました。進捗確認のため、以下の番号を保存してください。",
+      "newRequest": "新しいリクエストを送信"
+    }
+  },
   "admin": {
     "meta": {
       "title": "管理ダッシュボード"
@@ -472,7 +558,8 @@
     },
     "tabs": {
       "submissions": "申請管理",
-      "monitors": "チャネル管理"
+      "monitors": "チャネル管理",
+      "changes": "変更リクエスト"
     },
     "monitors": {
       "backToList": "← リストに戻る",
@@ -549,6 +636,36 @@
         "requiredFields": "プロバイダー、サービス、チャネルは必須です",
         "create": "作成"
       }
+    },
+    "changes": {
+      "empty": "変更リクエストはありません",
+      "colPublicId": "番号",
+      "colTarget": "対象チャネル",
+      "colStatus": "ステータス",
+      "colApplyMode": "モード",
+      "colCreatedAt": "送信日",
+      "modeAuto": "自動",
+      "modeManual": "手動",
+      "statusPending": "審査中",
+      "statusApproved": "承認済み",
+      "statusRejected": "却下",
+      "statusApplied": "適用済み",
+      "approve": "承認",
+      "reject": "却下",
+      "apply": "適用",
+      "delete": "削除",
+      "confirmDelete": "この変更リクエストを削除しますか？",
+      "proposedChanges": "変更内容",
+      "currentSnapshot": "現在のスナップショット",
+      "testInfo": "テスト情報",
+      "testLatency": "レイテンシ",
+      "testHttpCode": "HTTPコード",
+      "testPassedAt": "テスト合格日時",
+      "newApiKey": "新しいAPIキー",
+      "adminNote": "管理者メモ",
+      "adminNotePlaceholder": "メモを入力...",
+      "rejectNotePlaceholder": "却下理由を入力...",
+      "confirmReject": "却下を確認"
     },
     "detail": {
       "back": "リストに戻る",

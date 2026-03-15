@@ -275,16 +275,16 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             </a>
           )}
 
-          {/* 推荐按钮 → 内部申请页面 */}
+          {/* 联系我们按钮 → 联系页面 */}
           <button
             onClick={() => {
               const langPath = LANGUAGE_PATH_MAP[currentLang];
-              navigate(langPath ? `/${langPath}/apply` : '/apply');
+              navigate(langPath ? `/${langPath}/contact` : '/contact');
             }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-accent/40 bg-accent/10 text-accent font-semibold tracking-wide shadow-accent hover:bg-accent/20 transition focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
           >
             <Sparkles size={14} />
-            {t('header.recommendBtn')}
+            {t('header.contactBtn')}
           </button>
 
           {/* 统计卡片 - 紧凑单行 */}
@@ -364,16 +364,16 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           </a>
         )}
 
-        {/* 推荐按钮 - 移动端紧凑版 → 内部申请页面 */}
+        {/* 联系我们按钮 - 移动端紧凑版 */}
         <button
           onClick={() => {
             const langPath = LANGUAGE_PATH_MAP[currentLang];
-            navigate(langPath ? `/${langPath}/apply` : '/apply');
+            navigate(langPath ? `/${langPath}/contact` : '/contact');
           }}
           className="flex items-center gap-1 px-2 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent text-xs font-medium shadow-accent hover:bg-accent/20 transition whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
         >
           <Sparkles size={12} />
-          {t('header.recommendBtnShort')}
+          {t('header.contactBtnShort')}
         </button>
       </div>
     </header>

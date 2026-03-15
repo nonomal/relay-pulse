@@ -7,6 +7,8 @@ const App = lazy(() => import('./App'));
 const ProviderPage = lazy(() => import('./pages/ProviderPage'));
 const SelfTestPage = lazy(() => import('./pages/SelfTestPage').then(m => ({ default: m.SelfTestPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const ContactPage = lazy(() => import('./pages/ContactPage'));
+const ChangeRequestPage = lazy(() => import('./pages/ChangeRequestPage'));
 const AdminPage = lazy(() => import('./pages/AdminPage'));
 
 /**
@@ -67,24 +69,50 @@ function RouterFallback() {
 }
 
 /**
+ * 共享子路由定义
+ *
+ * 每个语言布局下的子路由相同，提取为函数避免重复。
+ * 路由结构：
+ * - /contact          → ContactPage（联系我们落地页）
+ * - /contact/apply    → OnboardingPage（申请收录）
+ * - /contact/change   → ChangeRequestPage（申请变更）
+ * - /apply            → 重定向到 /contact/apply（向后兼容）
+ */
+function renderChildRoutes(langPrefix?: string) {
+  const applyRedirect = langPrefix ? `/${langPrefix}/contact/apply` : '/contact/apply';
+  return (
+    <>
+      <Route index element={<App />} />
+      <Route path="p/:provider" element={<ProviderPage />} />
+      <Route path="selftest" element={<SelfTestPage />} />
+      <Route path="contact" element={<ContactPage />} />
+      <Route path="contact/apply" element={<OnboardingPage />} />
+      <Route path="contact/change" element={<ChangeRequestPage />} />
+      <Route path="apply" element={<Navigate to={applyRedirect} replace />} />
+      <Route path="admin" element={<AdminPage />} />
+    </>
+  );
+}
+
+/**
  * 应用路由配置
  *
  * 路由规则：
- * 1. 根路径 `/` 和 `/p/:provider` → 默认语言（中文，由 i18n 检测器决定）
+ * 1. 根路径 `/` 和子路由 → 默认语言（中文，由 i18n 检测器决定）
  * 2. 明确的语言前缀路径：
- *    - `/en` 和 `/en/p/:provider` → 英文
- *    - `/ru` 和 `/ru/p/:provider` → 俄文
- *    - `/ja` 和 `/ja/p/:provider` → 日文
+ *    - `/en/*` → 英文
+ *    - `/ru/*` → 俄文
+ *    - `/ja/*` → 日文
  * 3. 无效路径 → 重定向到根路径
  *
  * 嵌套路由结构：
  * - LanguageLayout 负责语言同步
- * - Outlet 渲染匹配的子路由（App 或 ProviderPage）
+ * - Outlet 渲染匹配的子路由
  *
  * 注意：
  * - 使用明确的路径前缀（/en、/ru、/ja）而非参数（:lang），避免与 /p/:provider 冲突
  * - `/api/*`、`/health` 等技术路径由后端处理，不会被前端路由拦截
- * - 所有内容页面（App、ProviderPage）自动获得 i18n 支持
+ * - 所有内容页面自动获得 i18n 支持
  */
 export default function AppRouter() {
   return (
@@ -92,38 +120,22 @@ export default function AppRouter() {
       <Routes>
         {/* 中文默认路径（无前缀） */}
         <Route element={<LanguageLayout />}>
-          <Route index element={<App />} />
-          <Route path="p/:provider" element={<ProviderPage />} />
-          <Route path="selftest" element={<SelfTestPage />} />
-          <Route path="apply" element={<OnboardingPage />} />
-          <Route path="admin" element={<AdminPage />} />
+          {renderChildRoutes()}
         </Route>
 
         {/* 英文路径 */}
         <Route path="en" element={<LanguageLayout lang="en" />}>
-          <Route index element={<App />} />
-          <Route path="p/:provider" element={<ProviderPage />} />
-          <Route path="selftest" element={<SelfTestPage />} />
-          <Route path="apply" element={<OnboardingPage />} />
-          <Route path="admin" element={<AdminPage />} />
+          {renderChildRoutes('en')}
         </Route>
 
         {/* 俄文路径 */}
         <Route path="ru" element={<LanguageLayout lang="ru" />}>
-          <Route index element={<App />} />
-          <Route path="p/:provider" element={<ProviderPage />} />
-          <Route path="selftest" element={<SelfTestPage />} />
-          <Route path="apply" element={<OnboardingPage />} />
-          <Route path="admin" element={<AdminPage />} />
+          {renderChildRoutes('ru')}
         </Route>
 
         {/* 日文路径 */}
         <Route path="ja" element={<LanguageLayout lang="ja" />}>
-          <Route index element={<App />} />
-          <Route path="p/:provider" element={<ProviderPage />} />
-          <Route path="selftest" element={<SelfTestPage />} />
-          <Route path="apply" element={<OnboardingPage />} />
-          <Route path="admin" element={<AdminPage />} />
+          {renderChildRoutes('ja')}
         </Route>
 
         {/* 捕获所有未匹配路径，重定向到根 */}

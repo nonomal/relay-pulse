@@ -4,12 +4,12 @@
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
 ### 同步检查点
-- **最后同步**: 2026-03-08（commit `73b73d7`）
+- **最后同步**: 2026-03-15（commit `89cc1f8` + 联系我们/变更请求功能）
 - 代码是唯一真相源。本文档为架构与模式摘要，字段级细节请查阅引用的源文件。
 
 ## 项目概览
 
-这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化、实时状态追踪，并内建**指数退避重试**、**标签/赞助体系**、**事件通知**、**自助测试**和**多模型监测（父子通道继承）**等能力。
+这是一个企业级 LLM 服务可用性监测系统，支持配置热更新、SQLite/PostgreSQL 持久化、实时状态追踪，并内建**指数退避重试**、**标签/赞助体系**、**事件通知**、**自助测试**、**自助收录（onboarding）**、**自助变更请求（change requests）**、**管理后台**、**monitors.d/ 目录化通道管理**和**多模型监测（父子通道继承）**等能力。
 
 ### 项目文档
 
@@ -151,19 +151,20 @@ make ci
 
 ### 后端架构
 
-Go 后端遵循**分层架构**，核心包 10 个 + 独立通知子模块：
+Go 后端遵循**分层架构**，核心包 12 个 + 独立通知子模块：
 
 ```
 cmd/
 ├── server/main.go         → 应用入口，依赖注入
-└── verify/main.go         → 单项验证 CLI
+├── verify/main.go         → 单项验证 CLI
+└── migrate/main.go        → config.yaml → monitors.d/ 迁移工具
 
 internal/
-├── config/                → 配置管理（19 源文件 + 5 测试，按职责拆分）
+├── config/                → 配置管理（21 源文件 + 7 测试，按职责拆分）
 │   ├── app_config.go     → AppConfig 全局设置
 │   ├── monitor.go        → ServiceConfig 监测项字段
 │   ├── storage_config.go → StorageConfig / RetentionConfig / ArchiveConfig
-│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig / BoardAutoMoveConfig
+│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig / OnboardingConfig
 │   ├── external.go       → GitHubConfig / AnnouncementsConfig / CacheTTLConfig
 │   ├── badges.go         → RiskBadge（旧版兼容）
 │   ├── annotation.go     → Annotation / AnnotationFamily / AnnotationRule / AnnotationMatch
@@ -171,11 +172,12 @@ internal/
 │   ├── parent_inheritance.go → 父子通道配置继承
 │   ├── template.go       → 模板加载（templates/*.json → ServiceConfig）
 │   ├── userid.go         → 用户标识生成（{{USER_ID}} 占位符）
+│   ├── monitor_store.go  → monitors.d/ 目录 CRUD（MonitorStore）
 │   ├── normalize*.go     → 归一化与默认值填充
 │   ├── validate.go       → 校验规则
-│   ├── loader.go         → YAML 解析 + .env 加载
+│   ├── loader.go         → YAML 解析 + .env 加载 + monitors.d/ 合并
 │   ├── dotenv.go         → .env 文件支持
-│   ├── watcher.go        → fsnotify 热更新
+│   ├── watcher.go        → fsnotify 热更新（监听 config.yaml + monitors.d/）
 │   ├── lifecycle.go      → Clone / ApplyEnvOverrides / ResolveTemplates
 │   └── helpers.go        → 工具函数
 ├── logger/                → 结构化日志（slog）
@@ -217,12 +219,34 @@ internal/
 │   ├── fetcher.go        → GraphQL 拉取
 │   ├── service.go        → 轮询 + 缓存
 │   └── handler.go        → API 处理器
-└── api/                   → HTTP API 层（11 文件）
+├── onboarding/            → 自助收录（8 文件）
+│   ├── service.go        → 收录业务逻辑（提交/审核/发布）
+│   ├── store.go          → Store 接口定义
+│   ├── store_sql.go      → SQLite 实现
+│   ├── store_pgx.go      → PostgreSQL 实现
+│   ├── crypto.go         → AES-GCM API Key 加密（内部调用 apikey 包）
+│   └── proof.go          → 测试证明签发与验证（内部调用 apikey 包）
+├── apikey/                → 共享 API Key 加密/指纹/掩码工具（5 文件）
+│   ├── cipher.go         → KeyCipher（AES-256-GCM 加密/解密 + HMAC-SHA256 指纹）
+│   ├── proof.go          → ProofIssuer（HMAC-SHA256 签发/验证）
+│   ├── mask.go           → Last4() 掩码工具
+│   └── *_test.go         → 加密/证明测试
+├── change/                → 变更请求（5 文件）
+│   ├── types.go          → ChangeRequest 结构体、状态枚举、AuthCandidate
+│   ├── index.go          → 运行时 API Key 指纹索引（内存，热更新重建）
+│   ├── service.go        → 业务逻辑：Auth / Submit / GetStatus / Admin*
+│   ├── store_sql.go      → SQLite 实现
+│   └── store_pgx.go      → PostgreSQL 实现
+└── api/                   → HTTP API 层（16 文件）
     ├── server.go         → Gin 服务器、中间件、CORS、安全头
     ├── handler.go        → /api/status 主处理器、缓存、singleflight
     ├── status_query_handler.go → /api/status/query + POST /api/status/batch
     ├── events_handler.go → /api/events 与 /api/events/latest
     ├── selftest_handler.go → /api/selftest/* 端点
+    ├── onboarding_handler.go → /api/onboarding/* 端点
+    ├── change_handler.go → /api/change/* + /api/admin/changes/* 端点
+    ├── admin_handler.go  → /api/admin/submissions/* 端点
+    ├── monitor_handler.go → /api/admin/monitors/* 端点（monitors.d/ CRUD）
     ├── monitor_groups.go → 多模型分组构建（parent/child 层级）
     ├── meta.go           → SSR meta 标签注入（SEO）
     └── *_test.go         → 多个测试文件
@@ -291,14 +315,18 @@ time=2024-01-15T10:30:00.000Z level=INFO msg=消息 app=relay-pulse component=ap
 
 ### 前端架构
 
-React SPA，采用嵌套路由布局（`LanguageLayout` + `Outlet`），28+ 组件、10 hooks、10+ utils：
+React SPA，采用嵌套路由布局（`LanguageLayout` + `Outlet`），39+ 组件、15 hooks、10+ utils：
 
 ```
 frontend/src/
 ├── pages/                     → 路由级页面
 │   ├── ProviderPage.tsx      → 服务商详情页 (/p/:provider)
-│   └── SelfTestPage.tsx      → 自助测试页 (/selftest)
-├── components/                → UI 组件（28+ 文件）
+│   ├── SelfTestPage.tsx      → 自助测试页 (/selftest)
+│   ├── OnboardingPage.tsx    → 自助收录页 (/contact/apply)
+│   ├── ContactPage.tsx       → 联系我们落地页 (/contact)
+│   ├── ChangeRequestPage.tsx → 变更申请页 (/contact/change)
+│   └── AdminPage.tsx         → 管理后台页 (/admin)
+├── components/                → UI 组件（39+ 文件）
 │   ├── Header / Footer / Controls → 布局与导航
 │   ├── StatusTable / StatusCard   → 数据展示（桌面表格/移动卡片）
 │   ├── HeatmapBlock / LayeredHeatmapBlock → 热力图（单层/多模型）
@@ -309,15 +337,25 @@ frontend/src/
 │   ├── FavoriteButton / EmptyFavorites → 收藏功能
 │   ├── MultiSelect / TimeFilterPicker / RefreshButton → 交互控件
 │   ├── MultiModelIndicator        → 多模型状态指示
-│   ├── ThemeSwitcher / FlagIcon / ServiceIcon → 主题与图标
+│   ├── ThemeSwitcher / FlagIcon / ServiceIcon / ChannelTypeIcon → 主题与图标
 │   ├── ExternalLink / ExternalLinkModal → 外链安全
 │   ├── CommunityMenu / SubscribeButton / Toast → 社区与通知
 │   ├── icons/TelegramIcon.tsx     → 图标
-│   └── annotations/               → 标签子系统（4 文件）
-│       ├── AnnotationChip / AnnotationCell
-│       ├── AnnotationTooltip
-│       └── index.ts
-├── hooks/                     → 自定义 Hooks（10 文件）
+│   ├── annotations/               → 标签子系统（4 文件）
+│   │   ├── AnnotationChip / AnnotationCell
+│   │   ├── AnnotationTooltip
+│   │   └── index.ts
+│   ├── admin/                     → 管理后台（7 文件）
+│   │   ├── AdminAuth.tsx          → 管理员认证
+│   │   ├── SubmissionList/Detail  → 收录申请管理
+│   │   ├── ChangeRequestList.tsx  → 变更请求管理
+│   │   ├── MonitorList/Detail     → monitors.d/ 通道管理
+│   │   └── MonitorForm.tsx        → 通道创建/编辑表单
+│   └── onboarding/                → 自助收录（3 文件）
+│       ├── ProviderInfoStep.tsx   → 服务商信息
+│       ├── ConnectionTestStep.tsx → 连接测试
+│       └── ConfirmStep.tsx        → 确认提交
+├── hooks/                     → 自定义 Hooks（15 文件）
 │   ├── useMonitorData.ts     → API 轮询与数据管理
 │   ├── useFavorites.ts       → 收藏持久化 (localStorage)
 │   ├── useSelfTest.ts        → 自测任务生命周期
@@ -326,8 +364,13 @@ frontend/src/
 │   ├── useSyncLanguage.ts    → URL ↔ i18n 语言同步
 │   ├── useUrlState.ts        → URL 查询参数状态
 │   ├── useSeoMeta.ts         → 动态 SEO meta
-│   ├── useBadgeTooltip.ts    → 标签 tooltip 逻辑
-│   └── useTheme.ts           → 主题状态管理
+│   ├── useAnnotationTooltip.ts → 标签 tooltip 逻辑
+│   ├── useTheme.ts           → 主题状态管理
+│   ├── useAdmin.ts           → 管理员认证与会话
+│   ├── useMonitorAdmin.ts    → monitors.d/ CRUD 操作
+│   ├── useOnboarding.ts      → 自助收录流程管理
+│   ├── useChangeRequest.ts   → 变更申请流程（API Key 认证 + 多步表单）
+│   └── useChangeAdmin.ts     → 变更请求管理（管理后台 CRUD）
 ├── utils/                     → 工具函数（10+ 文件）
 │   ├── sortMonitors.ts       → 监测项排序逻辑
 │   ├── heatmapAggregator.ts  → 热力图数据聚合
@@ -339,7 +382,7 @@ frontend/src/
 │   ├── share.ts              → 分享功能
 │   └── mockMonitor.ts        → 开发用 mock 数据
 ├── i18n/                      → 国际化（配置 + 翻译资源）
-├── types/                     → TypeScript 类型定义
+├── types/                     → TypeScript 类型定义（index.ts, monitor.ts, selftest.ts, onboarding.ts, change.ts）
 ├── constants/                 → 应用常量
 ├── styles/themes/             → 主题 CSS 文件
 ├── App.tsx                    → 主仪表盘页面
@@ -348,8 +391,8 @@ frontend/src/
 ```
 
 **关键模式：**
-- **嵌套路由**: `LanguageLayout` 负责语言同步，`Outlet` 渲染子页面（App / ProviderPage / SelfTestPage）
-- **自定义 Hooks**: `useMonitorData` / `useSelfTest` / `useAnnouncements` 等分离数据逻辑
+- **嵌套路由**: `LanguageLayout` 负责语言同步，`Outlet` 渲染子页面（App / ProviderPage / SelfTestPage / OnboardingPage / AdminPage）
+- **自定义 Hooks**: `useMonitorData` / `useSelfTest` / `useOnboarding` / `useAdmin` / `useMonitorAdmin` 等分离数据逻辑
 - **标签/赞助子系统**: `annotations/` 组件 + `badgeUtils` + `useBadgeTooltip`
 - **多模型展示**: `LayeredHeatmapBlock` + `MultiModelIndicator` 处理父子通道
 - **TypeScript**: `types/` 中的接口实现完整类型安全
@@ -606,7 +649,15 @@ HTTP 响应
 
 ## 配置管理
 
-配置入口为 `config.yaml`，结构定义于 `internal/config/*.go`。完整字段文档见 `docs/user/config.md`。
+配置分为两层：`config.yaml`（全局设置）+ `monitors.d/`（通道配置，按 PSC 一文件一通道）。结构定义于 `internal/config/*.go`。完整字段文档见 `docs/user/config.md`。
+
+**monitors.d/ 目录化管理**：
+- 每个 YAML 文件包含 `metadata`（source/revision/timestamps）+ `monitors`（ServiceConfig 数组）
+- 文件名格式：`{provider}--{service}--{channel}.yaml`（parent-child 在同一文件）
+- config.yaml 和 monitors.d/ 不能有同 PSC，否则启动报冲突
+- 管理后台（`/api/admin/monitors/*`）可通过 API 进行 CRUD 操作
+- 删除为软删除（归档到 `monitors.d/.archive/`）
+- 热更新同时监听 config.yaml 和 monitors.d/ 目录变化
 
 ### AppConfig 全局设置
 
@@ -623,7 +674,7 @@ HTTP 响应
 | 板块系统 | `boards`（`enabled`，三层：hot/secondary/cold）、`boards.auto_move`（`enabled`、`threshold_cold/down/up`、`min_probes`、`check_interval`） | 热板/备板/冷板 + 自动移板 |
 | 展示控制 | `expose_channel_details`、`channel_details_providers`、`public_base_url` | 通道技术细节暴露 |
 | 赞助/标签 | `sponsor_pin`、`enable_annotations`、`annotation_rules` | 置顶与标签体系 |
-| 功能模块 | `selftest`、`events`、`announcements`、`github` | 自测/事件/公告/GitHub 配置 |
+| 功能模块 | `selftest`、`events`、`onboarding`、`announcements`、`github` | 自测/事件/收录/公告/GitHub 配置 |
 | 存储 | `storage`（含 type/sqlite/postgres/retention/archive） | 数据库与数据生命周期 |
 
 ### ServiceConfig 监测项设置
@@ -670,6 +721,7 @@ HTTP 响应
 | Events | `enabled`、`mode`（model/channel）、`down_threshold`、`up_threshold`、`channel_down_threshold`、`channel_count_mode`、`api_token` | 状态变更事件 |
 | SponsorPin | `enabled`、`max_pinned`、`min_uptime`、`min_level` | 赞助通道置顶（详见 `docs/user/sponsorship.md`） |
 | Boards | `enabled` | 热板/备板/冷板三层系统 |
+| Onboarding | `enabled`、`admin_token`、`encryption_key`、`proof_secret`、`proof_ttl`（默认 5m）、`max_per_ip_per_day`（默认 5）、`contact_info`、`change_requests`（子配置：`enabled`、`max_per_ip_per_day`） | 自助收录 + 变更请求（启用需重启容器） |
 | Announcements | `enabled`、`owner`、`repo`、`category_name`、`poll_interval`、`window_hours`、`max_items`、`api_max_age` | GitHub Discussions 公告 |
 | GitHub | `token`、`proxy`、`timeout` | GitHub API 通用配置（公告功能依赖） |
 
@@ -706,6 +758,28 @@ vim config.yaml
 | GET | `/api/selftest/:id` | 查询自测结果 |
 | GET | `/api/announcements` | GitHub 公告列表 |
 | GET | `/api/version` | 构建版本信息 |
+| GET | `/api/onboarding/meta` | 收录表单元数据（服务类型、赞助等级等） |
+| POST | `/api/onboarding/submit` | 提交收录申请（IP 限流） |
+| GET | `/api/onboarding/:id` | 查询收录状态 |
+| POST | `/api/change/auth` | 变更：API Key 认证（返回通道列表） |
+| POST | `/api/change/submit` | 变更：提交变更请求（含测试证明） |
+| GET | `/api/change/:id` | 变更：查询请求状态 |
+| GET | `/api/admin/changes` | 管理：变更请求列表（Bearer 鉴权，支持 status 过滤） |
+| GET | `/api/admin/changes/:id` | 管理：变更请求详情 |
+| POST | `/api/admin/changes/:id/approve` | 管理：批准变更 |
+| POST | `/api/admin/changes/:id/reject` | 管理：拒绝变更 |
+| POST | `/api/admin/changes/:id/apply` | 管理：应用到 monitors.d/（仅 auto 模式） |
+| DELETE | `/api/admin/changes/:id` | 管理：删除变更请求 |
+| GET | `/api/admin/submissions` | 管理：收录申请列表（Bearer 鉴权） |
+| GET/PUT/DELETE | `/api/admin/submissions/:id` | 管理：申请详情/更新/删除 |
+| POST | `/api/admin/submissions/:id/reject` | 管理：拒绝申请 |
+| POST | `/api/admin/submissions/:id/publish` | 管理：发布到 monitors.d/ |
+| GET | `/api/admin/monitors` | 管理：monitors.d/ 通道列表 |
+| GET/PUT/DELETE | `/api/admin/monitors/:key` | 管理：通道详情/更新/归档 |
+| POST | `/api/admin/monitors` | 管理：创建通道 |
+| POST | `/api/admin/monitors/:key/toggle` | 管理：切换 disabled/hidden |
+| POST | `/api/admin/monitors/:key/probe` | 管理：手动探测 |
+| GET/HEAD | `/ready` | 就绪检查（含存储连通性） |
 | GET | `/sitemap.xml` | 动态站点地图 |
 | GET | `/robots.txt` | 爬虫规则 |
 
@@ -761,9 +835,14 @@ vim config.yaml
   - `internal/config/concurrency_test.go` - 并发安全
   - `internal/config/disabled_test.go` - 禁用逻辑
   - `internal/config/proxy_test.go` - 代理配置
+  - `internal/config/url_security_test.go` - URL 安全校验
+  - `internal/config/monitor_store_test.go` - monitors.d/ CRUD
   - `internal/monitor/probe_test.go` - 探测逻辑
   - `internal/events/detector_test.go` - 事件检测
+  - `internal/events/channel_detector_test.go` - 通道级事件检测
+  - `internal/events/service_test.go` - 事件服务
   - `internal/storage/sqlite_test.go` - SQLite 存储
+  - `internal/storage/postgres_test.go` - PostgreSQL 存储（`//go:build postgres`）
   - `internal/api/handler_test.go` - API 处理器
   - `internal/api/time_filter_test.go` - 时段过滤
   - `internal/api/disabled_filter_test.go` - 禁用过滤
@@ -774,6 +853,12 @@ vim config.yaml
   - `internal/scheduler/disabled_test.go` - 禁用逻辑
   - `internal/automove/availability_test.go` - 自动移板可用率计算
   - `internal/automove/service_test.go` - 自动移板服务
+  - `internal/selftest/*_test.go` - 自测安全测试（SSRF/限流/签名/HTTP 客户端）
+  - `internal/announcements/*_test.go` - 公告拉取与服务
+  - `internal/onboarding/crypto_test.go` - API Key 加密
+  - `internal/onboarding/proof_test.go` - 测试证明签发
+  - `internal/apikey/cipher_test.go` - 共享 API Key 加密/指纹
+  - `internal/apikey/proof_test.go` - 共享测试证明签发/验证
 - 使用 `go test -v` 查看详细输出
 
 ### 前端测试
@@ -781,9 +866,13 @@ vim config.yaml
 - 测试框架：Vitest
 - 测试文件：`frontend/src/utils/*.test.ts`
 - 关键测试：
-  - `sortMonitors.test.ts` - 排序逻辑（主排序、二级延迟排序、边界情况）
-  - `badgeUtils.test.ts` - 标签工具
+  - `sortMonitors.test.ts` - 排序逻辑
   - `heatmapAggregator.test.ts` - 热力图聚合
+  - `monitorDataProcessor.test.ts` - 数据处理（canonicalize/uptime/转换）
+  - `apiClient.test.ts` - API 客户端
+  - `color.test.ts` - 颜色工具
+  - `modelName.test.ts` - 模型名称处理
+  - `annotationUtils.test.ts` - 标签工具
   - `color.test.ts` - 颜色工具
 
 ```bash
@@ -927,3 +1016,6 @@ export MONITOR_DUCKCODING_CC_API_KEY="sk-duck-key"
 - [ ] 断点值 vs `frontend/src/utils/mediaQuery.ts` BREAKPOINTS 常量
 - [ ] 测试文件列表 vs 实际 `*_test.go` 和 `*.test.ts` 文件
 - [ ] Notifier 子模块结构 vs `notifier/` 目录
+- [ ] Onboarding 配置字段 vs `internal/config/features.go` OnboardingConfig
+- [ ] Admin/Onboarding/Change API 路由 vs `internal/api/server.go` 注册
+- [ ] monitors.d/ 相关描述 vs `internal/config/monitor_store.go` + `loader.go`

@@ -11,8 +11,10 @@ import (
 
 	"monitor/internal/announcements"
 	"monitor/internal/api"
+	"monitor/internal/apikey"
 	"monitor/internal/automove"
 	"monitor/internal/buildinfo"
+	"monitor/internal/change"
 	"monitor/internal/config"
 	"monitor/internal/events"
 	"monitor/internal/identity"
@@ -363,6 +365,51 @@ func main() {
 			"proof_ttl", cfg.Onboarding.ProofTTL)
 	}
 
+	// 初始化变更请求服务（如果启用）
+	var changeSvc *change.Service
+	if cfg.ChangeRequests.Enabled {
+		// 需要 onboarding 的 encryption_key 和 proof_secret
+		if cfg.Onboarding.EncryptionKey == "" || cfg.Onboarding.ProofSecret == "" {
+			logger.Error("main", "变更请求需要 onboarding.encryption_key 和 onboarding.proof_secret")
+			os.Exit(1)
+		}
+
+		cipher, err := apikey.NewKeyCipher(cfg.Onboarding.EncryptionKey)
+		if err != nil {
+			logger.Error("main", "创建 API Key 加密器失败", "error", err)
+			os.Exit(1)
+		}
+		proofIssuer := apikey.NewProofIssuer(cfg.Onboarding.ProofSecret, cfg.Onboarding.ProofTTLDuration)
+
+		var chStore change.Store
+		switch s := store.(type) {
+		case *storage.SQLiteStorage:
+			sqlStore := change.NewSQLStore(s.SqlDB())
+			if err := sqlStore.InitTable(ctx); err != nil {
+				logger.Error("main", "初始化 change_requests 表失败", "error", err)
+				os.Exit(1)
+			}
+			chStore = sqlStore
+		case *storage.PostgresStorage:
+			pgxStore := change.NewPgxStore(s.PgxPool())
+			if err := pgxStore.InitTable(ctx); err != nil {
+				logger.Error("main", "初始化 change_requests 表失败", "error", err)
+				os.Exit(1)
+			}
+			chStore = pgxStore
+		default:
+			logger.Error("main", "不支持的存储类型，变更请求功能不可用")
+			os.Exit(1)
+		}
+
+		changeSvc = change.NewService(chStore, cipher, proofIssuer, &cfg.ChangeRequests)
+		changeSvc.SetMonitorStore(monitorStore)
+		changeSvc.UpdateConfig(&cfg.ChangeRequests, cfg.Monitors)
+		server.GetHandler().SetChangeService(changeSvc)
+		logger.Info("main", "变更请求功能已启用",
+			"max_per_ip_per_day", cfg.ChangeRequests.MaxPerIPPerDay)
+	}
+
 	// 初始化公告服务（如果启用）
 	var announcementsSvc *announcements.Service
 	if cfg.Announcements.IsEnabled() {
@@ -484,6 +531,11 @@ func main() {
 				logger.Info("main", "自助测试功能已在热更新后停用")
 			}
 			selfTestAppliedCfg = newCfg
+		}
+
+		// === ChangeRequests: 热更新认证索引 ===
+		if changeSvc != nil && newCfg.ChangeRequests.Enabled {
+			changeSvc.UpdateConfig(&newCfg.ChangeRequests, newCfg.Monitors)
 		}
 
 		// === Announcements: RecreateOnChange（stop + 重建） ===

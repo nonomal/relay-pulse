@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sync/singleflight"
 
 	"monitor/internal/automove"
+	"monitor/internal/change"
 	"monitor/internal/config"
 	"monitor/internal/logger"
 	"monitor/internal/onboarding"
@@ -248,6 +249,8 @@ type Handler struct {
 	autoMover     *automove.Service        // 自动移板服务（可选）
 	onboardingMu  sync.RWMutex             // 保护 onboardingSvc 热替换
 	onboardingSvc *onboarding.Service      // 自助收录服务（可选）
+	changeMu      sync.RWMutex             // 保护 changeSvc 热替换
+	changeSvc     *change.Service          // 变更请求服务（可选）
 	monitorStore  *config.MonitorStore     // monitors.d/ CRUD（可选）
 }
 
@@ -287,6 +290,20 @@ func (h *Handler) getOnboardingService() *onboarding.Service {
 	h.onboardingMu.RLock()
 	defer h.onboardingMu.RUnlock()
 	return h.onboardingSvc
+}
+
+// SetChangeService 设置变更请求服务（并发安全）
+func (h *Handler) SetChangeService(svc *change.Service) {
+	h.changeMu.Lock()
+	h.changeSvc = svc
+	h.changeMu.Unlock()
+}
+
+// getChangeService 获取当前变更请求服务（并发安全）
+func (h *Handler) getChangeService() *change.Service {
+	h.changeMu.RLock()
+	defer h.changeMu.RUnlock()
+	return h.changeSvc
 }
 
 // SetMonitorStore 设置 monitors.d/ 存储（仅初始化时调用一次，无需加锁）
@@ -648,6 +665,38 @@ func (h *Handler) buildSitemapXML(providerSlugs []string) string {
 		sb.WriteString("    <priority>1.0</priority>\n")
 		sb.WriteString("    <changefreq>daily</changefreq>\n")
 		sb.WriteString("  </url>\n")
+	}
+
+	// 生成静态页面 URL（contact、contact/apply、contact/change）
+	// 仅索引落地页；apply/change 是表单页，前端已设 noindex
+	staticPages := []struct {
+		path     string
+		priority string
+	}{
+		{"contact", "0.6"},
+	}
+	for _, page := range staticPages {
+		for _, lang := range languages {
+			sb.WriteString("  <url>\n")
+			if lang.path == "" {
+				sb.WriteString(fmt.Sprintf("    <loc>%s/%s</loc>\n", baseURL, page.path))
+			} else {
+				sb.WriteString(fmt.Sprintf("    <loc>%s/%s/%s</loc>\n", baseURL, lang.path, page.path))
+			}
+			for _, altLang := range languages {
+				var href string
+				if altLang.path == "" {
+					href = fmt.Sprintf("%s/%s", baseURL, page.path)
+				} else {
+					href = fmt.Sprintf("%s/%s/%s", baseURL, altLang.path, page.path)
+				}
+				sb.WriteString(fmt.Sprintf(`    <xhtml:link rel="alternate" hreflang="%s" href="%s"/>`+"\n", altLang.code, href))
+			}
+			sb.WriteString(fmt.Sprintf(`    <xhtml:link rel="alternate" hreflang="x-default" href="%s/%s"/>`+"\n", baseURL, page.path))
+			sb.WriteString(fmt.Sprintf("    <priority>%s</priority>\n", page.priority))
+			sb.WriteString("    <changefreq>weekly</changefreq>\n")
+			sb.WriteString("  </url>\n")
+		}
 	}
 
 	// 生成服务商页面 URL（每个 provider 4 个语言版本）

@@ -3,14 +3,16 @@ import { Helmet } from 'react-helmet-async';
 import { useTranslation } from 'react-i18next';
 import { useAdmin } from '../hooks/useAdmin';
 import { useMonitorAdmin } from '../hooks/useMonitorAdmin';
+import { useChangeAdmin } from '../hooks/useChangeAdmin';
 import { AdminAuth } from '../components/admin/AdminAuth';
 import { SubmissionList } from '../components/admin/SubmissionList';
 import { SubmissionDetail } from '../components/admin/SubmissionDetail';
 import { MonitorList } from '../components/admin/MonitorList';
 import { MonitorDetail } from '../components/admin/MonitorDetail';
 import { MonitorForm } from '../components/admin/MonitorForm';
+import { ChangeRequestList } from '../components/admin/ChangeRequestList';
 
-type AdminTab = 'submissions' | 'monitors';
+type AdminTab = 'submissions' | 'monitors' | 'changes';
 
 export default function AdminPage() {
   const { t } = useTranslation();
@@ -28,6 +30,7 @@ export default function AdminPage() {
   } = useAdmin();
 
   const monitor = useMonitorAdmin(token);
+  const changeAdmin = useChangeAdmin(token);
 
   const handleTabChange = (tab: AdminTab) => {
     setActiveTab(tab);
@@ -35,6 +38,7 @@ export default function AdminPage() {
     monitor.setSelectedMonitor(null);
     monitor.setSelectedKey(null);
     setSelectedSubmission(null);
+    changeAdmin.setSelectedChange(null);
   };
 
   return (
@@ -77,12 +81,17 @@ export default function AdminPage() {
                   onClick={() => handleTabChange('monitors')}
                   label={t('admin.tabs.monitors')}
                 />
+                <TabButton
+                  active={activeTab === 'changes'}
+                  onClick={() => handleTabChange('changes')}
+                  label={t('admin.tabs.changes')}
+                />
               </nav>
 
               {/* 错误提示 */}
-              {(submissionError || monitor.error) && (
+              {(submissionError || monitor.error || changeAdmin.error) && (
                 <div className="p-4 bg-danger/10 border border-danger/20 rounded-lg">
-                  <p className="text-danger font-medium">{submissionError || monitor.error}</p>
+                  <p className="text-danger font-medium">{submissionError || monitor.error || changeAdmin.error}</p>
                 </div>
               )}
 
@@ -180,6 +189,21 @@ export default function AdminPage() {
                     />
                   </div>
                 )
+              )}
+              {/* 变更请求 Tab */}
+              {activeTab === 'changes' && (
+                <ChangeRequestList
+                  changes={changeAdmin.changes}
+                  isLoading={changeAdmin.isLoading}
+                  statusFilter={changeAdmin.statusFilter}
+                  setStatusFilter={changeAdmin.setStatusFilter}
+                  onSelect={(id) => changeAdmin.fetchDetail(id)}
+                  onApprove={(id) => changeAdmin.approveChange(id)}
+                  onReject={(id, note) => changeAdmin.rejectChange(id, note)}
+                  onApply={(id) => changeAdmin.applyChange(id)}
+                  onDelete={(id) => changeAdmin.deleteChange(id)}
+                  error={changeAdmin.error}
+                />
               )}
             </>
           )}

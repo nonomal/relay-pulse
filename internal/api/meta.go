@@ -45,15 +45,33 @@ func isValidProviderSlug(slug string) bool {
 	return providerSlugRegex.MatchString(slug)
 }
 
-// isValidHomePath 检查路径是否为有效的首页路径（/、/en/、/ru/、/ja/）
+// 允许 SEO 索引的静态页面路径（不含语言前缀部分）
+var indexableStaticPaths = map[string]bool{
+	"":         true, // 首页
+	"selftest": true,
+	"contact":  true,
+}
+
+// isValidHomePath 检查路径是否为有效的可索引页面路径
 func isValidHomePath(path string) bool {
 	trimmed := strings.Trim(path, "/")
 	if trimmed == "" {
 		return true // 根路径
 	}
-	// 检查是否只有一个语言前缀（且无子路径）
-	_, isLang := pathToLangCode[trimmed]
-	return isLang
+
+	// 检查是否只有语言前缀
+	if _, isLang := pathToLangCode[trimmed]; isLang {
+		return true
+	}
+
+	// 去掉语言前缀后检查剩余路径
+	parts := strings.SplitN(trimmed, "/", 2)
+	if _, isLang := pathToLangCode[parts[0]]; isLang && len(parts) == 2 {
+		return indexableStaticPaths[parts[1]]
+	}
+
+	// 无语言前缀，直接检查
+	return indexableStaticPaths[trimmed]
 }
 
 // MetaData 页面 Meta 数据

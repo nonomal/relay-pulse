@@ -1,0 +1,447 @@
+package change
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+
+	"monitor/internal/apikey"
+	"monitor/internal/config"
+	"monitor/internal/logger"
+)
+
+// 需要测试的字段（变更这些字段时须通过探测测试）
+var fieldsRequiringTest = map[string]bool{
+	"base_url": true,
+	"api_key":  true,
+}
+
+// 允许用户自助变更的字段
+var allowedFields = map[string]bool{
+	"provider_name": true,
+	"provider_url":  true,
+	"channel_name":  true,
+	"category":      true,
+	"sponsor_level": true,
+	"base_url":      true,
+	"api_key":       true,
+}
+
+// Service 变更请求核心业务逻辑。
+type Service struct {
+	store        Store
+	cipher       *apikey.KeyCipher
+	proofIssuer  *apikey.ProofIssuer
+	authIndex    *AuthIndex
+	monitorStore *config.MonitorStore
+	cfg          *config.ChangeRequestConfig
+
+	mu sync.RWMutex
+}
+
+// NewService 创建变更请求服务。
+func NewService(
+	store Store,
+	cipher *apikey.KeyCipher,
+	proofIssuer *apikey.ProofIssuer,
+	cfg *config.ChangeRequestConfig,
+) *Service {
+	return &Service{
+		store:       store,
+		cipher:      cipher,
+		proofIssuer: proofIssuer,
+		authIndex:   NewAuthIndex(),
+		cfg:         cfg,
+	}
+}
+
+// SetMonitorStore 设置 monitors.d/ 存储。
+func (s *Service) SetMonitorStore(ms *config.MonitorStore) {
+	s.mu.Lock()
+	s.monitorStore = ms
+	s.mu.Unlock()
+}
+
+// UpdateConfig 热更新配置并重建认证索引。
+func (s *Service) UpdateConfig(cfg *config.ChangeRequestConfig, monitors []config.ServiceConfig) {
+	s.mu.Lock()
+	s.cfg = cfg
+	ms := s.monitorStore
+	s.mu.Unlock()
+
+	s.authIndex.Rebuild(monitors, s.cipher, ms)
+}
+
+// === 用户端 API ===
+
+// AuthRequest 认证请求
+type AuthRequest struct {
+	APIKey string `json:"api_key" binding:"required,min=10,max=500"`
+}
+
+// AuthResponse 认证响应
+type AuthResponse struct {
+	Candidates []AuthCandidate `json:"candidates"`
+}
+
+// Auth 验证 API Key 并返回匹配的通道列表。
+func (s *Service) Auth(apiKey string) (*AuthResponse, error) {
+	candidates := s.authIndex.Lookup(apiKey, s.cipher)
+	if len(candidates) == 0 {
+		return nil, fmt.Errorf("API Key 无法匹配任何已收录通道")
+	}
+	return &AuthResponse{Candidates: candidates}, nil
+}
+
+// SubmitRequest 提交变更请求
+type SubmitRequest struct {
+	APIKey          string            `json:"api_key" binding:"required,min=10,max=500"`
+	TargetKey       string            `json:"target_key" binding:"required,max=200"`
+	ProposedChanges map[string]string `json:"proposed_changes" binding:"required"`
+	NewAPIKey       string            `json:"new_api_key,omitempty"`
+	TestProof       string            `json:"test_proof,omitempty"`
+	TestJobID       string            `json:"test_job_id,omitempty"`
+	TestType        string            `json:"test_type,omitempty"`
+	TestAPIURL      string            `json:"test_api_url,omitempty"`
+	TestLatency     int               `json:"test_latency,omitempty"`
+	TestHTTPCode    int               `json:"test_http_code,omitempty"`
+	Locale          string            `json:"locale,omitempty"`
+}
+
+// SubmitResponse 提交响应
+type SubmitResponse struct {
+	PublicID string `json:"public_id"`
+}
+
+// Submit 处理用户提交变更请求。
+func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP string) (*SubmitResponse, error) {
+	s.mu.RLock()
+	cfg := s.cfg
+	s.mu.RUnlock()
+
+	// IP 限流
+	ipHash := hashIP(clientIP)
+	count, err := s.store.CountByIPToday(ctx, ipHash)
+	if err != nil {
+		return nil, fmt.Errorf("查询提交限额失败: %w", err)
+	}
+	if count >= cfg.MaxPerIPPerDay {
+		return nil, fmt.Errorf("今日提交次数已达上限（%d/%d）", count, cfg.MaxPerIPPerDay)
+	}
+
+	// 验证 API Key 匹配目标通道
+	candidates := s.authIndex.Lookup(req.APIKey, s.cipher)
+	var target *AuthCandidate
+	for i, c := range candidates {
+		if c.MonitorKey == req.TargetKey {
+			target = &candidates[i]
+			break
+		}
+	}
+	if target == nil {
+		return nil, fmt.Errorf("API Key 与目标通道不匹配")
+	}
+
+	// 校验变更字段
+	for field := range req.ProposedChanges {
+		if !allowedFields[field] {
+			return nil, fmt.Errorf("字段 %q 不允许自助变更", field)
+		}
+	}
+
+	// 判断是否需要测试
+	requiresTest := false
+	for field := range req.ProposedChanges {
+		if fieldsRequiringTest[field] {
+			requiresTest = true
+			break
+		}
+	}
+	// 新 API Key 也需要测试
+	if req.NewAPIKey != "" {
+		requiresTest = true
+	}
+
+	// 如果需要测试，验证 proof
+	if requiresTest {
+		if req.TestProof == "" || req.TestJobID == "" {
+			return nil, fmt.Errorf("变更监测相关字段（base_url/api_key）需要先通过测试")
+		}
+
+		// 计算用于 proof 的 API Key 指纹（使用新 key 或原 key）
+		proofKey := req.APIKey
+		if req.NewAPIKey != "" {
+			proofKey = req.NewAPIKey
+		}
+		proofFingerprint := s.cipher.Fingerprint(proofKey)
+
+		if err := s.proofIssuer.Verify(req.TestProof, req.TestJobID, req.TestType, req.TestAPIURL, proofFingerprint); err != nil {
+			return nil, fmt.Errorf("测试证明无效: %w", err)
+		}
+	}
+
+	// 构建当前快照
+	snapshot := map[string]string{
+		"provider_name": target.ProviderName,
+		"provider_url":  target.ProviderURL,
+		"channel_name":  target.ChannelName,
+		"category":      target.Category,
+		"sponsor_level": target.SponsorLevel,
+		"base_url":      target.BaseURL,
+	}
+	snapshotJSON, _ := json.Marshal(snapshot)
+	changesJSON, _ := json.Marshal(req.ProposedChanges)
+
+	now := time.Now().Unix()
+	cr := &ChangeRequest{
+		PublicID:        uuid.New().String(),
+		Status:          StatusPending,
+		TargetProvider:  target.Provider,
+		TargetService:   target.Service,
+		TargetChannel:   target.Channel,
+		TargetKey:       target.MonitorKey,
+		ApplyMode:       target.ApplyMode,
+		AuthFingerprint: s.cipher.Fingerprint(req.APIKey),
+		AuthLast4:       apikey.Last4(req.APIKey),
+		CurrentSnapshot: string(snapshotJSON),
+		ProposedChanges: string(changesJSON),
+		RequiresTest:    requiresTest,
+		SubmitterIPHash: ipHash,
+		Locale:          req.Locale,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+
+	// 测试结果
+	if requiresTest {
+		cr.TestJobID = req.TestJobID
+		cr.TestPassedAt = now
+		cr.TestLatency = req.TestLatency
+		cr.TestHTTPCode = req.TestHTTPCode
+	}
+
+	// 加密新 API Key（如有）
+	if req.NewAPIKey != "" {
+		encrypted, err := s.cipher.Encrypt(req.NewAPIKey)
+		if err != nil {
+			return nil, fmt.Errorf("加密新 API Key 失败: %w", err)
+		}
+		cr.NewKeyEncrypted = encrypted
+		cr.NewKeyFingerprint = s.cipher.Fingerprint(req.NewAPIKey)
+		cr.NewKeyLast4 = apikey.Last4(req.NewAPIKey)
+	}
+
+	if err := s.store.Save(ctx, cr); err != nil {
+		return nil, err
+	}
+
+	logger.Info("change", "变更请求已提交",
+		"public_id", cr.PublicID,
+		"target", cr.TargetKey,
+		"apply_mode", cr.ApplyMode,
+		"requires_test", cr.RequiresTest)
+
+	return &SubmitResponse{PublicID: cr.PublicID}, nil
+}
+
+// GetStatus 查询变更请求状态（用户端）
+func (s *Service) GetStatus(ctx context.Context, publicID string) (*ChangeRequest, error) {
+	return s.store.GetByPublicID(ctx, publicID)
+}
+
+// IssueProof 签发测试证明（供 selftest handler 调用）。
+func (s *Service) IssueProof(jobID, testType, apiURL, apiKey string) string {
+	fingerprint := s.cipher.Fingerprint(apiKey)
+	return s.proofIssuer.Issue(jobID, testType, apiURL, fingerprint)
+}
+
+// === 管理端 API ===
+
+// AdminList 管理员列表查询
+func (s *Service) AdminList(ctx context.Context, status string, limit, offset int) ([]*ChangeRequest, int, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	return s.store.List(ctx, status, limit, offset)
+}
+
+// AdminGetDetail 管理员获取详情（含解密新 API Key）
+func (s *Service) AdminGetDetail(ctx context.Context, publicID string) (*ChangeRequest, string, error) {
+	cr, err := s.store.GetByPublicID(ctx, publicID)
+	if err != nil || cr == nil {
+		return cr, "", err
+	}
+
+	var newKey string
+	if cr.NewKeyEncrypted != "" {
+		newKey, err = s.cipher.Decrypt(cr.NewKeyEncrypted)
+		if err != nil {
+			return cr, "", fmt.Errorf("解密新 API Key 失败: %w", err)
+		}
+	}
+
+	return cr, newKey, nil
+}
+
+// AdminApprove 批准变更请求
+func (s *Service) AdminApprove(ctx context.Context, publicID, note string) error {
+	cr, err := s.store.GetByPublicID(ctx, publicID)
+	if err != nil {
+		return err
+	}
+	if cr == nil {
+		return fmt.Errorf("变更请求不存在")
+	}
+	if cr.Status != StatusPending {
+		return fmt.Errorf("只有待审核的请求可以批准，当前状态: %s", cr.Status)
+	}
+
+	now := time.Now().Unix()
+	cr.Status = StatusApproved
+	cr.AdminNote = note
+	cr.ReviewedAt = &now
+	cr.UpdatedAt = now
+	return s.store.Update(ctx, cr)
+}
+
+// AdminReject 驳回变更请求
+func (s *Service) AdminReject(ctx context.Context, publicID, note string) error {
+	cr, err := s.store.GetByPublicID(ctx, publicID)
+	if err != nil {
+		return err
+	}
+	if cr == nil {
+		return fmt.Errorf("变更请求不存在")
+	}
+	if cr.Status == StatusApplied {
+		return fmt.Errorf("已应用的请求不能驳回")
+	}
+
+	now := time.Now().Unix()
+	cr.Status = StatusRejected
+	cr.AdminNote = note
+	cr.ReviewedAt = &now
+	cr.UpdatedAt = now
+	return s.store.Update(ctx, cr)
+}
+
+// AdminApply 应用变更到 monitors.d/（仅 auto 模式）。
+func (s *Service) AdminApply(ctx context.Context, publicID string) error {
+	s.mu.Lock()
+	ms := s.monitorStore
+	s.mu.Unlock()
+
+	if ms == nil {
+		return fmt.Errorf("MonitorStore 未初始化")
+	}
+
+	cr, err := s.store.GetByPublicID(ctx, publicID)
+	if err != nil {
+		return err
+	}
+	if cr == nil {
+		return fmt.Errorf("变更请求不存在")
+	}
+	if cr.Status != StatusPending && cr.Status != StatusApproved {
+		return fmt.Errorf("只有待审核或已批准的请求可以应用，当前状态: %s", cr.Status)
+	}
+	if cr.ApplyMode != "auto" {
+		return fmt.Errorf("该通道为 manual 模式，不能自动应用（通道不在 monitors.d/ 中）")
+	}
+
+	// 读取当前 monitor 配置
+	mf, err := ms.Get(cr.TargetKey)
+	if err != nil {
+		return fmt.Errorf("读取通道配置失败: %w", err)
+	}
+	if len(mf.Monitors) == 0 {
+		return fmt.Errorf("通道配置为空")
+	}
+
+	// 解析变更
+	var changes map[string]string
+	if err := json.Unmarshal([]byte(cr.ProposedChanges), &changes); err != nil {
+		return fmt.Errorf("解析变更内容失败: %w", err)
+	}
+
+	// 应用变更到 ServiceConfig
+	m := &mf.Monitors[0]
+	for field, value := range changes {
+		switch field {
+		case "provider_name":
+			m.ProviderName = value
+		case "provider_url":
+			m.ProviderURL = value
+		case "channel_name":
+			m.ChannelName = value
+		case "category":
+			m.Category = value
+		case "sponsor_level":
+			m.SponsorLevel = config.SponsorLevel(value)
+		case "base_url":
+			m.BaseURL = value
+		}
+	}
+
+	// 新 API Key
+	if cr.NewKeyEncrypted != "" {
+		newKey, err := s.cipher.Decrypt(cr.NewKeyEncrypted)
+		if err != nil {
+			return fmt.Errorf("解密新 API Key 失败: %w", err)
+		}
+		m.APIKey = newKey
+	}
+
+	// 更新 metadata
+	oldRevision := mf.Metadata.Revision
+	mf.Metadata.Revision++
+	mf.Metadata.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+
+	if err := ms.Update(cr.TargetKey, mf, oldRevision); err != nil {
+		return fmt.Errorf("写入 monitors.d/ 失败: %w", err)
+	}
+
+	// 更新 DB 状态
+	now := time.Now().Unix()
+	cr.Status = StatusApplied
+	cr.AppliedAt = &now
+	cr.UpdatedAt = now
+	if err := s.store.Update(ctx, cr); err != nil {
+		logger.Error("change", "更新请求状态失败（文件已写入）",
+			"public_id", publicID, "error", err)
+		return fmt.Errorf("已写入配置文件但更新数据库状态失败: %w", err)
+	}
+
+	logger.Info("change", "变更已应用",
+		"public_id", publicID,
+		"target", cr.TargetKey)
+
+	return nil
+}
+
+// AdminDelete 删除变更请求
+func (s *Service) AdminDelete(ctx context.Context, publicID string) error {
+	cr, err := s.store.GetByPublicID(ctx, publicID)
+	if err != nil {
+		return err
+	}
+	if cr == nil {
+		return fmt.Errorf("变更请求不存在")
+	}
+	return s.store.DeleteByPublicID(ctx, publicID)
+}
+
+// hashIP 计算 IP 地址的 SHA256 哈希
+func hashIP(ip string) string {
+	h := sha256.Sum256([]byte(ip))
+	return hex.EncodeToString(h[:])
+}
