@@ -34,7 +34,7 @@ export function AnnotationCell({
   const hasLeading = positive.length > 0 || neutral.length > 0;
 
   return (
-    <div className={`flex flex-wrap items-center gap-0.5 ${className}`}>
+    <div className={`flex items-center gap-0.5 ${className}`}>
       {positive.map((a) => (
         <AnnotationChip key={a.id} annotation={a} tooltipPlacement={tooltipPlacement} />
       ))}

@@ -491,7 +491,7 @@ function StatusTableComponent({
           <tr className="border-b border-default/50 text-secondary text-xs uppercase tracking-wider">
             {/* 注解列 - 仅在有注解时显示 */}
             {hasAnnotations && (
-              <th className="px-1 py-3 font-medium min-w-24">
+              <th className="px-1 py-3 font-medium whitespace-nowrap">
                 {t('table.headers.annotation')}
               </th>
             )}
@@ -612,7 +612,7 @@ function StatusTableComponent({
             >
               {/* 注解列 */}
               {hasAnnotations && (
-                <td className="px-1 py-1 min-w-24">
+                <td className="px-1 py-1 whitespace-nowrap">
                   {hasItemAnnotations ? (
                     <AnnotationCell
                       annotations={item.annotations}
