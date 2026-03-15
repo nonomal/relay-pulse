@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
 import { LayeredHeatmapBlock } from './LayeredHeatmapBlock';
-import { ChannelTypeIcon } from './ChannelTypeIcon';
+import { ChannelTypeIcon, parseChannelType } from './ChannelTypeIcon';
 import { ExternalLink } from './ExternalLink';
 import { AnnotationCell } from './annotations';
 import { FavoriteButton } from './FavoriteButton';
@@ -45,7 +45,8 @@ interface ChannelCellProps {
 
 function ChannelCell({ channel, probeUrl, templateName, coldReason, className = '' }: ChannelCellProps) {
   const { t } = useTranslation();
-  const hasTooltip = !!(probeUrl || templateName || coldReason);
+  const channelType = parseChannelType(channel);
+  const hasTooltip = !!(channelType || probeUrl || templateName || coldReason);
 
   const channelContent = (
     <>
@@ -72,6 +73,14 @@ function ChannelCell({ channel, probeUrl, templateName, coldReason, className = 
         className={`absolute ${tooltipPositionClass} px-2 py-1.5 bg-elevated border border-default text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover/channel:opacity-100 group-hover/channel:pointer-events-auto transition-opacity delay-150 z-50 select-text cursor-text md:min-w-[20rem] max-w-[90vw] md:max-w-2xl`}
       >
         <span className="flex flex-col gap-1">
+          {channelType && (
+            <span className="flex flex-col">
+              <span className="text-muted text-[10px]">{t('table.channelTooltip.channelType')}</span>
+              <span className="text-primary text-[11px]">
+                {t(`table.channelType.${channelType}`)} — {t(`table.channelType.${channelType}Desc`)}
+              </span>
+            </span>
+          )}
           {probeUrl && (
             <span className="flex flex-col">
               <span className="text-muted text-[10px]">{t('table.channelTooltip.probeUrl')}</span>

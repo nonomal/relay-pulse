@@ -197,6 +197,7 @@
       "unknownDesc": "Тип канала не указан, источник неясен"
     },
     "channelTooltip": {
+      "channelType": "Тип канала",
       "probeUrl": "URL проверки",
       "template": "Шаблон запроса",
       "coldReason": "Причина"

@@ -197,6 +197,7 @@
       "unknownDesc": "未按规范标记通道类型，来源不明"
     },
     "channelTooltip": {
+      "channelType": "通道类型",
       "probeUrl": "探测地址",
       "template": "请求体模板",
       "coldReason": "冷板原因"

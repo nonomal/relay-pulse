@@ -197,6 +197,7 @@
       "unknownDesc": "チャネルタイプ未表記、ソース不明"
     },
     "channelTooltip": {
+      "channelType": "チャネルタイプ",
       "probeUrl": "探測URL",
       "template": "リクエストテンプレート",
       "coldReason": "コールド理由"

@@ -197,6 +197,7 @@
       "unknownDesc": "Channel type not labeled, source unclear"
     },
     "channelTooltip": {
+      "channelType": "Channel Type",
       "probeUrl": "Probe URL",
       "template": "Body Template",
       "coldReason": "Cold Reason"
