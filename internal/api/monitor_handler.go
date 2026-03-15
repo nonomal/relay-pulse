@@ -394,12 +394,14 @@ func (h *Handler) AdminProbeMonitor(c *gin.Context) {
 		return
 	}
 
-	if root.Template == "" || root.BaseURL == "" {
-		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "模板或 base_url 未配置")
+	if root.BaseURL == "" {
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "base_url 未配置")
 		return
 	}
 
-	job, err := mgr.CreateJob(root.Service, root.BaseURL, root.APIKey, root.Template)
+	// payloadVariant 传空，使用 selftest 默认变体（如 cc-haiku-arith）
+	// root.Template 是通道的生产探测模板，不是 selftest 变体
+	job, err := mgr.CreateJob(root.Service, root.BaseURL, root.APIKey, "")
 	if err != nil {
 		logger.Error("admin", "创建测试任务失败", "key", key, "error", err)
 		writeSelfTestError(c, err, "创建测试任务失败")
