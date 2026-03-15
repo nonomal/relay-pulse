@@ -146,14 +146,6 @@ export function MonitorDetail({
   };
 
   const handleSave = async () => {
-    // 验证子通道 model
-    for (let i = 0; i < editChildren.length; i++) {
-      if (!editChildren[i].model.trim()) {
-        setSaveError(t('admin.monitors.form.childModelRequired', { index: i + 1 }));
-        return;
-      }
-    }
-
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -164,7 +156,7 @@ export function MonitorDetail({
         service: '',
         channel: '',
         parent: parentPath,
-        model: c.model.trim(),
+        model: c.model.trim() || undefined,
         template: c.template || undefined,
         base_url: c.base_url || undefined,
         api_key: c.api_key || undefined,
@@ -378,11 +370,12 @@ export function MonitorDetail({
               {editChildren.map((child, i) => (
                 <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end border-b border-default/30 pb-3 last:border-0">
                   <div>
-                    <label className="block text-xs text-muted mb-0.5">{t('admin.monitors.field.model')} *</label>
+                    <label className="block text-xs text-muted mb-0.5">{t('admin.monitors.field.model')}</label>
                     <input
                       value={child.model}
                       onChange={e => updateChild(i, 'model', e.target.value)}
-                      className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
+                      placeholder={t('admin.monitors.form.modelPlaceholder')}
+                      className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent"
                     />
                   </div>
                   <div>
