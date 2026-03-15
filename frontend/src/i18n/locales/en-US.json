@@ -188,8 +188,13 @@
     },
     "channelType": {
       "official": "Official channel",
+      "officialDesc": "Officially supported, highest quality",
       "reverse": "Reverse channel",
-      "mixed": "Mixed channel"
+      "reverseDesc": "Adapted via reverse engineering",
+      "mixed": "Mixed channel",
+      "mixedDesc": "Multiple sources or third-party fallback",
+      "unknown": "Unknown channel",
+      "unknownDesc": "Non-standard naming, source unclear"
     },
     "channelTooltip": {
       "probeUrl": "Probe URL",

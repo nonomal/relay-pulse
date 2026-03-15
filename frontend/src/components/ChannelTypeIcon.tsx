@@ -1,16 +1,17 @@
 import { useTranslation } from 'react-i18next';
 
-export type ChannelType = 'official' | 'reverse' | 'mixed';
+export type ChannelType = 'official' | 'reverse' | 'mixed' | 'unknown';
 
-/** Parse O-/R-/M- prefix from channel identifier. Returns null for unrecognized formats. */
+/** Parse O-/R-/M- prefix from channel identifier. Returns 'unknown' for unrecognized formats. */
 export function parseChannelType(channel?: string | null): ChannelType | null {
   if (!channel) return null;
   const prefix = channel.charAt(0);
-  if (channel.charAt(1) !== '-') return null;
-  if (prefix === 'O') return 'official';
-  if (prefix === 'R') return 'reverse';
-  if (prefix === 'M') return 'mixed';
-  return null;
+  if (channel.charAt(1) === '-') {
+    if (prefix === 'O') return 'official';
+    if (prefix === 'R') return 'reverse';
+    if (prefix === 'M') return 'mixed';
+  }
+  return 'unknown';
 }
 
 // Solid five-pointed star (official/certified)
@@ -47,30 +48,40 @@ function MixedIcon() {
   );
 }
 
+// Question mark circle (unknown/unclassified)
+function UnknownIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" className="fill-muted" opacity="0.3" />
+      <text x="12" y="17" textAnchor="middle" className="fill-muted" fontSize="14" fontWeight="bold">?</text>
+    </svg>
+  );
+}
+
 interface ChannelTypeIconProps {
   channel?: string | null;
 }
 
-/** Renders a channel type icon based on O-/R-/M- prefix. */
+/** Renders a channel type icon based on O-/R-/M- prefix. Unrecognized formats show unknown icon. */
 export function ChannelTypeIcon({ channel }: ChannelTypeIconProps) {
   const { t } = useTranslation();
   const type = parseChannelType(channel);
   if (!type) return null;
 
   const label = t(`table.channelType.${type}`);
+  const desc = t(`table.channelType.${type}Desc`);
+  const tip = desc !== label ? `${label} — ${desc}` : label;
 
-  let icon: React.JSX.Element;
-  if (type === 'official') {
-    icon = <OfficialIcon />;
-  } else if (type === 'reverse') {
-    icon = <ReverseIcon />;
-  } else {
-    icon = <MixedIcon />;
-  }
+  const icons: Record<ChannelType, React.JSX.Element> = {
+    official: <OfficialIcon />,
+    reverse: <ReverseIcon />,
+    mixed: <MixedIcon />,
+    unknown: <UnknownIcon />,
+  };
 
   return (
-    <span className="inline-flex flex-shrink-0" title={label} role="img" aria-label={label}>
-      {icon}
+    <span className="inline-flex flex-shrink-0" title={tip} role="img" aria-label={label}>
+      {icons[type]}
     </span>
   );
 }

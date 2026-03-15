@@ -188,8 +188,13 @@
     },
     "channelType": {
       "official": "公式チャネル",
+      "officialDesc": "公式サポート、最高品質",
       "reverse": "リバースチャネル",
-      "mixed": "混合チャネル"
+      "reverseDesc": "リバースエンジニアリングで適応",
+      "mixed": "混合チャネル",
+      "mixedDesc": "複数ソースまたはサードパーティフォールバック",
+      "unknown": "不明チャネル",
+      "unknownDesc": "非標準命名、ソース不明"
     },
     "channelTooltip": {
       "probeUrl": "探測URL",

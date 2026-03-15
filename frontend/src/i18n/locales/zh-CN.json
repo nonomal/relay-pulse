@@ -188,8 +188,13 @@
     },
     "channelType": {
       "official": "官方通道",
+      "officialDesc": "官方正规渠道，质量最优",
       "reverse": "逆向通道",
-      "mixed": "混合通道"
+      "reverseDesc": "非原生支持渠道，通过技术手段适配",
+      "mixed": "混合通道",
+      "mixedDesc": "混合多种来源或接入第三方兜底",
+      "unknown": "未知通道",
+      "unknownDesc": "未按规范命名的通道，来源不明"
     },
     "channelTooltip": {
       "probeUrl": "探测地址",
