@@ -83,3 +83,4 @@ archive/probe_history_*.csv
 archive/probe_history_*.csv.gz
 # genconfig binary (root level only, avoid matching cmd/genconfig/)
 /genconfig
+request-body.txt
