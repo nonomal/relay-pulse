@@ -662,6 +662,7 @@
         "interval": "Интервал",
         "model": "Модель",
         "apiKey": "API-ключ",
+        "proxy": "Прокси",
         "listedSince": "Дата добавления"
       },
       "form": {

@@ -18,11 +18,12 @@ interface MonitorDetailProps {
 }
 
 type EditableFields = Pick<MonitorConfig,
-  'provider_name' | 'channel_name' | 'template' | 'base_url' | 'api_key' |
+  'provider_name' | 'channel_name' | 'template' | 'base_url' | 'api_key' | 'proxy' |
   'category' | 'sponsor_level' | 'board' | 'interval' | 'listed_since'
 >;
 
 interface ChildEdit {
+  _original?: MonitorConfig;
   model: string;
   template: string;
   base_url: string;
@@ -56,6 +57,7 @@ export function MonitorDetail({
     template: root?.template || '',
     base_url: root?.base_url || '',
     api_key: root?.api_key || '',
+    proxy: root?.proxy || '',
     category: root?.category || '',
     sponsor_level: root?.sponsor_level || '',
     board: root?.board || 'hot',
@@ -104,6 +106,7 @@ export function MonitorDetail({
 
   const toChildEdits = (items: MonitorConfig[]): ChildEdit[] =>
     items.map(c => ({
+      _original: c,
       model: c.model || '',
       template: c.template || '',
       base_url: c.base_url || '',
@@ -117,6 +120,7 @@ export function MonitorDetail({
       template: root?.template || '',
       base_url: root?.base_url || '',
       api_key: root?.api_key || '',
+      proxy: root?.proxy || '',
       category: root?.category || '',
       sponsor_level: root?.sponsor_level || '',
       board: root?.board || 'hot',
@@ -152,9 +156,10 @@ export function MonitorDetail({
       const parentPath = `${root.provider}/${root.service}/${root.channel}`;
       const updatedRoot = { ...root, ...editFields };
       const updatedChildren: MonitorConfig[] = editChildren.map(c => ({
-        provider: '',
-        service: '',
-        channel: '',
+        ...c._original,
+        provider: c._original?.provider || '',
+        service: c._original?.service || '',
+        channel: c._original?.channel || '',
         parent: parentPath,
         model: c.model.trim() || undefined,
         template: c.template || undefined,
@@ -313,6 +318,12 @@ export function MonitorDetail({
             type="password"
           />
           <EditableField
+            label={t('admin.monitors.field.proxy')}
+            value={isEditing ? editFields.proxy : root?.proxy}
+            editing={isEditing}
+            onChange={v => updateField('proxy', v)}
+          />
+          <EditableField
             label={t('admin.monitors.field.listedSince')}
             value={isEditing ? editFields.listed_since : root?.listed_since}
             editing={isEditing}
@@ -380,11 +391,15 @@ export function MonitorDetail({
                   </div>
                   <div>
                     <label className="block text-xs text-muted mb-0.5">{t('admin.monitors.field.template')}</label>
-                    <input
+                    <select
                       value={child.template}
                       onChange={e => updateChild(i, 'template', e.target.value)}
                       className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
-                    />
+                    >
+                      {withCurrentOption(templateOptions, child.template).map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs text-muted mb-0.5">{t('admin.monitors.field.baseUrl')}</label>

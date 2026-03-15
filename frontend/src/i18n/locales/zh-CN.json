@@ -694,6 +694,7 @@
         "interval": "间隔",
         "model": "模型",
         "apiKey": "API Key",
+        "proxy": "代理",
         "listedSince": "收录时间"
       },
       "form": {

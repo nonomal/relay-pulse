@@ -61,6 +61,17 @@ func intToStr(n int64) string {
 	return s + digits
 }
 
+func findMonitorByModel(t *testing.T, monitors []ServiceConfig, model string) ServiceConfig {
+	t.Helper()
+	for _, m := range monitors {
+		if m.Model == model {
+			return m
+		}
+	}
+	t.Fatalf("monitor with model %q not found", model)
+	return ServiceConfig{}
+}
+
 // --- SanitizeMonitorKey ---
 
 func TestSanitizeMonitorKey_Valid(t *testing.T) {
@@ -326,7 +337,366 @@ func TestUpdate_NotFound(t *testing.T) {
 	}
 }
 
-// --- MonitorStore.Delete ---
+// --- Update: admin hidden fields preservation ---
+
+func TestUpdate_PreservesRootHiddenFields(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"    template: cc-haiku-tiny",
+		"    base_url: https://api.example.com",
+		"    proxy: socks5://proxy.internal:1080",
+		"    env_var_name: ACME_VIP_KEY",
+		"    key_type: user",
+		"    request_model: claude-3-5-sonnet",
+		"    skip_url_validation: true",
+		"    url_pattern: \"{{BASE_URL}}/v1/chat/completions\"",
+		"    auto_cold_exempt: true",
+	}, "\n"))
+
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip", Template: "cc-opus-tiny", BaseURL: "https://new.example.com", Proxy: "socks5://proxy.internal:1080"},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := got.Monitors[0]
+	// Proxy is now JSON-visible, so it round-trips via the update payload
+	if root.Proxy != "socks5://proxy.internal:1080" {
+		t.Errorf("Proxy = %q, want round-tripped value", root.Proxy)
+	}
+	if root.EnvVarName != "ACME_VIP_KEY" {
+		t.Errorf("EnvVarName = %q, want preserved", root.EnvVarName)
+	}
+	if root.KeyType != "user" {
+		t.Errorf("KeyType = %q, want preserved", root.KeyType)
+	}
+	if root.RequestModel != "claude-3-5-sonnet" {
+		t.Errorf("RequestModel = %q, want preserved", root.RequestModel)
+	}
+	if !root.SkipURLValidation {
+		t.Error("SkipURLValidation = false, want true")
+	}
+	if root.URLPattern != "{{BASE_URL}}/v1/chat/completions" {
+		t.Errorf("URLPattern = %q, want preserved", root.URLPattern)
+	}
+	if !root.AutoColdExempt {
+		t.Error("AutoColdExempt = false, want true")
+	}
+	// JSON-visible fields should reflect the update, not the old value
+	if root.Template != "cc-opus-tiny" {
+		t.Errorf("Template = %q, want updated value", root.Template)
+	}
+}
+
+func TestUpdate_PreservesChildHiddenFields(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"    template: cc-haiku-tiny",
+		"    base_url: https://api.example.com",
+		"  - parent: acme/cc/vip",
+		"    model: gpt-4o",
+		"    template: child-template",
+		"    proxy: http://child-proxy:8080",
+		"    env_var_name: CHILD_ENV",
+		"    key_type: user",
+		"    request_model: gpt-4o-2024-08-06",
+		"    skip_url_validation: true",
+		"    url_pattern: \"{{BASE_URL}}/v1/responses\"",
+		"    auto_cold_exempt: true",
+	}, "\n"))
+
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip", Template: "cc-opus-tiny", BaseURL: "https://new.example.com"},
+			{Parent: "acme/cc/vip", Model: "gpt-4o", Template: "child-updated", Proxy: "http://child-proxy:8080"},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := findMonitorByModel(t, got.Monitors, "gpt-4o")
+	// Proxy is now JSON-visible, so it round-trips via the update payload
+	if child.Proxy != "http://child-proxy:8080" {
+		t.Errorf("child.Proxy = %q, want round-tripped value", child.Proxy)
+	}
+	if child.EnvVarName != "CHILD_ENV" {
+		t.Errorf("child.EnvVarName = %q, want preserved", child.EnvVarName)
+	}
+	if child.RequestModel != "gpt-4o-2024-08-06" {
+		t.Errorf("child.RequestModel = %q, want preserved", child.RequestModel)
+	}
+	if !child.SkipURLValidation {
+		t.Error("child.SkipURLValidation = false, want true")
+	}
+	if !child.AutoColdExempt {
+		t.Error("child.AutoColdExempt = false, want true")
+	}
+}
+
+func TestUpdate_NewChildDoesNotInheritHiddenFields(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"  - parent: acme/cc/vip",
+		"    model: gpt-4o",
+		"    proxy: http://proxy-a:8080",
+		"    env_var_name: CHILD_ENV",
+	}, "\n"))
+
+	// 用 gpt-5 替换 gpt-4o（新增 child 不应继承旧 child 的隐藏字段）
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip"},
+			{Parent: "acme/cc/vip", Model: "gpt-5", Template: "new-child"},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := findMonitorByModel(t, got.Monitors, "gpt-5")
+	if child.Proxy != "" {
+		t.Errorf("new child.Proxy = %q, want empty", child.Proxy)
+	}
+	if child.EnvVarName != "" {
+		t.Errorf("new child.EnvVarName = %q, want empty", child.EnvVarName)
+	}
+}
+
+func TestUpdate_DeletedChildDisappears(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"  - parent: acme/cc/vip",
+		"    model: gpt-4o",
+		"    proxy: http://proxy-a:8080",
+	}, "\n"))
+
+	// 提交时不包含子通道 → 子通道应该被删除
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip"},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Monitors) != 1 {
+		t.Errorf("len(Monitors) = %d, want 1 (deleted child should be gone)", len(got.Monitors))
+	}
+}
+
+func TestUpdate_ChildModelRenameIsRemoveAndAdd(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"  - parent: acme/cc/vip",
+		"    model: gpt-4o",
+		"    proxy: http://proxy-a:8080",
+		"    request_model: gpt-4o-2024-08-06",
+	}, "\n"))
+
+	// model 重命名 → 视为旧 child 删除 + 新 child 添加，不继承隐藏字段
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip"},
+			{Parent: "acme/cc/vip", Model: "gpt-4.1", Template: "renamed-child"},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	child := findMonitorByModel(t, got.Monitors, "gpt-4.1")
+	if child.Proxy != "" {
+		t.Errorf("renamed child.Proxy = %q, want empty", child.Proxy)
+	}
+	if child.RequestModel != "" {
+		t.Errorf("renamed child.RequestModel = %q, want empty", child.RequestModel)
+	}
+}
+
+func TestUpdate_JSONVisibleFieldsNotMergedBack(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"    board: hot",
+		"    category: commercial",
+		"    proxy: socks5://proxy:1080",
+		"    env_var_name: ACME_VIP_KEY",
+	}, "\n"))
+
+	// board 显式设为空字符串 → 应覆盖旧值，不被回填
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip", Board: "", Category: "public", Proxy: ""},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := got.Monitors[0]
+	// JSON-visible fields: should reflect the incoming update, not old values
+	if root.Board != "" {
+		t.Errorf("Board = %q, want empty (should not be merged back)", root.Board)
+	}
+	if root.Category != "public" {
+		t.Errorf("Category = %q, want 'public' (should reflect update)", root.Category)
+	}
+	// Proxy is now JSON-visible: empty in update → empty in result
+	if root.Proxy != "" {
+		t.Errorf("Proxy = %q, want empty (JSON-visible, should not be merged back)", root.Proxy)
+	}
+	// json:"-" field: should still be preserved
+	if root.EnvVarName != "ACME_VIP_KEY" {
+		t.Errorf("EnvVarName = %q, want preserved", root.EnvVarName)
+	}
+}
+
+func TestUpdate_ChildMatchingIgnoresOrder(t *testing.T) {
+	configDir, _ := setupTestMonitorsDir(t)
+	store := NewMonitorStore(filepath.Join(configDir, MonitorsDirName))
+
+	writeTestMonitorFile(t, configDir, "acme--cc--vip", strings.Join([]string{
+		"metadata:",
+		"  source: admin",
+		"  revision: 1",
+		"  created_at: \"2026-03-14T00:00:00Z\"",
+		"  updated_at: \"2026-03-14T00:00:00Z\"",
+		"monitors:",
+		"  - provider: acme",
+		"    service: cc",
+		"    channel: vip",
+		"  - parent: acme/cc/vip",
+		"    model: gpt-4o",
+		"    env_var_name: GPT4O_KEY",
+		"  - parent: acme/cc/vip",
+		"    model: claude-3-7-sonnet",
+		"    env_var_name: CLAUDE37_KEY",
+	}, "\n"))
+
+	// 子通道顺序反转 → 仍按 model 匹配
+	updated := &MonitorFile{
+		Monitors: []ServiceConfig{
+			{Provider: "acme", Service: "cc", Channel: "vip"},
+			{Parent: "acme/cc/vip", Model: "claude-3-7-sonnet"},
+			{Parent: "acme/cc/vip", Model: "gpt-4o"},
+		},
+	}
+
+	if err := store.Update("acme--cc--vip", updated, 1); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := store.Get("acme--cc--vip")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c := findMonitorByModel(t, got.Monitors, "gpt-4o"); c.EnvVarName != "GPT4O_KEY" {
+		t.Errorf("gpt-4o EnvVarName = %q, want preserved", c.EnvVarName)
+	}
+	if c := findMonitorByModel(t, got.Monitors, "claude-3-7-sonnet"); c.EnvVarName != "CLAUDE37_KEY" {
+		t.Errorf("claude-3-7-sonnet EnvVarName = %q, want preserved", c.EnvVarName)
+	}
+}
 
 func TestDelete_Success(t *testing.T) {
 	configDir, _ := setupTestMonitorsDir(t)

@@ -199,6 +199,60 @@ func (s *MonitorStore) Create(file *MonitorFile) error {
 	return nil
 }
 
+// preserveAdminHiddenFields 将 json:"-" 字段从 existing 合并到 updated。
+// 这些字段不参与 admin API JSON round-trip，PUT 更新时必须从磁盘文件回填。
+func preserveAdminHiddenFields(updated, existing *MonitorFile) {
+	// root 对 root
+	updatedRoot := findRootMonitor(updated.Monitors)
+	existingRoot := findRootMonitor(existing.Monitors)
+	if updatedRoot != nil && existingRoot != nil {
+		copyAdminHiddenFields(updatedRoot, existingRoot)
+	}
+
+	// child 按 parent+model 匹配
+	existingChildren := make(map[string]*ServiceConfig, len(existing.Monitors))
+	for i := range existing.Monitors {
+		if strings.TrimSpace(existing.Monitors[i].Parent) == "" {
+			continue
+		}
+		existingChildren[childMatchKey(existing.Monitors[i])] = &existing.Monitors[i]
+	}
+	for i := range updated.Monitors {
+		if strings.TrimSpace(updated.Monitors[i].Parent) == "" {
+			continue
+		}
+		if src, ok := existingChildren[childMatchKey(updated.Monitors[i])]; ok {
+			copyAdminHiddenFields(&updated.Monitors[i], src)
+		}
+		// 新增 child（无匹配）不继承，删除 child（不在 updated 中）自然消失
+	}
+}
+
+// findRootMonitor 返回第一个无 parent 字段的监测项指针。
+func findRootMonitor(monitors []ServiceConfig) *ServiceConfig {
+	for i := range monitors {
+		if strings.TrimSpace(monitors[i].Parent) == "" {
+			return &monitors[i]
+		}
+	}
+	return nil
+}
+
+// childMatchKey 生成子通道匹配键：parent + NUL + model。
+func childMatchKey(m ServiceConfig) string {
+	return strings.TrimSpace(m.Parent) + "\x00" + strings.TrimSpace(m.Model)
+}
+
+// copyAdminHiddenFields 将 src 的 json:"-" 持久化字段复制到 dst。
+func copyAdminHiddenFields(dst, src *ServiceConfig) {
+	dst.EnvVarName = src.EnvVarName
+	dst.KeyType = src.KeyType
+	dst.RequestModel = src.RequestModel
+	dst.SkipURLValidation = src.SkipURLValidation
+	dst.URLPattern = src.URLPattern
+	dst.AutoColdExempt = src.AutoColdExempt
+}
+
 // Update 更新监测文件。使用 revision 乐观锁防止并发覆盖。
 func (s *MonitorStore) Update(key string, file *MonitorFile, expectedRevision int64) error {
 	s.mu.Lock()
@@ -240,6 +294,9 @@ func (s *MonitorStore) Update(key string, file *MonitorFile, expectedRevision in
 	if newKey != key {
 		return fmt.Errorf("PSC 不可变更: %s -> %s", key, newKey)
 	}
+
+	// 回填 json:"-" 字段，防止 admin API round-trip 丢失
+	preserveAdminHiddenFields(file, &existing)
 
 	file.Metadata.Revision = expectedRevision + 1
 	file.Metadata.CreatedAt = existing.Metadata.CreatedAt // 保留创建时间

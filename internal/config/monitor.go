@@ -136,7 +136,7 @@ type ServiceConfig struct {
 	//   - socks:// 是 socks5:// 的别名
 	// 注意：SOCKS5 代理必须指定端口
 	// 不配置时使用系统环境变量代理（HTTP_PROXY/HTTPS_PROXY）
-	Proxy string `yaml:"proxy" json:"-"`
+	Proxy string `yaml:"proxy" json:"proxy,omitempty"` // admin monitor CRUD 需要 round-trip；公共 API 不直接序列化 ServiceConfig
 
 	APIKey string `yaml:"api_key" json:"api_key,omitempty"` // admin monitor CRUD 需要 round-trip；公共 API 不直接序列化 ServiceConfig
 }

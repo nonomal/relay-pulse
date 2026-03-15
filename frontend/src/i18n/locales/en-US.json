@@ -691,6 +691,7 @@
         "interval": "Interval",
         "model": "Model",
         "apiKey": "API Key",
+        "proxy": "Proxy",
         "listedSince": "Listed Since"
       },
       "form": {

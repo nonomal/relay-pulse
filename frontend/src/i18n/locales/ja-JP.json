@@ -662,6 +662,7 @@
         "interval": "間隔",
         "model": "モデル",
         "apiKey": "APIキー",
+        "proxy": "プロキシ",
         "listedSince": "掲載開始日"
       },
       "form": {
