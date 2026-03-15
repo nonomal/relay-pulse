@@ -520,20 +520,44 @@ func (b *Bot) handleList(ctx context.Context, e *OneBotEvent, args string) error
 		return nil
 	}
 
+	// 批量解析显示名称（API 不可用时 graceful degradation 为空 map）
+	displayNames := b.resolveSubDisplayNames(ctx, subs)
+
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("当前订阅（%d 个）：\n\n", len(subs)))
 
 	for i, sub := range subs {
+		// 构建 display key
+		displayKey := sub.Provider + "/" + sub.Service
+		if sub.Channel != "" {
+			displayKey += "/" + sub.Channel
+		}
+		info := displayNames[displayKey]
+
+		// 优先使用显示名称
+		provider := sub.Provider
+		service := sub.Service
+		channel := sub.Channel
+		if info.ProviderDisplayName != "" {
+			provider = info.ProviderDisplayName
+		}
+		if info.ServiceDisplayName != "" {
+			service = info.ServiceDisplayName
+		}
+		if info.ChannelDisplayName != "" {
+			channel = info.ChannelDisplayName
+		}
+
 		// 根据订阅级别显示不同格式
 		if sub.Service == "" {
 			// 旧版通配订阅（provider 级）
-			sb.WriteString(fmt.Sprintf("%d. %s / *（旧版）\n", i+1, sub.Provider))
+			sb.WriteString(fmt.Sprintf("%d. %s / *（旧版）\n", i+1, provider))
 		} else if sub.Channel != "" {
 			// 精确订阅（provider / service / channel）
-			sb.WriteString(fmt.Sprintf("%d. %s / %s / %s\n", i+1, sub.Provider, sub.Service, sub.Channel))
+			sb.WriteString(fmt.Sprintf("%d. %s / %s / %s\n", i+1, provider, service, channel))
 		} else {
 			// service 级订阅（provider / service）
-			sb.WriteString(fmt.Sprintf("%d. %s / %s\n", i+1, sub.Provider, sub.Service))
+			sb.WriteString(fmt.Sprintf("%d. %s / %s\n", i+1, provider, service))
 		}
 	}
 
@@ -541,6 +565,43 @@ func (b *Bot) handleList(ctx context.Context, e *OneBotEvent, args string) error
 
 	b.sendReply(ctx, e, sb.String())
 	return nil
+}
+
+// resolveSubDisplayNames 批量解析订阅的显示名称
+// API 不可用时快速退化，未解析项回退原始标识
+func (b *Bot) resolveSubDisplayNames(ctx context.Context, subs []*storage.Subscription) map[string]validator.DisplayInfo {
+	if b.validator == nil {
+		return nil
+	}
+
+	// 去重构建查询列表
+	seen := make(map[string]struct{})
+	var items []validator.CanonicalTarget
+	for _, sub := range subs {
+		key := sub.Provider + "/" + sub.Service
+		if sub.Channel != "" {
+			key += "/" + sub.Channel
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		items = append(items, validator.CanonicalTarget{
+			Provider: sub.Provider,
+			Service:  sub.Service,
+			Channel:  sub.Channel,
+		})
+	}
+
+	if len(items) == 0 {
+		return nil
+	}
+
+	// 限制显示名称解析总时长，避免 API 不可用时阻塞 /list 响应
+	lookupCtx, cancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+	defer cancel()
+
+	return b.validator.ResolveDisplayNames(lookupCtx, items)
 }
 
 // handleAdd 处理 /add 命令

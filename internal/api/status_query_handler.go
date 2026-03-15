@@ -37,10 +37,11 @@ type StatusQueryResponse struct {
 
 // StatusQueryResult 单个查询的返回结果
 type StatusQueryResult struct {
-	Query    StatusQuery             `json:"query"`
-	Provider string                  `json:"provider,omitempty"` // 原始标识
-	Services []StatusQueryService    `json:"services,omitempty"`
-	Error    *StatusQueryErrorObject `json:"error,omitempty"`
+	Query               StatusQuery             `json:"query"`
+	Provider            string                  `json:"provider,omitempty"`              // 原始标识
+	ProviderDisplayName string                  `json:"provider_display_name,omitempty"` // 显示名称（仅在与标识不同时返回）
+	Services            []StatusQueryService    `json:"services,omitempty"`
+	Error               *StatusQueryErrorObject `json:"error,omitempty"`
 }
 
 // StatusQueryErrorObject 查询错误对象
@@ -51,16 +52,18 @@ type StatusQueryErrorObject struct {
 
 // StatusQueryService 单个 service 的结果
 type StatusQueryService struct {
-	Name     string               `json:"name"` // 原始标识
-	Channels []StatusQueryChannel `json:"channels"`
+	Name        string               `json:"name"`                   // 原始标识
+	DisplayName string               `json:"display_name,omitempty"` // 显示名称（仅在与标识不同时返回）
+	Channels    []StatusQueryChannel `json:"channels"`
 }
 
 // StatusQueryChannel 单个 channel 的结果
 type StatusQueryChannel struct {
-	Name      string `json:"name"`                 // 原始标识（可能为空字符串）
-	Status    string `json:"status"`               // up/down/degraded
-	LatencyMs int    `json:"latency_ms,omitempty"` // 毫秒
-	UpdatedAt string `json:"updated_at,omitempty"` // RFC3339 格式
+	Name        string `json:"name"`                   // 原始标识（可能为空字符串）
+	DisplayName string `json:"display_name,omitempty"` // 显示名称（仅在与标识不同时返回）
+	Status      string `json:"status"`                 // up/down/degraded
+	LatencyMs   int    `json:"latency_ms,omitempty"`   // 毫秒
+	UpdatedAt   string `json:"updated_at,omitempty"`   // RFC3339 格式
 	// Board: channel 级别的活跃性折叠结果（仅用于订阅校验等场景）
 	// 注意：这是二值结果（hot/cold），不等同于 /api/status 中逐监测项返回的 board (hot|secondary|cold)
 	// - hot: 该 channel 仍有活跃监测项（包含配置为 hot/secondary 的项）
@@ -279,9 +282,10 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 				}
 
 				chResult := StatusQueryChannel{
-					Name:   ch.name, // 返回原始标识
-					Status: statusIntToString(worstStatus),
-					Board:  ch.board,
+					Name:        ch.name, // 返回原始标识
+					DisplayName: ch.displayName,
+					Status:      statusIntToString(worstStatus),
+					Board:       ch.board,
 				}
 				if worstRecord != nil {
 					chResult.LatencyMs = worstRecord.Latency
@@ -291,8 +295,9 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 			}
 
 			services = append(services, StatusQueryService{
-				Name:     target.service, // 返回原始标识
-				Channels: channelResults,
+				Name:        target.service, // 返回原始标识
+				DisplayName: target.serviceDisplayName,
+				Channels:    channelResults,
 			})
 		}
 
@@ -302,9 +307,10 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 		})
 
 		results = append(results, StatusQueryResult{
-			Query:    q,
-			Provider: targets[0].provider, // 返回原始标识
-			Services: services,
+			Query:               q,
+			Provider:            targets[0].provider, // 返回原始标识
+			ProviderDisplayName: targets[0].providerDisplayName,
+			Services:            services,
 		})
 	}
 
@@ -316,16 +322,19 @@ func (h *Handler) executeStatusQuery(ctx context.Context, queries []StatusQuery)
 
 // channelInfo 通道信息（内部使用）
 type channelInfo struct {
-	name   string   // 原始配置值（用于数据库查询和 API 返回）
-	board  string   // hot/cold（channel 级别的 board 状态）
-	models []string // 该 channel 下的所有 model（原始配置值）
+	name        string   // 原始配置值（用于数据库查询和 API 返回）
+	displayName string   // 显示名称（仅在与 name 不同时非空）
+	board       string   // hot/cold（channel 级别的 board 状态）
+	models      []string // 该 channel 下的所有 model（原始配置值）
 }
 
 // serviceTarget 服务目标（内部使用）
 type serviceTarget struct {
-	provider string        // 原始配置值
-	service  string        // 原始配置值
-	channels []channelInfo // 通道列表
+	provider            string        // 原始配置值
+	providerDisplayName string        // Provider 显示名称（仅在与 provider 不同时非空）
+	service             string        // 原始配置值
+	serviceDisplayName  string        // Service 显示名称（仅在与 service 不同时非空）
+	channels            []channelInfo // 通道列表
 }
 
 // expandQueryTargets 根据配置展开查询目标
@@ -344,11 +353,15 @@ func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q S
 	// 第一步：筛选匹配的 provider
 	var providerMatches []config.ServiceConfig
 	var originalProvider string
+	var providerDisplayName string
 	for _, m := range monitors {
 		if strings.ToLower(strings.TrimSpace(m.Provider)) == queryProvider {
 			providerMatches = append(providerMatches, m)
 			if originalProvider == "" {
 				originalProvider = m.Provider
+			}
+			if providerDisplayName == "" && m.ProviderName != "" && m.ProviderName != m.Provider {
+				providerDisplayName = m.ProviderName
 			}
 		}
 	}
@@ -359,12 +372,18 @@ func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q S
 	// 第二步：按 service 分组
 	serviceMap := make(map[string][]config.ServiceConfig) // key: lowercase service
 	serviceOriginal := make(map[string]string)            // key: lowercase service -> original name
+	serviceDisplayNames := make(map[string]string)        // key: lowercase service -> display name
 
 	for _, m := range providerMatches {
 		svcLower := strings.ToLower(strings.TrimSpace(m.Service))
 		serviceMap[svcLower] = append(serviceMap[svcLower], m)
 		if _, ok := serviceOriginal[svcLower]; !ok {
 			serviceOriginal[svcLower] = m.Service
+		}
+		if _, ok := serviceDisplayNames[svcLower]; !ok {
+			if m.ServiceName != "" && m.ServiceName != m.Service {
+				serviceDisplayNames[svcLower] = m.ServiceName
+			}
 		}
 	}
 
@@ -400,10 +419,14 @@ func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q S
 		for _, m := range svcConfigs {
 			chLower := strings.ToLower(strings.TrimSpace(m.Channel))
 			if _, ok := channelMap[chLower]; !ok {
-				channelMap[chLower] = &channelInfo{
+				ch := &channelInfo{
 					name:  m.Channel,
 					board: "hot", // 默认 hot
 				}
+				if m.ChannelName != "" && m.ChannelName != m.Channel {
+					ch.displayName = m.ChannelName
+				}
+				channelMap[chLower] = ch
 			}
 
 			// 统计 board（仅当 boardsEnabled 时有意义）
@@ -469,9 +492,11 @@ func expandQueryTargets(monitors []config.ServiceConfig, boardsEnabled bool, q S
 		}
 
 		targets = append(targets, serviceTarget{
-			provider: originalProvider,
-			service:  serviceOriginal[svcLower],
-			channels: channels,
+			provider:            originalProvider,
+			providerDisplayName: providerDisplayName,
+			service:             serviceOriginal[svcLower],
+			serviceDisplayName:  serviceDisplayNames[svcLower],
+			channels:            channels,
 		})
 	}
 

@@ -123,25 +123,29 @@ type RelayPulseValidator struct {
 }
 
 type providerCacheEntry struct {
-	expireAt time.Time
-	provider string   // canonical provider 名称
-	services []string // 可用的 service 列表
-	notFound bool     // 是否为负向缓存
+	expireAt    time.Time
+	provider    string   // canonical provider 名称
+	displayName string   // provider 显示名称（可选）
+	services    []string // 可用的 service 列表
+	notFound    bool     // 是否为负向缓存
 }
 
-// channelEntry channel 信息（包含 board 状态）
+// channelEntry channel 信息（包含 board 状态和显示名称）
 type channelEntry struct {
-	name  string // channel 名称
-	board string // hot/cold
+	name        string // channel 名称
+	displayName string // 显示名称（可选）
+	board       string // hot/cold
 }
 
 type serviceCacheEntry struct {
-	expireAt time.Time
-	provider string         // canonical provider 名称
-	service  string         // canonical service 名称
-	channels []channelEntry // 可用的 channel 列表（包含 board 信息）
-	notFound bool           // 是否为负向缓存
-	level    NotFoundLevel
+	expireAt            time.Time
+	provider            string         // canonical provider 名称
+	providerDisplayName string         // provider 显示名称（可选）
+	service             string         // canonical service 名称
+	serviceDisplayName  string         // service 显示名称（可选）
+	channels            []channelEntry // 可用的 channel 列表（包含 board 信息）
+	notFound            bool           // 是否为负向缓存
+	level               NotFoundLevel
 }
 
 type inflightCall struct {
@@ -502,17 +506,18 @@ func (v *RelayPulseValidator) getProviderEntry(ctx context.Context, provider str
 	v.mu.Unlock()
 
 	// 执行 API 调用
-	services, canonicalProvider, err := v.fetchProviderServices(ctx, provider)
+	services, canonicalProvider, provDisplayName, err := v.fetchProviderServices(ctx, provider)
 
 	var entry *providerCacheEntry
 	v.mu.Lock()
 	v.evictExpiredCacheLocked() // 写入前清理过期缓存
 	if err == nil {
 		entry = &providerCacheEntry{
-			expireAt: time.Now().Add(v.positiveTTL),
-			provider: canonicalProvider,
-			services: services,
-			notFound: false,
+			expireAt:    time.Now().Add(v.positiveTTL),
+			provider:    canonicalProvider,
+			displayName: provDisplayName,
+			services:    services,
+			notFound:    false,
 		}
 		v.providerCache[key] = entry
 	} else {
@@ -567,15 +572,18 @@ func (v *RelayPulseValidator) fetchServiceEntry(ctx context.Context, provider, s
 
 	// 解析响应
 	entry := &serviceCacheEntry{
-		provider: resp.Provider,
+		provider:            resp.Provider,
+		providerDisplayName: resp.ProviderDisplayName,
 	}
 
 	if len(resp.Services) > 0 {
 		entry.service = resp.Services[0].Name
+		entry.serviceDisplayName = resp.Services[0].DisplayName
 		for _, ch := range resp.Services[0].Channels {
 			entry.channels = append(entry.channels, channelEntry{
-				name:  ch.Name,
-				board: strings.TrimSpace(ch.Board),
+				name:        ch.Name,
+				displayName: ch.DisplayName,
+				board:       strings.TrimSpace(ch.Board),
 			})
 		}
 	}
@@ -584,18 +592,19 @@ func (v *RelayPulseValidator) fetchServiceEntry(ctx context.Context, provider, s
 }
 
 // fetchProviderServices 从 API 获取 provider 下的 services 列表
-func (v *RelayPulseValidator) fetchProviderServices(ctx context.Context, provider string) ([]string, string, error) {
+// 返回: services, canonicalProvider, providerDisplayName, error
+func (v *RelayPulseValidator) fetchProviderServices(ctx context.Context, provider string) ([]string, string, string, error) {
 	resp, err := v.callStatusQuery(ctx, provider, "", "")
 	if err != nil {
-		return nil, "", &UnavailableError{Cause: err}
+		return nil, "", "", &UnavailableError{Cause: err}
 	}
 
 	if resp.Error != nil {
 		// 只有 NOT_FOUND 错误码才转为 NotFoundError，其他错误视为服务不可用
 		if !strings.EqualFold(resp.Error.Code, "NOT_FOUND") {
-			return nil, "", &UnavailableError{Cause: fmt.Errorf("API 错误: %s - %s", resp.Error.Code, resp.Error.Message)}
+			return nil, "", "", &UnavailableError{Cause: fmt.Errorf("API 错误: %s - %s", resp.Error.Code, resp.Error.Message)}
 		}
-		return nil, "", &NotFoundError{
+		return nil, "", "", &NotFoundError{
 			Level:    NotFoundProvider,
 			Provider: provider,
 		}
@@ -608,19 +617,22 @@ func (v *RelayPulseValidator) fetchProviderServices(ctx context.Context, provide
 
 	// 注意：这里返回完整的 services 列表，不做截断
 	// 截断仅用于候选提示（Candidates），不用于实际展开
-	return services, resp.Provider, nil
+	return services, resp.Provider, resp.ProviderDisplayName, nil
 }
 
 // ===== API 客户端 =====
 
 // statusQueryResponse API 响应结构
 type statusQueryResponse struct {
-	Provider string `json:"provider,omitempty"`
-	Services []struct {
-		Name     string `json:"name"`
-		Channels []struct {
-			Name  string `json:"name"`
-			Board string `json:"board,omitempty"` // hot/cold
+	Provider            string `json:"provider,omitempty"`
+	ProviderDisplayName string `json:"provider_display_name,omitempty"`
+	Services            []struct {
+		Name        string `json:"name"`
+		DisplayName string `json:"display_name,omitempty"`
+		Channels    []struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"display_name,omitempty"`
+			Board       string `json:"board,omitempty"` // hot/cold
 		} `json:"channels"`
 	} `json:"services,omitempty"`
 	Error *struct {
@@ -776,4 +788,78 @@ func (v *RelayPulseValidator) evictExpiredCacheLocked() {
 		v.providerCache = make(map[string]*providerCacheEntry)
 		v.serviceCache = make(map[string]*serviceCacheEntry)
 	}
+}
+
+// DisplayInfo 订阅项的显示名称信息
+type DisplayInfo struct {
+	ProviderDisplayName string
+	ServiceDisplayName  string
+	ChannelDisplayName  string
+}
+
+// ResolveDisplayNames 批量解析订阅项的显示名称
+// 通过 /api/status/query 获取 display_name，复用缓存机制
+// 返回 map[key]DisplayInfo，key 为 "provider/service/channel" 格式
+// API 不可用时停止额外查询，已解析项保留，其余项回退原始标识
+func (v *RelayPulseValidator) ResolveDisplayNames(ctx context.Context, items []CanonicalTarget) map[string]DisplayInfo {
+	result := make(map[string]DisplayInfo, len(items))
+	serviceEntries := make(map[string]*serviceCacheEntry)
+
+	for _, item := range items {
+		key := item.Provider + "/" + item.Service
+		if item.Channel != "" {
+			key += "/" + item.Channel
+		}
+
+		// 旧版 provider 级通配订阅（service 为空）
+		if item.Service == "" {
+			entry, err := v.getProviderEntry(ctx, item.Provider)
+			if err != nil {
+				var ue *UnavailableError
+				if errors.As(err, &ue) {
+					return result // API 不可用，立即返回已解析的部分
+				}
+				continue
+			}
+			result[key] = DisplayInfo{
+				ProviderDisplayName: entry.displayName,
+			}
+			continue
+		}
+
+		// 去重：同一 provider/service 只查一次 API
+		serviceKey := strings.ToLower(item.Provider) + "/" + strings.ToLower(item.Service)
+		entry := serviceEntries[serviceKey]
+		if entry == nil {
+			var err error
+			entry, err = v.getServiceEntry(ctx, item.Provider, item.Service)
+			if err != nil {
+				var ue *UnavailableError
+				if errors.As(err, &ue) {
+					return result // API 不可用，立即返回已解析的部分
+				}
+				continue
+			}
+			serviceEntries[serviceKey] = entry
+		}
+
+		info := DisplayInfo{
+			ProviderDisplayName: entry.providerDisplayName,
+			ServiceDisplayName:  entry.serviceDisplayName,
+		}
+
+		if item.Channel != "" {
+			chLower := strings.ToLower(item.Channel)
+			for _, ch := range entry.channels {
+				if strings.ToLower(ch.name) == chLower {
+					info.ChannelDisplayName = ch.displayName
+					break
+				}
+			}
+		}
+
+		result[key] = info
+	}
+
+	return result
 }
