@@ -37,20 +37,19 @@ const getCachedServiceIcon = (serviceType: string) => {
 // 通道单元格组件（带自定义 CSS tooltip，替代原生 title 属性）
 interface ChannelCellProps {
   channel?: string;
-  serviceType?: string;
   probeUrl?: string;
   templateName?: string;
   coldReason?: string;
   className?: string;
 }
 
-function ChannelCell({ channel, serviceType, probeUrl, templateName, coldReason, className = '' }: ChannelCellProps) {
+function ChannelCell({ channel, probeUrl, templateName, coldReason, className = '' }: ChannelCellProps) {
   const { t } = useTranslation();
   const hasTooltip = !!(probeUrl || templateName || coldReason);
 
   const channelContent = (
     <>
-      <ChannelTypeIcon channel={channel} serviceType={serviceType} />
+      <ChannelTypeIcon channel={channel} />
       <span className="min-w-0 truncate">{channel || '-'}</span>
     </>
   );
@@ -280,7 +279,6 @@ function MobileListItem({
               {item.channel && (
                 <ChannelCell
                   channel={item.channelName || item.channel}
-                  serviceType={item.serviceType}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                   coldReason={item.coldReason}
@@ -703,7 +701,6 @@ function StatusTableComponent({
               <td className="px-2 py-1 text-secondary text-xs">
                 <ChannelCell
                   channel={item.channelName || item.channel}
-                  serviceType={item.serviceType}
                   probeUrl={item.probeUrl}
                   templateName={item.templateName}
                   coldReason={item.coldReason}

@@ -1,5 +1,4 @@
 import { useTranslation } from 'react-i18next';
-import { getServiceIconComponent } from './ServiceIcon';
 
 export type ChannelType = 'official' | 'reverse' | 'mixed';
 
@@ -12,6 +11,18 @@ export function parseChannelType(channel?: string | null): ChannelType | null {
   if (prefix === 'R') return 'reverse';
   if (prefix === 'M') return 'mixed';
   return null;
+}
+
+// Solid five-pointed star (official/certified)
+function OfficialIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"
+        className="fill-success"
+      />
+    </svg>
+  );
 }
 
 // Lightning bolt (reverse/unofficial)
@@ -30,19 +41,18 @@ function ReverseIcon() {
 function MixedIcon() {
   return (
     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="6" width="12" height="14" rx="2" className="fill-muted" opacity="0.4" />
-      <rect x="9" y="4" width="12" height="14" rx="2" className="fill-muted" />
+      <rect x="3" y="6" width="12" height="14" rx="2" className="fill-warning" opacity="0.4" />
+      <rect x="9" y="4" width="12" height="14" rx="2" className="fill-warning" />
     </svg>
   );
 }
 
 interface ChannelTypeIconProps {
   channel?: string | null;
-  serviceType?: string;
 }
 
-/** Renders a channel type icon based on O-/R-/M- prefix. O- uses the service's official icon. */
-export function ChannelTypeIcon({ channel, serviceType }: ChannelTypeIconProps) {
+/** Renders a channel type icon based on O-/R-/M- prefix. */
+export function ChannelTypeIcon({ channel }: ChannelTypeIconProps) {
   const { t } = useTranslation();
   const type = parseChannelType(channel);
   if (!type) return null;
@@ -51,8 +61,7 @@ export function ChannelTypeIcon({ channel, serviceType }: ChannelTypeIconProps) 
 
   let icon: React.JSX.Element;
   if (type === 'official') {
-    const ServiceIcon = serviceType ? getServiceIconComponent(serviceType) : null;
-    icon = ServiceIcon ? <ServiceIcon className="w-3.5 h-3.5" /> : <ReverseIcon />;
+    icon = <OfficialIcon />;
   } else if (type === 'reverse') {
     icon = <ReverseIcon />;
   } else {
