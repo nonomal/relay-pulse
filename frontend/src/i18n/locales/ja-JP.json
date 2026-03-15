@@ -188,13 +188,13 @@
     },
     "channelType": {
       "official": "公式チャネル",
-      "officialDesc": "公式サポート、最高品質",
+      "officialDesc": "プロバイダが公式APIの使用を主張",
       "reverse": "リバースチャネル",
-      "reverseDesc": "リバースエンジニアリングで適応",
+      "reverseDesc": "プロバイダがリバースエンジニアリングと表記",
       "mixed": "混合チャネル",
-      "mixedDesc": "複数ソースまたはサードパーティフォールバック",
+      "mixedDesc": "プロバイダが混合ソースと表記",
       "unknown": "不明チャネル",
-      "unknownDesc": "非標準命名、ソース不明"
+      "unknownDesc": "チャネルタイプ未表記、ソース不明"
     },
     "channelTooltip": {
       "probeUrl": "探測URL",

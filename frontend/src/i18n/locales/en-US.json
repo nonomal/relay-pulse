@@ -188,13 +188,13 @@
     },
     "channelType": {
       "official": "Official channel",
-      "officialDesc": "Officially supported, highest quality",
+      "officialDesc": "Provider claims to use official API",
       "reverse": "Reverse channel",
-      "reverseDesc": "Adapted via reverse engineering",
+      "reverseDesc": "Provider marks as reverse-engineered",
       "mixed": "Mixed channel",
-      "mixedDesc": "Multiple sources or third-party fallback",
+      "mixedDesc": "Provider marks as mixed sources or third-party fallback",
       "unknown": "Unknown channel",
-      "unknownDesc": "Non-standard naming, source unclear"
+      "unknownDesc": "Channel type not labeled, source unclear"
     },
     "channelTooltip": {
       "probeUrl": "Probe URL",
