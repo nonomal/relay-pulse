@@ -136,6 +136,11 @@ func (s *SQLiteStorage) Init() error {
 		return err
 	}
 
+	// 自动移板 override 持久化表
+	if err := s.initOverrideTables(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -386,6 +391,11 @@ func (s *SQLiteStorage) Ping() error {
 }
 
 // Close 关闭数据库
+// SqlDB 返回底层 *sql.DB 实例（用于 onboarding 等扩展模块共享连接）
+func (s *SQLiteStorage) SqlDB() *sql.DB {
+	return s.db
+}
+
 func (s *SQLiteStorage) Close() error {
 	return s.db.Close()
 }
@@ -1285,4 +1295,124 @@ func (s *SQLiteStorage) PurgeOldRecords(ctx context.Context, before time.Time, b
 	}
 
 	return affected, nil
+}
+
+// ===== 自动移板 override 持久化 =====
+
+func (s *SQLiteStorage) initOverrideTables(ctx context.Context) error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS monitor_overrides (
+		provider      TEXT NOT NULL,
+		service       TEXT NOT NULL,
+		channel       TEXT NOT NULL DEFAULT '',
+		model         TEXT NOT NULL DEFAULT '',
+		board         TEXT NOT NULL DEFAULT '',
+		cold_reason   TEXT NOT NULL DEFAULT '',
+		sponsor_level TEXT NOT NULL DEFAULT '',
+		created_at    INTEGER NOT NULL,
+		updated_at    INTEGER NOT NULL,
+		PRIMARY KEY (provider, service, channel, model)
+	);
+	`
+	if _, err := s.db.ExecContext(ctx, schema); err != nil {
+		return fmt.Errorf("创建 monitor_overrides 表失败: %w", err)
+	}
+	return nil
+}
+
+// ListMonitorOverrides 加载全部 override 快照。
+func (s *SQLiteStorage) ListMonitorOverrides() ([]MonitorOverrideRecord, error) {
+	ctx := s.effectiveCtx()
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT provider, service, channel, model, board, cold_reason, sponsor_level, created_at, updated_at
+		FROM monitor_overrides
+		ORDER BY provider, service, channel, model
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("查询 monitor_overrides 失败: %w", err)
+	}
+	defer rows.Close()
+
+	var records []MonitorOverrideRecord
+	for rows.Next() {
+		var r MonitorOverrideRecord
+		if err := rows.Scan(
+			&r.Key.Provider, &r.Key.Service, &r.Key.Channel, &r.Key.Model,
+			&r.Board, &r.ColdReason, &r.SponsorLevel,
+			&r.CreatedAt, &r.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("扫描 monitor_overrides 失败: %w", err)
+		}
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+// ReplaceMonitorOverrides 原子替换全部 override 快照。
+// 在事务中先查询现有 created_at（用于保留首次创建时间），再 DELETE ALL + INSERT ALL。
+func (s *SQLiteStorage) ReplaceMonitorOverrides(records []MonitorOverrideRecord) error {
+	ctx := s.effectiveCtx()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("开始 monitor_overrides 事务失败: %w", err)
+	}
+	defer tx.Rollback()
+
+	// 保留已有记录的 created_at
+	existingCreatedAt := make(map[MonitorKey]int64)
+	rows, err := tx.QueryContext(ctx, `SELECT provider, service, channel, model, created_at FROM monitor_overrides`)
+	if err != nil {
+		return fmt.Errorf("查询现有 monitor_overrides 失败: %w", err)
+	}
+	for rows.Next() {
+		var key MonitorKey
+		var createdAt int64
+		if err := rows.Scan(&key.Provider, &key.Service, &key.Channel, &key.Model, &createdAt); err != nil {
+			rows.Close()
+			return fmt.Errorf("扫描现有 monitor_overrides 失败: %w", err)
+		}
+		existingCreatedAt[key] = createdAt
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历现有 monitor_overrides 失败: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM monitor_overrides`); err != nil {
+		return fmt.Errorf("清空 monitor_overrides 失败: %w", err)
+	}
+
+	if len(records) > 0 {
+		stmt, err := tx.PrepareContext(ctx, `
+			INSERT INTO monitor_overrides (
+				provider, service, channel, model, board, cold_reason, sponsor_level, created_at, updated_at
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`)
+		if err != nil {
+			return fmt.Errorf("预编译 monitor_overrides 插入语句失败: %w", err)
+		}
+		defer stmt.Close()
+
+		now := time.Now().Unix()
+		for _, r := range records {
+			createdAt := r.CreatedAt
+			if createdAt == 0 {
+				if existing, ok := existingCreatedAt[r.Key]; ok {
+					createdAt = existing
+				} else {
+					createdAt = now
+				}
+			}
+			updatedAt := now
+
+			if _, err := stmt.ExecContext(ctx,
+				r.Key.Provider, r.Key.Service, r.Key.Channel, r.Key.Model,
+				r.Board, r.ColdReason, r.SponsorLevel, createdAt, updatedAt,
+			); err != nil {
+				return fmt.Errorf("写入 monitor_overrides 失败: %w", err)
+			}
+		}
+	}
+
+	return tx.Commit()
 }

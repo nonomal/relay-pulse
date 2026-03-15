@@ -88,6 +88,18 @@ type MonitorKey struct {
 	Model    string
 }
 
+// ===== 自动移板 override 持久化相关类型 =====
+
+// MonitorOverrideRecord 自动移板 runtime override 的持久化记录。
+type MonitorOverrideRecord struct {
+	Key          MonitorKey
+	Board        string
+	ColdReason   string
+	SponsorLevel string // config.SponsorLevel 的字符串表示，避免 storage → config 依赖
+	CreatedAt    int64
+	UpdatedAt    int64
+}
+
 // ===== 状态订阅通知（事件）相关类型 =====
 
 // EventType 事件类型
@@ -249,6 +261,16 @@ type RetentionStorage interface {
 type MigrationStorage interface {
 	// MigrateChannelData 将 channel 为空的历史记录迁移到最新配置
 	MigrateChannelData(mappings []ChannelMigrationMapping) error
+}
+
+// OverrideStorage 自动移板 runtime override 的持久化操作。
+// 为可选接口：automove.Service 在运行时检测存储实现是否支持，可用时自动启用持久化。
+type OverrideStorage interface {
+	// ListMonitorOverrides 加载全部 override 快照
+	ListMonitorOverrides() ([]MonitorOverrideRecord, error)
+
+	// ReplaceMonitorOverrides 原子替换全部 override 快照（DELETE ALL + INSERT ALL 在事务中）
+	ReplaceMonitorOverrides(records []MonitorOverrideRecord) error
 }
 
 // Storage 完整存储接口，组合所有领域子接口

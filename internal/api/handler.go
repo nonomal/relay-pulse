@@ -16,6 +16,7 @@ import (
 	"monitor/internal/automove"
 	"monitor/internal/config"
 	"monitor/internal/logger"
+	"monitor/internal/onboarding"
 	"monitor/internal/selftest"
 	"monitor/internal/storage"
 )
@@ -238,13 +239,16 @@ func (c *statusCache) loadWithTTL(key string, ttl time.Duration, loader func() (
 
 // Handler API处理器
 type Handler struct {
-	storage     storage.Storage
-	config      *config.AppConfig
-	cfgMu       sync.RWMutex             // 保护config的并发访问
-	cache       *statusCache             // API 响应缓存
-	selfTestMu  sync.RWMutex             // 保护 selfTestMgr 热替换的并发安全
-	selfTestMgr *selftest.TestJobManager // 自助测试管理器（可选）
-	autoMover   *automove.Service        // 自动移板服务（可选）
+	storage       storage.Storage
+	config        *config.AppConfig
+	cfgMu         sync.RWMutex             // 保护config的并发访问
+	cache         *statusCache             // API 响应缓存
+	selfTestMu    sync.RWMutex             // 保护 selfTestMgr 热替换的并发安全
+	selfTestMgr   *selftest.TestJobManager // 自助测试管理器（可选）
+	autoMover     *automove.Service        // 自动移板服务（可选）
+	onboardingMu  sync.RWMutex             // 保护 onboardingSvc 热替换
+	onboardingSvc *onboarding.Service      // 自助收录服务（可选）
+	monitorStore  *config.MonitorStore     // monitors.d/ CRUD（可选）
 }
 
 // NewHandler 创建处理器
@@ -269,6 +273,30 @@ func (h *Handler) getSelfTestManager() *selftest.TestJobManager {
 	h.selfTestMu.RLock()
 	defer h.selfTestMu.RUnlock()
 	return h.selfTestMgr
+}
+
+// SetOnboardingService 设置自助收录服务（并发安全，支持热更新时替换实例）
+func (h *Handler) SetOnboardingService(svc *onboarding.Service) {
+	h.onboardingMu.Lock()
+	h.onboardingSvc = svc
+	h.onboardingMu.Unlock()
+}
+
+// getOnboardingService 获取当前自助收录服务（并发安全）
+func (h *Handler) getOnboardingService() *onboarding.Service {
+	h.onboardingMu.RLock()
+	defer h.onboardingMu.RUnlock()
+	return h.onboardingSvc
+}
+
+// SetMonitorStore 设置 monitors.d/ 存储（仅初始化时调用一次，无需加锁）
+func (h *Handler) SetMonitorStore(store *config.MonitorStore) {
+	h.monitorStore = store
+}
+
+// getMonitorStore 获取 monitors.d/ 存储
+func (h *Handler) getMonitorStore() *config.MonitorStore {
+	return h.monitorStore
 }
 
 // CurrentStatus API返回的当前状态（不暴露数据库主键）

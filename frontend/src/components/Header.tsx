@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Activity, CheckCircle, AlertTriangle, Sparkles, Share2, Filter, MessageCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FEEDBACK_URLS } from '../constants';
+
 import { SUPPORTED_LANGUAGES, LANGUAGE_PATH_MAP, LANGUAGE_NAMES, isSupportedLanguage, type SupportedLanguage } from '../i18n';
 import { FlagIcon } from './FlagIcon';
 import { useToast } from './Toast';
@@ -275,16 +275,17 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
             </a>
           )}
 
-          {/* 推荐按钮 */}
-          <a
-            href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
-            target="_blank"
-            rel="noopener noreferrer"
+          {/* 推荐按钮 → 内部申请页面 */}
+          <button
+            onClick={() => {
+              const langPath = LANGUAGE_PATH_MAP[currentLang];
+              navigate(langPath ? `/${langPath}/apply` : '/apply');
+            }}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-accent/40 bg-accent/10 text-accent font-semibold tracking-wide shadow-accent hover:bg-accent/20 transition focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
           >
             <Sparkles size={14} />
             {t('header.recommendBtn')}
-          </a>
+          </button>
 
           {/* 统计卡片 - 紧凑单行 */}
           <div className="flex gap-2">
@@ -363,16 +364,17 @@ export function Header({ stats, onFilterClick, onRefresh, loading, refreshCooldo
           </a>
         )}
 
-        {/* 推荐按钮 - 移动端紧凑版 */}
-        <a
-          href={FEEDBACK_URLS.PROVIDER_SUGGESTION}
-          target="_blank"
-          rel="noopener noreferrer"
+        {/* 推荐按钮 - 移动端紧凑版 → 内部申请页面 */}
+        <button
+          onClick={() => {
+            const langPath = LANGUAGE_PATH_MAP[currentLang];
+            navigate(langPath ? `/${langPath}/apply` : '/apply');
+          }}
           className="flex items-center gap-1 px-2 py-1 rounded-lg border border-accent/40 bg-accent/10 text-accent text-xs font-medium shadow-accent hover:bg-accent/20 transition whitespace-nowrap focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:outline-none"
         >
           <Sparkles size={12} />
           {t('header.recommendBtnShort')}
-        </a>
+        </button>
       </div>
     </header>
   );

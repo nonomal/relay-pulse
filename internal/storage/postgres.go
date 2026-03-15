@@ -177,6 +177,11 @@ func (s *PostgresStorage) Init() error {
 		return err
 	}
 
+	// 自动移板 override 持久化表
+	if err := s.initOverrideTables(ctx); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -358,6 +363,11 @@ func (s *PostgresStorage) Ping() error {
 }
 
 // Close 关闭数据库连接
+// PgxPool 返回底层 *pgxpool.Pool 实例（用于 onboarding 等扩展模块共享连接池）
+func (s *PostgresStorage) PgxPool() *pgxpool.Pool {
+	return s.pool
+}
+
 func (s *PostgresStorage) Close() error {
 	s.pool.Close()
 	return nil
@@ -1586,4 +1596,121 @@ func (s *PostgresStorage) ExportDayToWriter(ctx context.Context, dayStart, dayEn
 	}
 
 	return tag.RowsAffected(), nil
+}
+
+// ===== 自动移板 override 持久化 =====
+
+func (s *PostgresStorage) initOverrideTables(ctx context.Context) error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS monitor_overrides (
+		provider      TEXT NOT NULL,
+		service       TEXT NOT NULL,
+		channel       TEXT NOT NULL DEFAULT '',
+		model         TEXT NOT NULL DEFAULT '',
+		board         TEXT NOT NULL DEFAULT '',
+		cold_reason   TEXT NOT NULL DEFAULT '',
+		sponsor_level TEXT NOT NULL DEFAULT '',
+		created_at    BIGINT NOT NULL,
+		updated_at    BIGINT NOT NULL,
+		PRIMARY KEY (provider, service, channel, model)
+	);
+	`
+	if _, err := s.pool.Exec(ctx, schema); err != nil {
+		return fmt.Errorf("创建 monitor_overrides 表失败 (PostgreSQL): %w", err)
+	}
+	return nil
+}
+
+// ListMonitorOverrides 加载全部 override 快照。
+func (s *PostgresStorage) ListMonitorOverrides() ([]MonitorOverrideRecord, error) {
+	ctx := s.effectiveCtx()
+	rows, err := s.pool.Query(ctx, `
+		SELECT provider, service, channel, model, board, cold_reason, sponsor_level, created_at, updated_at
+		FROM monitor_overrides
+		ORDER BY provider, service, channel, model
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("查询 monitor_overrides 失败 (PostgreSQL): %w", err)
+	}
+	defer rows.Close()
+
+	var records []MonitorOverrideRecord
+	for rows.Next() {
+		var r MonitorOverrideRecord
+		if err := rows.Scan(
+			&r.Key.Provider, &r.Key.Service, &r.Key.Channel, &r.Key.Model,
+			&r.Board, &r.ColdReason, &r.SponsorLevel,
+			&r.CreatedAt, &r.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("扫描 monitor_overrides 失败 (PostgreSQL): %w", err)
+		}
+		records = append(records, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历 monitor_overrides 失败 (PostgreSQL): %w", err)
+	}
+	return records, nil
+}
+
+// ReplaceMonitorOverrides 原子替换全部 override 快照。
+func (s *PostgresStorage) ReplaceMonitorOverrides(records []MonitorOverrideRecord) error {
+	ctx := s.effectiveCtx()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("开始 monitor_overrides 事务失败 (PostgreSQL): %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	// 保留已有记录的 created_at
+	existingCreatedAt := make(map[MonitorKey]int64)
+	eRows, err := tx.Query(ctx, `SELECT provider, service, channel, model, created_at FROM monitor_overrides`)
+	if err != nil {
+		return fmt.Errorf("查询现有 monitor_overrides 失败 (PostgreSQL): %w", err)
+	}
+	for eRows.Next() {
+		var key MonitorKey
+		var createdAt int64
+		if err := eRows.Scan(&key.Provider, &key.Service, &key.Channel, &key.Model, &createdAt); err != nil {
+			eRows.Close()
+			return fmt.Errorf("扫描现有 monitor_overrides 失败 (PostgreSQL): %w", err)
+		}
+		existingCreatedAt[key] = createdAt
+	}
+	eRows.Close()
+	if err := eRows.Err(); err != nil {
+		return fmt.Errorf("遍历现有 monitor_overrides 失败 (PostgreSQL): %w", err)
+	}
+
+	if _, err := tx.Exec(ctx, `DELETE FROM monitor_overrides`); err != nil {
+		return fmt.Errorf("清空 monitor_overrides 失败 (PostgreSQL): %w", err)
+	}
+
+	if len(records) > 0 {
+		const insertSQL = `
+			INSERT INTO monitor_overrides (
+				provider, service, channel, model, board, cold_reason, sponsor_level, created_at, updated_at
+			) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		`
+		now := time.Now().Unix()
+		for _, r := range records {
+			createdAt := r.CreatedAt
+			if createdAt == 0 {
+				if existing, ok := existingCreatedAt[r.Key]; ok {
+					createdAt = existing
+				} else {
+					createdAt = now
+				}
+			}
+			updatedAt := now
+
+			if _, err := tx.Exec(ctx, insertSQL,
+				r.Key.Provider, r.Key.Service, r.Key.Channel, r.Key.Model,
+				r.Board, r.ColdReason, r.SponsorLevel, createdAt, updatedAt,
+			); err != nil {
+				return fmt.Errorf("写入 monitor_overrides 失败 (PostgreSQL): %w", err)
+			}
+		}
+	}
+
+	return tx.Commit(ctx)
 }

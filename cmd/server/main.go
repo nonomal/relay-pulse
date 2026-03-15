@@ -17,6 +17,7 @@ import (
 	"monitor/internal/events"
 	"monitor/internal/identity"
 	"monitor/internal/logger"
+	"monitor/internal/onboarding"
 	"monitor/internal/scheduler"
 	"monitor/internal/selftest"
 	"monitor/internal/storage"
@@ -216,9 +217,13 @@ func main() {
 	}
 
 	// 创建自动移板服务（始终创建，内部根据 enabled 决定是否实际评估）
-	// 在 scheduler 之前创建并首次评估，确保重启后能基于 DB 历史重建 runtime cold override，
-	// 避免 scheduler 首轮调度到本应停探的通道。
+	// 先从 DB 恢复持久化 override，再基于历史做首次评估，
+	// 避免重启后丢失 sticky cold 状态，导致 scheduler 首轮调度到本应停探的通道。
 	autoMover := automove.NewService(store, cfg)
+	if err := autoMover.Restore(); err != nil {
+		logger.Error("main", "恢复自动移板 override 失败", "error", err)
+		os.Exit(1)
+	}
 	autoMover.Evaluate(ctx)
 
 	// 创建调度器（支持通过 config.yaml 配置 interval）
@@ -259,8 +264,16 @@ func main() {
 
 	sched.Start(ctx, cfg)
 
+	// 初始化 monitors.d/ 目录和 MonitorStore
+	monitorsDirPath := filepath.Join(resolveConfigDir(configFile), config.MonitorsDirName)
+	if err := os.MkdirAll(monitorsDirPath, 0755); err != nil {
+		logger.Warn("main", "创建 monitors.d 目录失败", "error", err)
+	}
+	monitorStore := config.NewMonitorStore(monitorsDirPath)
+
 	// 创建API服务器
 	server := api.NewServer(store, cfg, "8080", autoMover)
+	server.GetHandler().SetMonitorStore(monitorStore)
 
 	// runtimeMu 保护热更新回调与关闭序列之间对 mutable 组件实例的并发访问
 	var runtimeMu sync.Mutex
@@ -310,6 +323,44 @@ func main() {
 			"job_timeout", cfg.SelfTest.JobTimeoutDuration,
 			"result_ttl", cfg.SelfTest.ResultTTLDuration,
 			"rate_limit", cfg.SelfTest.RateLimitPerMinute)
+	}
+
+	// 初始化自助收录服务（如果启用）
+	var onboardingSvc *onboarding.Service
+	if cfg.Onboarding.Enabled {
+		var obStore onboarding.Store
+		switch s := store.(type) {
+		case *storage.SQLiteStorage:
+			sqlStore := onboarding.NewSQLStore(s.SqlDB())
+			if err := sqlStore.InitTable(ctx); err != nil {
+				logger.Error("main", "初始化 onboarding 表失败", "error", err)
+				os.Exit(1)
+			}
+			obStore = sqlStore
+		case *storage.PostgresStorage:
+			pgxStore := onboarding.NewPgxStore(s.PgxPool())
+			if err := pgxStore.InitTable(ctx); err != nil {
+				logger.Error("main", "初始化 onboarding 表失败", "error", err)
+				os.Exit(1)
+			}
+			obStore = pgxStore
+		default:
+			logger.Error("main", "不支持的存储类型，onboarding 功能不可用")
+			os.Exit(1)
+		}
+
+		configDir := resolveConfigDir(configFile)
+		var err error
+		onboardingSvc, err = onboarding.NewService(obStore, &cfg.Onboarding, configDir)
+		if err != nil {
+			logger.Error("main", "创建自助收录服务失败", "error", err)
+			os.Exit(1)
+		}
+		onboardingSvc.SetMonitorStore(monitorStore)
+		server.GetHandler().SetOnboardingService(onboardingSvc)
+		logger.Info("main", "自助收录功能已启用",
+			"max_per_ip_per_day", cfg.Onboarding.MaxPerIPPerDay,
+			"proof_ttl", cfg.Onboarding.ProofTTL)
 	}
 
 	// 初始化公告服务（如果启用）

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -40,6 +42,12 @@ func (l *Loader) Load(filename string) (*AppConfig, error) {
 	}
 	configDir := filepath.Dir(absPath)
 
+	// 合并 monitors.d/ 外部 monitor 源
+	// 必须在 validate 之前合并，确保所有 monitors 走完整校验/继承/规范化流程
+	if err := cfg.mergeExternalMonitorSources(configDir); err != nil {
+		return nil, fmt.Errorf("合并外部 monitor 配置失败: %w", err)
+	}
+
 	// 验证配置
 	if err := cfg.validate(); err != nil {
 		return nil, fmt.Errorf("配置验证失败: %w", err)
@@ -66,6 +74,72 @@ func (l *Loader) Load(filename string) (*AppConfig, error) {
 
 	l.currentConfig = &cfg
 	return &cfg, nil
+}
+
+// mergeExternalMonitorSources 合并 monitors.d/ 到主配置，并执行跨源 PSC 冲突检测。
+func (cfg *AppConfig) mergeExternalMonitorSources(configDir string) error {
+	dirMonitors, dirFiles, err := loadMonitorsDir(configDir)
+	if err != nil {
+		return fmt.Errorf("加载 %s 失败: %w", MonitorsDirName, err)
+	}
+
+	// config.yaml vs monitors.d/ PSC 冲突检测
+	if err := detectPSCConflicts(cfg.Monitors, dirMonitors); err != nil {
+		return err
+	}
+
+	if len(dirMonitors) > 0 {
+		cfg.Monitors = append(cfg.Monitors, dirMonitors...)
+		logger.Info("config", "已合并 monitors.d", "files", len(dirFiles), "monitors", len(dirMonitors))
+	}
+
+	return nil
+}
+
+// detectPSCConflicts 检测 config.yaml 与 monitors.d/ 之间的 PSC 冲突。
+func detectPSCConflicts(staticMonitors, dirMonitors []ServiceConfig) error {
+	staticKeys := CollectPSCKeys(staticMonitors)
+	dirKeys := CollectPSCKeys(dirMonitors)
+
+	var conflicts []string
+	for key := range staticKeys {
+		if _, ok := dirKeys[key]; ok {
+			conflicts = append(conflicts, fmt.Sprintf("PSC %s 同时出现在 config.yaml 与 %s/", key, MonitorsDirName))
+		}
+	}
+
+	if len(conflicts) == 0 {
+		return nil
+	}
+	sort.Strings(conflicts)
+	return fmt.Errorf("跨源 PSC 冲突:\n  %s", strings.Join(conflicts, "\n  "))
+}
+
+// CollectPSCKeys 从 monitor 列表收集去重后的 PSC key 集合（格式 "provider/service/channel"，小写）。
+// 对子通道执行 parent 继承以填充 PSC 字段。
+func CollectPSCKeys(monitors []ServiceConfig) map[string]struct{} {
+	keys := make(map[string]struct{})
+	if len(monitors) == 0 {
+		return keys
+	}
+
+	// 复制一份执行 parent 继承，避免修改原始数据
+	normalized := make([]ServiceConfig, len(monitors))
+	copy(normalized, monitors)
+	tmp := AppConfig{Monitors: normalized}
+	_ = tmp.preprocessParentInheritance() // 容忍继承失败，后续 validate 会捕获
+
+	for _, m := range tmp.Monitors {
+		p := strings.TrimSpace(m.Provider)
+		s := strings.TrimSpace(m.Service)
+		c := strings.TrimSpace(m.Channel)
+		if p == "" || s == "" || c == "" {
+			continue
+		}
+		key := strings.ToLower(p) + "/" + strings.ToLower(s) + "/" + strings.ToLower(c)
+		keys[key] = struct{}{}
+	}
+	return keys
 }
 
 // loadOrRollback 加载配置，失败时保持旧配置

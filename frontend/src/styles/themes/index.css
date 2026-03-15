@@ -50,6 +50,7 @@
   .bg-accent { background-color: hsl(var(--accent)); }
   .bg-accent-strong { background-color: hsl(var(--accent-strong)); }
   .bg-accent\/10 { background-color: hsl(var(--accent) / 0.1); }
+  .bg-accent\/15 { background-color: hsl(var(--accent) / 0.15); }
   .bg-accent\/20 { background-color: hsl(var(--accent) / 0.2); }
   .bg-accent\/70 { background-color: hsl(var(--accent) / 0.7); }
   .text-accent { color: hsl(var(--accent)); }
@@ -64,9 +65,11 @@
   /* 状态色 - 成功 */
   .bg-success { background-color: hsl(var(--success)); }
   .bg-success\/10 { background-color: hsl(var(--success) / 0.1); }
+  .bg-success\/15 { background-color: hsl(var(--success) / 0.15); }
   .bg-success\/20 { background-color: hsl(var(--success) / 0.2); }
   .text-success { color: hsl(var(--success)); }
   .border-success { border-color: hsl(var(--success)); }
+  .border-success\/30 { border-color: hsl(var(--success) / 0.3); }
   .border-success\/40 { border-color: hsl(var(--success) / 0.4); }
 
   /* 状态色 - 警告 */
@@ -86,6 +89,7 @@
   .bg-danger\/90 { background-color: hsl(var(--danger) / 0.9); }
   .text-danger { color: hsl(var(--danger)); }
   .border-danger { border-color: hsl(var(--danger)); }
+  .border-danger\/30 { border-color: hsl(var(--danger) / 0.3); }
 
   /* 状态色 - 信息（蓝色） */
   .bg-info { background-color: hsl(var(--info)); }
@@ -190,6 +194,8 @@
   .hover\:border-accent\/30:hover { border-color: hsl(var(--accent) / 0.3); }
   .hover\:border-danger\/30:hover { border-color: hsl(var(--danger) / 0.3); }
   .hover\:bg-accent\/20:hover { background-color: hsl(var(--accent) / 0.2); }
+  .hover\:bg-danger\/20:hover { background-color: hsl(var(--danger) / 0.2); }
+  .hover\:bg-success\/20:hover { background-color: hsl(var(--success) / 0.2); }
 
   /* Focus 变体 */
   .focus\:ring-accent:focus { --tw-ring-color: hsl(var(--accent)); }

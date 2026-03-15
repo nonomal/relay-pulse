@@ -141,6 +141,9 @@ type AppConfig struct {
 	// 自助测试功能配置
 	SelfTest SelfTestConfig `yaml:"selftest" json:"selftest"`
 
+	// 服务商自助收录配置
+	Onboarding OnboardingConfig `yaml:"onboarding" json:"onboarding"`
+
 	// 状态订阅通知（事件）配置
 	Events EventsConfig `yaml:"events" json:"events"`
 

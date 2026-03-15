@@ -1,0 +1,283 @@
+package onboarding
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+)
+
+// SQLStore 基于 database/sql 的 Store 实现（适用于 SQLite）。
+type SQLStore struct {
+	db *sql.DB
+}
+
+// NewSQLStore 创建基于 database/sql 的 Store。
+func NewSQLStore(db *sql.DB) *SQLStore {
+	return &SQLStore{db: db}
+}
+
+// InitTable 创建 onboarding_submissions 表和索引。
+// 应在应用启动时由 storage Init() 调用。
+func (s *SQLStore) InitTable(ctx context.Context) error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS onboarding_submissions (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		public_id TEXT NOT NULL UNIQUE,
+		status TEXT NOT NULL DEFAULT 'pending',
+
+		provider_name TEXT NOT NULL,
+		website_url TEXT NOT NULL,
+		category TEXT NOT NULL,
+
+		service_type TEXT NOT NULL,
+		template_name TEXT NOT NULL,
+
+		sponsor_level TEXT NOT NULL,
+
+		channel_type TEXT NOT NULL,
+		channel_source TEXT NOT NULL,
+		channel_code TEXT NOT NULL,
+
+		base_url TEXT NOT NULL,
+		api_key_encrypted TEXT NOT NULL,
+		api_key_fingerprint TEXT NOT NULL,
+		api_key_last4 TEXT NOT NULL,
+
+		test_job_id TEXT NOT NULL,
+		test_passed_at INTEGER NOT NULL,
+		test_latency_ms INTEGER NOT NULL DEFAULT 0,
+		test_http_code INTEGER NOT NULL DEFAULT 0,
+
+		contact_info TEXT,
+		submitter_ip_hash TEXT,
+		locale TEXT,
+
+		admin_note TEXT,
+		admin_config_json TEXT,
+		reviewed_at INTEGER,
+
+		created_at INTEGER NOT NULL,
+		updated_at INTEGER NOT NULL
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_onboarding_status ON onboarding_submissions(status, created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_onboarding_fingerprint ON onboarding_submissions(api_key_fingerprint);
+	`
+	_, err := s.db.ExecContext(ctx, schema)
+	return err
+}
+
+// Save 保存新申请
+func (s *SQLStore) Save(ctx context.Context, sub *Submission) error {
+	query := `
+	INSERT INTO onboarding_submissions (
+		public_id, status, provider_name, website_url, category,
+		service_type, template_name, sponsor_level,
+		channel_type, channel_source, channel_code,
+		base_url, api_key_encrypted, api_key_fingerprint, api_key_last4,
+		test_job_id, test_passed_at, test_latency_ms, test_http_code,
+		contact_info, submitter_ip_hash, locale,
+		admin_note, admin_config_json, reviewed_at,
+		created_at, updated_at
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+
+	result, err := s.db.ExecContext(ctx, query,
+		sub.PublicID, sub.Status, sub.ProviderName, sub.WebsiteURL, sub.Category,
+		sub.ServiceType, sub.TemplateName, sub.SponsorLevel,
+		sub.ChannelType, sub.ChannelSource, sub.ChannelCode,
+		sub.BaseURL, sub.APIKeyEncrypted, sub.APIKeyFingerprint, sub.APIKeyLast4,
+		sub.TestJobID, sub.TestPassedAt, sub.TestLatency, sub.TestHTTPCode,
+		nullStr(sub.ContactInfo), nullStr(sub.SubmitterIPHash), nullStr(sub.Locale),
+		nullStr(sub.AdminNote), nullStr(sub.AdminConfigJSON), sub.ReviewedAt,
+		sub.CreatedAt, sub.UpdatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("保存申请失败: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err == nil {
+		sub.ID = id
+	}
+	return nil
+}
+
+// GetByPublicID 按公开 ID 查询
+func (s *SQLStore) GetByPublicID(ctx context.Context, publicID string) (*Submission, error) {
+	return s.scanOne(ctx, "SELECT "+allColumns+" FROM onboarding_submissions WHERE public_id = ?", publicID)
+}
+
+// GetByID 按内部 ID 查询
+func (s *SQLStore) GetByID(ctx context.Context, id int64) (*Submission, error) {
+	return s.scanOne(ctx, "SELECT "+allColumns+" FROM onboarding_submissions WHERE id = ?", id)
+}
+
+// List 列表查询
+func (s *SQLStore) List(ctx context.Context, status string, limit, offset int) ([]*Submission, int, error) {
+	var countQuery, listQuery string
+	var args []any
+
+	if status != "" && status != "all" {
+		countQuery = "SELECT COUNT(*) FROM onboarding_submissions WHERE status = ?"
+		listQuery = "SELECT " + allColumns + " FROM onboarding_submissions WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+		args = []any{status}
+	} else {
+		countQuery = "SELECT COUNT(*) FROM onboarding_submissions"
+		listQuery = "SELECT " + allColumns + " FROM onboarding_submissions ORDER BY created_at DESC LIMIT ? OFFSET ?"
+	}
+
+	var total int
+	if err := s.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("统计申请数失败: %w", err)
+	}
+
+	listArgs := append(args, limit, offset)
+	rows, err := s.db.QueryContext(ctx, listQuery, listArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("查询申请列表失败: %w", err)
+	}
+	defer rows.Close()
+
+	var results []*Submission
+	for rows.Next() {
+		sub, err := scanSubmission(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		results = append(results, sub)
+	}
+	return results, total, rows.Err()
+}
+
+// Update 更新申请
+func (s *SQLStore) Update(ctx context.Context, sub *Submission) error {
+	query := `
+	UPDATE onboarding_submissions SET
+		status = ?, provider_name = ?, website_url = ?, category = ?,
+		service_type = ?, template_name = ?, sponsor_level = ?,
+		channel_type = ?, channel_source = ?, channel_code = ?,
+		base_url = ?,
+		contact_info = ?,
+		admin_note = ?, admin_config_json = ?, reviewed_at = ?,
+		updated_at = ?
+	WHERE id = ?`
+
+	_, err := s.db.ExecContext(ctx, query,
+		sub.Status, sub.ProviderName, sub.WebsiteURL, sub.Category,
+		sub.ServiceType, sub.TemplateName, sub.SponsorLevel,
+		sub.ChannelType, sub.ChannelSource, sub.ChannelCode,
+		sub.BaseURL,
+		nullStr(sub.ContactInfo),
+		nullStr(sub.AdminNote), nullStr(sub.AdminConfigJSON), sub.ReviewedAt,
+		sub.UpdatedAt,
+		sub.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("更新申请失败: %w", err)
+	}
+	return nil
+}
+
+// CountByIPToday 统计今天的提交数
+func (s *SQLStore) CountByIPToday(ctx context.Context, ipHash string) (int, error) {
+	start, end := todayRange()
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM onboarding_submissions WHERE submitter_ip_hash = ? AND created_at >= ? AND created_at < ?",
+		ipHash, start, end,
+	).Scan(&count)
+	return count, err
+}
+
+// CountByFingerprint 统计未驳回的同指纹申请数
+func (s *SQLStore) CountByFingerprint(ctx context.Context, fingerprint string) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM onboarding_submissions WHERE api_key_fingerprint = ? AND status != 'rejected'",
+		fingerprint,
+	).Scan(&count)
+	return count, err
+}
+
+// DeleteByPublicID 按公开 ID 删除申请
+func (s *SQLStore) DeleteByPublicID(ctx context.Context, publicID string) error {
+	result, err := s.db.ExecContext(ctx, "DELETE FROM onboarding_submissions WHERE public_id = ?", publicID)
+	if err != nil {
+		return fmt.Errorf("删除申请失败: %w", err)
+	}
+	n, _ := result.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("申请不存在")
+	}
+	return nil
+}
+
+// === 内部辅助 ===
+
+const allColumns = `id, public_id, status,
+	provider_name, website_url, category,
+	service_type, template_name, sponsor_level,
+	channel_type, channel_source, channel_code,
+	base_url, api_key_encrypted, api_key_fingerprint, api_key_last4,
+	test_job_id, test_passed_at, test_latency_ms, test_http_code,
+	contact_info, submitter_ip_hash, locale,
+	admin_note, admin_config_json, reviewed_at,
+	created_at, updated_at`
+
+// scanner 是 *sql.Row 和 *sql.Rows 的共同扫描接口
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanSubmission(s scanner) (*Submission, error) {
+	var sub Submission
+	var contactInfo, ipHash, locale, adminNote, adminConfigJSON sql.NullString
+	var reviewedAt sql.NullInt64
+
+	err := s.Scan(
+		&sub.ID, &sub.PublicID, &sub.Status,
+		&sub.ProviderName, &sub.WebsiteURL, &sub.Category,
+		&sub.ServiceType, &sub.TemplateName, &sub.SponsorLevel,
+		&sub.ChannelType, &sub.ChannelSource, &sub.ChannelCode,
+		&sub.BaseURL, &sub.APIKeyEncrypted, &sub.APIKeyFingerprint, &sub.APIKeyLast4,
+		&sub.TestJobID, &sub.TestPassedAt, &sub.TestLatency, &sub.TestHTTPCode,
+		&contactInfo, &ipHash, &locale,
+		&adminNote, &adminConfigJSON, &reviewedAt,
+		&sub.CreatedAt, &sub.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	sub.ContactInfo = contactInfo.String
+	sub.SubmitterIPHash = ipHash.String
+	sub.Locale = locale.String
+	sub.AdminNote = adminNote.String
+	sub.AdminConfigJSON = adminConfigJSON.String
+	if reviewedAt.Valid {
+		v := reviewedAt.Int64
+		sub.ReviewedAt = &v
+	}
+
+	return &sub, nil
+}
+
+func (s *SQLStore) scanOne(ctx context.Context, query string, args ...any) (*Submission, error) {
+	row := s.db.QueryRowContext(ctx, query, args...)
+	sub, err := scanSubmission(row)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("查询申请失败: %w", err)
+	}
+	return sub, nil
+}
+
+// nullStr 将空字符串转为 sql.NullString
+func nullStr(s string) sql.NullString {
+	if s == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: s, Valid: true}
+}

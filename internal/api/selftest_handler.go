@@ -43,6 +43,9 @@ type GetTestResponse struct {
 	ErrorMessage    *string `json:"error_message,omitempty"`
 	ResponseSnippet *string `json:"response_snippet,omitempty"` // 服务端响应片段
 
+	// 测试证明（仅当 probe_status=1 且启用了 onboarding 时返回）
+	TestProof *string `json:"test_proof,omitempty"`
+
 	CreatedAt  int64  `json:"created_at"`
 	StartedAt  *int64 `json:"started_at,omitempty"`
 	FinishedAt *int64 `json:"finished_at,omitempty"`
@@ -212,6 +215,17 @@ func (h *Handler) GetSelfTest(c *gin.Context) {
 		if job.FinishedAt != nil {
 			finishedAt := job.FinishedAt.Unix()
 			resp.FinishedAt = &finishedAt
+		}
+
+		// 测试通过时签发 proof（供 onboarding 提交使用）
+		if job.ProbeStatus == 1 {
+			if svc := h.getOnboardingService(); svc != nil {
+				apiKey := mgr.GetJobAPIKey(jobID)
+				if apiKey != "" {
+					proof := svc.IssueProof(jobID, job.TestType, job.APIURL, apiKey)
+					resp.TestProof = &proof
+				}
+			}
 		}
 	}
 

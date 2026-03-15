@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -401,6 +402,54 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 	// 公告启用但未配置 token：仅警告（可匿名访问，但容易被限流）
 	if c.Announcements.IsEnabled() && strings.TrimSpace(c.GitHub.Token) == "" {
 		logger.Warn("config", "announcements 已启用但未配置 GITHUB_TOKEN，将使用匿名请求（可能触发限流）")
+	}
+
+	// 自助收录配置默认值与解析
+	if err := c.normalizeOnboardingConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// normalizeOnboardingConfig 规范化自助收录配置
+func (c *AppConfig) normalizeOnboardingConfig() error {
+	if !c.Onboarding.Enabled {
+		return nil
+	}
+
+	// proof TTL（默认 5 分钟）
+	if strings.TrimSpace(c.Onboarding.ProofTTL) == "" {
+		c.Onboarding.ProofTTL = "5m"
+	}
+	d, err := time.ParseDuration(strings.TrimSpace(c.Onboarding.ProofTTL))
+	if err != nil || d <= 0 {
+		logger.Warn("config", "onboarding.proof_ttl 无效，已回退默认值",
+			"value", c.Onboarding.ProofTTL, "default", "5m")
+		d = 5 * time.Minute
+		c.Onboarding.ProofTTL = "5m"
+	}
+	c.Onboarding.ProofTTLDuration = d
+
+	// 每 IP 每天最大提交数（默认 5）
+	if c.Onboarding.MaxPerIPPerDay <= 0 {
+		c.Onboarding.MaxPerIPPerDay = 5
+	}
+
+	// 环境变量覆盖加密密钥
+	if envKey := os.Getenv("ONBOARDING_ENCRYPTION_KEY"); envKey != "" {
+		c.Onboarding.EncryptionKey = envKey
+	}
+
+	// 必要配置校验
+	if c.Onboarding.AdminToken == "" {
+		return fmt.Errorf("onboarding.admin_token 不能为空（管理后台鉴权必须）")
+	}
+	if c.Onboarding.EncryptionKey == "" {
+		return fmt.Errorf("onboarding.encryption_key 不能为空（API Key 加密必须），可通过环境变量 ONBOARDING_ENCRYPTION_KEY 设置")
+	}
+	if c.Onboarding.ProofSecret == "" {
+		return fmt.Errorf("onboarding.proof_secret 不能为空（test proof 签名必须）")
 	}
 
 	return nil

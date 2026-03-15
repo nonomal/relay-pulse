@@ -1,0 +1,367 @@
+import { useState, useMemo, useEffect, useSyncExternalStore } from 'react';
+import { useTranslation } from 'react-i18next';
+import { ChevronLeft, ChevronRight, Eye, EyeOff, Play, Clock, Loader2 } from 'lucide-react';
+import type { OnboardingFormData, OnboardingMeta, OnboardingTestResult } from '../../types/onboarding';
+
+/** Default proof validity duration in seconds (5 minutes). */
+const PROOF_TTL_SECONDS = 300;
+
+/** Module-level countdown store for proof validity. */
+const proofCountdownStore = (() => {
+  let acquiredAt: number | null = null;
+  let remaining: number | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const listeners = new Set<() => void>();
+
+  function notify() { listeners.forEach((fn) => fn()); }
+
+  function start() {
+    stop();
+    acquiredAt = Date.now();
+    remaining = PROOF_TTL_SECONDS;
+    notify();
+    timer = setInterval(() => {
+      if (acquiredAt == null) return;
+      const elapsed = Math.floor((Date.now() - acquiredAt) / 1000);
+      remaining = Math.max(0, PROOF_TTL_SECONDS - elapsed);
+      notify();
+      if (remaining <= 0) { clearInterval(timer!); timer = null; }
+    }, 1000);
+  }
+
+  function stop() {
+    if (timer) { clearInterval(timer); timer = null; }
+    acquiredAt = null;
+    remaining = null;
+    notify();
+  }
+
+  return {
+    start,
+    stop,
+    subscribe: (cb: () => void) => { listeners.add(cb); return () => { listeners.delete(cb); }; },
+    getSnapshot: () => remaining,
+  };
+})();
+
+/**
+ * Countdown hook that computes remaining seconds from a proof token.
+ * Returns null when no proof is active.
+ */
+function useProofCountdown(testProof: string | null): number | null {
+  useEffect(() => {
+    if (testProof) {
+      proofCountdownStore.start();
+    } else {
+      proofCountdownStore.stop();
+    }
+    return () => proofCountdownStore.stop();
+  }, [testProof]);
+
+  return useSyncExternalStore(proofCountdownStore.subscribe, proofCountdownStore.getSnapshot);
+}
+
+interface ConnectionTestStepProps {
+  formData: OnboardingFormData;
+  updateField: <K extends keyof OnboardingFormData>(key: K, value: OnboardingFormData[K]) => void;
+  meta: OnboardingMeta | null;
+  testResult: OnboardingTestResult | null;
+  testProof: string | null;
+  isTesting: boolean;
+  onRunTest: () => void;
+  onBack: () => void;
+  onNext: () => void;
+}
+
+const probeStatusConfig: Record<number, { labelKey: string; colorClass: string; icon: string }> = {
+  1: { labelKey: 'onboarding.test.statusAvailable', colorClass: 'text-success', icon: '🟢' },
+  2: { labelKey: 'onboarding.test.statusDegraded', colorClass: 'text-warning', icon: '🟡' },
+  0: { labelKey: 'onboarding.test.statusUnavailable', colorClass: 'text-danger', icon: '🔴' },
+};
+
+/** Step 2: Connection test with API key and base URL. */
+export function ConnectionTestStep({
+  formData, updateField, meta, testResult, testProof,
+  isTesting, onRunTest, onBack, onNext,
+}: ConnectionTestStepProps) {
+  const { t } = useTranslation();
+  const [showApiKey, setShowApiKey] = useState(false);
+  const proofRemaining = useProofCountdown(testProof);
+
+  const selectedTestType = useMemo(() => {
+    if (!meta) return null;
+    return meta.test_types.find((tt) => tt.id === formData.testType) ?? null;
+  }, [meta, formData.testType]);
+
+  const hasVariants = useMemo(() => {
+    return selectedTestType != null && selectedTestType.variants.length > 1;
+  }, [selectedTestType]);
+
+  const canRunTest = useMemo(() => {
+    return (
+      formData.baseUrl.trim().length > 0 &&
+      formData.apiKey.trim().length > 0 &&
+      formData.testType.length > 0 &&
+      !isTesting
+    );
+  }, [formData.baseUrl, formData.apiKey, formData.testType, isTesting]);
+
+  const testPassed = useMemo(() => {
+    return testResult?.probe_status === 1 && !!testProof;
+  }, [testResult, testProof]);
+
+  const proofExpired = proofRemaining !== null && proofRemaining <= 0;
+  const canProceed = testPassed && !proofExpired;
+
+  /** Auto-select first test type and its default variant when meta loads */
+  useEffect(() => {
+    if (!meta || meta.test_types.length === 0) return;
+    if (!formData.testType) {
+      const first = meta.test_types[0];
+      updateField('testType', first.id);
+      updateField('testVariant', first.default_variant);
+    }
+  }, [meta, formData.testType, updateField]);
+
+  const handleTestTypeChange = (newType: string) => {
+    const typeDef = meta?.test_types.find((tt) => tt.id === newType);
+    updateField('testType', newType);
+    updateField('testVariant', typeDef?.default_variant ?? '');
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (canProceed) onNext();
+  };
+
+  const formatCountdown = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  };
+
+  if (!meta) {
+    return (
+      <div className="bg-surface border border-muted rounded-lg p-8 text-center">
+        <p className="text-secondary">{t('onboarding.loading')}</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="bg-surface border border-muted rounded-lg p-6 space-y-6">
+      <h2 className="text-xl font-semibold text-primary">
+        {t('onboarding.connectionTest.title')}
+      </h2>
+      <p className="text-sm text-secondary">{t('onboarding.connectionTest.description')}</p>
+
+      {/* Base URL */}
+      <div>
+        <label htmlFor="ob-base-url" className="block text-sm font-medium text-primary mb-2">
+          {t('onboarding.connectionTest.baseUrl')}
+          <span className="text-danger ml-0.5">*</span>
+        </label>
+        <input
+          id="ob-base-url"
+          type="url"
+          required
+          value={formData.baseUrl}
+          onChange={(e) => updateField('baseUrl', e.target.value)}
+          placeholder="https://api.example.com/v1"
+          disabled={isTesting}
+          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+        />
+        <p className="mt-1 text-xs text-secondary">{t('onboarding.connectionTest.baseUrlHint')}</p>
+      </div>
+
+      {/* API Key with show/hide toggle */}
+      <div>
+        <label htmlFor="ob-api-key" className="block text-sm font-medium text-primary mb-2">
+          {t('onboarding.connectionTest.apiKey')}
+          <span className="text-danger ml-0.5">*</span>
+        </label>
+        <div className="relative">
+          <input
+            id="ob-api-key"
+            type={showApiKey ? 'text' : 'password'}
+            required
+            value={formData.apiKey}
+            onChange={(e) => updateField('apiKey', e.target.value)}
+            placeholder={t('onboarding.connectionTest.apiKeyPlaceholder')}
+            disabled={isTesting}
+            className="w-full px-4 py-2 pr-12 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={() => setShowApiKey((prev) => !prev)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted hover:text-secondary transition-colors"
+            aria-label={showApiKey ? t('onboarding.connectionTest.hideApiKey') : t('onboarding.connectionTest.showApiKey')}
+          >
+            {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
+        <p className="mt-1 text-xs text-secondary">{t('onboarding.connectionTest.apiKeyHint')}</p>
+      </div>
+
+      {/* Test type */}
+      <div>
+        <label htmlFor="ob-test-type" className="block text-sm font-medium text-primary mb-2">
+          {t('onboarding.connectionTest.testType')}
+        </label>
+        <select
+          id="ob-test-type"
+          value={formData.testType}
+          onChange={(e) => handleTestTypeChange(e.target.value)}
+          disabled={isTesting}
+          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+        >
+          {meta.test_types.map((tt) => (
+            <option key={tt.id} value={tt.id}>{tt.name}</option>
+          ))}
+        </select>
+        {selectedTestType?.description && (
+          <p className="mt-1 text-xs text-secondary">{selectedTestType.description}</p>
+        )}
+      </div>
+
+      {/* Test variant (only when multiple variants exist) */}
+      {hasVariants && selectedTestType && (
+        <div>
+          <label htmlFor="ob-test-variant" className="block text-sm font-medium text-primary mb-2">
+            {t('onboarding.connectionTest.testVariant')}
+          </label>
+          <select
+            id="ob-test-variant"
+            value={formData.testVariant}
+            onChange={(e) => updateField('testVariant', e.target.value)}
+            disabled={isTesting}
+            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+          >
+            {selectedTestType.variants
+              .slice()
+              .sort((a, b) => a.order - b.order)
+              .map((v) => (
+                <option key={v.id} value={v.id}>
+                  {t(`onboarding.connectionTest.variants.${v.id}`, { defaultValue: v.id })}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
+      {/* Run Test button */}
+      <button
+        type="button"
+        onClick={onRunTest}
+        disabled={!canRunTest}
+        className="flex items-center justify-center gap-2 w-full px-6 py-3 bg-accent/10 border border-accent/40 text-accent rounded-lg font-medium hover:bg-accent/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        {isTesting ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            {t('onboarding.connectionTest.testing')}
+          </>
+        ) : (
+          <>
+            <Play className="w-4 h-4" />
+            {t('onboarding.connectionTest.runTest')}
+          </>
+        )}
+      </button>
+
+      {/* Test result panel */}
+      {testResult && (
+        <div className="bg-elevated border border-muted rounded-lg p-5 space-y-3">
+          <h3 className="text-sm font-semibold text-primary">
+            {t('onboarding.connectionTest.resultTitle')}
+          </h3>
+
+          <div className="space-y-2">
+            {/* Probe status */}
+            {testResult.probe_status !== undefined && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-secondary">{t('onboarding.connectionTest.probeStatus')}</span>
+                <span className={`flex items-center gap-1.5 text-sm font-medium ${probeStatusConfig[testResult.probe_status]?.colorClass ?? 'text-muted'}`}>
+                  <span>{probeStatusConfig[testResult.probe_status]?.icon ?? '⚪'}</span>
+                  {t(probeStatusConfig[testResult.probe_status]?.labelKey ?? 'onboarding.test.statusUnknown')}
+                </span>
+              </div>
+            )}
+
+            {/* Latency */}
+            {testResult.latency != null && testResult.latency > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-secondary">{t('onboarding.connectionTest.latency')}</span>
+                <span className="text-sm text-primary font-mono">{testResult.latency} ms</span>
+              </div>
+            )}
+
+            {/* HTTP code */}
+            {testResult.http_code != null && testResult.http_code > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-secondary">{t('onboarding.connectionTest.httpCode')}</span>
+                <span className="text-sm text-primary font-mono">{testResult.http_code}</span>
+              </div>
+            )}
+
+            {/* Sub status */}
+            {testResult.sub_status && (
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-secondary">{t('onboarding.connectionTest.subStatus')}</span>
+                <span className="text-sm text-primary font-mono">{testResult.sub_status}</span>
+              </div>
+            )}
+
+            {/* Error message */}
+            {testResult.error_message && (
+              <div className="mt-2 p-3 bg-danger/10 border border-danger/20 rounded">
+                <p className="text-sm font-medium text-danger mb-1">{t('onboarding.connectionTest.error')}</p>
+                <p className="text-xs text-secondary font-mono break-all">{testResult.error_message}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Test proof countdown */}
+      {testProof && proofRemaining !== null && (
+        <div className={`flex items-center gap-2 p-3 rounded-lg text-sm ${
+          proofExpired
+            ? 'bg-danger/10 border border-danger/20 text-danger'
+            : proofRemaining <= 60
+              ? 'bg-warning/10 border border-warning/20 text-warning'
+              : 'bg-success/10 border border-success/20 text-success'
+        }`}>
+          <Clock className="w-4 h-4 flex-shrink-0" />
+          {proofExpired ? (
+            <span>{t('onboarding.connectionTest.proofExpired')}</span>
+          ) : (
+            <span>
+              {t('onboarding.connectionTest.proofValid', { time: formatCountdown(proofRemaining) })}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Navigation buttons */}
+      <div className="flex justify-between pt-2">
+        <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 px-6 py-3 bg-surface border border-muted text-secondary rounded-lg hover:bg-elevated transition-colors"
+        >
+          <ChevronLeft className="w-4 h-4" />
+          {t('onboarding.back')}
+        </button>
+        <button
+          type="submit"
+          disabled={!canProceed}
+          className="flex items-center gap-2 px-6 py-3 bg-accent text-white rounded-lg font-medium hover:bg-accent-strong transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {t('onboarding.next')}
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+    </form>
+  );
+}

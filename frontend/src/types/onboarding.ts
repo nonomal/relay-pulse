@@ -1,0 +1,154 @@
+// 自助收录相关类型定义
+
+/** 申请状态 */
+export type SubmissionStatus = 'pending' | 'approved' | 'rejected' | 'published';
+
+/** 赞助等级信息 */
+export interface SponsorLevelInfo {
+  value: string;
+  label: string;
+  description: string;
+}
+
+/** 通道类型信息 */
+export interface ChannelTypeInfo {
+  value: string;
+  label: string;
+}
+
+/** 测试类型信息（复用 selftest） */
+export interface TestTypeInfo {
+  id: string;
+  name: string;
+  description: string;
+  default_variant: string;
+  variants: { id: string; filename: string; order: number }[];
+}
+
+/** 申请表单元数据 */
+export interface OnboardingMeta {
+  service_types: string[];
+  sponsor_levels: SponsorLevelInfo[];
+  channel_types: ChannelTypeInfo[];
+  channel_sources: string[];
+  test_types: TestTypeInfo[];
+  contact_info: string;
+}
+
+/** 用户端表单数据 */
+export interface OnboardingFormData {
+  // Step 1: 服务商信息
+  providerName: string;
+  websiteUrl: string;
+  category: 'commercial' | 'public';
+  serviceType: string;
+  sponsorLevel: string;
+  channelType: string;
+  channelSource: string;
+  contactInfo: string;
+  agreementAccepted: boolean;
+
+  // Step 2: 连通性测试
+  baseUrl: string;
+  apiKey: string;
+  testType: string;
+  testVariant: string;
+}
+
+/** 测试结果（selftest 响应扩展） */
+export interface OnboardingTestResult {
+  id: string;
+  status: string;
+  probe_status?: number;
+  sub_status?: string;
+  http_code?: number;
+  latency?: number;
+  error_message?: string;
+  response_snippet?: string;
+  test_proof?: string;
+}
+
+/** 提交申请请求 */
+export interface SubmitOnboardingRequest {
+  provider_name: string;
+  website_url: string;
+  category: string;
+  service_type: string;
+  template_name: string;
+  sponsor_level: string;
+  channel_type: string;
+  channel_source: string;
+  base_url: string;
+  api_key: string;
+  test_proof: string;
+  test_job_id: string;
+  test_type: string;
+  test_api_url: string;
+  test_latency: number;
+  test_http_code: number;
+  contact_info: string;
+  locale: string;
+}
+
+/** 提交申请响应 */
+export interface SubmitOnboardingResponse {
+  public_id: string;
+  contact_info: string;
+}
+
+/** 申请状态查询响应 */
+export interface OnboardingStatusResponse {
+  public_id: string;
+  status: SubmissionStatus;
+  provider_name: string;
+  service_type: string;
+  channel_code: string;
+  created_at: number;
+  updated_at: number;
+}
+
+/** 管理员视角的完整申请 */
+export interface AdminSubmission {
+  id: number;
+  public_id: string;
+  status: SubmissionStatus;
+  provider_name: string;
+  website_url: string;
+  category: string;
+  service_type: string;
+  template_name: string;
+  sponsor_level: string;
+  channel_type: string;
+  channel_source: string;
+  channel_code: string;
+  base_url: string;
+  api_key_encrypted: string;
+  api_key_fingerprint: string;
+  api_key_last4: string;
+  test_job_id: string;
+  test_passed_at: number;
+  test_latency_ms: number;
+  test_http_code: number;
+  contact_info: string;
+  submitter_ip_hash: string;
+  locale: string;
+  admin_note: string;
+  admin_config_json: string;
+  reviewed_at: number | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/** 管理员列表响应 */
+export interface AdminListResponse {
+  submissions: AdminSubmission[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/** 管理员详情响应 */
+export interface AdminDetailResponse {
+  submission: AdminSubmission;
+  api_key: string;
+}

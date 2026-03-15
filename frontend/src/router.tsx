@@ -6,6 +6,8 @@ import { useSyncLanguage } from './hooks/useSyncLanguage';
 const App = lazy(() => import('./App'));
 const ProviderPage = lazy(() => import('./pages/ProviderPage'));
 const SelfTestPage = lazy(() => import('./pages/SelfTestPage').then(m => ({ default: m.SelfTestPage })));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
 
 /**
  * 语言布局组件
@@ -93,6 +95,8 @@ export default function AppRouter() {
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
           <Route path="selftest" element={<SelfTestPage />} />
+          <Route path="apply" element={<OnboardingPage />} />
+          <Route path="admin" element={<AdminPage />} />
         </Route>
 
         {/* 英文路径 */}
@@ -100,6 +104,8 @@ export default function AppRouter() {
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
           <Route path="selftest" element={<SelfTestPage />} />
+          <Route path="apply" element={<OnboardingPage />} />
+          <Route path="admin" element={<AdminPage />} />
         </Route>
 
         {/* 俄文路径 */}
@@ -107,6 +113,8 @@ export default function AppRouter() {
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
           <Route path="selftest" element={<SelfTestPage />} />
+          <Route path="apply" element={<OnboardingPage />} />
+          <Route path="admin" element={<AdminPage />} />
         </Route>
 
         {/* 日文路径 */}
@@ -114,6 +122,8 @@ export default function AppRouter() {
           <Route index element={<App />} />
           <Route path="p/:provider" element={<ProviderPage />} />
           <Route path="selftest" element={<SelfTestPage />} />
+          <Route path="apply" element={<OnboardingPage />} />
+          <Route path="admin" element={<AdminPage />} />
         </Route>
 
         {/* 捕获所有未匹配路径，重定向到根 */}

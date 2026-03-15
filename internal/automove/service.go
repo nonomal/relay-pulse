@@ -37,6 +37,10 @@ type Service struct {
 	// nil 表示无 override（auto_move 未启用或无需移板）。
 	overrides atomic.Pointer[map[storage.MonitorKey]MonitorOverride]
 
+	// 异步持久化串行化，避免并发 goroutine 乱序覆盖较新的快照。
+	persistMu  sync.Mutex
+	persistSeq atomic.Uint64
+
 	stopCh    chan struct{}
 	triggerCh chan struct{} // 热更新后触发立即评估
 	stopOnce  sync.Once
@@ -59,11 +63,54 @@ func (s *Service) Start(ctx context.Context) {
 	go s.loop(ctx)
 }
 
-// Stop 优雅关闭评估循环。
+// Restore 从存储恢复持久化 override 快照。
+// 仅更新内存态，不触发 onOverrideChange 回调；调用方应在首次 Evaluate 前调用。
+func (s *Service) Restore() error {
+	overrideStore, ok := s.storage.(storage.OverrideStorage)
+	if !ok {
+		return nil // 存储实现不支持 override 持久化，静默跳过
+	}
+
+	records, err := overrideStore.ListMonitorOverrides()
+	if err != nil {
+		return fmt.Errorf("加载自动移板 override 失败: %w", err)
+	}
+
+	if len(records) == 0 {
+		return nil
+	}
+
+	overrides := recordsToOverrides(records)
+	s.overrides.Store(&overrides)
+	logger.Info("AutoMover", "已从存储恢复 override", "count", len(overrides))
+	return nil
+}
+
+// Stop 优雅关闭评估循环，并同步刷写最后一次 override 到存储。
 func (s *Service) Stop() {
 	s.stopOnce.Do(func() {
 		close(s.stopCh)
 	})
+	s.flushOverrides()
+}
+
+// flushOverrides 同步将当前内存态 override 写入存储。
+// 用于优雅退出时确保最后一次评估结果不丢失。
+func (s *Service) flushOverrides() {
+	overrideStore, ok := s.storage.(storage.OverrideStorage)
+	if !ok {
+		return
+	}
+
+	overrides := s.currentOverrides()
+	records := overridesToRecords(overrides)
+
+	s.persistMu.Lock()
+	defer s.persistMu.Unlock()
+
+	if err := overrideStore.ReplaceMonitorOverrides(records); err != nil {
+		logger.Warn("AutoMover", "关闭时刷写 override 失败", "error", err, "count", len(records))
+	}
 }
 
 // UpdateConfig 热更新配置。若 auto_move 被禁用，立即清空 override。
@@ -312,23 +359,87 @@ type evalStats struct {
 	skippedMinProbes int
 }
 
-// replaceOverrides 原子替换 override map，并在内容实际变化时触发回调。
+// replaceOverrides 原子替换 override map，并在内容实际变化时触发回调和异步持久化。
 func (s *Service) replaceOverrides(overrides map[storage.MonitorKey]MonitorOverride) {
 	current := s.currentOverrides()
 	if overridesEqual(current, overrides) {
 		return
 	}
 
-	if len(overrides) == 0 {
+	snapshot := cloneOverrides(overrides)
+	if len(snapshot) == 0 {
 		s.overrides.Store(nil)
 	} else {
-		cp := make(map[storage.MonitorKey]MonitorOverride, len(overrides))
-		for k, v := range overrides {
-			cp[k] = v
-		}
-		s.overrides.Store(&cp)
+		s.overrides.Store(&snapshot)
 	}
+	s.persistOverridesAsync(snapshot)
 	s.notifyOverrideChange()
+}
+
+func cloneOverrides(overrides map[storage.MonitorKey]MonitorOverride) map[storage.MonitorKey]MonitorOverride {
+	if len(overrides) == 0 {
+		return nil
+	}
+	cp := make(map[storage.MonitorKey]MonitorOverride, len(overrides))
+	for k, v := range overrides {
+		cp[k] = v
+	}
+	return cp
+}
+
+// persistOverridesAsync 异步持久化 override 快照到存储。
+// 使用递增序号保证只有最新快照被写入，避免旧快照覆盖新快照。
+func (s *Service) persistOverridesAsync(overrides map[storage.MonitorKey]MonitorOverride) {
+	overrideStore, ok := s.storage.(storage.OverrideStorage)
+	if !ok {
+		return
+	}
+
+	records := overridesToRecords(overrides)
+	seq := s.persistSeq.Add(1)
+
+	go func() {
+		s.persistMu.Lock()
+		defer s.persistMu.Unlock()
+		// 若已有更新的快照被排队，跳过本次写入
+		if seq != s.persistSeq.Load() {
+			return
+		}
+		if err := overrideStore.ReplaceMonitorOverrides(records); err != nil {
+			logger.Warn("AutoMover", "持久化 override 失败", "error", err, "count", len(records))
+		}
+	}()
+}
+
+func overridesToRecords(overrides map[storage.MonitorKey]MonitorOverride) []storage.MonitorOverrideRecord {
+	if len(overrides) == 0 {
+		return nil
+	}
+	records := make([]storage.MonitorOverrideRecord, 0, len(overrides))
+	for key, ov := range overrides {
+		records = append(records, storage.MonitorOverrideRecord{
+			Key:          key,
+			Board:        ov.Board,
+			ColdReason:   ov.ColdReason,
+			SponsorLevel: string(ov.SponsorLevel),
+		})
+	}
+	return records
+}
+
+func recordsToOverrides(records []storage.MonitorOverrideRecord) map[storage.MonitorKey]MonitorOverride {
+	if len(records) == 0 {
+		return nil
+	}
+	overrides := make(map[storage.MonitorKey]MonitorOverride, len(records))
+	for _, r := range records {
+		overrides[r.Key] = MonitorOverride{
+			Board:        r.Board,
+			ColdReason:   r.ColdReason,
+			SponsorLevel: config.SponsorLevel(r.SponsorLevel),
+		}
+	}
+	return overrides
 }
 
 func (s *Service) notifyOverrideChange() {

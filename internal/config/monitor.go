@@ -138,7 +138,7 @@ type ServiceConfig struct {
 	// 不配置时使用系统环境变量代理（HTTP_PROXY/HTTPS_PROXY）
 	Proxy string `yaml:"proxy" json:"-"`
 
-	APIKey string `yaml:"api_key" json:"-"` // 不返回给前端
+	APIKey string `yaml:"api_key" json:"api_key,omitempty"` // admin monitor CRUD 需要 round-trip；公共 API 不直接序列化 ServiceConfig
 }
 
 // disabledProviderConfig 批量禁用指定 provider 的配置

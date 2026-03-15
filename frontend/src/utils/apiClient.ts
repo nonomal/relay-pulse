@@ -143,3 +143,29 @@ export function apiPost<T>(path: string, body: unknown, options: ApiRequestOptio
     signal: options.signal,
   });
 }
+
+/** 发起 PUT 请求，自动序列化 body 为 JSON */
+export function apiPut<T>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<T> {
+  const headers = new Headers(options.headers);
+  if (!headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return request<T>(path, {
+    ...options.fetchOptions,
+    method: 'PUT',
+    headers,
+    body: JSON.stringify(body),
+    signal: options.signal,
+  });
+}
+
+/** 发起 DELETE 请求 */
+export function apiDelete<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return request<T>(path, {
+    ...options.fetchOptions,
+    method: 'DELETE',
+    headers: options.headers,
+    signal: options.signal,
+  });
+}

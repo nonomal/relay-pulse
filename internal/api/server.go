@@ -67,7 +67,7 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 
 	corsConfig := cors.Config{
 		AllowOrigins:     allowedOrigins,
-		AllowMethods:     []string{"GET", "POST", "OPTIONS"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization", "X-Request-ID", "Accept-Encoding"},
 		ExposeHeaders:    []string{"Content-Length", "X-Request-ID"},
 		AllowCredentials: false,
@@ -166,6 +166,29 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 	router.GET("/api/selftest/config", handler.GetSelfTestConfig)
 	router.GET("/api/selftest/types", handler.GetTestTypes)
 	router.GET("/api/selftest/:id", handler.GetSelfTest)
+
+	// 自助收录 API 路由
+	router.GET("/api/onboarding/meta", handler.GetOnboardingMeta)
+	router.POST("/api/onboarding/submit", handler.SubmitOnboarding)
+	router.GET("/api/onboarding/:id", handler.GetOnboardingStatus)
+
+	// 管理后台 API 路由（需 Bearer token 鉴权）
+	router.GET("/api/admin/submissions", handler.AdminListSubmissions)
+	router.GET("/api/admin/submissions/:id", handler.AdminGetSubmission)
+	router.PUT("/api/admin/submissions/:id", handler.AdminUpdateSubmission)
+	router.DELETE("/api/admin/submissions/:id", handler.AdminDeleteSubmission)
+	router.POST("/api/admin/submissions/:id/test", handler.AdminTestSubmission)
+	router.POST("/api/admin/submissions/:id/reject", handler.AdminRejectSubmission)
+	router.POST("/api/admin/submissions/:id/publish", handler.AdminPublishSubmission)
+
+	// 管理后台 — monitors.d/ CRUD API（需 Bearer token 鉴权）
+	router.GET("/api/admin/monitors", handler.AdminListMonitors)
+	router.GET("/api/admin/monitors/:key", handler.AdminGetMonitor)
+	router.POST("/api/admin/monitors", handler.AdminCreateMonitor)
+	router.PUT("/api/admin/monitors/:key", handler.AdminUpdateMonitor)
+	router.DELETE("/api/admin/monitors/:key", handler.AdminDeleteMonitor)
+	router.POST("/api/admin/monitors/:key/toggle", handler.AdminToggleMonitor)
+	router.POST("/api/admin/monitors/:key/probe", handler.AdminProbeMonitor)
 
 	// SEO 路由
 	router.GET("/sitemap.xml", handler.GetSitemap)

@@ -96,6 +96,33 @@ type BoardAutoMoveConfig struct {
 	CheckIntervalDuration time.Duration `yaml:"-" json:"-"`
 }
 
+// OnboardingConfig 服务商自助收录配置
+type OnboardingConfig struct {
+	// 是否启用自助收录功能（默认禁用）
+	Enabled bool `yaml:"enabled" json:"enabled"`
+
+	// 管理后台认证令牌（Bearer token）
+	AdminToken string `yaml:"admin_token" json:"-"`
+
+	// API Key 加密密钥（32 字节 hex 或环境变量 ONBOARDING_ENCRYPTION_KEY）
+	EncryptionKey string `yaml:"encryption_key" json:"-"`
+
+	// test proof HMAC 签名密钥
+	ProofSecret string `yaml:"proof_secret" json:"-"`
+
+	// test proof 有效期（默认 "5m"）
+	ProofTTL string `yaml:"proof_ttl" json:"-"`
+
+	// 解析后的 proof 有效期（内部使用）
+	ProofTTLDuration time.Duration `yaml:"-" json:"-"`
+
+	// 每 IP 每天最大提交数（默认 5）
+	MaxPerIPPerDay int `yaml:"max_per_ip_per_day" json:"-"`
+
+	// 联系方式（展示给用户，如 "QQ:18058344"）
+	ContactInfo string `yaml:"contact_info" json:"contact_info"`
+}
+
 // BoardsConfig 热板/冷板功能配置
 // 用于将监测项分为热板（正常监测）和冷板（停止监测，仅展示历史）
 type BoardsConfig struct {

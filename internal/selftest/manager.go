@@ -160,6 +160,22 @@ func (m *TestJobManager) GetJob(id string) (*TestJob, error) {
 	return job.Snapshot(), nil
 }
 
+// GetJobAPIKey 获取任务的 API Key（仅用于 proof 签发，不对外暴露）。
+// 返回空字符串表示任务不存在。
+func (m *TestJobManager) GetJobAPIKey(id string) string {
+	m.mu.RLock()
+	job, ok := m.jobs[id]
+	m.mu.RUnlock()
+
+	if !ok {
+		return ""
+	}
+
+	job.mu.RLock()
+	defer job.mu.RUnlock()
+	return job.APIKey
+}
+
 // scheduleNext attempts to schedule the next job from the queue
 func (m *TestJobManager) scheduleNext() {
 	m.mu.Lock()
