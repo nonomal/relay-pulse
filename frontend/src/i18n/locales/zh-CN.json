@@ -406,7 +406,21 @@
       "categories": { "commercial": "商业站", "public": "公益站" },
       "serviceType": "服务类型",
       "serviceTypes": { "cc": "CC", "cx": "CX", "gm": "GM" },
+      "identity": "您的身份",
+      "identities": {
+        "publicOwner": "公益站站长",
+        "publicOwnerDesc": "提交自己的公益站，用于测试或研究，免费接入",
+        "commercialOwner": "商业站站长",
+        "commercialOwnerDesc": "提交自己的商业站，通过平台推广获客",
+        "personal": "个人用户",
+        "personalDesc": "推荐优秀的中转站，通过 Aff 链接获取奖励"
+      },
       "sponsorLevel": "赞助等级",
+      "sponsorLevels": {
+        "public": "公益链路",
+        "signal": "信号链路",
+        "pulse": "脉冲链路"
+      },
       "channelType": "通道类型",
       "channelSource": "通道来源",
       "customSource": "自定义...",
@@ -479,6 +493,14 @@
     "feedback": {
       "title": "提交反馈",
       "description": "建议、问题反馈或其他事务"
+    },
+    "community": {
+      "title": "加入社群",
+      "description": "加入 QQ 群，与其他用户交流"
+    },
+    "discussions": {
+      "title": "参与讨论",
+      "description": "在 GitHub Discussions 提问、分享和交流"
     }
   },
   "changeRequest": {

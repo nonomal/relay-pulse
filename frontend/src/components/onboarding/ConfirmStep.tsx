@@ -165,7 +165,7 @@ export function ConfirmStep({ formData, submitResult, isSubmitting, onSubmit, on
         />
         <SummaryRow
           label={t('onboarding.providerInfo.sponsorLevel')}
-          value={formData.sponsorLevel}
+          value={t(`onboarding.providerInfo.sponsorLevels.${formData.sponsorLevel}`, { defaultValue: formData.sponsorLevel })}
         />
         <SummaryRow
           label={t('onboarding.providerInfo.channelCodePreview')}

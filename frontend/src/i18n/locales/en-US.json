@@ -403,7 +403,21 @@
       "categories": { "commercial": "Commercial", "public": "Public" },
       "serviceType": "Service Type",
       "serviceTypes": { "cc": "CC", "cx": "CX", "gm": "GM" },
+      "identity": "Your Role",
+      "identities": {
+        "publicOwner": "Public Site Owner",
+        "publicOwnerDesc": "Submit your public site for testing or research, free to join",
+        "commercialOwner": "Commercial Site Owner",
+        "commercialOwnerDesc": "Submit your commercial site to attract users via the platform",
+        "personal": "Individual User",
+        "personalDesc": "Recommend great relay sites and earn rewards via affiliate links"
+      },
       "sponsorLevel": "Sponsor Level",
+      "sponsorLevels": {
+        "public": "Public",
+        "signal": "Signal",
+        "pulse": "Pulse"
+      },
       "channelType": "Channel Type",
       "channelSource": "Channel Source",
       "customSource": "Custom...",
@@ -476,6 +490,14 @@
     "feedback": {
       "title": "Submit Feedback",
       "description": "Suggestions, bug reports, or other inquiries"
+    },
+    "community": {
+      "title": "Join Community",
+      "description": "Join our QQ group to chat with other users"
+    },
+    "discussions": {
+      "title": "Discussions",
+      "description": "Ask questions, share ideas, and discuss on GitHub Discussions"
     }
   },
   "changeRequest": {

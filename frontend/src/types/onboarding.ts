@@ -35,9 +35,13 @@ export interface OnboardingMeta {
   contact_info: string;
 }
 
+/** 身份类型 */
+export type IdentityType = 'publicOwner' | 'commercialOwner' | 'personal' | '';
+
 /** 用户端表单数据 */
 export interface OnboardingFormData {
   // Step 1: 服务商信息
+  identity: IdentityType;
   providerName: string;
   websiteUrl: string;
   category: 'commercial' | 'public';

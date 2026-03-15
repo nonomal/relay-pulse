@@ -40,6 +40,7 @@ function clearDraft() {
 }
 
 const defaultForm: OnboardingFormData = {
+  identity: '',
   providerName: '',
   websiteUrl: '',
   category: 'commercial',

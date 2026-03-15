@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
-import { ClipboardList, RefreshCw, MessageCircle, Activity } from 'lucide-react';
+import { ClipboardList, RefreshCw, MessageCircle, Users, MessageSquare, Activity } from 'lucide-react';
 import { LANGUAGE_PATH_MAP } from '../i18n';
 
 function ContactCard({
@@ -93,6 +93,20 @@ export default function ContactPage() {
               title={t('contact.feedback.title')}
               description={t('contact.feedback.description')}
               onClick={() => window.open('https://github.com/prehisle/relay-pulse/issues', '_blank', 'noopener,noreferrer')}
+              external
+            />
+            <ContactCard
+              icon={Users}
+              title={t('contact.community.title')}
+              description={t('contact.community.description')}
+              onClick={() => window.open('https://qm.qq.com/q/oPN0J85hIs', '_blank', 'noopener,noreferrer')}
+              external
+            />
+            <ContactCard
+              icon={MessageSquare}
+              title={t('contact.discussions.title')}
+              description={t('contact.discussions.description')}
+              onClick={() => window.open('https://github.com/prehisle/relay-pulse/discussions', '_blank', 'noopener,noreferrer')}
               external
             />
           </div>

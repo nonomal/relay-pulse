@@ -105,7 +105,6 @@ function App() {
   const {
     data: announcementsData,
     loading: announcementsLoading,
-    hasUnread: hasUnreadAnnouncements,
     shouldShowBanner: shouldShowAnnouncementsBanner,
     dismiss: dismissAnnouncements,
   } = useAnnouncements(!isScreenshotMode);
@@ -586,8 +585,6 @@ function App() {
               autoRefresh={autoRefresh}
               onToggleAutoRefresh={handleToggleAutoRefresh}
               activeFiltersCount={activeFiltersCount}
-              discussionsUrl={announcementsData?.source?.discussionsUrl}
-              hasUnreadAnnouncements={hasUnreadAnnouncements}
             />
           )}
 

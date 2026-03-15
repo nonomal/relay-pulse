@@ -4,7 +4,7 @@
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
 ### 同步检查点
-- **最后同步**: 2026-03-15（commit `89cc1f8` + 联系我们/变更请求功能）
+- **最后同步**: 2026-03-15（commit `52a415b` + 身份选择/文档同步）
 - 代码是唯一真相源。本文档为架构与模式摘要，字段级细节请查阅引用的源文件。
 
 ## 项目概览
@@ -151,7 +151,7 @@ make ci
 
 ### 后端架构
 
-Go 后端遵循**分层架构**，核心包 12 个 + 独立通知子模块：
+Go 后端遵循**分层架构**，核心包 16 个 + 独立通知子模块：
 
 ```
 cmd/
@@ -164,14 +164,13 @@ internal/
 │   ├── app_config.go     → AppConfig 全局设置
 │   ├── monitor.go        → ServiceConfig 监测项字段
 │   ├── storage_config.go → StorageConfig / RetentionConfig / ArchiveConfig
-│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig / OnboardingConfig
+│   ├── features.go       → SelfTestConfig / EventsConfig / SponsorPinConfig / BoardsConfig / OnboardingConfig / ChangeRequestConfig
 │   ├── external.go       → GitHubConfig / AnnouncementsConfig / CacheTTLConfig
 │   ├── badges.go         → RiskBadge（旧版兼容）
 │   ├── annotation.go     → Annotation / AnnotationFamily / AnnotationRule / AnnotationMatch
 │   ├── enums.go          → SponsorLevel
 │   ├── parent_inheritance.go → 父子通道配置继承
 │   ├── template.go       → 模板加载（templates/*.json → ServiceConfig）
-│   ├── userid.go         → 用户标识生成（{{USER_ID}} 占位符）
 │   ├── monitor_store.go  → monitors.d/ 目录 CRUD（MonitorStore）
 │   ├── normalize*.go     → 归一化与默认值填充
 │   ├── validate.go       → 校验规则
@@ -237,7 +236,11 @@ internal/
 │   ├── service.go        → 业务逻辑：Auth / Submit / GetStatus / Admin*
 │   ├── store_sql.go      → SQLite 实现
 │   └── store_pgx.go      → PostgreSQL 实现
-└── api/                   → HTTP API 层（16 文件）
+├── identity/              → 用户标识生成（{{USER_ID}} 占位符，从 config/ 迁出）
+│   └── userid.go
+├── verifier/              → 单项验证 CLI 逻辑
+│   └── verifier.go
+└── api/                   → HTTP API 层（14 源文件 + 测试）
     ├── server.go         → Gin 服务器、中间件、CORS、安全头
     ├── handler.go        → /api/status 主处理器、缓存、singleflight
     ├── status_query_handler.go → /api/status/query + POST /api/status/batch
@@ -315,7 +318,7 @@ time=2024-01-15T10:30:00.000Z level=INFO msg=消息 app=relay-pulse component=ap
 
 ### 前端架构
 
-React SPA，采用嵌套路由布局（`LanguageLayout` + `Outlet`），39+ 组件、15 hooks、10+ utils：
+React SPA，采用嵌套路由布局（`LanguageLayout` + `Outlet`），42 组件、15 hooks、10+ utils：
 
 ```
 frontend/src/
@@ -326,7 +329,7 @@ frontend/src/
 │   ├── ContactPage.tsx       → 联系我们落地页 (/contact)
 │   ├── ChangeRequestPage.tsx → 变更申请页 (/contact/change)
 │   └── AdminPage.tsx         → 管理后台页 (/admin)
-├── components/                → UI 组件（39+ 文件）
+├── components/                → UI 组件（42 文件）
 │   ├── Header / Footer / Controls → 布局与导航
 │   ├── StatusTable / StatusCard   → 数据展示（桌面表格/移动卡片）
 │   ├── HeatmapBlock / LayeredHeatmapBlock → 热力图（单层/多模型）
@@ -773,6 +776,7 @@ vim config.yaml
 | GET | `/api/admin/submissions` | 管理：收录申请列表（Bearer 鉴权） |
 | GET/PUT/DELETE | `/api/admin/submissions/:id` | 管理：申请详情/更新/删除 |
 | POST | `/api/admin/submissions/:id/reject` | 管理：拒绝申请 |
+| POST | `/api/admin/submissions/:id/test` | 管理：测试申请连通性 |
 | POST | `/api/admin/submissions/:id/publish` | 管理：发布到 monitors.d/ |
 | GET | `/api/admin/monitors` | 管理：monitors.d/ 通道列表 |
 | GET/PUT/DELETE | `/api/admin/monitors/:key` | 管理：通道详情/更新/归档 |

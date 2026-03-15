@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, ExternalLink } from 'lucide-react';
-import type { OnboardingFormData, OnboardingMeta } from '../../types/onboarding';
+import type { OnboardingFormData, OnboardingMeta, IdentityType } from '../../types/onboarding';
 
 interface ProviderInfoStepProps {
   formData: OnboardingFormData;
@@ -19,9 +19,24 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
     return `${formData.channelType}-${formData.channelSource}`;
   }, [formData.channelType, formData.channelSource]);
 
+  const handleIdentityChange = useCallback((identity: IdentityType) => {
+    updateField('identity', identity);
+    if (identity === 'publicOwner') {
+      updateField('category', 'public');
+      updateField('sponsorLevel', 'public');
+    } else if (identity === 'commercialOwner') {
+      updateField('category', 'commercial');
+      updateField('sponsorLevel', 'pulse');
+    } else if (identity === 'personal') {
+      updateField('category', 'commercial');
+      updateField('sponsorLevel', 'signal');
+    }
+  }, [updateField]);
+
   const canProceed = useMemo(() => {
     return (
       formData.agreementAccepted &&
+      formData.identity !== '' &&
       formData.providerName.trim().length > 0 &&
       formData.websiteUrl.trim().length > 0 &&
       formData.serviceType.length > 0 &&
@@ -29,7 +44,7 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
       formData.channelSource.length > 0
     );
   }, [
-    formData.agreementAccepted, formData.providerName, formData.websiteUrl,
+    formData.agreementAccepted, formData.identity, formData.providerName, formData.websiteUrl,
     formData.serviceType, formData.channelType, formData.channelSource,
   ]);
 
@@ -110,26 +125,31 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
         />
       </div>
 
-      {/* Category - radio group */}
+      {/* Identity - radio group */}
       <fieldset>
         <legend className="block text-sm font-medium text-primary mb-2">
-          {t('onboarding.providerInfo.category')}
+          {t('onboarding.providerInfo.identity')}
           <span className="text-danger ml-0.5">*</span>
         </legend>
-        <div className="flex gap-4">
-          {(['commercial', 'public'] as const).map((cat) => (
-            <label key={cat} className="flex items-center gap-2 cursor-pointer">
+        <div className="space-y-2">
+          {(['publicOwner', 'commercialOwner', 'personal'] as const).map((id) => (
+            <label key={id} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-muted hover:border-accent/40 transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5">
               <input
                 type="radio"
-                name="category"
-                value={cat}
-                checked={formData.category === cat}
-                onChange={() => updateField('category', cat)}
-                className="w-4 h-4 accent-accent"
+                name="identity"
+                value={id}
+                checked={formData.identity === id}
+                onChange={() => handleIdentityChange(id)}
+                className="mt-0.5 w-4 h-4 accent-accent"
               />
-              <span className="text-sm text-primary">
-                {t(`onboarding.providerInfo.categories.${cat}`)}
-              </span>
+              <div>
+                <span className="text-sm font-medium text-primary">
+                  {t(`onboarding.providerInfo.identities.${id}`)}
+                </span>
+                <p className="text-xs text-secondary mt-0.5">
+                  {t(`onboarding.providerInfo.identities.${id}Desc`)}
+                </p>
+              </div>
             </label>
           ))}
         </div>
@@ -154,34 +174,6 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
           ))}
         </select>
       </div>
-
-      {/* Sponsor level - radio group */}
-      <fieldset>
-        <legend className="block text-sm font-medium text-primary mb-2">
-          {t('onboarding.providerInfo.sponsorLevel')}
-          <span className="text-danger ml-0.5">*</span>
-        </legend>
-        <div className="space-y-2">
-          {meta.sponsor_levels.map((level) => (
-            <label key={level.value} className="flex items-start gap-2 cursor-pointer">
-              <input
-                type="radio"
-                name="sponsorLevel"
-                value={level.value}
-                checked={formData.sponsorLevel === level.value}
-                onChange={() => updateField('sponsorLevel', level.value)}
-                className="mt-1 w-4 h-4 accent-accent"
-              />
-              <div>
-                <span className="text-sm font-medium text-primary">{level.label}</span>
-                {level.description && (
-                  <p className="text-xs text-secondary mt-0.5">{level.description}</p>
-                )}
-              </div>
-            </label>
-          ))}
-        </div>
-      </fieldset>
 
       {/* Channel type - radio group */}
       <fieldset>

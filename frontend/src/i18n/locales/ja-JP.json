@@ -398,7 +398,22 @@
       "websiteUrl": "ウェブサイトURL", "category": "カテゴリ",
       "categories": { "commercial": "商用", "public": "公共" },
       "serviceType": "サービスタイプ", "serviceTypes": { "cc": "CC", "cx": "CX", "gm": "GM" },
-      "sponsorLevel": "スポンサーレベル", "channelType": "チャネルタイプ",
+      "identity": "ユーザー種別",
+      "identities": {
+        "publicOwner": "公益サイトオーナー",
+        "publicOwnerDesc": "テストや研究のための公益サイトを申請、無料で参加",
+        "commercialOwner": "商用サイトオーナー",
+        "commercialOwnerDesc": "商用サイトを申請し、プラットフォームを通じて集客",
+        "personal": "個人ユーザー",
+        "personalDesc": "優秀なリレーサイトを推薦し、アフィリエイトリンクで報酬を獲得"
+      },
+      "sponsorLevel": "スポンサーレベル",
+      "sponsorLevels": {
+        "public": "パブリック",
+        "signal": "シグナル",
+        "pulse": "パルス"
+      },
+      "channelType": "チャネルタイプ",
       "channelSource": "チャネルソース", "customSource": "カスタム...", "customSourcePlaceholder": "カスタムソースを入力",
       "channelCodePreview": "チャネルコードプレビュー",
       "optional": "（任意）"
@@ -446,6 +461,14 @@
     "feedback": {
       "title": "フィードバック",
       "description": "ご提案、バグ報告、その他のお問い合わせ"
+    },
+    "community": {
+      "title": "コミュニティ",
+      "description": "QQグループに参加して、他のユーザーと交流しましょう"
+    },
+    "discussions": {
+      "title": "ディスカッション",
+      "description": "GitHub Discussionsで質問・共有・議論"
     }
   },
   "changeRequest": {
