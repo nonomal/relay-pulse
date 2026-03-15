@@ -411,10 +411,7 @@
       "customSource": "自定义...",
       "customSourcePlaceholder": "输入自定义来源",
       "channelCodePreview": "通道标识预览",
-      "contactInfo": "联系方式",
-      "optional": "（可选）",
-      "contactInfoPlaceholder": "QQ / Telegram / Email",
-      "contactInfoHint": "方便审核人员联系您加速审核流程"
+      "optional": "（可选）"
     },
     "connectionTest": {
       "title": "连通性测试",
@@ -532,6 +529,16 @@
       "statusActive": "活跃",
       "statusDisabled": "停用",
       "statusHidden": "隐藏",
+      "templateNone": "无模板",
+      "sponsorLevels": {
+        "none": "无",
+        "public": "公益",
+        "signal": "信号",
+        "pulse": "脉冲",
+        "beacon": "信标",
+        "backbone": "骨干",
+        "core": "核心"
+      },
       "categoryCommercial": "商用",
       "categoryPublic": "公益",
       "boardHot": "热板",
@@ -552,6 +559,7 @@
         "providerName": "服务商名称",
         "service": "服务",
         "channel": "通道",
+        "channelName": "通道名称",
         "template": "模板",
         "baseUrl": "基础地址",
         "category": "类别",
@@ -599,7 +607,6 @@
       "testHttpCode": "HTTP 状态码",
       "testPassedAt": "测试通过时间",
       "locale": "提交语言",
-      "contactInfo": "联系方式",
       "adminNote": "审核备注",
       "adminNotePlaceholder": "输入审核备注...",
       "save": "保存修改",

@@ -119,6 +119,7 @@ export default function AdminPage() {
               {activeTab === 'monitors' && (
                 showCreateForm ? (
                   <MonitorForm
+                    fetchTemplates={monitor.fetchTemplates}
                     onSave={async (file) => {
                       await monitor.createMonitor(file);
                       setShowCreateForm(false);
@@ -127,6 +128,7 @@ export default function AdminPage() {
                   />
                 ) : monitor.selectedMonitor && monitor.selectedKey ? (
                   <MonitorDetail
+                    fetchTemplates={monitor.fetchTemplates}
                     monitorFile={monitor.selectedMonitor}
                     monitorKey={monitor.selectedKey}
                     onBack={() => {

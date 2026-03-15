@@ -408,10 +408,7 @@
       "customSource": "Custom...",
       "customSourcePlaceholder": "Enter custom source",
       "channelCodePreview": "Channel Code Preview",
-      "contactInfo": "Contact",
-      "optional": "(optional)",
-      "contactInfoPlaceholder": "QQ / Telegram / Email",
-      "contactInfoHint": "Helps reviewers reach you to speed up the process"
+      "optional": "(optional)"
     },
     "connectionTest": {
       "title": "Connectivity Test",
@@ -529,6 +526,16 @@
       "statusActive": "Active",
       "statusDisabled": "Disabled",
       "statusHidden": "Hidden",
+      "templateNone": "No template",
+      "sponsorLevels": {
+        "none": "None",
+        "public": "Public",
+        "signal": "Signal",
+        "pulse": "Pulse",
+        "beacon": "Beacon",
+        "backbone": "Backbone",
+        "core": "Core"
+      },
       "categoryCommercial": "Commercial",
       "categoryPublic": "Public",
       "boardHot": "Hot",
@@ -549,6 +556,7 @@
         "providerName": "Provider Name",
         "service": "Service",
         "channel": "Channel",
+        "channelName": "Channel Name",
         "template": "Template",
         "baseUrl": "Base URL",
         "category": "Category",
@@ -596,7 +604,6 @@
       "testHttpCode": "HTTP Status Code",
       "testPassedAt": "Test Passed At",
       "locale": "Submission Language",
-      "contactInfo": "Contact",
       "adminNote": "Admin Note",
       "adminNotePlaceholder": "Enter review note...",
       "save": "Save Changes",

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorConfig, MonitorFile } from '../../types/monitor';
 
 interface MonitorFormProps {
+  fetchTemplates: () => Promise<string[]>;
   onSave: (file: MonitorFile) => Promise<void>;
   onCancel: () => void;
 }
@@ -18,6 +19,7 @@ const EMPTY_CONFIG: MonitorConfig = {
   provider: '',
   service: '',
   channel: '',
+  channel_name: '',
   provider_name: '',
   template: '',
   base_url: '',
@@ -31,12 +33,33 @@ const EMPTY_CONFIG: MonitorConfig = {
 
 const EMPTY_CHILD: ChildDraft = { model: '', template: '', base_url: '', api_key: '' };
 
-export function MonitorForm({ onSave, onCancel }: MonitorFormProps) {
+export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormProps) {
   const { t } = useTranslation();
   const [config, setConfig] = useState<MonitorConfig>({ ...EMPTY_CONFIG });
   const [children, setChildren] = useState<ChildDraft[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    fetchTemplates()
+      .then(items => { if (active) setTemplates(items); })
+      .catch(() => { if (active) setTemplates([]); });
+    return () => { active = false; };
+  }, [fetchTemplates]);
+
+  const templateOptions = mergeTemplateNames(templates, config.template);
+
+  const sponsorLevelOptions = [
+    { value: '', label: t('admin.monitors.sponsorLevels.none') },
+    { value: 'public', label: t('admin.monitors.sponsorLevels.public') },
+    { value: 'signal', label: t('admin.monitors.sponsorLevels.signal') },
+    { value: 'pulse', label: t('admin.monitors.sponsorLevels.pulse') },
+    { value: 'beacon', label: t('admin.monitors.sponsorLevels.beacon') },
+    { value: 'backbone', label: t('admin.monitors.sponsorLevels.backbone') },
+    { value: 'core', label: t('admin.monitors.sponsorLevels.core') },
+  ];
 
   const updateField = <K extends keyof MonitorConfig>(key: K, value: MonitorConfig[K]) => {
     setConfig(prev => ({ ...prev, [key]: value }));
@@ -143,6 +166,11 @@ export function MonitorForm({ onSave, onCancel }: MonitorFormProps) {
             value={config.channel || ''}
             onChange={v => updateField('channel', v)}
           />
+          <FormField
+            label={t('admin.monitors.field.channelName')}
+            value={config.channel_name || ''}
+            onChange={v => updateField('channel_name', v)}
+          />
         </div>
       </fieldset>
 
@@ -152,10 +180,14 @@ export function MonitorForm({ onSave, onCancel }: MonitorFormProps) {
           {t('admin.monitors.form.probeConfig')}
         </legend>
         <div className="grid grid-cols-2 gap-4">
-          <FormField
+          <SelectField
             label={t('admin.monitors.field.template')}
             value={config.template || ''}
             onChange={v => updateField('template', v)}
+            options={[
+              { value: '', label: t('admin.monitors.templateNone') },
+              ...templateOptions.map(name => ({ value: name, label: name })),
+            ]}
           />
           <FormField
             label={t('admin.monitors.field.baseUrl')}
@@ -182,34 +214,31 @@ export function MonitorForm({ onSave, onCancel }: MonitorFormProps) {
           {t('admin.monitors.form.attributes')}
         </legend>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-muted mb-1">{t('admin.monitors.field.category')}</label>
-            <select
-              value={config.category || 'commercial'}
-              onChange={e => updateField('category', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm"
-            >
-              <option value="commercial">{t('admin.monitors.categoryCommercial')}</option>
-              <option value="public">{t('admin.monitors.categoryPublic')}</option>
-            </select>
-          </div>
-          <FormField
+          <SelectField
+            label={t('admin.monitors.field.category')}
+            value={config.category || 'commercial'}
+            onChange={v => updateField('category', v)}
+            options={[
+              { value: 'commercial', label: t('admin.monitors.categoryCommercial') },
+              { value: 'public', label: t('admin.monitors.categoryPublic') },
+            ]}
+          />
+          <SelectField
             label={t('admin.monitors.field.sponsorLevel')}
             value={config.sponsor_level || ''}
             onChange={v => updateField('sponsor_level', v)}
+            options={sponsorLevelOptions}
           />
-          <div>
-            <label className="block text-xs text-muted mb-1">{t('admin.monitors.field.board')}</label>
-            <select
-              value={config.board || 'hot'}
-              onChange={e => updateField('board', e.target.value)}
-              className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm"
-            >
-              <option value="hot">{t('admin.monitors.boardHot')}</option>
-              <option value="secondary">{t('admin.monitors.boardSecondary')}</option>
-              <option value="cold">{t('admin.monitors.boardCold')}</option>
-            </select>
-          </div>
+          <SelectField
+            label={t('admin.monitors.field.board')}
+            value={config.board || 'hot'}
+            onChange={v => updateField('board', v)}
+            options={[
+              { value: 'hot', label: t('admin.monitors.boardHot') },
+              { value: 'secondary', label: t('admin.monitors.boardSecondary') },
+              { value: 'cold', label: t('admin.monitors.boardCold') },
+            ]}
+          />
           <FormField
             label={t('admin.monitors.field.listedSince')}
             value={config.listed_since || ''}
@@ -311,4 +340,37 @@ function FormField({
       />
     </div>
   );
+}
+
+function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label className="block text-xs text-muted mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm"
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+function mergeTemplateNames(names: string[], current?: string): string[] {
+  const merged = new Set(names.filter(Boolean));
+  if (current) merged.add(current);
+  return Array.from(merged).sort();
 }

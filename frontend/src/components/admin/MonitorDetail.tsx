@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorConfig, MonitorFile } from '../../types/monitor';
 
 interface MonitorDetailProps {
+  fetchTemplates: () => Promise<string[]>;
   monitorFile: MonitorFile;
   monitorKey: string;
   onBack: () => void;
@@ -13,7 +14,7 @@ interface MonitorDetailProps {
 }
 
 type EditableFields = Pick<MonitorConfig,
-  'provider_name' | 'template' | 'base_url' | 'api_key' |
+  'provider_name' | 'channel_name' | 'template' | 'base_url' | 'api_key' |
   'category' | 'sponsor_level' | 'board' | 'interval' | 'listed_since'
 >;
 
@@ -24,8 +25,13 @@ interface ChildEdit {
   api_key: string;
 }
 
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
 export function MonitorDetail({
-  monitorFile, monitorKey, onBack,
+  fetchTemplates, monitorFile, monitorKey, onBack,
   onSave, onDelete, onToggle, onProbe,
 }: MonitorDetailProps) {
   const { t } = useTranslation();
@@ -35,12 +41,14 @@ export function MonitorDetail({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [probeJobId, setProbeJobId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<string[]>([]);
 
   const root = monitorFile.monitors.find(m => !m.parent) || monitorFile.monitors[0];
   const children = monitorFile.monitors.filter(m => m.parent);
 
   const [editFields, setEditFields] = useState<EditableFields>({
     provider_name: root?.provider_name || '',
+    channel_name: root?.channel_name || '',
     template: root?.template || '',
     base_url: root?.base_url || '',
     api_key: root?.api_key || '',
@@ -53,6 +61,43 @@ export function MonitorDetail({
 
   const [editChildren, setEditChildren] = useState<ChildEdit[]>([]);
 
+  useEffect(() => {
+    let active = true;
+    fetchTemplates()
+      .then(items => { if (active) setTemplates(items); })
+      .catch(() => { if (active) setTemplates([]); });
+    return () => { active = false; };
+  }, [fetchTemplates]);
+
+  const templateOptions = withCurrentOption(
+    [
+      { value: '', label: t('admin.monitors.templateNone') },
+      ...Array.from(new Set(templates)).sort().map(name => ({ value: name, label: name })),
+    ],
+    isEditing ? editFields.template : root?.template,
+  );
+
+  const categoryOptions = withCurrentOption([
+    { value: 'commercial', label: t('admin.monitors.categoryCommercial') },
+    { value: 'public', label: t('admin.monitors.categoryPublic') },
+  ], isEditing ? editFields.category : root?.category);
+
+  const sponsorLevelOptions = withCurrentOption([
+    { value: '', label: t('admin.monitors.sponsorLevels.none') },
+    { value: 'public', label: t('admin.monitors.sponsorLevels.public') },
+    { value: 'signal', label: t('admin.monitors.sponsorLevels.signal') },
+    { value: 'pulse', label: t('admin.monitors.sponsorLevels.pulse') },
+    { value: 'beacon', label: t('admin.monitors.sponsorLevels.beacon') },
+    { value: 'backbone', label: t('admin.monitors.sponsorLevels.backbone') },
+    { value: 'core', label: t('admin.monitors.sponsorLevels.core') },
+  ], isEditing ? editFields.sponsor_level : root?.sponsor_level);
+
+  const boardOptions = withCurrentOption([
+    { value: 'hot', label: t('admin.monitors.boardHot') },
+    { value: 'secondary', label: t('admin.monitors.boardSecondary') },
+    { value: 'cold', label: t('admin.monitors.boardCold') },
+  ], isEditing ? editFields.board : (root?.board || 'hot'));
+
   const toChildEdits = (items: MonitorConfig[]): ChildEdit[] =>
     items.map(c => ({
       model: c.model || '',
@@ -64,6 +109,7 @@ export function MonitorDetail({
   const startEditing = () => {
     setEditFields({
       provider_name: root?.provider_name || '',
+      channel_name: root?.channel_name || '',
       template: root?.template || '',
       base_url: root?.base_url || '',
       api_key: root?.api_key || '',
@@ -221,10 +267,17 @@ export function MonitorDetail({
           <Field label={t('admin.monitors.field.service')} value={root?.service} />
           <Field label={t('admin.monitors.field.channel')} value={root?.channel} />
           <EditableField
+            label={t('admin.monitors.field.channelName')}
+            value={isEditing ? editFields.channel_name : root?.channel_name}
+            editing={isEditing}
+            onChange={v => updateField('channel_name', v)}
+          />
+          <EditableSelectField
             label={t('admin.monitors.field.template')}
             value={isEditing ? editFields.template : root?.template}
             editing={isEditing}
             onChange={v => updateField('template', v)}
+            options={templateOptions}
           />
           <EditableField
             label={t('admin.monitors.field.baseUrl')}
@@ -232,23 +285,26 @@ export function MonitorDetail({
             editing={isEditing}
             onChange={v => updateField('base_url', v)}
           />
-          <EditableField
+          <EditableSelectField
             label={t('admin.monitors.field.category')}
             value={isEditing ? editFields.category : root?.category}
             editing={isEditing}
             onChange={v => updateField('category', v)}
+            options={categoryOptions}
           />
-          <EditableField
+          <EditableSelectField
             label={t('admin.monitors.field.sponsorLevel')}
             value={isEditing ? editFields.sponsor_level : root?.sponsor_level}
             editing={isEditing}
             onChange={v => updateField('sponsor_level', v)}
+            options={sponsorLevelOptions}
           />
-          <EditableField
+          <EditableSelectField
             label={t('admin.monitors.field.board')}
             value={isEditing ? editFields.board : (root?.board || 'hot')}
             editing={isEditing}
             onChange={v => updateField('board', v)}
+            options={boardOptions}
           />
           <EditableField
             label={t('admin.monitors.field.interval')}
@@ -436,6 +492,38 @@ function Field({ label, value }: { label: string; value?: string | number | null
   );
 }
 
+function EditableSelectField({
+  label, value, editing, onChange, options,
+}: {
+  label: string;
+  value?: string | null;
+  editing: boolean;
+  onChange: (v: string) => void;
+  options: SelectOption[];
+}) {
+  const currentValue = String(value || '');
+  const displayLabel = options.find(o => o.value === currentValue)?.label ?? currentValue;
+
+  if (!editing) {
+    return <Field label={label} value={displayLabel || '-'} />;
+  }
+
+  return (
+    <div>
+      <label className="block text-xs text-muted mb-0.5">{label}</label>
+      <select
+        value={currentValue}
+        onChange={e => onChange(e.target.value)}
+        className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
+      >
+        {options.map(opt => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function EditableField({
   label, value, editing, onChange, type = 'text',
 }: {
@@ -459,4 +547,9 @@ function EditableField({
       />
     </div>
   );
+}
+
+function withCurrentOption(options: SelectOption[], current?: string | null): SelectOption[] {
+  if (!current || options.some(o => o.value === current)) return options;
+  return [...options, { value: current, label: current }];
 }

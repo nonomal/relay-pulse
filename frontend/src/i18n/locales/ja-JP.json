@@ -400,8 +400,7 @@
       "sponsorLevel": "スポンサーレベル", "channelType": "チャネルタイプ",
       "channelSource": "チャネルソース", "customSource": "カスタム...", "customSourcePlaceholder": "カスタムソースを入力",
       "channelCodePreview": "チャネルコードプレビュー",
-      "contactInfo": "連絡先", "optional": "（任意）",
-      "contactInfoPlaceholder": "QQ / Telegram / Email", "contactInfoHint": "レビューの迅速化に役立ちます"
+      "optional": "（任意）"
     },
     "connectionTest": {
       "title": "接続テスト", "description": "API情報を入力してテストを実行してください",
@@ -497,6 +496,16 @@
       "statusActive": "アクティブ",
       "statusDisabled": "無効",
       "statusHidden": "非表示",
+      "templateNone": "テンプレートなし",
+      "sponsorLevels": {
+        "none": "なし",
+        "public": "公共",
+        "signal": "シグナル",
+        "pulse": "パルス",
+        "beacon": "ビーコン",
+        "backbone": "バックボーン",
+        "core": "コア"
+      },
       "categoryCommercial": "商用",
       "categoryPublic": "公益",
       "boardHot": "ホット",
@@ -517,6 +526,7 @@
         "providerName": "プロバイダー名",
         "service": "サービス",
         "channel": "チャネル",
+        "channelName": "チャネル名",
         "template": "テンプレート",
         "baseUrl": "ベースURL",
         "category": "カテゴリ",
@@ -564,7 +574,6 @@
       "testHttpCode": "HTTPステータスコード",
       "testPassedAt": "テスト合格日時",
       "locale": "送信言語",
-      "contactInfo": "連絡先",
       "adminNote": "管理メモ",
       "adminNotePlaceholder": "レビューメモを入力...",
       "save": "変更を保存",

@@ -400,8 +400,7 @@
       "sponsorLevel": "Уровень спонсорства", "channelType": "Тип канала",
       "channelSource": "Источник канала", "customSource": "Другое...", "customSourcePlaceholder": "Введите источник",
       "channelCodePreview": "Предпросмотр кода канала",
-      "contactInfo": "Контакт", "optional": "(необязательно)",
-      "contactInfoPlaceholder": "QQ / Telegram / Email", "contactInfoHint": "Поможет ускорить проверку"
+      "optional": "(необязательно)"
     },
     "connectionTest": {
       "title": "Тест подключения", "description": "Введите данные API и запустите тест",
@@ -497,6 +496,16 @@
       "statusActive": "Активный",
       "statusDisabled": "Отключён",
       "statusHidden": "Скрытый",
+      "templateNone": "Без шаблона",
+      "sponsorLevels": {
+        "none": "Нет",
+        "public": "Публичный",
+        "signal": "Сигнал",
+        "pulse": "Пульс",
+        "beacon": "Маяк",
+        "backbone": "Магистраль",
+        "core": "Ядро"
+      },
       "categoryCommercial": "Коммерческий",
       "categoryPublic": "Публичный",
       "boardHot": "Горячая",
@@ -517,6 +526,7 @@
         "providerName": "Название провайдера",
         "service": "Сервис",
         "channel": "Канал",
+        "channelName": "Название канала",
         "template": "Шаблон",
         "baseUrl": "Базовый URL",
         "category": "Категория",
@@ -564,7 +574,6 @@
       "testHttpCode": "HTTP-код",
       "testPassedAt": "Тест пройден",
       "locale": "Язык заявки",
-      "contactInfo": "Контакт",
       "adminNote": "Заметка администратора",
       "adminNotePlaceholder": "Введите заметку...",
       "save": "Сохранить изменения",

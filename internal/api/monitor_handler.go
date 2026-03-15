@@ -2,6 +2,9 @@ package api
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -9,6 +12,47 @@ import (
 	"monitor/internal/config"
 	"monitor/internal/logger"
 )
+
+// AdminListTemplates 列出 templates/ 中的可用模板
+// GET /api/admin/templates
+func (h *Handler) AdminListTemplates(c *gin.Context) {
+	if !h.checkAdminToken(c) {
+		return
+	}
+
+	store := h.getMonitorStore()
+	if store == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "monitors.d 管理未启用")
+		return
+	}
+
+	templatesDir := filepath.Join(filepath.Dir(store.Dir()), "templates")
+	entries, err := os.ReadDir(templatesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.JSON(http.StatusOK, gin.H{"templates": []string{}})
+			return
+		}
+		logger.Error("admin", "读取模板目录失败", "dir", templatesDir, "error", err)
+		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "读取模板目录失败")
+		return
+	}
+
+	templates := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if filepath.Ext(name) != ".json" {
+			continue
+		}
+		templates = append(templates, strings.TrimSuffix(name, ".json"))
+	}
+	sort.Strings(templates)
+
+	c.JSON(http.StatusOK, gin.H{"templates": templates})
+}
 
 // AdminListMonitors 列出所有 monitors.d/ 中的监测项
 // GET /api/admin/monitors
@@ -353,7 +397,7 @@ func (h *Handler) AdminProbeMonitor(c *gin.Context) {
 		return
 	}
 
-	job, err := mgr.CreateJob(root.Template, root.BaseURL, root.APIKey, "")
+	job, err := mgr.CreateJob(root.Service, root.BaseURL, root.APIKey, root.Template)
 	if err != nil {
 		logger.Error("admin", "创建测试任务失败", "key", key, "error", err)
 		writeSelfTestError(c, err, "创建测试任务失败")

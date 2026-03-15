@@ -182,6 +182,7 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 	router.POST("/api/admin/submissions/:id/publish", handler.AdminPublishSubmission)
 
 	// 管理后台 — monitors.d/ CRUD API（需 Bearer token 鉴权）
+	router.GET("/api/admin/templates", handler.AdminListTemplates)
 	router.GET("/api/admin/monitors", handler.AdminListMonitors)
 	router.GET("/api/admin/monitors/:key", handler.AdminGetMonitor)
 	router.POST("/api/admin/monitors", handler.AdminCreateMonitor)

@@ -56,6 +56,21 @@ export function useMonitorAdmin(token: string) {
     if (token) fetchList();
   }, [token, fetchList]);
 
+  // Fetch templates
+  const fetchTemplates = useCallback(async (): Promise<string[]> => {
+    if (!token) return [];
+
+    try {
+      const resp = await apiGet<{ templates: string[] }>(
+        '/api/admin/templates',
+        { headers: authHeaders() },
+      );
+      return resp.templates || [];
+    } catch {
+      return [];
+    }
+  }, [token, authHeaders]);
+
   // Fetch detail
   const fetchDetail = useCallback(async (key: string) => {
     if (!token) return;
@@ -182,6 +197,7 @@ export function useMonitorAdmin(token: string) {
     setSelectedMonitor,
     setSelectedKey,
     fetchDetail,
+    fetchTemplates,
     createMonitor,
     updateMonitor,
     deleteMonitor,
