@@ -260,8 +260,8 @@ export function latencyToColor(latency: number, slowLatencyMs: number): string {
 /**
  * 90m 绿色块延迟渐变：深绿 → 黄绿
  *
- * - ratio < 0.3       → 深绿（亮度降 25%）
- * - 0.3 ≤ ratio < 1.0 → 深绿 → 黄绿渐变
+ * - ratio < 0.2       → 深绿（亮度降 10%）
+ * - 0.2 ≤ ratio < 1.0 → 深绿 → 黄绿渐变
  * - ratio ≥ 1.0       → 钳位到黄绿
  */
 export function greenLatencyToColor(latency: number, slowLatencyMs: number): string {
@@ -272,15 +272,15 @@ export function greenLatencyToColor(latency: number, slowLatencyMs: number): str
   }
 
   const ratio = latency / slowLatencyMs;
-  const deepGreen = darkenColor(colors.green, 0.25);
+  const deepGreen = darkenColor(colors.green, 0.10);
   const yellowGreen = lerpColorRgb(colors.green, colors.yellow, 0.35);
 
-  if (ratio < 0.3) {
+  if (ratio < 0.2) {
     return rgbToCss(deepGreen);
   }
 
   if (ratio < 1) {
-    return rgbToCss(lerpColorRgb(deepGreen, yellowGreen, (ratio - 0.3) / 0.7));
+    return rgbToCss(lerpColorRgb(deepGreen, yellowGreen, (ratio - 0.2) / 0.8));
   }
 
   return rgbToCss(yellowGreen);

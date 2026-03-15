@@ -256,18 +256,18 @@ describe('lerpColorRgb', () => {
 });
 
 describe('greenLatencyToColor', () => {
-  it('returns deep green for low latency (ratio < 0.3)', () => {
-    // 100ms / 1000ms = 0.1 → deep green (green darkened 25%)
+  it('returns deep green for low latency (ratio < 0.2)', () => {
+    // 100ms / 1000ms = 0.1 → deep green (green darkened 10%)
     const color = greenLatencyToColor(100, 1000);
-    const deepGreen = darkenColor(GREEN, 0.25);
+    const deepGreen = darkenColor(GREEN, 0.10);
     expect(color).toBe(`rgb(${deepGreen.r}, ${deepGreen.g}, ${deepGreen.b})`);
   });
 
-  it('returns interpolated color for medium latency (0.3 ≤ ratio < 1.0)', () => {
+  it('returns interpolated color for medium latency (0.2 ≤ ratio < 1.0)', () => {
     const color = greenLatencyToColor(650, 1000);
     expect(color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
     // Should be between deep green and yellow-green
-    const deepGreen = darkenColor(GREEN, 0.25);
+    const deepGreen = darkenColor(GREEN, 0.10);
     expect(color).not.toBe(`rgb(${deepGreen.r}, ${deepGreen.g}, ${deepGreen.b})`);
   });
 
