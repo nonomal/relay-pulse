@@ -12,20 +12,29 @@
 		"model": "{{MODEL}}",
 		"max_tokens": 20,
 		"stream": true,
-		"thinking": { "type": "adaptive" },
 		"metadata": {
 			"user_id": "{{USER_ID}}"
 		},
-		"system": [{
-			"text": "You are Claude Code, Anthropic's official CLI for Claude.",
-			"type": "text",
-			"cache_control": { "type": "ephemeral" }
-		}],
+		"system": [
+			{
+				"text": "You are a Claude agent, built on Anthropic's Claude Agent SDK.",
+				"type": "text",
+				"cache_control": { "type": "ephemeral" }
+			},
+			{
+				"text": "\nYou are an interactive agent that helps users with software engineering tasks.\n\n# System\n - All text you output outside of tool use is displayed to the user.\n - You are highly capable.\n\n# Tone and style\n - Your responses should be short and concise.",
+				"type": "text",
+				"cache_control": { "type": "ephemeral" }
+			}
+		],
 		"messages": [{
 			"role": "user",
 			"content": [{ "text": "{{PROMPT}}", "type": "text", "cache_control": { "type": "ephemeral" } }]
 		}],
-		"tools": [{ "name": "Bash", "description": "Run commands", "input_schema": { "type": "object", "properties": { "command": { "type": "string" } }, "required": ["command"] } }]
+		"tools": [
+			{ "name": "Bash", "description": "Execute bash commands", "input_schema": { "type": "object", "properties": { "command": { "type": "string" } }, "required": ["command"] } },
+			{ "name": "Read", "description": "Read files", "input_schema": { "type": "object", "properties": { "file_path": { "type": "string" } }, "required": ["file_path"] } }
+		]
 	},
 	"response": {
 		"success_contains": "{{EXPECTED_ANSWER}}"
