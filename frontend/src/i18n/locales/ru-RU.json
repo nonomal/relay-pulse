@@ -150,9 +150,10 @@
       "service": "Сервис",
       "channel": "Канал",
       "model": "Модель",
-      "priceRatio": "Цен. коэф.",
-      "priceRatioLine1": "Цен.",
-      "priceRatioLine2": "коэф. ¥/$",
+      "priceRatio": "Цена",
+      "priceRatioLine1": "Цена",
+      "priceRatioLine2": "¥/$",
+      "priceRatioTooltip": "Сколько юаней за 1 доллар токенов, только для справки",
       "listedDays": "Дней в списке",
       "listedDaysLine1": "Дней",
       "listedDaysLine2": "",
@@ -160,14 +161,14 @@
       "lastCheck": "Проверка",
       "lastCheckLine1": "Проверка",
       "lastCheckLine2": "",
-      "trend": "Тренд качества"
+      "trend": "Тренд доступности"
     },
     "sorting": {
       "provider": "Провайдер",
       "uptime": "Доступность",
       "lastCheck": "Статус/Задержка",
       "service": "Тип сервиса",
-      "priceRatio": "Цен. коэф.",
+      "priceRatio": "Цена",
       "listedDays": "Дней"
     },
     "categoryLabels": {

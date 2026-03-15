@@ -150,9 +150,10 @@
       "service": "Service",
       "channel": "Channel",
       "model": "Model",
-      "priceRatio": "Price Ratio",
+      "priceRatio": "Price",
       "priceRatioLine1": "Price",
-      "priceRatioLine2": "Ratio ¥/$",
+      "priceRatioLine2": "¥/$",
+      "priceRatioTooltip": "How many CNY per 1 USD of tokens, for reference only",
       "listedDays": "Listed Days",
       "listedDaysLine1": "Listed",
       "listedDaysLine2": "Days",
@@ -160,14 +161,14 @@
       "lastCheck": "Last check",
       "lastCheckLine1": "Last",
       "lastCheckLine2": "check",
-      "trend": "Quality trend"
+      "trend": "Availability trend"
     },
     "sorting": {
       "provider": "Provider",
       "uptime": "Uptime",
       "lastCheck": "Status/Latency",
       "service": "Service type",
-      "priceRatio": "Price Ratio",
+      "priceRatio": "Price",
       "listedDays": "Listed"
     },
     "categoryLabels": {

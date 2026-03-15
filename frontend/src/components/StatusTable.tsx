@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, memo } from 'react';
 import { List, type RowComponentProps } from 'react-window';
-import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, Filter } from 'lucide-react';
+import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, Filter, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { StatusDot } from './StatusDot';
 import { HeatmapBlock } from './HeatmapBlock';
@@ -546,6 +546,16 @@ function StatusTableComponent({
                   <span>{t('table.headers.priceRatioLine1')}</span>
                   <span className="text-[10px] opacity-50 font-normal">{t('table.headers.priceRatioLine2')}</span>
                 </div>
+                <span
+                  className="relative group/price-tip ml-1 inline-flex items-center cursor-help"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                >
+                  <Info size={12} className="text-secondary opacity-70" aria-hidden="true" />
+                  <span className="absolute left-1/2 top-full z-50 mt-1 w-48 -translate-x-1/2 rounded-lg border border-default bg-elevated px-2 py-1.5 text-[11px] font-normal normal-case tracking-normal leading-snug whitespace-normal text-primary opacity-0 pointer-events-none shadow-lg transition-opacity delay-150 group-hover/price-tip:opacity-100 group-hover/price-tip:pointer-events-auto">
+                    {t('table.headers.priceRatioTooltip')}
+                  </span>
+                </span>
                 <SortIcon columnKey="priceRatio" />
               </div>
             </th>

@@ -150,9 +150,10 @@
       "service": "サービス",
       "channel": "チャネル",
       "model": "モデル",
-      "priceRatio": "参考倍率",
-      "priceRatioLine1": "参考倍率",
+      "priceRatio": "価格",
+      "priceRatioLine1": "価格",
       "priceRatioLine2": "¥/$",
+      "priceRatioTooltip": "1ドル分のトークンに何人民元必要か、参考値",
       "listedDays": "掲載日数",
       "listedDaysLine1": "掲載",
       "listedDaysLine2": "日数",
@@ -160,14 +161,14 @@
       "lastCheck": "最終チェック",
       "lastCheckLine1": "最終",
       "lastCheckLine2": "チェック",
-      "trend": "品質トレンド"
+      "trend": "可用率トレンド"
     },
     "sorting": {
       "provider": "プロバイダ",
       "uptime": "稼働率",
       "lastCheck": "状態/レイテンシ",
       "service": "サービス種別",
-      "priceRatio": "倍率",
+      "priceRatio": "価格",
       "listedDays": "掲載"
     },
     "categoryLabels": {
