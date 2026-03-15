@@ -14,6 +14,7 @@ interface ChangeRequestListProps {
   onApply: (id: string) => void;
   onDelete: (id: string) => void;
   error: string | null;
+  featureDisabled?: boolean;
 }
 
 const STATUS_FILTERS: (ChangeRequestStatus | 'all')[] = ['all', 'pending', 'approved', 'rejected', 'applied'];
@@ -28,6 +29,7 @@ export function ChangeRequestList({
   onApply,
   onDelete,
   error,
+  featureDisabled,
 }: ChangeRequestListProps) {
   const { t } = useTranslation();
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -53,6 +55,14 @@ export function ChangeRequestList({
       default: return 'text-muted';
     }
   };
+
+  if (featureDisabled) {
+    return (
+      <div className="p-4 bg-muted/10 border border-default rounded-lg text-muted text-sm">
+        {t('admin.changes.featureDisabled')}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

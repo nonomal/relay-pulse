@@ -125,6 +125,7 @@ func (m *TestJobManager) CreateJob(
 		Status:         StatusQueued,
 		QueuePos:       len(m.queue) + 1,
 		CreatedAt:      time.Now(),
+		done:           make(chan struct{}),
 	}
 
 	// 6. Enqueue
@@ -157,6 +158,27 @@ func (m *TestJobManager) GetJob(id string) (*TestJob, error) {
 		}
 	}
 
+	return job.Snapshot(), nil
+}
+
+// WaitForJob waits for the job to reach a terminal state and returns a snapshot.
+func (m *TestJobManager) WaitForJob(ctx context.Context, id string) (*TestJob, error) {
+	m.mu.RLock()
+	job, ok := m.jobs[id]
+	m.mu.RUnlock()
+
+	if !ok {
+		return nil, &Error{
+			Code:    ErrCodeJobNotFound,
+			Message: "任务不存在或已过期",
+			Err:     fmt.Errorf("job not found: %s", id),
+		}
+	}
+
+	job.WaitDone(ctx)
+	if ctx.Err() != nil {
+		return nil, fmt.Errorf("等待探测结果超时: %w", ctx.Err())
+	}
 	return job.Snapshot(), nil
 }
 
@@ -213,6 +235,9 @@ func (m *TestJobManager) scheduleNext() {
 // worker executes a test job
 func (m *TestJobManager) worker(job *TestJob) {
 	defer func() {
+		// Signal waiters that the job is done
+		job.closeDone()
+
 		// Release semaphore and try to schedule next job
 		m.mu.Lock()
 		delete(m.running, job.ID)
@@ -360,6 +385,7 @@ func (m *TestJobManager) beginStop() (pending int) {
 			job.FinishedAt = &now
 		}
 		job.mu.Unlock()
+		job.closeDone()
 	}
 	m.queue = nil
 	return pending

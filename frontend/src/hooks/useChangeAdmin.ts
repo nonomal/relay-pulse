@@ -6,6 +6,7 @@ export function useChangeAdmin(token: string) {
   const [changes, setChanges] = useState<AdminChangeRequest[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [featureDisabled, setFeatureDisabled] = useState(false);
   const [statusFilter, setStatusFilter] = useState<ChangeRequestStatus | 'all'>('all');
   const [selectedChange, setSelectedChange] = useState<AdminChangeRequest | null>(null);
 
@@ -18,12 +19,17 @@ export function useChangeAdmin(token: string) {
     if (!token) return;
     setIsLoading(true);
     setError(null);
+    setFeatureDisabled(false);
     try {
       const params = statusFilter !== 'all' ? `?status=${statusFilter}` : '';
       const resp = await apiGet<{ changes: AdminChangeRequest[]; total: number }>(`/api/admin/changes${params}`, { headers });
       setChanges(resp.changes || []);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : 'Failed to load change requests');
+      if (e instanceof ApiError && e.code === 'FEATURE_DISABLED') {
+        setFeatureDisabled(true);
+      } else {
+        setError(e instanceof ApiError ? e.message : 'Failed to load change requests');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -96,6 +102,7 @@ export function useChangeAdmin(token: string) {
     changes,
     isLoading,
     error,
+    featureDisabled,
     statusFilter,
     setStatusFilter,
     selectedChange,

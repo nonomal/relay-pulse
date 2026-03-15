@@ -12,6 +12,7 @@ export interface MonitorSummary {
   provider: string;
   service: string;
   channel: string;
+  channel_name?: string;
   model_count: number;
   disabled: boolean;
   hidden: boolean;

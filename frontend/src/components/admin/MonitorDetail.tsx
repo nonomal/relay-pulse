@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorConfig, MonitorFile } from '../../types/monitor';
+import type { ProbeResult } from '../../hooks/useMonitorAdmin';
 
 interface MonitorDetailProps {
   fetchTemplates: () => Promise<string[]>;
@@ -10,7 +11,10 @@ interface MonitorDetailProps {
   onSave: (file: MonitorFile, revision: number) => Promise<void>;
   onDelete: () => void;
   onToggle: (field: 'disabled' | 'hidden', value: boolean) => void;
-  onProbe: () => Promise<{ jobId: string } | null>;
+  onProbe: () => Promise<ProbeResult | null>;
+  isProbing?: boolean;
+  probeResult?: ProbeResult | null;
+  probeError?: string | null;
 }
 
 type EditableFields = Pick<MonitorConfig,
@@ -33,13 +37,13 @@ interface SelectOption {
 export function MonitorDetail({
   fetchTemplates, monitorFile, monitorKey, onBack,
   onSave, onDelete, onToggle, onProbe,
+  isProbing, probeResult, probeError,
 }: MonitorDetailProps) {
   const { t } = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [probeJobId, setProbeJobId] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<string[]>([]);
 
@@ -179,10 +183,7 @@ export function MonitorDetail({
   };
 
   const handleProbe = async () => {
-    const result = await onProbe();
-    if (result) {
-      setProbeJobId(result.jobId);
-    }
+    await onProbe();
   };
 
   const handleDelete = async () => {
@@ -442,13 +443,30 @@ export function MonitorDetail({
       <div className="flex gap-3">
         <button
           onClick={handleProbe}
-          className="px-4 py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition"
+          disabled={isProbing}
+          className="px-4 py-2 rounded-lg bg-accent/10 text-accent text-sm font-medium hover:bg-accent/20 transition disabled:opacity-50"
         >
-          {t('admin.monitors.probe')}
+          {isProbing ? t('admin.monitors.probing') : t('admin.monitors.probe')}
         </button>
 
-        {probeJobId && (
-          <span className="self-center text-xs text-muted">Job: {probeJobId}</span>
+        {probeResult && (
+          <div className="flex items-center gap-3 self-center text-xs">
+            <span className={`inline-block w-2 h-2 rounded-full ${
+              probeResult.probeStatus === 1 ? 'bg-success' :
+              probeResult.probeStatus === 2 ? 'bg-warning' : 'bg-danger'
+            }`} />
+            <span className="text-primary">{probeResult.latency}ms</span>
+            <span className="text-muted">HTTP {probeResult.httpCode}</span>
+            {probeResult.errorMessage && (
+              <span className="text-danger truncate max-w-[200px]" title={probeResult.errorMessage}>
+                {probeResult.errorMessage}
+              </span>
+            )}
+          </div>
+        )}
+
+        {probeError && (
+          <span className="self-center text-xs text-danger">{probeError}</span>
         )}
 
         <div className="flex-1" />

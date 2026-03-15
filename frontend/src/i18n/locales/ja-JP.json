@@ -612,6 +612,7 @@
       "show": "表示",
       "hide": "非表示",
       "probe": "プローブ",
+      "probing": "プローブ中...",
       "archive": "アーカイブ",
       "confirmArchive": "アーカイブしますか？",
       "confirmYes": "確認",
@@ -677,6 +678,7 @@
     },
     "changes": {
       "empty": "変更リクエストはありません",
+      "featureDisabled": "変更リクエスト機能が有効になっていません。設定で change_requests.enabled を有効にしてサービスを再起動してください。",
       "colPublicId": "番号",
       "colTarget": "対象チャネル",
       "colStatus": "ステータス",

@@ -163,6 +163,9 @@ export default function AdminPage() {
                       }
                       return null;
                     }}
+                    isProbing={monitor.isProbing}
+                    probeResult={monitor.probeResult}
+                    probeError={monitor.probeError}
                   />
                 ) : (
                   <div className="space-y-4">
@@ -203,6 +206,7 @@ export default function AdminPage() {
                   onApply={(id) => changeAdmin.applyChange(id)}
                   onDelete={(id) => changeAdmin.deleteChange(id)}
                   error={changeAdmin.error}
+                  featureDisabled={changeAdmin.featureDisabled}
                 />
               )}
             </>

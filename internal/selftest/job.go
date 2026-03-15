@@ -52,8 +52,10 @@ type TestJob struct {
 	FinishedAt *time.Time `json:"finished_at,omitempty"`
 
 	// Internal fields (not serialized)
-	ctx    context.Context    `json:"-"`
-	cancel context.CancelFunc `json:"-"`
+	ctx      context.Context    `json:"-"`
+	cancel   context.CancelFunc `json:"-"`
+	done     chan struct{}      `json:"-"` // closed when job reaches terminal state
+	doneOnce sync.Once          `json:"-"` // ensures done is closed exactly once
 }
 
 // Snapshot 返回一个不包含敏感字段的只读快照（避免并发访问问题）
@@ -100,6 +102,19 @@ func (j *TestJob) IsActive() bool {
 	j.mu.RLock()
 	defer j.mu.RUnlock()
 	return j.Status == StatusQueued || j.Status == StatusRunning
+}
+
+// WaitDone blocks until the job reaches a terminal state or ctx is canceled.
+func (j *TestJob) WaitDone(ctx context.Context) {
+	select {
+	case <-j.done:
+	case <-ctx.Done():
+	}
+}
+
+// closeDone signals waiters that the job is complete (safe to call multiple times).
+func (j *TestJob) closeDone() {
+	j.doneOnce.Do(func() { close(j.done) })
 }
 
 // setRunning 标记任务为运行中状态（内部使用，已持锁）

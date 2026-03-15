@@ -76,19 +76,20 @@ func (s *MonitorStore) findExistingPath(key string) (string, error) {
 
 // MonitorSummary 是列表 API 返回的精简摘要。
 type MonitorSummary struct {
-	Key        string `json:"key"`
-	Provider   string `json:"provider"`
-	Service    string `json:"service"`
-	Channel    string `json:"channel"`
-	ModelCount int    `json:"model_count"`
-	Disabled   bool   `json:"disabled"`
-	Hidden     bool   `json:"hidden"`
-	Board      string `json:"board"`
-	Category   string `json:"category"`
-	Template   string `json:"template"`
-	Source     string `json:"source"`
-	Revision   int64  `json:"revision"`
-	UpdatedAt  string `json:"updated_at"`
+	Key         string `json:"key"`
+	Provider    string `json:"provider"`
+	Service     string `json:"service"`
+	Channel     string `json:"channel"`
+	ChannelName string `json:"channel_name,omitempty"`
+	ModelCount  int    `json:"model_count"`
+	Disabled    bool   `json:"disabled"`
+	Hidden      bool   `json:"hidden"`
+	Board       string `json:"board"`
+	Category    string `json:"category"`
+	Template    string `json:"template"`
+	Source      string `json:"source"`
+	Revision    int64  `json:"revision"`
+	UpdatedAt   string `json:"updated_at"`
 }
 
 // List 列出 monitors.d/ 下所有监测文件的摘要。
@@ -114,19 +115,20 @@ func (s *MonitorStore) List() ([]MonitorSummary, error) {
 		}
 
 		summaries = append(summaries, MonitorSummary{
-			Key:        f.Key,
-			Provider:   root.Provider,
-			Service:    root.Service,
-			Channel:    root.Channel,
-			ModelCount: len(f.Monitors),
-			Disabled:   root.Disabled,
-			Hidden:     root.Hidden,
-			Board:      root.Board,
-			Category:   root.Category,
-			Template:   root.Template,
-			Source:     f.Metadata.Source,
-			Revision:   f.Metadata.Revision,
-			UpdatedAt:  f.Metadata.UpdatedAt,
+			Key:         f.Key,
+			Provider:    root.Provider,
+			Service:     root.Service,
+			Channel:     root.Channel,
+			ChannelName: root.ChannelName,
+			ModelCount:  len(f.Monitors),
+			Disabled:    root.Disabled,
+			Hidden:      root.Hidden,
+			Board:       root.Board,
+			Category:    root.Category,
+			Template:    root.Template,
+			Source:      f.Metadata.Source,
+			Revision:    f.Metadata.Revision,
+			UpdatedAt:   f.Metadata.UpdatedAt,
 		})
 	}
 	return summaries, nil

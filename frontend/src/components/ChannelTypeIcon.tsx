@@ -21,6 +21,7 @@ function OfficialIcon() {
       <path
         d="M12 2l3.09 6.26L22 9.27l-5 4.87L18.18 21 12 17.27 5.82 21 7 14.14l-5-4.87 6.91-1.01L12 2z"
         className="fill-accent"
+        opacity="0.55"
       />
     </svg>
   );
@@ -33,6 +34,7 @@ function ReverseIcon() {
       <path
         d="M13 2L4.5 13H12l-1 9L19.5 11H12l1-9z"
         className="fill-warning"
+        opacity="0.55"
       />
     </svg>
   );
@@ -42,8 +44,8 @@ function ReverseIcon() {
 function MixedIcon() {
   return (
     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="6" width="12" height="14" rx="2" className="fill-warning" opacity="0.4" />
-      <rect x="9" y="4" width="12" height="14" rx="2" className="fill-warning" />
+      <rect x="3" y="6" width="12" height="14" rx="2" className="fill-warning" opacity="0.25" />
+      <rect x="9" y="4" width="12" height="14" rx="2" className="fill-warning" opacity="0.55" />
     </svg>
   );
 }

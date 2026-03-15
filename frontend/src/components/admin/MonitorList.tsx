@@ -99,7 +99,7 @@ export function MonitorList({
                 >
                   <td className="py-2.5 px-3 text-primary font-medium">{m.provider}</td>
                   <td className="py-2.5 px-3 text-secondary">{m.service}</td>
-                  <td className="py-2.5 px-3 text-secondary">{m.channel}</td>
+                  <td className="py-2.5 px-3 text-secondary">{m.channel_name || m.channel}</td>
                   <td className="py-2.5 px-3 text-muted">{m.model_count}</td>
                   <td className="py-2.5 px-3">
                     <BoardBadge board={m.board} />

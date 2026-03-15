@@ -644,6 +644,7 @@
       "show": "显示",
       "hide": "隐藏",
       "probe": "探测测试",
+      "probing": "探测中...",
       "archive": "归档",
       "confirmArchive": "确认归档？",
       "confirmYes": "确认",
@@ -709,6 +710,7 @@
     },
     "changes": {
       "empty": "暂无变更请求",
+      "featureDisabled": "变更请求功能未启用。请在配置中启用 change_requests.enabled 后重启服务。",
       "colPublicId": "编号",
       "colTarget": "目标通道",
       "colStatus": "状态",

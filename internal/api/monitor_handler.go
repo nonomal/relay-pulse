@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -404,9 +406,25 @@ func (h *Handler) AdminProbeMonitor(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"job_id": job.ID,
-		"status": string(job.Status),
+	// 同步等待探测完成（最多 30s）
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
+
+	result, err := mgr.WaitForJob(ctx, job.ID)
+	if err != nil {
+		logger.Error("admin", "等待测试结果失败", "key", key, "job_id", job.ID, "error", err)
+		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "等待测试结果失败")
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"job_id":           job.ID,
+		"status":           string(result.Status),
+		"probe_status":     result.ProbeStatus,
+		"http_code":        result.HTTPCode,
+		"latency":          result.Latency,
+		"error_message":    result.ErrorMessage,
+		"response_snippet": result.ResponseSnippet,
 	})
 }
 

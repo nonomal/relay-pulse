@@ -7,6 +7,16 @@ import type {
   AdminMonitorDetailResponse,
 } from '../types/monitor';
 
+export interface ProbeResult {
+  jobId: string;
+  status: string;
+  probeStatus: number;
+  httpCode: number;
+  latency: number;
+  errorMessage: string;
+  responseSnippet: string;
+}
+
 export function useMonitorAdmin(token: string) {
   const [monitors, setMonitors] = useState<MonitorSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -75,6 +85,8 @@ export function useMonitorAdmin(token: string) {
   const fetchDetail = useCallback(async (key: string) => {
     if (!token) return;
     setError(null);
+    setProbeResult(null);
+    setProbeError(null);
 
     try {
       const resp = await apiGet<AdminMonitorDetailResponse>(
@@ -161,20 +173,47 @@ export function useMonitorAdmin(token: string) {
   }, [token, authHeaders, fetchList]);
 
   // Probe
-  const probeMonitor = useCallback(async (key: string): Promise<{ jobId: string } | null> => {
+  const [isProbing, setIsProbing] = useState(false);
+  const [probeResult, setProbeResult] = useState<ProbeResult | null>(null);
+  const [probeError, setProbeError] = useState<string | null>(null);
+
+  const probeMonitor = useCallback(async (key: string): Promise<ProbeResult | null> => {
     if (!token) return null;
-    setError(null);
+    setIsProbing(true);
+    setProbeResult(null);
+    setProbeError(null);
 
     try {
-      const resp = await apiPost<{ job_id: string; status: string }>(
+      const resp = await apiPost<{
+        job_id: string;
+        status: string;
+        probe_status: number;
+        http_code: number;
+        latency: number;
+        error_message: string;
+        response_snippet: string;
+      }>(
         `/api/admin/monitors/${key}/probe`,
         {},
         { headers: authHeaders() },
       );
-      return { jobId: resp.job_id };
+      const result: ProbeResult = {
+        jobId: resp.job_id,
+        status: resp.status,
+        probeStatus: resp.probe_status,
+        httpCode: resp.http_code,
+        latency: resp.latency,
+        errorMessage: resp.error_message,
+        responseSnippet: resp.response_snippet,
+      };
+      setProbeResult(result);
+      return result;
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '测试创建失败');
+      const msg = e instanceof ApiError ? e.message : '探测失败';
+      setProbeError(msg);
       return null;
+    } finally {
+      setIsProbing(false);
     }
   }, [token, authHeaders]);
 
@@ -203,5 +242,8 @@ export function useMonitorAdmin(token: string) {
     deleteMonitor,
     toggleMonitor,
     probeMonitor,
+    isProbing,
+    probeResult,
+    probeError,
   };
 }

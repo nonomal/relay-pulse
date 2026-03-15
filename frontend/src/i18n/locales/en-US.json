@@ -641,6 +641,7 @@
       "show": "Show",
       "hide": "Hide",
       "probe": "Probe",
+      "probing": "Probing...",
       "archive": "Archive",
       "confirmArchive": "Confirm archive?",
       "confirmYes": "Confirm",
@@ -706,6 +707,7 @@
     },
     "changes": {
       "empty": "No change requests",
+      "featureDisabled": "Change requests feature is not enabled. Enable change_requests.enabled in configuration and restart the service.",
       "colPublicId": "ID",
       "colTarget": "Target Channel",
       "colStatus": "Status",
