@@ -1,0 +1,38 @@
+{
+	"model": "Sonnet",
+	"request_model": "claude-sonnet-4-6",
+	"url": "{{BASE_URL}}/v1/messages",
+	"method": "POST",
+	"headers": {
+		"x-api-key": "{{API_KEY}}",
+		"Content-Type": "application/json",
+		"Anthropic-Version": "2023-06-01"
+	},
+	"body": {
+		"model": "{{MODEL}}",
+		"max_tokens": 20,
+		"stream": true,
+		"thinking": { "type": "adaptive" },
+		"metadata": {
+			"user_id": "{{USER_ID}}"
+		},
+		"system": [{
+			"text": "You are Claude Code, Anthropic's official CLI for Claude.",
+			"type": "text",
+			"cache_control": { "type": "ephemeral" }
+		}],
+		"messages": [{
+			"role": "user",
+			"content": [{ "text": "{{PROMPT}}", "type": "text", "cache_control": { "type": "ephemeral" } }]
+		}],
+		"tools": [{ "name": "Bash", "description": "Run commands", "input_schema": { "type": "object", "properties": { "command": { "type": "string" } }, "required": ["command"] } }]
+	},
+	"response": {
+		"success_contains": "{{EXPECTED_ANSWER}}"
+	},
+	"probe": {
+		"slow_latency": "4s",
+		"timeout": "10s",
+		"retry": 0
+	}
+}
