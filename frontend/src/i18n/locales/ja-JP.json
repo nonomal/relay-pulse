@@ -670,8 +670,8 @@
         "probeConfig": "プローブ設定",
         "attributes": "属性",
         "childChannels": "子チャネル（マルチモデル）",
-        "childHint": "同一PSCで複数モデルを監視する場合、子チャネルを追加します。親の設定を継承し、モデル名のみ必須です。",
-        "childModelRequired": "子チャネル #{{index}} のモデル名は必須です",
+        "childHint": "同一PSCで複数モデルを監視する場合、子チャネルを追加します。親の設定を継承します。",
+        "modelPlaceholder": "空欄の場合テンプレートのデフォルト値を使用",
         "requiredFields": "プロバイダー、サービス、チャネルは必須です",
         "create": "作成"
       }

@@ -702,8 +702,8 @@
         "probeConfig": "探测配置",
         "attributes": "业务属性",
         "childChannels": "子通道（多模型）",
-        "childHint": "如需监测同一通道的多个模型，可在此添加子通道。子通道继承父通道的 PSC 和配置，仅需指定 model。",
-        "childModelRequired": "子通道 #{{index}} 的模型名称不能为空",
+        "childHint": "如需监测同一通道的多个模型，可在此添加子通道。子通道继承父通道的 PSC 和配置。",
+        "modelPlaceholder": "留空则使用模板默认值",
         "requiredFields": "Provider、Service、Channel 为必填",
         "create": "创建"
       }

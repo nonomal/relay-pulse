@@ -699,8 +699,8 @@
         "probeConfig": "Probe Configuration",
         "attributes": "Attributes",
         "childChannels": "Child Channels (Multi-Model)",
-        "childHint": "Add child channels to monitor multiple models on the same PSC. Children inherit parent config; only model is required.",
-        "childModelRequired": "Model name is required for child #{{index}}",
+        "childHint": "Add child channels to monitor multiple models on the same PSC. Children inherit parent config.",
+        "modelPlaceholder": "Leave empty to use template default",
         "requiredFields": "Provider, Service, and Channel are required",
         "create": "Create"
       }

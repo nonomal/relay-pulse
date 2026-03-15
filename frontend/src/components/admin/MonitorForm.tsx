@@ -84,14 +84,6 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
       return;
     }
 
-    // 验证子通道 model 必填
-    for (let i = 0; i < children.length; i++) {
-      if (!children[i].model.trim()) {
-        setError(t('admin.monitors.form.childModelRequired', { index: i + 1 }));
-        return;
-      }
-    }
-
     setIsSaving(true);
     try {
       const parentPath = `${config.provider}/${config.service}/${config.channel}`;
@@ -102,7 +94,7 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
           service: '',
           channel: '',
           parent: parentPath,
-          model: child.model.trim(),
+          model: child.model.trim() || undefined,
           template: child.template || undefined,
           base_url: child.base_url || undefined,
           api_key: child.api_key || undefined,
@@ -257,9 +249,10 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
         {children.map((child, i) => (
           <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-3 items-end">
             <FormField
-              label={`${t('admin.monitors.field.model')} *`}
+              label={t('admin.monitors.field.model')}
               value={child.model}
               onChange={v => updateChild(i, 'model', v)}
+              placeholder={t('admin.monitors.form.modelPlaceholder')}
             />
             <FormField
               label={t('admin.monitors.field.template')}
@@ -323,11 +316,13 @@ function FormField({
   value,
   onChange,
   type = 'text',
+  placeholder,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
+  placeholder?: string;
 }) {
   return (
     <div>
@@ -336,7 +331,8 @@ function FormField({
         type={type}
         value={value}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
+        placeholder={placeholder}
+        className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent"
       />
     </div>
   );
