@@ -419,9 +419,18 @@
         "pulse": "Pulse"
       },
       "channelType": "Channel Type",
+      "channelTypes": {
+        "O": "Official",
+        "ODesc": "Official supported channel",
+        "R": "Reverse",
+        "RDesc": "Non-natively supported, adapted through technical means",
+        "M": "Mixed",
+        "MDesc": "Combination of both or with third-party fallback"
+      },
       "channelSource": "Channel Source",
       "customSource": "Custom...",
       "customSourcePlaceholder": "Enter custom source",
+      "channelSourceCustomPlaceholder": "Enter source name (uppercase/digits)",
       "channelCodePreview": "Channel Code Preview",
       "optional": "(optional)"
     },

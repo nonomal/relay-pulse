@@ -69,9 +69,9 @@ func (h *Handler) GetOnboardingMeta(c *gin.Context) {
 			{Value: "pulse", Label: "Pulse", Description: "脉冲链路"},
 		},
 		ChannelTypes: []ChannelTypeInfo{
-			{Value: "O", Label: "官方直连"},
-			{Value: "R", Label: "逆向"},
-			{Value: "M", Label: "混合"},
+			{Value: "O", Label: "官方通道"},
+			{Value: "R", Label: "逆向通道"},
+			{Value: "M", Label: "混合通道"},
 		},
 		ChannelSources: []string{"API", "Web", "AWS", "GCP", "App"},
 		TestTypes:      testTypes,

@@ -422,9 +422,18 @@
         "pulse": "脉冲链路"
       },
       "channelType": "通道类型",
+      "channelTypes": {
+        "O": "官方通道",
+        "ODesc": "官方正规渠道",
+        "R": "逆向通道",
+        "RDesc": "非原生支持渠道，通过技术手段适配",
+        "M": "混合通道",
+        "MDesc": "以上两种或接入第三方兜底的渠道"
+      },
       "channelSource": "通道来源",
       "customSource": "自定义...",
       "customSourcePlaceholder": "输入自定义来源",
+      "channelSourceCustomPlaceholder": "输入来源名称（大写字母/数字）",
       "channelCodePreview": "通道标识预览",
       "optional": "（可选）"
     },

@@ -175,63 +175,72 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
         </select>
       </div>
 
-      {/* Channel type - radio group */}
+      {/* Channel type - card radio group */}
       <fieldset>
         <legend className="block text-sm font-medium text-primary mb-2">
           {t('onboarding.providerInfo.channelType')}
           <span className="text-danger ml-0.5">*</span>
         </legend>
-        <div className="flex gap-4">
+        <div className="space-y-2">
           {meta.channel_types.map((ct) => (
-            <label key={ct.value} className="flex items-center gap-2 cursor-pointer">
+            <label
+              key={ct.value}
+              className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-muted hover:border-accent/40 transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5"
+            >
               <input
                 type="radio"
                 name="channelType"
                 value={ct.value}
                 checked={formData.channelType === ct.value}
-                onChange={() => updateField('channelType', ct.value)}
-                className="w-4 h-4 accent-accent"
+                onChange={() => {
+                  updateField('channelType', ct.value);
+                  if (ct.value === 'O') {
+                    updateField('channelSource', meta.channel_sources[0] || 'API');
+                  } else {
+                    updateField('channelSource', '');
+                  }
+                }}
+                className="mt-0.5 w-4 h-4 accent-accent"
               />
-              <span className="text-sm text-primary">{ct.label}</span>
+              <div>
+                <span className="text-sm font-medium text-primary">
+                  {t(`onboarding.providerInfo.channelTypes.${ct.value}`, { defaultValue: ct.label })}
+                </span>
+                <p className="text-xs text-secondary mt-0.5">
+                  {t(`onboarding.providerInfo.channelTypes.${ct.value}Desc`, { defaultValue: '' })}
+                </p>
+              </div>
             </label>
           ))}
         </div>
       </fieldset>
 
-      {/* Channel source - select */}
+      {/* Channel source - conditional rendering based on channel type */}
       <div>
         <label htmlFor="ob-channel-source" className="block text-sm font-medium text-primary mb-2">
           {t('onboarding.providerInfo.channelSource')}
           <span className="text-danger ml-0.5">*</span>
         </label>
-        <select
-          id="ob-channel-source"
-          value={meta.channel_sources.includes(formData.channelSource) ? formData.channelSource : '__custom__'}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val !== '__custom__') {
-              updateField('channelSource', val);
-            } else {
-              updateField('channelSource', '');
-            }
-          }}
-          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-        >
-          {meta.channel_sources.map((src) => (
-            <option key={src} value={src}>{src}</option>
-          ))}
-          <option value="__custom__">{t('onboarding.providerInfo.customSource')}</option>
-        </select>
-
-        {/* Custom source input */}
-        {!meta.channel_sources.includes(formData.channelSource) && (
+        {formData.channelType === 'O' ? (
+          <select
+            id="ob-channel-source"
+            value={formData.channelSource}
+            onChange={(e) => updateField('channelSource', e.target.value)}
+            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+          >
+            {meta.channel_sources.map((src) => (
+              <option key={src} value={src}>{src}</option>
+            ))}
+          </select>
+        ) : (
           <input
+            id="ob-channel-source"
             type="text"
             value={formData.channelSource}
             onChange={(e) => updateField('channelSource', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-            placeholder={t('onboarding.providerInfo.customSourcePlaceholder')}
+            placeholder={t('onboarding.providerInfo.channelSourceCustomPlaceholder')}
             maxLength={10}
-            className="mt-2 w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
           />
         )}
       </div>

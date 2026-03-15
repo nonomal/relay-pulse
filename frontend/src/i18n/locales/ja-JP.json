@@ -414,7 +414,16 @@
         "pulse": "パルス"
       },
       "channelType": "チャネルタイプ",
+      "channelTypes": {
+        "O": "公式",
+        "ODesc": "公式サポートチャネル",
+        "R": "リバース",
+        "RDesc": "非ネイティブサポート、技術的手段で対応",
+        "M": "混合",
+        "MDesc": "両方の組み合わせまたはサードパーティのフォールバック"
+      },
       "channelSource": "チャネルソース", "customSource": "カスタム...", "customSourcePlaceholder": "カスタムソースを入力",
+      "channelSourceCustomPlaceholder": "ソース名を入力（大文字/数字）",
       "channelCodePreview": "チャネルコードプレビュー",
       "optional": "（任意）"
     },
