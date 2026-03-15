@@ -1,7 +1,7 @@
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ProcessedMonitorData } from '../types';
-import { availabilityToStyle } from '../utils/color';
+import { heatmapBlockToStyle } from '../utils/color';
 
 // 直接使用 ProcessedMonitorData 中的 history 类型，确保字段完整性
 type HeatmapPoint = ProcessedMonitorData['history'][number];
@@ -14,6 +14,8 @@ interface HeatmapBlockProps {
   onLeave: () => void;
   /** 是否为移动端，由父组件统一检测后传递，避免每个块独立监听 */
   isMobile?: boolean;
+  /** 是否启用延迟渐变着色（仅 90m 时段启用） */
+  useLatencyGradient?: boolean;
 }
 
 export const HeatmapBlock = memo(function HeatmapBlock({
@@ -23,13 +25,14 @@ export const HeatmapBlock = memo(function HeatmapBlock({
   onHover,
   onLeave,
   isMobile = false,
+  useLatencyGradient = false,
 }: HeatmapBlockProps) {
   const { t } = useTranslation();
 
   // 缓存样式计算，避免每次渲染都重新计算
-  const availabilityStyle = useMemo(
-    () => availabilityToStyle(point.availability),
-    [point.availability]
+  const blockStyle = useMemo(
+    () => heatmapBlockToStyle(point, useLatencyGradient),
+    [point, useLatencyGradient]
   );
 
   // 处理点击事件（移动端使用点击而非触摸，避免滑动时误触发）
@@ -44,7 +47,7 @@ export const HeatmapBlock = memo(function HeatmapBlock({
       role="button"
       tabIndex={0}
       className={`${height} rounded-sm transition-all duration-200 hover:scale-110 active:scale-105 hover:z-10 cursor-pointer opacity-80 hover:opacity-100 active:opacity-100`}
-      style={{ width, ...availabilityStyle }}
+      style={{ width, ...blockStyle }}
       // 鼠标事件（仅桌面端，移动端禁用避免闪烁）
       onMouseEnter={isMobile ? undefined : (e) => onHover(e, point)}
       onMouseLeave={isMobile ? undefined : onLeave}

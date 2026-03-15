@@ -9,12 +9,15 @@
  */
 
 import type { CSSProperties } from 'react';
+import type { ProcessedMonitorData } from '../types';
 
 interface RGB {
   r: number;
   g: number;
   b: number;
 }
+
+type HeatmapPoint = ProcessedMonitorData['history'][number];
 
 // 默认颜色（用于 SSR 或变量未加载时的 fallback）
 const DEFAULT_COLORS = {
@@ -137,14 +140,44 @@ if (typeof window !== 'undefined') {
   observer.observe(document.documentElement, { attributes: true });
 }
 
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+function rgbToCss(c: RGB): string {
+  return `rgb(${c.r}, ${c.g}, ${c.b})`;
+}
+
 /**
- * 线性插值两个颜色
+ * 降低颜色亮度
+ * @param amount 0~1，值越大越暗
+ */
+export function darkenColor(color: RGB, amount: number): RGB {
+  const factor = 1 - clamp01(amount);
+  return {
+    r: Math.round(color.r * factor),
+    g: Math.round(color.g * factor),
+    b: Math.round(color.b * factor),
+  };
+}
+
+/**
+ * 线性插值两个 RGB 颜色，返回 RGB 对象
+ */
+export function lerpColorRgb(c1: RGB, c2: RGB, t: number): RGB {
+  const ct = clamp01(t);
+  return {
+    r: Math.round(c1.r + (c2.r - c1.r) * ct),
+    g: Math.round(c1.g + (c2.g - c1.g) * ct),
+    b: Math.round(c1.b + (c2.b - c1.b) * ct),
+  };
+}
+
+/**
+ * 线性插值两个颜色（返回 CSS 字符串）
  */
 function lerpColor(color1: RGB, color2: RGB, t: number): string {
-  const r = Math.round(color1.r + (color2.r - color1.r) * t);
-  const g = Math.round(color1.g + (color2.g - color1.g) * t);
-  const b = Math.round(color1.b + (color2.b - color1.b) * t);
-  return `rgb(${r}, ${g}, ${b})`;
+  return rgbToCss(lerpColorRgb(color1, color2, t));
 }
 
 /**
@@ -222,6 +255,94 @@ export function latencyToColor(latency: number, slowLatencyMs: number): string {
 
   // >= 200% 阈值 → 红色
   return `rgb(${colors.red.r}, ${colors.red.g}, ${colors.red.b})`;
+}
+
+/**
+ * 90m 绿色块延迟渐变：深绿 → 黄绿
+ *
+ * - ratio < 0.3       → 深绿（亮度降 25%）
+ * - 0.3 ≤ ratio < 1.0 → 深绿 → 黄绿渐变
+ * - ratio ≥ 1.0       → 钳位到黄绿
+ */
+export function greenLatencyToColor(latency: number, slowLatencyMs: number): string {
+  const colors = getThemeColors();
+
+  if (latency <= 0 || slowLatencyMs <= 0) {
+    return rgbToCss(colors.green);
+  }
+
+  const ratio = latency / slowLatencyMs;
+  const deepGreen = darkenColor(colors.green, 0.25);
+  const yellowGreen = lerpColorRgb(colors.green, colors.yellow, 0.35);
+
+  if (ratio < 0.3) {
+    return rgbToCss(deepGreen);
+  }
+
+  if (ratio < 1) {
+    return rgbToCss(lerpColorRgb(deepGreen, yellowGreen, (ratio - 0.3) / 0.7));
+  }
+
+  return rgbToCss(yellowGreen);
+}
+
+/**
+ * 90m 黄色块延迟渐变：黄绿偏黄 → 纯黄 → 橙黄
+ *
+ * - ratio ≤ 1.0       → 黄绿偏黄（yellow mix green 20%）
+ * - 1.0 < ratio < 2.0 → 黄绿偏黄 → 纯黄
+ * - 2.0 ≤ ratio < 3.0 → 纯黄 → 橙黄
+ * - ratio ≥ 3.0       → 钳位到橙黄（yellow mix red 30%）
+ */
+export function degradedLatencyToColor(latency: number, slowLatencyMs: number): string {
+  const colors = getThemeColors();
+
+  if (latency <= 0 || slowLatencyMs <= 0) {
+    return rgbToCss(colors.yellow);
+  }
+
+  const ratio = latency / slowLatencyMs;
+  const yellowGreen = lerpColorRgb(colors.yellow, colors.green, 0.2);
+  const orangeYellow = lerpColorRgb(colors.yellow, colors.red, 0.3);
+
+  if (ratio <= 1) {
+    return rgbToCss(yellowGreen);
+  }
+
+  if (ratio < 2) {
+    return rgbToCss(lerpColorRgb(yellowGreen, colors.yellow, ratio - 1));
+  }
+
+  if (ratio < 3) {
+    return rgbToCss(lerpColorRgb(colors.yellow, orangeYellow, ratio - 2));
+  }
+
+  return rgbToCss(orangeYellow);
+}
+
+/**
+ * 热力图块统一着色入口
+ *
+ * - useLatencyGradient=false → 直接按可用率着色
+ * - useLatencyGradient=true  → 绿色/黄色块按延迟渐变，其余按可用率
+ */
+export function heatmapBlockToStyle(point: HeatmapPoint, useLatencyGradient = false): CSSProperties {
+  if (!useLatencyGradient) {
+    return availabilityToStyle(point.availability);
+  }
+
+  const slowMs = point.slowLatencyMs ?? 0;
+  const hasValidLatency = point.latency > 0 && slowMs > 0;
+
+  if (point.availability === 100 && hasValidLatency) {
+    return { backgroundColor: greenLatencyToColor(point.latency, slowMs) };
+  }
+
+  if (point.availability === 70 && hasValidLatency) {
+    return { backgroundColor: degradedLatencyToColor(point.latency, slowMs) };
+  }
+
+  return availabilityToStyle(point.availability);
 }
 
 /**

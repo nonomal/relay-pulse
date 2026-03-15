@@ -2,7 +2,7 @@ import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorLayer, ProcessedMonitorData } from '../types';
 import { STATUS_MAP } from '../types';
-import { availabilityToStyle } from '../utils/color';
+import { heatmapBlockToStyle } from '../utils/color';
 
 type HeatmapPoint = ProcessedMonitorData['history'][number];
 type LayerTimelinePoint = NonNullable<MonitorLayer['timeline']>[number];
@@ -79,6 +79,8 @@ interface LayeredHeatmapBlockProps {
   isMobile?: boolean;
   /** 慢延迟阈值（毫秒） */
   slowLatencyMs: number;
+  /** 是否启用延迟渐变着色（仅 90m 时段启用） */
+  useLatencyGradient?: boolean;
 }
 
 // 默认状态计数（用于缺失数据点）
@@ -116,6 +118,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
   onLeave,
   isMobile = false,
   slowLatencyMs,
+  useLatencyGradient = false,
 }: LayeredHeatmapBlockProps) {
   const { t } = useTranslation();
 
@@ -252,7 +255,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
     >
       {sortedLayers.map((layer, layerIdx) => {
         const point = convertToHeatmapPoint(layer, timeIndex);
-        const availabilityStyle = availabilityToStyle(point.availability);
+        const blockStyle = heatmapBlockToStyle(point, useLatencyGradient);
         const isFirst = layerIdx === 0;
         const isLast = layerIdx === sortedLayers.length - 1;
 
@@ -264,7 +267,7 @@ export const LayeredHeatmapBlock = memo(function LayeredHeatmapBlock({
             className={`transition-all duration-200 hover:brightness-110 active:brightness-105 cursor-pointer opacity-80 hover:opacity-100 active:opacity-100 relative hover:z-10 ${isFirst ? 'rounded-t-sm' : ''} ${isLast ? 'rounded-b-sm' : ''}`}
             style={{
               height: `${layerHeightPx}px`,
-              ...availabilityStyle,
+              ...blockStyle,
               // 层间间隙（非第一层加 marginTop，兼容 Safari ≤13）
               ...(layerIdx > 0 ? { marginTop: `${gapPx}px` } : {}),
             }}

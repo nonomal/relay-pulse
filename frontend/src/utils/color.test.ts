@@ -3,11 +3,17 @@ import {
   availabilityToColor,
   availabilityToStyle,
   latencyToColor,
+  greenLatencyToColor,
+  degradedLatencyToColor,
+  heatmapBlockToStyle,
+  darkenColor,
+  lerpColorRgb,
   sponsorLevelToBorderClass,
   sponsorLevelToCardBorderColor,
   sponsorLevelToPinnedBgClass,
   clearColorCache,
 } from './color';
+import type { StatusCounts } from '../types';
 
 // In 'node' environment, CSS variables are not available, so the functions
 // fall back to DEFAULT_COLORS. Tests verify gradient logic with those defaults.
@@ -182,5 +188,180 @@ describe('sponsorLevelToPinnedBgClass', () => {
 
   it('returns empty for unknown level', () => {
     expect(sponsorLevelToPinnedBgClass('unknown')).toBe('');
+  });
+});
+
+// ─── 90m 延迟渐变着色 ────────────────────────────────────────
+
+// 默认颜色（node 环境无 CSS 变量时的 fallback）
+const GREEN = { r: 34, g: 197, b: 94 };
+const YELLOW = { r: 234, g: 179, b: 8 };
+const RED = { r: 239, g: 68, b: 68 };
+
+// 构造 HeatmapPoint 的辅助函数
+const defaultCounts: StatusCounts = {
+  available: 0, degraded: 0, unavailable: 0, missing: 0,
+  slow_latency: 0, rate_limit: 0, server_error: 0, client_error: 0,
+  auth_error: 0, invalid_request: 0, network_error: 0, response_timeout: 0,
+  content_mismatch: 0,
+};
+
+function makePoint(overrides: {
+  availability: number;
+  latency?: number;
+  slowLatencyMs?: number;
+  status?: 'AVAILABLE' | 'DEGRADED' | 'UNAVAILABLE' | 'MISSING';
+}) {
+  return {
+    index: 0,
+    status: overrides.status ?? 'AVAILABLE' as const,
+    timestamp: '12:00',
+    timestampNum: 0,
+    latency: overrides.latency ?? 0,
+    availability: overrides.availability,
+    statusCounts: { ...defaultCounts },
+    slowLatencyMs: overrides.slowLatencyMs,
+  };
+}
+
+describe('darkenColor', () => {
+  it('darkens by 25%', () => {
+    const result = darkenColor({ r: 100, g: 200, b: 80 }, 0.25);
+    expect(result).toEqual({ r: 75, g: 150, b: 60 });
+  });
+
+  it('clamps amount to [0, 1]', () => {
+    const full = darkenColor({ r: 100, g: 100, b: 100 }, 1);
+    expect(full).toEqual({ r: 0, g: 0, b: 0 });
+    const none = darkenColor({ r: 100, g: 100, b: 100 }, 0);
+    expect(none).toEqual({ r: 100, g: 100, b: 100 });
+  });
+});
+
+describe('lerpColorRgb', () => {
+  it('returns c1 at t=0', () => {
+    expect(lerpColorRgb({ r: 0, g: 0, b: 0 }, { r: 100, g: 100, b: 100 }, 0))
+      .toEqual({ r: 0, g: 0, b: 0 });
+  });
+
+  it('returns c2 at t=1', () => {
+    expect(lerpColorRgb({ r: 0, g: 0, b: 0 }, { r: 100, g: 100, b: 100 }, 1))
+      .toEqual({ r: 100, g: 100, b: 100 });
+  });
+
+  it('clamps t > 1 to 1', () => {
+    expect(lerpColorRgb({ r: 0, g: 0, b: 0 }, { r: 100, g: 100, b: 100 }, 2))
+      .toEqual({ r: 100, g: 100, b: 100 });
+  });
+});
+
+describe('greenLatencyToColor', () => {
+  it('returns deep green for low latency (ratio < 0.3)', () => {
+    // 100ms / 1000ms = 0.1 → deep green (green darkened 25%)
+    const color = greenLatencyToColor(100, 1000);
+    const deepGreen = darkenColor(GREEN, 0.25);
+    expect(color).toBe(`rgb(${deepGreen.r}, ${deepGreen.g}, ${deepGreen.b})`);
+  });
+
+  it('returns interpolated color for medium latency (0.3 ≤ ratio < 1.0)', () => {
+    const color = greenLatencyToColor(650, 1000);
+    expect(color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+    // Should be between deep green and yellow-green
+    const deepGreen = darkenColor(GREEN, 0.25);
+    expect(color).not.toBe(`rgb(${deepGreen.r}, ${deepGreen.g}, ${deepGreen.b})`);
+  });
+
+  it('clamps at yellow-green for ratio ≥ 1.0', () => {
+    const atOne = greenLatencyToColor(1000, 1000);
+    const atTwo = greenLatencyToColor(2000, 1000);
+    // Both should return the same clamped yellow-green
+    expect(atOne).toBe(atTwo);
+  });
+
+  it('falls back to pure green for invalid inputs', () => {
+    expect(greenLatencyToColor(0, 1000)).toBe(`rgb(${GREEN.r}, ${GREEN.g}, ${GREEN.b})`);
+    expect(greenLatencyToColor(100, 0)).toBe(`rgb(${GREEN.r}, ${GREEN.g}, ${GREEN.b})`);
+    expect(greenLatencyToColor(-1, 1000)).toBe(`rgb(${GREEN.r}, ${GREEN.g}, ${GREEN.b})`);
+  });
+});
+
+describe('degradedLatencyToColor', () => {
+  it('returns yellow-green for ratio ≤ 1.0', () => {
+    const color = degradedLatencyToColor(1000, 1000);
+    const yellowGreen = lerpColorRgb(YELLOW, GREEN, 0.2);
+    expect(color).toBe(`rgb(${yellowGreen.r}, ${yellowGreen.g}, ${yellowGreen.b})`);
+  });
+
+  it('returns pure yellow at ratio = 2.0', () => {
+    const color = degradedLatencyToColor(2000, 1000);
+    expect(color).toBe(`rgb(${YELLOW.r}, ${YELLOW.g}, ${YELLOW.b})`);
+  });
+
+  it('clamps at orange-yellow for ratio ≥ 3.0', () => {
+    const atThree = degradedLatencyToColor(3000, 1000);
+    const atFive = degradedLatencyToColor(5000, 1000);
+    expect(atThree).toBe(atFive);
+    // Should be yellow mixed with red 30%
+    const orangeYellow = lerpColorRgb(YELLOW, RED, 0.3);
+    expect(atThree).toBe(`rgb(${orangeYellow.r}, ${orangeYellow.g}, ${orangeYellow.b})`);
+  });
+
+  it('interpolates between yellow-green and yellow for 1.0 < ratio < 2.0', () => {
+    const color = degradedLatencyToColor(1500, 1000);
+    expect(color).toMatch(/^rgb\(\d+, \d+, \d+\)$/);
+    // Should differ from both endpoints
+    const yellowGreen = lerpColorRgb(YELLOW, GREEN, 0.2);
+    expect(color).not.toBe(`rgb(${yellowGreen.r}, ${yellowGreen.g}, ${yellowGreen.b})`);
+    expect(color).not.toBe(`rgb(${YELLOW.r}, ${YELLOW.g}, ${YELLOW.b})`);
+  });
+
+  it('falls back to pure yellow for invalid inputs', () => {
+    expect(degradedLatencyToColor(0, 1000)).toBe(`rgb(${YELLOW.r}, ${YELLOW.g}, ${YELLOW.b})`);
+    expect(degradedLatencyToColor(100, 0)).toBe(`rgb(${YELLOW.r}, ${YELLOW.g}, ${YELLOW.b})`);
+  });
+});
+
+describe('heatmapBlockToStyle', () => {
+  it('uses availability coloring when useLatencyGradient is false', () => {
+    const point = makePoint({ availability: 100, latency: 500, slowLatencyMs: 1000 });
+    const style = heatmapBlockToStyle(point, false);
+    // Should match availabilityToStyle(100)
+    expect(style).toEqual(availabilityToStyle(100));
+  });
+
+  it('uses green latency gradient for green blocks (availability=100)', () => {
+    const point = makePoint({ availability: 100, latency: 500, slowLatencyMs: 1000 });
+    const style = heatmapBlockToStyle(point, true);
+    expect(style.backgroundColor).toBe(greenLatencyToColor(500, 1000));
+  });
+
+  it('uses degraded latency gradient for yellow blocks (availability=70)', () => {
+    const point = makePoint({ availability: 70, latency: 1200, slowLatencyMs: 1000, status: 'DEGRADED' });
+    const style = heatmapBlockToStyle(point, true);
+    expect(style.backgroundColor).toBe(degradedLatencyToColor(1200, 1000));
+  });
+
+  it('falls back to availability for red blocks even with gradient enabled', () => {
+    const point = makePoint({ availability: 0, latency: 0, slowLatencyMs: 1000, status: 'UNAVAILABLE' });
+    const style = heatmapBlockToStyle(point, true);
+    expect(style).toEqual(availabilityToStyle(0));
+  });
+
+  it('falls back to availability for gray blocks (no data)', () => {
+    const point = makePoint({ availability: -1, status: 'MISSING' });
+    const style = heatmapBlockToStyle(point, true);
+    expect(style).toEqual(availabilityToStyle(-1));
+  });
+
+  it('falls back to availability when slowLatencyMs is missing', () => {
+    const point = makePoint({ availability: 100, latency: 500 });
+    const style = heatmapBlockToStyle(point, true);
+    expect(style).toEqual(availabilityToStyle(100));
+  });
+
+  it('falls back to availability when latency is zero', () => {
+    const point = makePoint({ availability: 100, latency: 0, slowLatencyMs: 1000 });
+    const style = heatmapBlockToStyle(point, true);
+    expect(style).toEqual(availabilityToStyle(100));
   });
 });

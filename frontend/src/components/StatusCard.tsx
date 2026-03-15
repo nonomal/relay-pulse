@@ -60,6 +60,7 @@ function StatusCardComponent({
   );
 
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
+  const useLatencyGradient = timeRange === '90m';
   const ServiceIcon = getCachedServiceIcon(item.serviceType);
 
   // 检查是否有注解需要显示
@@ -204,6 +205,7 @@ function StatusCardComponent({
                 onLeave={onBlockLeave}
                 isMobile={false}
                 slowLatencyMs={item.slowLatencyMs ?? slowLatencyMs}
+                useLatencyGradient={useLatencyGradient}
               />
             ))
           ) : (
@@ -217,6 +219,7 @@ function StatusCardComponent({
                 onHover={onBlockHover}
                 onLeave={onBlockLeave}
                 isMobile={false}
+                useLatencyGradient={useLatencyGradient}
               />
             ))
           )}

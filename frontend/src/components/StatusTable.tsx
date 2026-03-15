@@ -138,13 +138,14 @@ interface MobileRowProps {
   enableAnnotations: boolean;
   showProvider: boolean;
   showSponsor: boolean;
+  useLatencyGradient: boolean;
   isFavorite: (id: string) => boolean;
   onToggleFavorite: (id: string) => void;
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
   onBlockLeave: () => void;
 }
 
-function MobileRow({ index, style, data, slowLatencyMs, enableAnnotations, showProvider, showSponsor, isFavorite, onToggleFavorite, onBlockHover, onBlockLeave }: RowComponentProps<MobileRowProps>) {
+function MobileRow({ index, style, data, slowLatencyMs, enableAnnotations, showProvider, showSponsor, useLatencyGradient, isFavorite, onToggleFavorite, onBlockHover, onBlockLeave }: RowComponentProps<MobileRowProps>) {
   const item = data[index];
   return (
     <div style={style}>
@@ -155,6 +156,7 @@ function MobileRow({ index, style, data, slowLatencyMs, enableAnnotations, showP
           enableAnnotations={enableAnnotations}
           showProvider={showProvider}
           showSponsor={showSponsor}
+          useLatencyGradient={useLatencyGradient}
           isFavorite={isFavorite(item.id)}
           onToggleFavorite={() => onToggleFavorite(item.id)}
           onBlockHover={onBlockHover}
@@ -172,6 +174,7 @@ function MobileListItem({
   enableAnnotations = true,
   showProvider = true,
   showSponsor = true,
+  useLatencyGradient = false,
   isFavorite,
   onToggleFavorite,
   onBlockHover,
@@ -182,6 +185,7 @@ function MobileListItem({
   enableAnnotations?: boolean;
   showProvider?: boolean;
   showSponsor?: boolean;
+  useLatencyGradient?: boolean;
   isFavorite: boolean;
   onToggleFavorite: () => void;
   onBlockHover: (e: React.MouseEvent<HTMLDivElement>, point: HistoryPoint) => void;
@@ -346,6 +350,7 @@ function MobileListItem({
             onHover={onBlockHover}
             onLeave={onBlockLeave}
             isMobile
+            useLatencyGradient={useLatencyGradient}
           />
         ))}
       </div>
@@ -444,6 +449,7 @@ function StatusTableComponent({
   };
 
   const currentTimeRange = getTimeRanges(t).find((r) => r.id === timeRange);
+  const useLatencyGradient = timeRange === '90m';
 
   // 移动端：虚拟滚动卡片列表视图
   if (isMobile) {
@@ -462,7 +468,7 @@ function StatusTableComponent({
           rowHeight={MOBILE_ROW_HEIGHT}
           overscanCount={3}
           rowComponent={MobileRow}
-          rowProps={{ data, slowLatencyMs, enableAnnotations, showProvider, showSponsor, isFavorite, onToggleFavorite, onBlockHover, onBlockLeave }}
+          rowProps={{ data, slowLatencyMs, enableAnnotations, showProvider, showSponsor, useLatencyGradient, isFavorite, onToggleFavorite, onBlockHover, onBlockLeave }}
         />
       </div>
     );
@@ -782,6 +788,7 @@ function StatusTableComponent({
                         onLeave={onBlockLeave}
                         isMobile={false}
                         slowLatencyMs={item.slowLatencyMs ?? slowLatencyMs}
+                        useLatencyGradient={useLatencyGradient}
                       />
                     ))
                   ) : (
@@ -795,6 +802,7 @@ function StatusTableComponent({
                         onHover={onBlockHover}
                         onLeave={onBlockLeave}
                         isMobile={false}
+                        useLatencyGradient={useLatencyGradient}
                       />
                     ))
                   )}
