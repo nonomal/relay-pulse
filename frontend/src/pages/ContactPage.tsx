@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { ClipboardList, RefreshCw, MessageCircle, Users, MessageSquare, Activity } from 'lucide-react';
-import { LANGUAGE_PATH_MAP } from '../i18n';
+import { LANGUAGE_PATH_MAP, type SupportedLanguage } from '../i18n';
 
 function ContactCard({
   icon: Icon,
@@ -39,7 +39,7 @@ function ContactCard({
 export default function ContactPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
-  const langPrefix = LANGUAGE_PATH_MAP[i18n.language];
+  const langPrefix = LANGUAGE_PATH_MAP[i18n.language as SupportedLanguage];
   const homePath = langPrefix ? `/${langPrefix}` : '/';
 
   const buildPath = (path: string) =>

@@ -10,7 +10,7 @@ export function useChangeAdmin(token: string) {
   const [selectedChange, setSelectedChange] = useState<AdminChangeRequest | null>(null);
 
   const headers = useMemo(
-    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    (): Record<string, string> => (token ? { Authorization: `Bearer ${token}` } : {}),
     [token],
   );
 

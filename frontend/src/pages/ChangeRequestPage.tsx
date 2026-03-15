@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import { ArrowLeft, ArrowRight, Check, Loader2, Key, AlertCircle, Copy, Activity } from 'lucide-react';
-import { LANGUAGE_PATH_MAP } from '../i18n';
+import { LANGUAGE_PATH_MAP, type SupportedLanguage } from '../i18n';
 import { useChangeRequest, type ChangeStep } from '../hooks/useChangeRequest';
 import type { AuthCandidate } from '../types/change';
 
@@ -369,7 +369,7 @@ function ReviewStep({
             <div className="flex-1">
               <div className="text-xs text-muted">{field}</div>
               <div className="text-sm text-secondary line-through">
-                {(selectedCandidate as Record<string, string>)[field] || '—'}
+                {(selectedCandidate as unknown as Record<string, string>)[field] || '—'}
               </div>
               <div className="text-sm text-primary font-medium">{value}</div>
             </div>
@@ -450,7 +450,7 @@ export default function ChangeRequestPage() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const cr = useChangeRequest();
-  const langPrefix = LANGUAGE_PATH_MAP[i18n.language];
+  const langPrefix = LANGUAGE_PATH_MAP[i18n.language as SupportedLanguage];
   const homePath = langPrefix ? `/${langPrefix}` : '/';
 
   return (
