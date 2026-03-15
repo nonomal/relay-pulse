@@ -254,23 +254,6 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
         </div>
       )}
 
-      {/* Contact info - optional */}
-      <div>
-        <label htmlFor="ob-contact" className="block text-sm font-medium text-primary mb-2">
-          {t('onboarding.providerInfo.contactInfo')}
-          <span className="text-muted text-xs ml-1">{t('onboarding.providerInfo.optional')}</span>
-        </label>
-        <input
-          id="ob-contact"
-          type="text"
-          value={formData.contactInfo}
-          onChange={(e) => updateField('contactInfo', e.target.value)}
-          placeholder={t('onboarding.providerInfo.contactInfoPlaceholder')}
-          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
-        />
-        <p className="mt-1 text-xs text-secondary">{t('onboarding.providerInfo.contactInfoHint')}</p>
-      </div>
-
       {/* Next button */}
       <div className="flex justify-end pt-2">
         <button

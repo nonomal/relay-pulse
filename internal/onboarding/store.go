@@ -51,7 +51,7 @@ type Submission struct {
 	TestHTTPCode int    `json:"test_http_code"`
 
 	// 联系方式（可选）
-	ContactInfo string `json:"contact_info"`
+	ContactInfo string `json:"-"`
 
 	// 提交者元数据
 	SubmitterIPHash string `json:"submitter_ip_hash"`

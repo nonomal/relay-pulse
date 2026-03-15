@@ -70,7 +70,6 @@ type SubmitRequest struct {
 	TestAPIURL    string `json:"test_api_url" binding:"required,max=500"` // selftest api_url（用于 proof 校验）
 	TestLatency   int    `json:"test_latency"`
 	TestHTTPCode  int    `json:"test_http_code"`
-	ContactInfo   string `json:"contact_info" binding:"max=200"`
 	Locale        string `json:"locale" binding:"max=10"`
 }
 
@@ -151,7 +150,6 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 		TestPassedAt:      now,
 		TestLatency:       req.TestLatency,
 		TestHTTPCode:      req.TestHTTPCode,
-		ContactInfo:       req.ContactInfo,
 		SubmitterIPHash:   ipHash,
 		Locale:            req.Locale,
 		CreatedAt:         now,

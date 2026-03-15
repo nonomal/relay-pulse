@@ -45,7 +45,6 @@ export interface OnboardingFormData {
   sponsorLevel: string;
   channelType: string;
   channelSource: string;
-  contactInfo: string;
   agreementAccepted: boolean;
 
   // Step 2: 连通性测试
@@ -86,7 +85,6 @@ export interface SubmitOnboardingRequest {
   test_api_url: string;
   test_latency: number;
   test_http_code: number;
-  contact_info: string;
   locale: string;
 }
 
@@ -129,7 +127,6 @@ export interface AdminSubmission {
   test_passed_at: number;
   test_latency_ms: number;
   test_http_code: number;
-  contact_info: string;
   submitter_ip_hash: string;
   locale: string;
   admin_note: string;

@@ -175,12 +175,6 @@ export function ConfirmStep({ formData, submitResult, isSubmitting, onSubmit, on
             </code>
           }
         />
-        {formData.contactInfo && (
-          <SummaryRow
-            label={t('onboarding.providerInfo.contactInfo')}
-            value={formData.contactInfo}
-          />
-        )}
       </div>
 
       {/* Connection info summary */}

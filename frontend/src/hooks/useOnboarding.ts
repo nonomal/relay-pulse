@@ -11,21 +11,25 @@ import type {
 const DRAFT_KEY = 'relay-pulse-onboarding-draft';
 const POLL_INTERVAL = 2000;
 
-/** 加载保存的草稿 */
+/** 加载保存的草稿，剔除已废弃的 contactInfo 残留 */
 function loadDraft(): Partial<OnboardingFormData> {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      delete parsed.apiKey;
+      delete parsed.contactInfo;
+      return parsed as Partial<OnboardingFormData>;
+    }
   } catch { /* ignore */ }
   return {};
 }
 
-/** 保存草稿 */
+/** 保存草稿（排除敏感字段） */
 function saveDraft(data: Partial<OnboardingFormData>) {
   try {
-    // 不保存 apiKey
-    const { apiKey: _, ...safe } = data as OnboardingFormData;
-    void _;
+    const safe = { ...data } as Record<string, unknown>;
+    delete safe.apiKey;
     localStorage.setItem(DRAFT_KEY, JSON.stringify(safe));
   } catch { /* ignore */ }
 }
@@ -43,7 +47,6 @@ const defaultForm: OnboardingFormData = {
   sponsorLevel: 'public',
   channelType: 'O',
   channelSource: 'API',
-  contactInfo: '',
   agreementAccepted: false,
   baseUrl: '',
   apiKey: '',
@@ -196,7 +199,6 @@ export function useOnboarding() {
         test_api_url: buildTestApiUrl(),
         test_latency: testResult.latency ?? 0,
         test_http_code: testResult.http_code ?? 0,
-        contact_info: formData.contactInfo,
         locale: navigator.language || 'zh-CN',
       };
 

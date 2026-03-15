@@ -167,7 +167,7 @@ export function ConnectionTestStep({
           required
           value={formData.baseUrl}
           onChange={(e) => updateField('baseUrl', e.target.value)}
-          placeholder="https://api.example.com/v1"
+          placeholder="https://api.example.com"
           disabled={isTesting}
           className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
         />

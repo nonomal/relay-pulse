@@ -418,11 +418,6 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
           multiline
         />
 
-        {/* Contact info */}
-        <ReadOnlyField
-          label={t('admin.detail.contactInfo')}
-          value={submission.contact_info}
-        />
       </div>
 
       {/* Action buttons */}

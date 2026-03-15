@@ -241,8 +241,8 @@ func (h *Handler) AdminTestSubmission(c *gin.Context) {
 		return
 	}
 
-	// 使用申请的 template 和 base_url 创建 selftest job
-	job, err := mgr.CreateJob(sub.TemplateName, sub.BaseURL, apiKey, "")
+	// 使用申请的 service_type 和 base_url 创建 selftest job
+	job, err := mgr.CreateJob(sub.ServiceType, sub.BaseURL, apiKey, sub.TemplateName)
 	if err != nil {
 		logger.Error("admin", "创建测试任务失败", "public_id", publicID, "error", err)
 		writeSelfTestError(c, err, "创建测试任务失败")
