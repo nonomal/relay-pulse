@@ -153,10 +153,10 @@ export function ChangeRequestList({
                     {cr.requires_test && (
                       <div className="space-y-1 text-xs text-muted">
                         {cr.test_type && (
-                          <div>{t('admin.changes.testType', { defaultValue: '测试类型' })}: {cr.test_type}</div>
+                          <div>{t('admin.changes.testType', { defaultValue: '服务类型' })}: {cr.test_type}</div>
                         )}
                         {cr.test_variant && (
-                          <div>{t('admin.changes.testVariant', { defaultValue: '测试模板' })}: {cr.test_variant}</div>
+                          <div>{t('admin.changes.testVariant', { defaultValue: '请求模板' })}: {cr.test_variant}</div>
                         )}
                         {cr.test_passed_at && (
                           <div>

@@ -112,7 +112,7 @@ func ListTestTypes() []*TestType {
 	return types
 }
 
-// InitTemplates 扫描 templates/ 目录，按文件名约定（{service}-*-arith.json）
+// InitTemplates 扫描 templates/ 目录，按文件名约定（{service}-*.json）
 // 动态填充已注册 TestType 的 Variants 和 DefaultVariant。
 // 应在 SetTemplatesDir 之后、创建 TestJobManager 之前调用。
 func InitTemplates(dir string) error {
@@ -121,7 +121,7 @@ func InitTemplates(dir string) error {
 		return fmt.Errorf("读取模板目录失败 %s: %w", dir, err)
 	}
 
-	// 按 service 前缀分组收集变体（仅匹配 {service}-*-arith.json）
+	// 按 service 前缀分组收集变体（匹配 {service}-*.json）
 	grouped := make(map[string][]*PayloadVariant)
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".json") {
@@ -130,12 +130,7 @@ func InitTemplates(dir string) error {
 		filename := entry.Name()
 		variantID := strings.TrimSuffix(filename, ".json")
 
-		// 文件名约定：{service}-{model}-arith.json
-		if !strings.HasSuffix(variantID, "-arith") {
-			continue
-		}
-
-		// 取第一个 '-' 之前的部分作为 service 前缀
+		// 文件名约定：{service}-*.json；取第一个 '-' 之前的部分作为 service 前缀
 		idx := strings.IndexByte(variantID, '-')
 		if idx <= 0 {
 			continue

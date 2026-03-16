@@ -278,7 +278,7 @@ function TestStep({
       <div className="space-y-4">
         {/* Test type info */}
         <div className="p-3 rounded-xl bg-elevated border border-default">
-          <div className="text-xs text-muted mb-0.5">{t('changeRequest.test.testType', { defaultValue: '测试类型' })}</div>
+          <div className="text-xs text-muted mb-0.5">{t('changeRequest.test.testType', { defaultValue: '服务类型' })}</div>
           <div className="text-sm text-primary font-medium">
             {selectedCandidate.test_type_name || selectedCandidate.test_type || selectedCandidate.service}
           </div>
@@ -288,7 +288,7 @@ function TestStep({
         {showVariantSelect && (
           <div>
             <label className="block text-sm font-medium text-secondary mb-1.5">
-              {t('changeRequest.test.variant', { defaultValue: '测试模板' })}
+              {t('changeRequest.test.variant', { defaultValue: '请求模板' })}
             </label>
             <select
               value={selectedVariant}
