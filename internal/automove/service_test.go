@@ -961,6 +961,125 @@ func TestEvaluate_AutoColdExempt_SkipsColdDecision(t *testing.T) {
 	}
 }
 
+func TestEvaluate_AutoMoveExempt_NoOverrideProduced(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "manual", Service: "cc", Channel: "vip"}
+	store.history[key] = makeRecords(0, 20) // 可用率 0%，理论上会触发冷板
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "manual", Service: "cc", Channel: "vip", Board: "hot", AutoMoveExempt: true},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	// 预先注入一个旧的 secondary override，验证 exempt 会将其清除
+	svc.SetOverrides(map[storage.MonitorKey]MonitorOverride{
+		key: {Board: "secondary"},
+	})
+
+	svc.Evaluate(context.Background())
+
+	if _, ok := svc.GetBoardOverride(key); ok {
+		t.Fatal("auto_move_exempt 通道不应产生任何 availability-based override")
+	}
+}
+
+func TestEvaluate_AutoMoveExempt_ExpiryStillApplies(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "expired", Service: "cc", Channel: "vip"}
+	// 可用率 100%（因此可用率逻辑不会触发），但通道已到期
+	store.history[key] = makeRecords(1, 20)
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{
+				Provider:       "expired",
+				Service:        "cc",
+				Channel:        "vip",
+				Board:          "hot",
+				AutoMoveExempt: true,
+				ExpiresAt:      "2020-01-01", // 明确过期
+			},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.Evaluate(context.Background())
+
+	ov, ok := svc.GetBoardOverride(key)
+	if !ok {
+		t.Fatal("已过期通道应产生 secondary override，即使 auto_move_exempt=true")
+	}
+	if ov.Board != "secondary" {
+		t.Fatalf("已过期通道期望 board=secondary，实际得到 %s", ov.Board)
+	}
+}
+
+func TestUpdateConfig_AutoMoveExemptPurgesExistingOverride(t *testing.T) {
+	store := newMockStorage()
+	key := storage.MonitorKey{Provider: "manual", Service: "cc", Channel: "vip"}
+
+	cfg := &config.AppConfig{
+		Boards: config.BoardsConfig{
+			Enabled: true,
+			AutoMove: config.BoardAutoMoveConfig{
+				Enabled:               true,
+				ThresholdCold:         10.0,
+				ThresholdDown:         50.0,
+				ThresholdUp:           55.0,
+				CheckInterval:         "30m",
+				CheckIntervalDuration: 30 * time.Minute,
+				MinProbes:             10,
+			},
+		},
+		DegradedWeight:    0.7,
+		BatchQueryMaxKeys: 300,
+		Monitors: []config.ServiceConfig{
+			{Provider: "manual", Service: "cc", Channel: "vip", Board: "hot", AutoMoveExempt: true},
+		},
+	}
+
+	svc := NewService(store, cfg)
+	svc.SetOverrides(map[storage.MonitorKey]MonitorOverride{
+		key: {Board: "secondary"},
+	})
+
+	svc.UpdateConfig(cfg)
+
+	if _, ok := svc.GetBoardOverride(key); ok {
+		t.Fatal("热更新后 auto_move_exempt 通道的旧 override 应被 purgeStaleOverrides 清除")
+	}
+}
+
 func TestUpdateConfig_AutoColdExemptPurgesColdOverride(t *testing.T) {
 	store := newMockStorage()
 	key := storage.MonitorKey{Provider: "recover", Service: "cc", Channel: "vip"}

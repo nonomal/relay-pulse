@@ -648,9 +648,13 @@
       "colStatus": "Статус",
       "colSource": "Источник",
       "edit": "Изменить",
+      "keyTypeDefault": "По умолчанию (official)",
+      "keyTypeOfficial": "official (ключ платформы)",
+      "keyTypeUser": "user (пользовательский ключ)",
       "field": {
         "provider": "Провайдер",
         "providerName": "Название провайдера",
+        "providerUrl": "Сайт провайдера",
         "service": "Сервис",
         "channel": "Канал",
         "channelName": "Название канала",
@@ -658,12 +662,18 @@
         "baseUrl": "Базовый URL",
         "category": "Категория",
         "sponsorLevel": "Уровень спонсорства",
+        "keyType": "Тип ключа",
         "board": "Доска",
         "interval": "Интервал",
         "model": "Модель",
         "apiKey": "API-ключ",
         "proxy": "Прокси",
-        "listedSince": "Дата добавления"
+        "listedSince": "Дата добавления",
+        "expiresAt": "Дата истечения",
+        "autoColdExempt": "Исключить из авто-cold",
+        "autoColdExemptHint": "Очищает и блокирует автоматический перевод канала на холодную доску",
+        "autoMoveExempt": "Исключить из авто-перемещения",
+        "autoMoveExemptHint": "Отключает все перемещения на основе доступности (истечение срока не затрагивается)"
       },
       "form": {
         "title": "Новый монитор",

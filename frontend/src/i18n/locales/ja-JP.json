@@ -648,9 +648,13 @@
       "colStatus": "ステータス",
       "colSource": "ソース",
       "edit": "編集",
+      "keyTypeDefault": "デフォルト（official）",
+      "keyTypeOfficial": "official（プラットフォームキー）",
+      "keyTypeUser": "user（ユーザーキー）",
       "field": {
         "provider": "プロバイダー",
         "providerName": "プロバイダー名",
+        "providerUrl": "公式サイト",
         "service": "サービス",
         "channel": "チャネル",
         "channelName": "チャネル名",
@@ -658,12 +662,18 @@
         "baseUrl": "ベースURL",
         "category": "カテゴリ",
         "sponsorLevel": "スポンサーレベル",
+        "keyType": "キータイプ",
         "board": "ボード",
         "interval": "間隔",
         "model": "モデル",
         "apiKey": "APIキー",
         "proxy": "プロキシ",
-        "listedSince": "掲載開始日"
+        "listedSince": "掲載開始日",
+        "expiresAt": "有効期限",
+        "autoColdExempt": "自動コールドボード除外",
+        "autoColdExemptHint": "このチャネルの自動コールドボード移動をクリアし、以後ブロックします",
+        "autoMoveExempt": "自動移動除外",
+        "autoMoveExemptHint": "可用率に基づく自動移動を全てスキップします（有効期限による降格は対象外）"
       },
       "form": {
         "title": "新規モニター作成",

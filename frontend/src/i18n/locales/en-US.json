@@ -677,9 +677,13 @@
       "colStatus": "Status",
       "colSource": "Source",
       "edit": "Edit",
+      "keyTypeDefault": "Default (official)",
+      "keyTypeOfficial": "official (platform key)",
+      "keyTypeUser": "user (user key)",
       "field": {
         "provider": "Provider",
         "providerName": "Provider Name",
+        "providerUrl": "Provider Website",
         "service": "Service",
         "channel": "Channel",
         "channelName": "Channel Name",
@@ -687,12 +691,18 @@
         "baseUrl": "Base URL",
         "category": "Category",
         "sponsorLevel": "Sponsor Level",
+        "keyType": "Key Type",
         "board": "Board",
         "interval": "Interval",
         "model": "Model",
         "apiKey": "API Key",
         "proxy": "Proxy",
-        "listedSince": "Listed Since"
+        "listedSince": "Listed Since",
+        "expiresAt": "Expires At",
+        "autoColdExempt": "Exempt from Auto-Cold",
+        "autoColdExemptHint": "Clears and prevents the system from auto-moving this channel to the cold board",
+        "autoMoveExempt": "Exempt from Auto-Move",
+        "autoMoveExemptHint": "Skips all availability-based auto-moves (expiry demotion is unaffected)"
       },
       "form": {
         "title": "New Monitor",

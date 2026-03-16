@@ -149,6 +149,7 @@ func (s *Service) purgeStaleOverrides(cfg *config.AppConfig) {
 	// 构建仍可参与自动移板的 key 集合及其 exempt 状态
 	type eligibleInfo struct {
 		autoColdExempt bool
+		autoMoveExempt bool
 	}
 	eligible := make(map[storage.MonitorKey]eligibleInfo)
 	for _, m := range cfg.Monitors {
@@ -171,7 +172,10 @@ func (s *Service) purgeStaleOverrides(cfg *config.AppConfig) {
 			Channel:  m.Channel,
 			Model:    m.Model,
 		}
-		eligible[key] = eligibleInfo{autoColdExempt: m.AutoColdExempt}
+		eligible[key] = eligibleInfo{
+			autoColdExempt: m.AutoColdExempt,
+			autoMoveExempt: m.AutoMoveExempt,
+		}
 	}
 
 	// 构建新 map，仅保留仍符合条件的 override（不原地修改，保证并发安全）
@@ -180,6 +184,10 @@ func (s *Service) purgeStaleOverrides(cfg *config.AppConfig) {
 		info, ok := eligible[key]
 		if !ok {
 			continue // 不再参与自动移板（disabled/hidden/parent/manual-cold/已移除）
+		}
+		// auto_move_exempt 清除任意 availability-based override（人工完全接管移板决策）
+		if info.autoMoveExempt {
+			continue
 		}
 		// auto_cold_exempt 清除 cold override（人工恢复信号）
 		if info.autoColdExempt && isColdBoard(ov.Board) {
@@ -596,6 +604,7 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 		}
 
 		// 到期检查：到期日当天仍有效，次日起自动降级并移入备板
+		// 注意：到期降级不受 auto_move_exempt 影响，必须先于 auto_move_exempt 检查执行。
 		if expiresAt := strings.TrimSpace(m.ExpiresAt); expiresAt != "" {
 			if expiresDate, err := time.Parse("2006-01-02", expiresAt); err == nil && today.After(expiresDate) {
 				ov := MonitorOverride{Board: "secondary"}
@@ -610,6 +619,12 @@ func (s *Service) evaluate(ctx context.Context, snap *evalSnapshot) (map[storage
 					"expires_at", expiresAt)
 				continue // 跳过可用率评估
 			}
+		}
+
+		// auto_move_exempt：跳过所有基于可用率的移板逻辑，也不保留已有 availability-based override。
+		// 到期降级已在上方处理，不受此标志影响。
+		if m.AutoMoveExempt {
+			continue
 		}
 
 		candidates = append(candidates, candidate{

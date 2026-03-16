@@ -386,8 +386,9 @@ func TestUpdate_PreservesRootHiddenFields(t *testing.T) {
 	if root.EnvVarName != "ACME_VIP_KEY" {
 		t.Errorf("EnvVarName = %q, want preserved", root.EnvVarName)
 	}
-	if root.KeyType != "user" {
-		t.Errorf("KeyType = %q, want preserved", root.KeyType)
+	// KeyType is now JSON-visible and round-trips explicitly; not in update payload → empty
+	if root.KeyType != "" {
+		t.Errorf("KeyType = %q, want empty (JSON-visible, not preserved from disk)", root.KeyType)
 	}
 	if root.RequestModel != "claude-3-5-sonnet" {
 		t.Errorf("RequestModel = %q, want preserved", root.RequestModel)
@@ -398,8 +399,9 @@ func TestUpdate_PreservesRootHiddenFields(t *testing.T) {
 	if root.URLPattern != "{{BASE_URL}}/v1/chat/completions" {
 		t.Errorf("URLPattern = %q, want preserved", root.URLPattern)
 	}
-	if !root.AutoColdExempt {
-		t.Error("AutoColdExempt = false, want true")
+	// AutoColdExempt is now JSON-visible and round-trips explicitly; not in update payload → false
+	if root.AutoColdExempt {
+		t.Error("AutoColdExempt = true, want false (JSON-visible, not preserved from disk)")
 	}
 	// JSON-visible fields should reflect the update, not the old value
 	if root.Template != "cc-opus-tiny" {
@@ -464,8 +466,9 @@ func TestUpdate_PreservesChildHiddenFields(t *testing.T) {
 	if !child.SkipURLValidation {
 		t.Error("child.SkipURLValidation = false, want true")
 	}
-	if !child.AutoColdExempt {
-		t.Error("child.AutoColdExempt = false, want true")
+	// AutoColdExempt is now JSON-visible; not in update payload → false
+	if child.AutoColdExempt {
+		t.Error("child.AutoColdExempt = true, want false (JSON-visible, not preserved from disk)")
 	}
 }
 

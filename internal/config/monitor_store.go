@@ -244,13 +244,12 @@ func childMatchKey(m ServiceConfig) string {
 }
 
 // copyAdminHiddenFields 将 src 的 json:"-" 持久化字段复制到 dst。
+// 注意：KeyType 和 AutoColdExempt 已改为 JSON 可见字段，通过 API round-trip 传递，无需在此回填。
 func copyAdminHiddenFields(dst, src *ServiceConfig) {
 	dst.EnvVarName = src.EnvVarName
-	dst.KeyType = src.KeyType
 	dst.RequestModel = src.RequestModel
 	dst.SkipURLValidation = src.SkipURLValidation
 	dst.URLPattern = src.URLPattern
-	dst.AutoColdExempt = src.AutoColdExempt
 }
 
 // Update 更新监测文件。使用 revision 乐观锁防止并发覆盖。

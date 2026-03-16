@@ -21,6 +21,7 @@ const EMPTY_CONFIG: MonitorConfig = {
   channel: '',
   channel_name: '',
   provider_name: '',
+  provider_url: '',
   template: '',
   base_url: '',
   api_key: '',
@@ -29,6 +30,10 @@ const EMPTY_CONFIG: MonitorConfig = {
   board: 'hot',
   interval: '',
   listed_since: '',
+  expires_at: '',
+  key_type: '',
+  auto_cold_exempt: false,
+  auto_move_exempt: false,
 };
 
 const EMPTY_CHILD: ChildDraft = { model: '', template: '', base_url: '', api_key: '' };
@@ -61,7 +66,7 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
     { value: 'core', label: t('admin.monitors.sponsorLevels.core') },
   ];
 
-  const updateField = <K extends keyof MonitorConfig>(key: K, value: MonitorConfig[K]) => {
+  const updateField = <K extends keyof MonitorConfig>(key: K, value: MonitorConfig[K] | boolean) => {
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
@@ -236,6 +241,42 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
             value={config.listed_since || ''}
             onChange={v => updateField('listed_since', v)}
           />
+          <FormField
+            label={t('admin.monitors.field.expiresAt')}
+            value={config.expires_at || ''}
+            onChange={v => updateField('expires_at', v)}
+            type="date"
+          />
+          <FormField
+            label={t('admin.monitors.field.providerUrl')}
+            value={config.provider_url || ''}
+            onChange={v => updateField('provider_url', v)}
+            type="url"
+          />
+          <SelectField
+            label={t('admin.monitors.field.keyType')}
+            value={config.key_type || ''}
+            onChange={v => updateField('key_type', v)}
+            options={[
+              { value: '', label: t('admin.monitors.keyTypeDefault') },
+              { value: 'official', label: t('admin.monitors.keyTypeOfficial') },
+              { value: 'user', label: t('admin.monitors.keyTypeUser') },
+            ]}
+          />
+        </div>
+        <div className="space-y-2 pt-1">
+          <CheckboxField
+            label={t('admin.monitors.field.autoColdExempt')}
+            hint={t('admin.monitors.field.autoColdExemptHint')}
+            checked={config.auto_cold_exempt ?? false}
+            onChange={v => updateField('auto_cold_exempt', v)}
+          />
+          <CheckboxField
+            label={t('admin.monitors.field.autoMoveExempt')}
+            hint={t('admin.monitors.field.autoMoveExemptHint')}
+            checked={config.auto_move_exempt ?? false}
+            onChange={v => updateField('auto_move_exempt', v)}
+          />
         </div>
       </fieldset>
 
@@ -361,6 +402,33 @@ function SelectField({
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function CheckboxField({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={e => onChange(e.target.checked)}
+          className="accent-accent"
+        />
+        <span className="text-sm text-primary">{label}</span>
+      </label>
+      {hint && <span className="text-xs text-muted ml-5">{hint}</span>}
     </div>
   );
 }

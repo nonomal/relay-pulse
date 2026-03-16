@@ -48,6 +48,9 @@ export interface MonitorConfig {
   sponsor?: string;
   sponsor_url?: string;
   sponsor_level?: string;
+  key_type?: string;
+  auto_cold_exempt?: boolean;
+  auto_move_exempt?: boolean;
   board?: string;
   cold_reason?: string;
   retry?: number | null;

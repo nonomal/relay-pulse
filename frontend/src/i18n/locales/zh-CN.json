@@ -680,9 +680,13 @@
       "colStatus": "状态",
       "colSource": "来源",
       "edit": "编辑",
+      "keyTypeDefault": "默认（official）",
+      "keyTypeOfficial": "official（官方 Key）",
+      "keyTypeUser": "user（用户 Key）",
       "field": {
         "provider": "服务商",
         "providerName": "服务商名称",
+        "providerUrl": "服务商官网",
         "service": "服务",
         "channel": "通道",
         "channelName": "通道名称",
@@ -690,12 +694,18 @@
         "baseUrl": "基础地址",
         "category": "类别",
         "sponsorLevel": "赞助等级",
+        "keyType": "Key 类型",
         "board": "板块",
         "interval": "间隔",
         "model": "模型",
         "apiKey": "API Key",
         "proxy": "代理",
-        "listedSince": "收录时间"
+        "listedSince": "收录时间",
+        "expiresAt": "到期日期",
+        "autoColdExempt": "豁免自动冷板",
+        "autoColdExemptHint": "启用后清除并阻止系统自动将此通道移入冷板",
+        "autoMoveExempt": "豁免自动移板",
+        "autoMoveExemptHint": "启用后跳过所有基于可用率的自动移板（不影响到期降级）"
       },
       "form": {
         "title": "新建监测通道",

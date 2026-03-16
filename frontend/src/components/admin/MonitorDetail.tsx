@@ -18,8 +18,9 @@ interface MonitorDetailProps {
 }
 
 type EditableFields = Pick<MonitorConfig,
-  'provider_name' | 'channel_name' | 'template' | 'base_url' | 'api_key' | 'proxy' |
-  'category' | 'sponsor_level' | 'board' | 'interval' | 'listed_since'
+  'provider_name' | 'channel_name' | 'provider_url' | 'template' | 'base_url' | 'api_key' | 'proxy' |
+  'category' | 'sponsor_level' | 'board' | 'interval' | 'listed_since' | 'expires_at' |
+  'key_type' | 'auto_cold_exempt' | 'auto_move_exempt'
 >;
 
 interface ChildEdit {
@@ -54,6 +55,7 @@ export function MonitorDetail({
   const [editFields, setEditFields] = useState<EditableFields>({
     provider_name: root?.provider_name || '',
     channel_name: root?.channel_name || '',
+    provider_url: root?.provider_url || '',
     template: root?.template || '',
     base_url: root?.base_url || '',
     api_key: root?.api_key || '',
@@ -63,6 +65,10 @@ export function MonitorDetail({
     board: root?.board || 'hot',
     interval: root?.interval || '',
     listed_since: root?.listed_since || '',
+    expires_at: root?.expires_at || '',
+    key_type: root?.key_type || '',
+    auto_cold_exempt: root?.auto_cold_exempt ?? false,
+    auto_move_exempt: root?.auto_move_exempt ?? false,
   });
 
   const [editChildren, setEditChildren] = useState<ChildEdit[]>([]);
@@ -117,6 +123,7 @@ export function MonitorDetail({
     setEditFields({
       provider_name: root?.provider_name || '',
       channel_name: root?.channel_name || '',
+      provider_url: root?.provider_url || '',
       template: root?.template || '',
       base_url: root?.base_url || '',
       api_key: root?.api_key || '',
@@ -126,6 +133,10 @@ export function MonitorDetail({
       board: root?.board || 'hot',
       interval: root?.interval || '',
       listed_since: root?.listed_since || '',
+      expires_at: root?.expires_at || '',
+      key_type: root?.key_type || '',
+      auto_cold_exempt: root?.auto_cold_exempt ?? false,
+      auto_move_exempt: root?.auto_move_exempt ?? false,
     });
     setEditChildren(toChildEdits(children));
     setSaveError(null);
@@ -193,7 +204,7 @@ export function MonitorDetail({
     }
   };
 
-  const updateField = <K extends keyof EditableFields>(key: K, value: string) => {
+  const updateField = <K extends keyof EditableFields>(key: K, value: EditableFields[K]) => {
     setEditFields(prev => ({ ...prev, [key]: value }));
   };
 
@@ -328,6 +339,45 @@ export function MonitorDetail({
             value={isEditing ? editFields.listed_since : root?.listed_since}
             editing={isEditing}
             onChange={v => updateField('listed_since', v)}
+          />
+          <EditableField
+            label={t('admin.monitors.field.expiresAt')}
+            value={isEditing ? editFields.expires_at : root?.expires_at}
+            editing={isEditing}
+            onChange={v => updateField('expires_at', v)}
+            type="date"
+          />
+          <EditableField
+            label={t('admin.monitors.field.providerUrl')}
+            value={isEditing ? editFields.provider_url : root?.provider_url}
+            editing={isEditing}
+            onChange={v => updateField('provider_url', v)}
+            type="url"
+          />
+          <EditableSelectField
+            label={t('admin.monitors.field.keyType')}
+            value={isEditing ? (editFields.key_type || '') : (root?.key_type || '')}
+            editing={isEditing}
+            onChange={v => updateField('key_type', v)}
+            options={[
+              { value: '', label: t('admin.monitors.keyTypeDefault') },
+              { value: 'official', label: t('admin.monitors.keyTypeOfficial') },
+              { value: 'user', label: t('admin.monitors.keyTypeUser') },
+            ]}
+          />
+          <EditableBoolField
+            label={t('admin.monitors.field.autoColdExempt')}
+            hint={t('admin.monitors.field.autoColdExemptHint')}
+            value={isEditing ? (editFields.auto_cold_exempt ?? false) : (root?.auto_cold_exempt ?? false)}
+            editing={isEditing}
+            onChange={v => updateField('auto_cold_exempt', v)}
+          />
+          <EditableBoolField
+            label={t('admin.monitors.field.autoMoveExempt')}
+            hint={t('admin.monitors.field.autoMoveExemptHint')}
+            value={isEditing ? (editFields.auto_move_exempt ?? false) : (root?.auto_move_exempt ?? false)}
+            editing={isEditing}
+            onChange={v => updateField('auto_move_exempt', v)}
           />
         </div>
 
@@ -571,6 +621,39 @@ function EditableField({
         onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
       />
+    </div>
+  );
+}
+
+function EditableBoolField({
+  label, hint, value, editing, onChange,
+}: {
+  label: string;
+  hint?: string;
+  value: boolean;
+  editing: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  if (!editing) {
+    return (
+      <div>
+        <span className="text-muted">{label}: </span>
+        <span className="text-primary">{value ? '✓' : '-'}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={value}
+          onChange={e => onChange(e.target.checked)}
+          className="accent-accent"
+        />
+        <span className="text-xs text-primary">{label}</span>
+      </label>
+      {hint && <span className="text-xs text-muted ml-5">{hint}</span>}
     </div>
   );
 }

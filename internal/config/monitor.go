@@ -16,7 +16,7 @@ type ServiceConfig struct {
 	Sponsor      string       `yaml:"sponsor" json:"sponsor"`                     // 赞助者：提供 API Key 的个人或组织
 	SponsorURL   string       `yaml:"sponsor_url" json:"sponsor_url"`             // 赞助者链接（可选）
 	SponsorLevel SponsorLevel `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助等级：public/signal/pulse/beacon/backbone/core（可选，按通道赞助）
-	KeyType      string       `yaml:"key_type" json:"-"`                          // API Key 类型：official/user（空值按 official 处理）
+	KeyType      string       `yaml:"key_type" json:"key_type,omitempty"`         // API Key 类型：official/user（空值按 official 处理）
 	PriceMin     *float64     `yaml:"price_min" json:"price_min"`                 // 参考倍率下限（可选，如 0.05）
 	PriceMax     *float64     `yaml:"price_max" json:"price_max"`                 // 参考倍率（可选，如 0.2）
 	Annotations  []Annotation `yaml:"-" json:"annotations,omitempty"`             // 统一注解（系统派生 + annotation_rules）
@@ -77,7 +77,12 @@ type ServiceConfig struct {
 
 	// AutoColdExempt 手动解除自动冷板。
 	// 设为 true 时会清除 runtime cold override，并在保持为 true 期间不再自动移入冷板。
-	AutoColdExempt bool `yaml:"auto_cold_exempt" json:"-"`
+	AutoColdExempt bool `yaml:"auto_cold_exempt" json:"auto_cold_exempt,omitempty"`
+
+	// AutoMoveExempt 豁免所有基于可用率的自动移板（hot↔secondary↔cold）。
+	// 不影响 expires_at 到期降级逻辑。
+	// 设为 true 后，已有的 availability-based override 也会被立即清除。
+	AutoMoveExempt bool `yaml:"auto_move_exempt" json:"auto_move_exempt,omitempty"`
 
 	// 通道级慢请求阈值（可选，覆盖模板和全局 slow_latency）
 	// 支持 Go duration 格式，例如 "5s"、"15s"
