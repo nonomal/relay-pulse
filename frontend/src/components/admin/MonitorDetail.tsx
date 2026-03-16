@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type InputHTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorConfig, MonitorFile } from '../../types/monitor';
 import type { ProbeResult } from '../../hooks/useMonitorAdmin';
@@ -75,6 +75,11 @@ export function MonitorDetail({
 
   const [editChildren, setEditChildren] = useState<ChildEdit[]>([]);
 
+  // 价格字段使用独立 raw string 状态，避免 parseFloat("0.") 丢失小数点的问题
+  const [priceMinRaw, setPriceMinRaw] = useState('');
+  const [priceMaxRaw, setPriceMaxRaw] = useState('');
+  const [priceError, setPriceError] = useState('');
+
   useEffect(() => {
     let active = true;
     fetchTemplates()
@@ -143,6 +148,9 @@ export function MonitorDetail({
       auto_move_exempt: root?.auto_move_exempt ?? false,
     });
     setEditChildren(toChildEdits(children));
+    setPriceMinRaw(root?.price_min != null ? String(root.price_min) : '');
+    setPriceMaxRaw(root?.price_max != null ? String(root.price_max) : '');
+    setPriceError('');
     setSaveError(null);
     setIsEditing(true);
   };
@@ -164,12 +172,32 @@ export function MonitorDetail({
     setEditChildren(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
   };
 
+  const parsePriceRaw = (raw: string): number | null => {
+    if (raw.trim() === '' || raw.trim() === '.') return null;
+    const n = parseFloat(raw);
+    return isNaN(n) || n < 0 ? null : n;
+  };
+
   const handleSave = async () => {
+    // 价格校验
+    const minOk = priceMinRaw === '' || /^\d+\.?\d*$/.test(priceMinRaw.trim());
+    const maxOk = priceMaxRaw === '' || /^\d+\.?\d*$/.test(priceMaxRaw.trim());
+    if (!minOk || !maxOk) {
+      setPriceError('价格须为非负数（如 0.5、1、3.14）');
+      return;
+    }
+    setPriceError('');
+
     setIsSaving(true);
     setSaveError(null);
     try {
       const parentPath = `${root.provider}/${root.service}/${root.channel}`;
-      const updatedRoot = { ...root, ...editFields };
+      const updatedRoot = {
+        ...root,
+        ...editFields,
+        price_min: parsePriceRaw(priceMinRaw),
+        price_max: parsePriceRaw(priceMaxRaw),
+      };
       const updatedChildren: MonitorConfig[] = editChildren.map(c => ({
         ...c._original,
         provider: c._original?.provider || '',
@@ -353,17 +381,29 @@ export function MonitorDetail({
           />
           <EditableField
             label={t('admin.monitors.field.priceMin')}
-            value={isEditing ? (editFields.price_min ?? '') : (root?.price_min ?? '')}
+            value={isEditing ? priceMinRaw : (root?.price_min != null ? String(root.price_min) : '')}
             editing={isEditing}
-            onChange={v => updateField('price_min', v === '' ? null : parseFloat(v) || 0)}
-            type="number"
+            onChange={v => {
+              if (v !== '' && !/^\d*\.?\d*$/.test(v)) return;
+              setPriceMinRaw(v);
+              if (priceError) setPriceError('');
+            }}
+            inputMode="decimal"
+            placeholder="如: 0.5"
+            error={priceError && priceMinRaw !== '' && !/^\d+\.?\d*$/.test(priceMinRaw.trim()) ? priceError : undefined}
           />
           <EditableField
             label={t('admin.monitors.field.priceMax')}
-            value={isEditing ? (editFields.price_max ?? '') : (root?.price_max ?? '')}
+            value={isEditing ? priceMaxRaw : (root?.price_max != null ? String(root.price_max) : '')}
             editing={isEditing}
-            onChange={v => updateField('price_max', v === '' ? null : parseFloat(v) || 0)}
-            type="number"
+            onChange={v => {
+              if (v !== '' && !/^\d*\.?\d*$/.test(v)) return;
+              setPriceMaxRaw(v);
+              if (priceError) setPriceError('');
+            }}
+            inputMode="decimal"
+            placeholder="如: 3.0"
+            error={priceError && priceMaxRaw !== '' && !/^\d+\.?\d*$/.test(priceMaxRaw.trim()) ? priceError : undefined}
           />
           <EditableField
             label={t('admin.monitors.field.providerUrl')}
@@ -619,13 +659,16 @@ function EditableSelectField({
 }
 
 function EditableField({
-  label, value, editing, onChange, type = 'text',
+  label, value, editing, onChange, type = 'text', inputMode, placeholder, error,
 }: {
   label: string;
   value?: string | number | null;
   editing: boolean;
   onChange: (v: string) => void;
   type?: string;
+  inputMode?: InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  placeholder?: string;
+  error?: string;
 }) {
   if (!editing) {
     return <Field label={label} value={value} />;
@@ -635,10 +678,15 @@ function EditableField({
       <label className="block text-xs text-muted mb-0.5">{label}</label>
       <input
         type={type}
+        inputMode={inputMode}
         value={value != null ? String(value) : ''}
         onChange={e => onChange(e.target.value)}
-        className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
+        placeholder={placeholder}
+        className={`w-full px-2 py-1 rounded bg-elevated border text-primary text-sm focus:outline-none transition-colors ${
+          error ? 'border-danger focus:border-danger' : 'border-default focus:border-accent'
+        }`}
       />
+      {error && <p className="mt-0.5 text-xs text-danger">{error}</p>}
     </div>
   );
 }

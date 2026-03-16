@@ -1,4 +1,5 @@
 /** 管理后台共享表单控件 */
+import type React from 'react';
 
 const inputClasses = `w-full px-3 py-2 bg-elevated border border-default rounded-md
   text-primary placeholder:text-muted text-sm
@@ -13,6 +14,8 @@ export function FormField({
   type = 'text',
   placeholder,
   multiline = false,
+  inputMode,
+  error,
 }: {
   label: string;
   value: string;
@@ -20,6 +23,8 @@ export function FormField({
   type?: string;
   placeholder?: string;
   multiline?: boolean;
+  inputMode?: React.InputHTMLAttributes<HTMLInputElement>['inputMode'];
+  error?: string;
 }) {
   return (
     <div>
@@ -35,12 +40,14 @@ export function FormField({
       ) : (
         <input
           type={type}
+          inputMode={inputMode}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={inputClasses}
+          className={`${inputClasses} ${error ? 'border-danger focus:border-danger focus:ring-danger' : ''}`}
         />
       )}
+      {error && <p className="mt-1 text-xs text-danger">{error}</p>}
     </div>
   );
 }

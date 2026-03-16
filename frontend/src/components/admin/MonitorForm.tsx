@@ -247,16 +247,22 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
           <FormField
             label={t('admin.monitors.field.priceMin')}
             value={config.price_min != null ? String(config.price_min) : ''}
-            onChange={v => updateField('price_min', v === '' ? null : parseFloat(v) || 0)}
-            type="number"
-            placeholder="0"
+            onChange={v => {
+              if (v !== '' && !/^\d*\.?\d*$/.test(v)) return;
+              updateField('price_min', v === '' ? null : parseFloat(v));
+            }}
+            inputMode="decimal"
+            placeholder="如: 0.5"
           />
           <FormField
             label={t('admin.monitors.field.priceMax')}
             value={config.price_max != null ? String(config.price_max) : ''}
-            onChange={v => updateField('price_max', v === '' ? null : parseFloat(v) || 0)}
-            type="number"
-            placeholder="0"
+            onChange={v => {
+              if (v !== '' && !/^\d*\.?\d*$/.test(v)) return;
+              updateField('price_max', v === '' ? null : parseFloat(v));
+            }}
+            inputMode="decimal"
+            placeholder="如: 3.0"
           />
           <FormField
             label={t('admin.monitors.field.expiresAt')}
