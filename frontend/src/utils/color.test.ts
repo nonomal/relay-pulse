@@ -153,11 +153,11 @@ describe('sponsorLevelToCardBorderColor', () => {
   });
 
   it('returns HSL for pulse', () => {
-    expect(sponsorLevelToCardBorderColor('pulse')).toBe('hsl(152 76% 39% / 0.4)');
+    expect(sponsorLevelToCardBorderColor('pulse')).toBe('hsl(32 94% 56% / 0.4)');
   });
 
   it('returns HSL for beacon', () => {
-    expect(sponsorLevelToCardBorderColor('beacon')).toBe('hsl(32 94% 56% / 0.4)');
+    expect(sponsorLevelToCardBorderColor('beacon')).toBe('hsl(152 76% 39% / 0.4)');
   });
 
   it('returns HSL for core', () => {
