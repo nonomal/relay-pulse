@@ -164,6 +164,35 @@ func (h *Handler) AdminGetChange(c *gin.Context) {
 	})
 }
 
+// AdminUpdateChange 管理员更新变更请求内容（proposed_changes 字段 + admin_note）
+// PUT /api/admin/changes/:id
+func (h *Handler) AdminUpdateChange(c *gin.Context) {
+	if !h.checkAdminToken(c) {
+		return
+	}
+
+	svc := h.getChangeService()
+	if svc == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "变更请求功能未启用")
+		return
+	}
+
+	publicID := c.Param("id")
+	var updates map[string]any
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "请求参数无效")
+		return
+	}
+
+	cr, err := svc.AdminUpdate(c.Request.Context(), publicID, updates)
+	if err != nil {
+		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"change": cr})
+}
+
 // AdminApproveChange 管理员批准变更请求
 // POST /api/admin/changes/:id/approve
 func (h *Handler) AdminApproveChange(c *gin.Context) {

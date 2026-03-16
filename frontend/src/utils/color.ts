@@ -368,12 +368,12 @@ export function sponsorLevelToBorderClass(level?: string): string {
  */
 export function sponsorLevelToCardBorderColor(level?: string): string | undefined {
   if (!level) return undefined;
-  // 固定颜色：public=slate, signal=sky, pulse=emerald, beacon=emerald, backbone=amber, core=gold
+  // 固定颜色：public=slate, signal=sky, pulse=emerald, beacon=amber-orange, backbone=amber, core=gold
   const BORDER_COLORS: Record<string, string> = {
     public: 'hsl(215 16% 55% / 0.35)',
     signal: 'hsl(199 89% 48% / 0.4)',
     pulse: 'hsl(152 76% 39% / 0.4)',
-    beacon: 'hsl(152 76% 39% / 0.4)',
+    beacon: 'hsl(32 94% 56% / 0.4)',
     backbone: 'hsl(38 92% 50% / 0.4)',
     core: 'hsl(43 96% 56% / 0.4)',
   };

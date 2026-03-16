@@ -1,7 +1,67 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Loader2, AlertCircle, ChevronDown, ChevronUp, Check, X, Play, Trash2 } from 'lucide-react';
+import { Loader2, AlertCircle, ChevronDown, ChevronUp, Check, X, Play, Trash2, Save } from 'lucide-react';
 import type { AdminChangeRequest, ChangeRequestStatus } from '../../types/change';
+
+// ── 编辑相关常量与工具 ──────────────────────────────────
+
+const EDITABLE_PROPOSED_FIELDS = [
+  'provider_name',
+  'channel_name',
+  'sponsor_level',
+  'listed_since',
+  'price_min',
+  'price_max',
+] as const;
+
+const SPONSOR_LEVEL_OPTIONS = ['', 'public', 'signal', 'pulse', 'beacon', 'backbone', 'core'] as const;
+
+type EditableProposedField = (typeof EDITABLE_PROPOSED_FIELDS)[number];
+
+interface EditDraft {
+  proposed: Record<EditableProposedField, string>;
+  admin_note: string;
+}
+
+function parseJsonRecord(json: string | undefined): Record<string, string> {
+  if (!json) return {};
+  try {
+    const parsed = JSON.parse(json) as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(parsed).map(([k, v]) => [k, v == null ? '' : String(v)]),
+    );
+  } catch {
+    return {};
+  }
+}
+
+function buildInitialDraft(cr: AdminChangeRequest): EditDraft {
+  const proposed = parseJsonRecord(cr.proposed_changes);
+  return {
+    proposed: {
+      provider_name: proposed.provider_name ?? '',
+      channel_name:  proposed.channel_name  ?? '',
+      sponsor_level: proposed.sponsor_level ?? '',
+      listed_since:  proposed.listed_since  ?? '',
+      price_min:     proposed.price_min     ?? '',
+      price_max:     proposed.price_max     ?? '',
+    },
+    admin_note: cr.admin_note ?? '',
+  };
+}
+
+function getChangedUpdates(original: EditDraft, draft: EditDraft): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const field of EDITABLE_PROPOSED_FIELDS) {
+    if (draft.proposed[field] !== original.proposed[field]) {
+      result[field] = draft.proposed[field];
+    }
+  }
+  if (draft.admin_note !== original.admin_note) {
+    result.admin_note = draft.admin_note;
+  }
+  return result;
+}
 
 interface ChangeRequestListProps {
   changes: AdminChangeRequest[];
@@ -9,6 +69,7 @@ interface ChangeRequestListProps {
   statusFilter: ChangeRequestStatus | 'all';
   setStatusFilter: (f: ChangeRequestStatus | 'all') => void;
   onSelect: (id: string) => void;
+  onUpdate: (id: string, updates: Record<string, unknown>) => void;
   onApprove: (id: string) => void;
   onReject: (id: string, note: string) => void;
   onApply: (id: string) => void;
@@ -24,6 +85,7 @@ export function ChangeRequestList({
   isLoading,
   statusFilter,
   setStatusFilter,
+  onUpdate,
   onApprove,
   onReject,
   onApply,
@@ -35,6 +97,7 @@ export function ChangeRequestList({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [editDrafts, setEditDrafts] = useState<Record<string, EditDraft>>({});
 
   const statusLabel = (status: string) => {
     const map: Record<string, string> = {
@@ -101,14 +164,26 @@ export function ChangeRequestList({
         <div className="space-y-2">
           {changes.map(cr => {
             const isExpanded = expandedId === cr.public_id;
-            let proposedChanges: Record<string, string> = {};
-            try { proposedChanges = JSON.parse(cr.proposed_changes); } catch { /* ignore */ }
+            const proposedChanges = parseJsonRecord(cr.proposed_changes);
+            const currentSnapshot = parseJsonRecord(cr.current_snapshot);
+            const originalDraft = buildInitialDraft(cr);
+            const draft = editDrafts[cr.public_id] ?? originalDraft;
+            const changedUpdates = getChangedUpdates(originalDraft, draft);
+            const hasEdits = Object.keys(changedUpdates).length > 0;
+            const canEdit = cr.status !== 'applied';
 
             return (
               <div key={cr.public_id} className="rounded-xl border border-default bg-surface overflow-hidden">
                 {/* Row header */}
                 <button
-                  onClick={() => setExpandedId(isExpanded ? null : cr.public_id)}
+                  onClick={() => {
+                    if (!isExpanded) {
+                      setEditDrafts(prev =>
+                        prev[cr.public_id] ? prev : { ...prev, [cr.public_id]: buildInitialDraft(cr) }
+                      );
+                    }
+                    setExpandedId(isExpanded ? null : cr.public_id);
+                  }}
                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-elevated/50 transition"
                 >
                   <code className="text-xs text-muted font-mono">{cr.public_id.slice(0, 8)}</code>
@@ -141,6 +216,87 @@ export function ChangeRequestList({
                       </div>
                     </div>
 
+                    {/* Admin edit section */}
+                    <div className="mt-2 rounded-lg border border-default/60 bg-elevated/20 p-3 space-y-2">
+                      <div className="text-xs font-medium text-muted">
+                        {t('admin.changes.adminEdit', { defaultValue: '管理员修改' })}
+                        {cr.status === 'applied' && (
+                          <span className="ml-2 text-muted opacity-60">({t('admin.changes.readOnly', { defaultValue: '只读' })})</span>
+                        )}
+                      </div>
+
+                      {/* admin_note */}
+                      <div>
+                        <div className="text-xs text-muted mb-1">admin_note</div>
+                        <textarea
+                          value={draft.admin_note}
+                          readOnly={!canEdit}
+                          onChange={e => {
+                            const value = e.target.value;
+                            setEditDrafts(prev => ({
+                              ...prev,
+                              [cr.public_id]: { ...draft, admin_note: value },
+                            }));
+                          }}
+                          rows={2}
+                          className="w-full rounded-md border border-default bg-surface px-2.5 py-1.5 text-xs text-primary resize-none read-only:opacity-60 read-only:cursor-not-allowed focus:outline-none focus:border-accent/50"
+                        />
+                      </div>
+
+                      {/* Editable proposed fields */}
+                      <div className="space-y-1.5">
+                        {EDITABLE_PROPOSED_FIELDS.map(field => (
+                          <div key={field} className="grid grid-cols-[120px_1fr_1fr] gap-2 items-center">
+                            <span className="text-xs text-muted truncate">{field}</span>
+                            <span className="text-xs text-muted truncate">{currentSnapshot[field] || '—'}</span>
+                            {field === 'sponsor_level' ? (
+                              <select
+                                value={draft.proposed.sponsor_level}
+                                disabled={!canEdit}
+                                onChange={e => {
+                                  const value = e.target.value;
+                                  setEditDrafts(prev => ({
+                                    ...prev,
+                                    [cr.public_id]: { ...draft, proposed: { ...draft.proposed, sponsor_level: value } },
+                                  }));
+                                }}
+                                className="rounded-md border border-default bg-surface px-2 py-1 text-xs text-primary disabled:opacity-60 disabled:cursor-not-allowed focus:outline-none focus:border-accent/50"
+                              >
+                                {SPONSOR_LEVEL_OPTIONS.map(opt => (
+                                  <option key={opt || 'empty'} value={opt}>{opt || '(空)'}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                value={draft.proposed[field]}
+                                readOnly={!canEdit}
+                                onChange={e => {
+                                  const value = e.target.value;
+                                  setEditDrafts(prev => ({
+                                    ...prev,
+                                    [cr.public_id]: { ...draft, proposed: { ...draft.proposed, [field]: value } },
+                                  }));
+                                }}
+                                className="rounded-md border border-default bg-surface px-2.5 py-1 text-xs text-primary read-only:opacity-60 read-only:cursor-not-allowed focus:outline-none focus:border-accent/50"
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {hasEdits && canEdit && (
+                        <div className="flex justify-end pt-1">
+                          <button
+                            onClick={() => onUpdate(cr.public_id, changedUpdates)}
+                            className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition"
+                          >
+                            <Save size={11} />{t('common.save', { defaultValue: '保存' })}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     {/* New API Key indicator */}
                     {cr.new_key_last4 && (
                       <div className="text-sm">
@@ -164,11 +320,6 @@ export function ChangeRequestList({
                           </div>
                         )}
                       </div>
-                    )}
-
-                    {/* Admin note */}
-                    {cr.admin_note && (
-                      <div className="text-xs text-secondary italic">{cr.admin_note}</div>
                     )}
 
                     {/* Actions */}

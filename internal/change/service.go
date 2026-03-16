@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -295,6 +296,86 @@ func (s *Service) AdminGetDetail(ctx context.Context, publicID string) (*ChangeR
 	return cr, newKey, nil
 }
 
+// adminUpdateableFields 是管理员可编辑的 proposed_changes 白名单。
+var adminUpdateableFields = map[string]bool{
+	"provider_name": true,
+	"provider_url":  true,
+	"channel_name":  true,
+	"category":      true,
+	"sponsor_level": true,
+	"listed_since":  true,
+	"price_min":     true,
+	"price_max":     true,
+}
+
+// AdminUpdate 管理员更新变更请求内容（proposed_changes 字段 + admin_note）。
+func (s *Service) AdminUpdate(ctx context.Context, publicID string, updates map[string]any) (*ChangeRequest, error) {
+	cr, err := s.store.GetByPublicID(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+	if cr == nil {
+		return nil, fmt.Errorf("变更请求不存在")
+	}
+	if cr.Status == StatusApplied {
+		return nil, fmt.Errorf("已应用的请求不能更新")
+	}
+
+	// 解析现有 proposed_changes
+	var changes map[string]string
+	if err := json.Unmarshal([]byte(cr.ProposedChanges), &changes); err != nil {
+		return nil, fmt.Errorf("解析变更内容失败: %w", err)
+	}
+	if changes == nil {
+		changes = make(map[string]string)
+	}
+
+	// 按白名单逐字段更新
+	for field, value := range updates {
+		switch field {
+		case "admin_note":
+			if v, ok := value.(string); ok {
+				cr.AdminNote = v
+			}
+		case "price_min", "price_max":
+			if adminUpdateableFields[field] {
+				s := fmt.Sprintf("%v", value)
+				if s == "" || s == "<nil>" {
+					// 空值视为删除该字段
+					delete(changes, field)
+				} else if _, err := strconv.ParseFloat(s, 64); err != nil {
+					return nil, fmt.Errorf("字段 %q 的值不是有效数字: %v", field, value)
+				} else {
+					changes[field] = s
+				}
+			}
+		default:
+			if adminUpdateableFields[field] {
+				if v, ok := value.(string); ok {
+					changes[field] = v
+				}
+			}
+		}
+	}
+
+	changesJSON, err := json.Marshal(changes)
+	if err != nil {
+		return nil, fmt.Errorf("序列化变更内容失败: %w", err)
+	}
+	cr.ProposedChanges = string(changesJSON)
+	cr.UpdatedAt = time.Now().Unix()
+
+	if err := s.store.Update(ctx, cr); err != nil {
+		return nil, err
+	}
+
+	logger.Info("change", "管理员更新变更请求",
+		"public_id", publicID,
+		"fields", len(updates))
+
+	return cr, nil
+}
+
 // AdminApprove 批准变更请求
 func (s *Service) AdminApprove(ctx context.Context, publicID, note string) error {
 	cr, err := s.store.GetByPublicID(ctx, publicID)
@@ -390,6 +471,16 @@ func (s *Service) AdminApply(ctx context.Context, publicID string) error {
 			m.Category = value
 		case "sponsor_level":
 			m.SponsorLevel = config.SponsorLevel(value)
+		case "listed_since":
+			m.ListedSince = value
+		case "price_min":
+			if f, err := strconv.ParseFloat(value, 64); err == nil {
+				m.PriceMin = &f
+			}
+		case "price_max":
+			if f, err := strconv.ParseFloat(value, 64); err == nil {
+				m.PriceMax = &f
+			}
 		case "base_url":
 			m.BaseURL = value
 		}

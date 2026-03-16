@@ -189,6 +189,7 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 	// 管理后台 — 变更请求 API（需 Bearer token 鉴权）
 	router.GET("/api/admin/changes", handler.AdminListChanges)
 	router.GET("/api/admin/changes/:id", handler.AdminGetChange)
+	router.PUT("/api/admin/changes/:id", handler.AdminUpdateChange)
 	router.POST("/api/admin/changes/:id/approve", handler.AdminApproveChange)
 	router.POST("/api/admin/changes/:id/reject", handler.AdminRejectChange)
 	router.POST("/api/admin/changes/:id/apply", handler.AdminApplyChange)

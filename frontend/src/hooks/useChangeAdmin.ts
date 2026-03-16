@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { apiGet, apiPost, apiDelete, ApiError } from '../utils/apiClient';
+import { apiGet, apiPost, apiPut, apiDelete, ApiError } from '../utils/apiClient';
 import type { AdminChangeRequest, ChangeRequestStatus } from '../types/change';
 
 export function useChangeAdmin(token: string) {
@@ -49,6 +49,17 @@ export function useChangeAdmin(token: string) {
       setError(e instanceof ApiError ? e.message : 'Failed to load change request detail');
     }
   }, [token, headers]);
+
+  const updateChange = useCallback(async (id: string, updates: Record<string, unknown>) => {
+    if (!token) return;
+    setError(null);
+    try {
+      await apiPut(`/api/admin/changes/${id}`, updates, { headers });
+      await fetchList();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Failed to update change request');
+    }
+  }, [token, headers, fetchList]);
 
   const approveChange = useCallback(async (id: string, note?: string) => {
     if (!token) return;
@@ -109,6 +120,7 @@ export function useChangeAdmin(token: string) {
     setSelectedChange,
     fetchList,
     fetchDetail,
+    updateChange,
     approveChange,
     rejectChange,
     applyChange,

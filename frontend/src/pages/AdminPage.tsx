@@ -201,6 +201,7 @@ export default function AdminPage() {
                   statusFilter={changeAdmin.statusFilter}
                   setStatusFilter={changeAdmin.setStatusFilter}
                   onSelect={(id) => changeAdmin.fetchDetail(id)}
+                  onUpdate={(id, updates) => changeAdmin.updateChange(id, updates)}
                   onApprove={(id) => changeAdmin.approveChange(id)}
                   onReject={(id, note) => changeAdmin.rejectChange(id, note)}
                   onApply={(id) => changeAdmin.applyChange(id)}

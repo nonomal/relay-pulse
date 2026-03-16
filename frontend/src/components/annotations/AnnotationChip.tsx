@@ -44,7 +44,7 @@ function SponsorSignalIcon() {
 /** ◆ 脉冲链路 — 小菱形 */
 function SponsorPulseIcon() {
   return (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <svg className="w-[14px] h-[14px]" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <polygon points="12,4 19,12 12,20 5,12" className="fill-sponsor-pulse" />
     </svg>
   );
