@@ -581,7 +581,7 @@ function Field({ label, value }: { label: string; value?: string | number | null
   return (
     <div>
       <span className="text-muted">{label}: </span>
-      <span className="text-primary">{value || '-'}</span>
+      <span className="text-primary">{value != null && value !== '' ? value : '-'}</span>
     </div>
   );
 }
@@ -635,7 +635,7 @@ function EditableField({
       <label className="block text-xs text-muted mb-0.5">{label}</label>
       <input
         type={type}
-        value={String(value || '')}
+        value={value != null ? String(value) : ''}
         onChange={e => onChange(e.target.value)}
         className="w-full px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
       />
