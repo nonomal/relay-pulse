@@ -79,7 +79,7 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
           <span className="text-sm text-secondary leading-relaxed">
             {t('onboarding.providerInfo.agreementText')}{' '}
             <a
-              href="https://github.com/chaosgoo/relay-pulse/blob/main/docs/user/sponsorship.md"
+              href="https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md"
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent hover:text-accent-strong underline inline-flex items-center gap-0.5"
