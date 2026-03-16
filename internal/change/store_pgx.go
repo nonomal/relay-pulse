@@ -62,8 +62,10 @@ func (s *PgxStore) InitTable(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_change_status ON change_requests(status, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_change_target ON change_requests(target_key);
 	`
-	_, err := s.pool.Exec(ctx, schema)
-	return err
+	if _, err := s.pool.Exec(ctx, schema); err != nil {
+		return err
+	}
+	return s.ensureColumns(ctx)
 }
 
 const pgxChangeAllColumns = `id, public_id, status,
@@ -71,7 +73,7 @@ const pgxChangeAllColumns = `id, public_id, status,
 	auth_fingerprint, auth_last4,
 	current_snapshot, proposed_changes,
 	new_key_encrypted, new_key_fingerprint, new_key_last4,
-	requires_test, test_job_id, test_passed_at, test_latency_ms, test_http_code,
+	requires_test, test_type, test_variant, test_job_id, test_passed_at, test_latency_ms, test_http_code,
 	admin_note, reviewed_at, applied_at,
 	submitter_ip_hash, locale,
 	created_at, updated_at`
@@ -85,11 +87,11 @@ func (s *PgxStore) Save(ctx context.Context, r *ChangeRequest) error {
 		auth_fingerprint, auth_last4,
 		current_snapshot, proposed_changes,
 		new_key_encrypted, new_key_fingerprint, new_key_last4,
-		requires_test, test_job_id, test_passed_at, test_latency_ms, test_http_code,
+		requires_test, test_type, test_variant, test_job_id, test_passed_at, test_latency_ms, test_http_code,
 		admin_note, reviewed_at, applied_at,
 		submitter_ip_hash, locale,
 		created_at, updated_at
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
 	RETURNING id`
 
 	err := s.pool.QueryRow(ctx, query,
@@ -98,7 +100,7 @@ func (s *PgxStore) Save(ctx context.Context, r *ChangeRequest) error {
 		r.AuthFingerprint, r.AuthLast4,
 		r.CurrentSnapshot, r.ProposedChanges,
 		pgxNullStr(r.NewKeyEncrypted), pgxNullStr(r.NewKeyFingerprint), pgxNullStr(r.NewKeyLast4),
-		r.RequiresTest, pgxNullStr(r.TestJobID), pgxNullInt64(r.TestPassedAt), pgxNullInt(r.TestLatency), pgxNullInt(r.TestHTTPCode),
+		r.RequiresTest, pgxNullStr(r.TestType), pgxNullStr(r.TestVariant), pgxNullStr(r.TestJobID), pgxNullInt64(r.TestPassedAt), pgxNullInt(r.TestLatency), pgxNullInt(r.TestHTTPCode),
 		pgxNullStr(r.AdminNote), r.ReviewedAt, r.AppliedAt,
 		pgxNullStr(r.SubmitterIPHash), pgxNullStr(r.Locale),
 		r.CreatedAt, r.UpdatedAt,
@@ -158,16 +160,16 @@ func (s *PgxStore) Update(ctx context.Context, r *ChangeRequest) error {
 		status = $1, apply_mode = $2,
 		current_snapshot = $3, proposed_changes = $4,
 		new_key_encrypted = $5, new_key_fingerprint = $6, new_key_last4 = $7,
-		requires_test = $8, test_job_id = $9, test_passed_at = $10, test_latency_ms = $11, test_http_code = $12,
-		admin_note = $13, reviewed_at = $14, applied_at = $15,
-		updated_at = $16
-	WHERE id = $17`
+		requires_test = $8, test_type = $9, test_variant = $10, test_job_id = $11, test_passed_at = $12, test_latency_ms = $13, test_http_code = $14,
+		admin_note = $15, reviewed_at = $16, applied_at = $17,
+		updated_at = $18
+	WHERE id = $19`
 
 	_, err := s.pool.Exec(ctx, query,
 		r.Status, r.ApplyMode,
 		r.CurrentSnapshot, r.ProposedChanges,
 		pgxNullStr(r.NewKeyEncrypted), pgxNullStr(r.NewKeyFingerprint), pgxNullStr(r.NewKeyLast4),
-		r.RequiresTest, pgxNullStr(r.TestJobID), pgxNullInt64(r.TestPassedAt), pgxNullInt(r.TestLatency), pgxNullInt(r.TestHTTPCode),
+		r.RequiresTest, pgxNullStr(r.TestType), pgxNullStr(r.TestVariant), pgxNullStr(r.TestJobID), pgxNullInt64(r.TestPassedAt), pgxNullInt(r.TestLatency), pgxNullInt(r.TestHTTPCode),
 		pgxNullStr(r.AdminNote), r.ReviewedAt, r.AppliedAt,
 		r.UpdatedAt,
 		r.ID,
@@ -206,7 +208,7 @@ func (s *PgxStore) DeleteByPublicID(ctx context.Context, publicID string) error 
 func pgxScanChangeRequest(row pgx.Row) (*ChangeRequest, error) {
 	var cr ChangeRequest
 	var newKeyEnc, newKeyFP, newKeyL4 *string
-	var testJobID *string
+	var testType, testVariant, testJobID *string
 	var testPassedAt *int64
 	var testLatency, testHTTPCode *int
 	var adminNote *string
@@ -219,7 +221,7 @@ func pgxScanChangeRequest(row pgx.Row) (*ChangeRequest, error) {
 		&cr.AuthFingerprint, &cr.AuthLast4,
 		&cr.CurrentSnapshot, &cr.ProposedChanges,
 		&newKeyEnc, &newKeyFP, &newKeyL4,
-		&cr.RequiresTest, &testJobID, &testPassedAt, &testLatency, &testHTTPCode,
+		&cr.RequiresTest, &testType, &testVariant, &testJobID, &testPassedAt, &testLatency, &testHTTPCode,
 		&adminNote, &reviewedAt, &appliedAt,
 		&ipHash, &locale,
 		&cr.CreatedAt, &cr.UpdatedAt,
@@ -236,6 +238,12 @@ func pgxScanChangeRequest(row pgx.Row) (*ChangeRequest, error) {
 	}
 	if newKeyL4 != nil {
 		cr.NewKeyLast4 = *newKeyL4
+	}
+	if testType != nil {
+		cr.TestType = *testType
+	}
+	if testVariant != nil {
+		cr.TestVariant = *testVariant
 	}
 	if testJobID != nil {
 		cr.TestJobID = *testJobID
@@ -274,6 +282,48 @@ func (s *PgxStore) scanOne(ctx context.Context, query string, args ...any) (*Cha
 		return nil, fmt.Errorf("查询变更请求失败: %w", err)
 	}
 	return cr, nil
+}
+
+// ensureColumns 补全 test_type/test_variant 列（在线迁移）
+func (s *PgxStore) ensureColumns(ctx context.Context) error {
+	rows, err := s.pool.Query(ctx, `
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = current_schema()
+		  AND table_name = 'change_requests'
+	`)
+	if err != nil {
+		return fmt.Errorf("查询 change_requests 表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return fmt.Errorf("读取 change_requests 表结构失败: %w", err)
+		}
+		existing[name] = true
+	}
+	if rows.Err() != nil {
+		return fmt.Errorf("遍历 change_requests 表结构失败: %w", rows.Err())
+	}
+
+	for _, col := range []struct {
+		name string
+		ddl  string
+	}{
+		{name: "test_type", ddl: `ALTER TABLE change_requests ADD COLUMN test_type TEXT`},
+		{name: "test_variant", ddl: `ALTER TABLE change_requests ADD COLUMN test_variant TEXT`},
+	} {
+		if existing[col.name] {
+			continue
+		}
+		if _, err := s.pool.Exec(ctx, col.ddl); err != nil {
+			return fmt.Errorf("迁移 change_requests.%s 失败: %w", col.name, err)
+		}
+	}
+	return nil
 }
 
 func pgxNullStr(s string) *string {

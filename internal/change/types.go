@@ -12,6 +12,12 @@ const (
 	StatusApplied  RequestStatus = "applied"
 )
 
+// TestVariant 自助测试 payload 变体元数据（供前端展示）
+type TestVariant struct {
+	ID    string `json:"id"`
+	Order int    `json:"order"`
+}
+
 // ChangeRequest 变更请求
 type ChangeRequest struct {
 	ID       int64         `json:"id"`
@@ -40,6 +46,8 @@ type ChangeRequest struct {
 
 	// 测试（base_url/api_key 变更时必须）
 	RequiresTest bool   `json:"requires_test"`
+	TestType     string `json:"test_type,omitempty"`
+	TestVariant  string `json:"test_variant,omitempty"`
 	TestJobID    string `json:"test_job_id,omitempty"`
 	TestPassedAt int64  `json:"test_passed_at,omitempty"`
 	TestLatency  int    `json:"test_latency_ms,omitempty"`
@@ -75,6 +83,12 @@ type AuthCandidate struct {
 	SponsorLevel string `json:"sponsor_level"`
 	BaseURL      string `json:"base_url"`
 	KeyLast4     string `json:"key_last4"`
+
+	// 测试元数据（由 AuthIndex.Rebuild 从 selftest 注册表填充）
+	TestType           string        `json:"test_type"`
+	TestTypeName       string        `json:"test_type_name"`
+	DefaultTestVariant string        `json:"default_test_variant,omitempty"`
+	TestVariants       []TestVariant `json:"test_variants,omitempty"`
 }
 
 // Store 变更请求持久化接口

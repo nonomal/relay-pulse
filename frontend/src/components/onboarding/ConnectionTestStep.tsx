@@ -88,6 +88,12 @@ export function ConnectionTestStep({
   const [showApiKey, setShowApiKey] = useState(false);
   const proofRemaining = useProofCountdown(testProof);
 
+  const filteredTestTypes = useMemo(() => {
+    if (!meta) return [];
+    if (!formData.serviceType) return meta.test_types;
+    return meta.test_types.filter((tt) => tt.id === formData.serviceType);
+  }, [meta, formData.serviceType]);
+
   const selectedTestType = useMemo(() => {
     if (!meta) return null;
     return meta.test_types.find((tt) => tt.id === formData.testType) ?? null;
@@ -113,15 +119,16 @@ export function ConnectionTestStep({
   const proofExpired = proofRemaining !== null && proofRemaining <= 0;
   const canProceed = testPassed && !proofExpired;
 
-  /** Auto-select first test type and its default variant when meta loads */
+  /** Auto-select first test type and its default variant when filtered list changes */
   useEffect(() => {
-    if (!meta || meta.test_types.length === 0) return;
-    if (!formData.testType) {
-      const first = meta.test_types[0];
+    if (filteredTestTypes.length === 0) return;
+    const currentValid = filteredTestTypes.some((tt) => tt.id === formData.testType);
+    if (!formData.testType || !currentValid) {
+      const first = filteredTestTypes[0];
       updateField('testType', first.id);
       updateField('testVariant', first.default_variant);
     }
-  }, [meta, formData.testType, updateField]);
+  }, [filteredTestTypes, formData.testType, updateField]);
 
   const handleTestTypeChange = (newType: string) => {
     const typeDef = meta?.test_types.find((tt) => tt.id === newType);
@@ -215,7 +222,7 @@ export function ConnectionTestStep({
           disabled={isTesting}
           className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
         >
-          {meta.test_types.map((tt) => (
+          {filteredTestTypes.map((tt) => (
             <option key={tt.id} value={tt.id}>{tt.name}</option>
           ))}
         </select>

@@ -30,7 +30,8 @@ export function useChangeRequest() {
   // Auth 步骤
   const [apiKey, setApiKey] = useState('');
   const [candidates, setCandidates] = useState<AuthCandidate[]>([]);
-  const [selectedCandidate, setSelectedCandidate] = useState<AuthCandidate | null>(null);
+  const [selectedCandidate, setSelectedCandidateRaw] = useState<AuthCandidate | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState('');
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
   // Edit 步骤
@@ -64,6 +65,40 @@ export function useChangeRequest() {
     return stopPolling;
   }, [stopPolling]);
 
+  // 重置测试状态（共享工具）
+  const resetTestState = useCallback(() => {
+    stopPolling();
+    setIsTesting(false);
+    setTestJobId('');
+    setTestResult(null);
+    setTestProof('');
+  }, [stopPolling]);
+
+  // 解析候选通道的默认变体（优先 default_test_variant，兜底首个变体）
+  const resolveDefaultVariant = useCallback((c: AuthCandidate | null): string => {
+    if (!c) return '';
+    if (c.default_test_variant) return c.default_test_variant;
+    const variants = c.test_variants ?? [];
+    if (variants.length > 0) {
+      const sorted = variants.slice().sort((a, b) => a.order - b.order);
+      return sorted[0].id;
+    }
+    return '';
+  }, []);
+
+  // 切换候选通道时同步重置变体和测试状态
+  const setSelectedCandidate = useCallback((c: AuthCandidate | null) => {
+    setSelectedCandidateRaw(c);
+    setSelectedVariant(resolveDefaultVariant(c));
+    resetTestState();
+  }, [resolveDefaultVariant, resetTestState]);
+
+  // 变体切换时重置测试状态，防止提交与实际测试不匹配的 variant 审计值
+  const handleSetSelectedVariant = useCallback((v: string) => {
+    setSelectedVariant(v);
+    resetTestState();
+  }, [resetTestState]);
+
   // 切步骤时自动停止轮询（离开 test 步骤）
   const setStep = useCallback((next: ChangeStep) => {
     setStepRaw(prev => {
@@ -84,7 +119,8 @@ export function useChangeRequest() {
     setIsAuthenticating(true);
     setError(null);
     // 清理上一次的编辑状态，防止换 Key 后沿用旧数据
-    setSelectedCandidate(null);
+    setSelectedCandidateRaw(null);
+    setSelectedVariant('');
     setChanges({});
     setNewApiKey('');
     setTestResult(null);
@@ -101,7 +137,7 @@ export function useChangeRequest() {
     } finally {
       setIsAuthenticating(false);
     }
-  }, [apiKey, t, setStep]);
+  }, [apiKey, t, setStep, setSelectedCandidate]);
 
   // 更新变更字段
   const updateChange = useCallback((field: string, value: string) => {
@@ -150,7 +186,8 @@ export function useChangeRequest() {
 
       // 调用 selftest API
       const resp = await apiPost<{ id: string; status: string }>('/api/selftest', {
-        test_type: selectedCandidate.service,
+        test_type: selectedCandidate.test_type || selectedCandidate.service,
+        payload_variant: selectedVariant || undefined,
         api_url: testBaseUrl,
         api_key: testKey,
       });
@@ -178,7 +215,7 @@ export function useChangeRequest() {
       setIsTesting(false);
       setError(e instanceof ApiError ? e.message : t('changeRequest.test.requestFailed'));
     }
-  }, [selectedCandidate, changes, newApiKey, apiKey, t, stopPolling]);
+  }, [selectedCandidate, selectedVariant, changes, newApiKey, apiKey, t, stopPolling]);
 
   // 提交变更
   const submit = useCallback(async () => {
@@ -203,7 +240,8 @@ export function useChangeRequest() {
       if (requiresTest && testProof) {
         req.test_proof = testProof;
         req.test_job_id = testJobId;
-        req.test_type = selectedCandidate.service;
+        req.test_type = selectedCandidate.test_type || selectedCandidate.service;
+        req.test_variant = selectedVariant || undefined;
         req.test_api_url = testBaseUrl;
         req.test_latency = testResult?.latency;
         req.test_http_code = testResult?.http_code;
@@ -217,7 +255,7 @@ export function useChangeRequest() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedCandidate, changes, newApiKey, apiKey, requiresTest, testProof, testJobId, testResult, i18n.language, t, setStep]);
+  }, [selectedCandidate, selectedVariant, changes, newApiKey, apiKey, requiresTest, testProof, testJobId, testResult, i18n.language, t, setStep]);
 
   // 重置
   const reset = useCallback(() => {
@@ -225,7 +263,8 @@ export function useChangeRequest() {
     setStepRaw('auth');
     setApiKey('');
     setCandidates([]);
-    setSelectedCandidate(null);
+    setSelectedCandidateRaw(null);
+    setSelectedVariant('');
     setChanges({});
     setNewApiKey('');
     setIsTesting(false);
@@ -248,6 +287,8 @@ export function useChangeRequest() {
     candidates,
     selectedCandidate,
     setSelectedCandidate,
+    selectedVariant,
+    setSelectedVariant: handleSetSelectedVariant,
     isAuthenticating,
     authenticate,
 

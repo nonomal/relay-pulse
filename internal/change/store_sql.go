@@ -61,8 +61,10 @@ func (s *SQLStore) InitTable(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_change_status ON change_requests(status, created_at DESC);
 	CREATE INDEX IF NOT EXISTS idx_change_target ON change_requests(target_key);
 	`
-	_, err := s.db.ExecContext(ctx, schema)
-	return err
+	if _, err := s.db.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+	return s.ensureColumns(ctx)
 }
 
 const changeAllColumns = `id, public_id, status,
@@ -70,7 +72,7 @@ const changeAllColumns = `id, public_id, status,
 	auth_fingerprint, auth_last4,
 	current_snapshot, proposed_changes,
 	new_key_encrypted, new_key_fingerprint, new_key_last4,
-	requires_test, test_job_id, test_passed_at, test_latency_ms, test_http_code,
+	requires_test, test_type, test_variant, test_job_id, test_passed_at, test_latency_ms, test_http_code,
 	admin_note, reviewed_at, applied_at,
 	submitter_ip_hash, locale,
 	created_at, updated_at`
@@ -84,11 +86,11 @@ func (s *SQLStore) Save(ctx context.Context, r *ChangeRequest) error {
 		auth_fingerprint, auth_last4,
 		current_snapshot, proposed_changes,
 		new_key_encrypted, new_key_fingerprint, new_key_last4,
-		requires_test, test_job_id, test_passed_at, test_latency_ms, test_http_code,
+		requires_test, test_type, test_variant, test_job_id, test_passed_at, test_latency_ms, test_http_code,
 		admin_note, reviewed_at, applied_at,
 		submitter_ip_hash, locale,
 		created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := s.db.ExecContext(ctx, query,
 		r.PublicID, r.Status,
@@ -96,7 +98,7 @@ func (s *SQLStore) Save(ctx context.Context, r *ChangeRequest) error {
 		r.AuthFingerprint, r.AuthLast4,
 		r.CurrentSnapshot, r.ProposedChanges,
 		nullStr(r.NewKeyEncrypted), nullStr(r.NewKeyFingerprint), nullStr(r.NewKeyLast4),
-		r.RequiresTest, nullStr(r.TestJobID), nullInt64(r.TestPassedAt), nullInt(r.TestLatency), nullInt(r.TestHTTPCode),
+		r.RequiresTest, nullStr(r.TestType), nullStr(r.TestVariant), nullStr(r.TestJobID), nullInt64(r.TestPassedAt), nullInt(r.TestLatency), nullInt(r.TestHTTPCode),
 		nullStr(r.AdminNote), r.ReviewedAt, r.AppliedAt,
 		nullStr(r.SubmitterIPHash), nullStr(r.Locale),
 		r.CreatedAt, r.UpdatedAt,
@@ -161,7 +163,7 @@ func (s *SQLStore) Update(ctx context.Context, r *ChangeRequest) error {
 		status = ?, apply_mode = ?,
 		current_snapshot = ?, proposed_changes = ?,
 		new_key_encrypted = ?, new_key_fingerprint = ?, new_key_last4 = ?,
-		requires_test = ?, test_job_id = ?, test_passed_at = ?, test_latency_ms = ?, test_http_code = ?,
+		requires_test = ?, test_type = ?, test_variant = ?, test_job_id = ?, test_passed_at = ?, test_latency_ms = ?, test_http_code = ?,
 		admin_note = ?, reviewed_at = ?, applied_at = ?,
 		updated_at = ?
 	WHERE id = ?`
@@ -170,7 +172,7 @@ func (s *SQLStore) Update(ctx context.Context, r *ChangeRequest) error {
 		r.Status, r.ApplyMode,
 		r.CurrentSnapshot, r.ProposedChanges,
 		nullStr(r.NewKeyEncrypted), nullStr(r.NewKeyFingerprint), nullStr(r.NewKeyLast4),
-		r.RequiresTest, nullStr(r.TestJobID), nullInt64(r.TestPassedAt), nullInt(r.TestLatency), nullInt(r.TestHTTPCode),
+		r.RequiresTest, nullStr(r.TestType), nullStr(r.TestVariant), nullStr(r.TestJobID), nullInt64(r.TestPassedAt), nullInt(r.TestLatency), nullInt(r.TestHTTPCode),
 		nullStr(r.AdminNote), r.ReviewedAt, r.AppliedAt,
 		r.UpdatedAt,
 		r.ID,
@@ -214,7 +216,7 @@ type scanner interface {
 func scanChangeRequest(s scanner) (*ChangeRequest, error) {
 	var cr ChangeRequest
 	var newKeyEnc, newKeyFP, newKeyL4 sql.NullString
-	var testJobID sql.NullString
+	var testType, testVariant, testJobID sql.NullString
 	var testPassedAt, testLatency, testHTTPCode sql.NullInt64
 	var adminNote sql.NullString
 	var reviewedAt, appliedAt sql.NullInt64
@@ -226,7 +228,7 @@ func scanChangeRequest(s scanner) (*ChangeRequest, error) {
 		&cr.AuthFingerprint, &cr.AuthLast4,
 		&cr.CurrentSnapshot, &cr.ProposedChanges,
 		&newKeyEnc, &newKeyFP, &newKeyL4,
-		&cr.RequiresTest, &testJobID, &testPassedAt, &testLatency, &testHTTPCode,
+		&cr.RequiresTest, &testType, &testVariant, &testJobID, &testPassedAt, &testLatency, &testHTTPCode,
 		&adminNote, &reviewedAt, &appliedAt,
 		&ipHash, &locale,
 		&cr.CreatedAt, &cr.UpdatedAt,
@@ -238,6 +240,8 @@ func scanChangeRequest(s scanner) (*ChangeRequest, error) {
 	cr.NewKeyEncrypted = newKeyEnc.String
 	cr.NewKeyFingerprint = newKeyFP.String
 	cr.NewKeyLast4 = newKeyL4.String
+	cr.TestType = testType.String
+	cr.TestVariant = testVariant.String
 	cr.TestJobID = testJobID.String
 	if testPassedAt.Valid {
 		cr.TestPassedAt = testPassedAt.Int64
@@ -273,6 +277,45 @@ func (s *SQLStore) scanOne(ctx context.Context, query string, args ...any) (*Cha
 		return nil, fmt.Errorf("查询变更请求失败: %w", err)
 	}
 	return cr, nil
+}
+
+// ensureColumns 补全 test_type/test_variant 列（在线迁移）
+func (s *SQLStore) ensureColumns(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(change_requests)`)
+	if err != nil {
+		return fmt.Errorf("查询 change_requests 表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, colType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultValue, &pk); err != nil {
+			return fmt.Errorf("读取 change_requests 表结构失败: %w", err)
+		}
+		existing[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("遍历 change_requests 表结构失败: %w", err)
+	}
+
+	for _, col := range []struct {
+		name string
+		ddl  string
+	}{
+		{name: "test_type", ddl: `ALTER TABLE change_requests ADD COLUMN test_type TEXT`},
+		{name: "test_variant", ddl: `ALTER TABLE change_requests ADD COLUMN test_variant TEXT`},
+	} {
+		if existing[col.name] {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, col.ddl); err != nil {
+			return fmt.Errorf("迁移 change_requests.%s 失败: %w", col.name, err)
+		}
+	}
+	return nil
 }
 
 func nullStr(s string) sql.NullString {

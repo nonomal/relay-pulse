@@ -7,6 +7,7 @@ import (
 	"monitor/internal/apikey"
 	"monitor/internal/config"
 	"monitor/internal/logger"
+	"monitor/internal/selftest"
 )
 
 // AuthIndex 运行时 API Key 指纹索引。
@@ -65,6 +66,27 @@ func (ai *AuthIndex) Rebuild(monitors []config.ServiceConfig, cipher *apikey.Key
 		}
 		if candidate.ChannelName == "" {
 			candidate.ChannelName = m.Channel
+		}
+
+		// 填充测试元数据（从 selftest 注册表查询）
+		candidate.TestType = m.Service
+		candidate.TestTypeName = m.Service
+		if tt, ok := selftest.GetTestType(m.Service); ok {
+			candidate.TestType = tt.ID
+			candidate.TestTypeName = tt.Name
+			candidate.DefaultTestVariant = tt.DefaultVariant
+			if len(tt.Variants) > 0 {
+				candidate.TestVariants = make([]TestVariant, 0, len(tt.Variants))
+				for _, v := range tt.Variants {
+					if v == nil {
+						continue
+					}
+					candidate.TestVariants = append(candidate.TestVariants, TestVariant{
+						ID:    v.ID,
+						Order: v.Order,
+					})
+				}
+			}
 		}
 
 		newIndex[fingerprint] = append(newIndex[fingerprint], candidate)

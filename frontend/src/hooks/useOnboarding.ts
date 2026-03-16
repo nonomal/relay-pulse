@@ -96,6 +96,22 @@ export function useOnboarding() {
     };
   }, []);
 
+  // Reset test state when serviceType changes (prevent cross-service proof reuse)
+  const prevServiceTypeRef = useRef(formData.serviceType);
+  useEffect(() => {
+    if (formData.serviceType === prevServiceTypeRef.current) return;
+    prevServiceTypeRef.current = formData.serviceType;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+    setTestJobId(null);
+    setTestResult(null);
+    setTestProof(null);
+    setIsTesting(false);
+    setFormData(prev => ({ ...prev, testType: '', testVariant: '' }));
+  }, [formData.serviceType]);
+
   const updateField = useCallback(<K extends keyof OnboardingFormData>(key: K, value: OnboardingFormData[K]) => {
     setFormData(prev => ({ ...prev, [key]: value }));
     setError(null);

@@ -243,6 +243,9 @@ function EditStep({
 
 /** Test 步骤 */
 function TestStep({
+  selectedCandidate,
+  selectedVariant,
+  setSelectedVariant,
   isTesting,
   testResult,
   testProof,
@@ -251,6 +254,9 @@ function TestStep({
   goNext,
   error,
 }: {
+  selectedCandidate: AuthCandidate;
+  selectedVariant: string;
+  setSelectedVariant: (v: string) => void;
   isTesting: boolean;
   testResult: { status: string; probe_status?: number; latency?: number; error_message?: string } | null;
   testProof: string;
@@ -261,6 +267,8 @@ function TestStep({
 }) {
   const { t } = useTranslation();
   const passed = testResult?.probe_status === 1 && testProof !== '';
+  const variants = (selectedCandidate.test_variants ?? []).slice().sort((a, b) => a.order - b.order);
+  const showVariantSelect = variants.length > 1;
 
   return (
     <div className="max-w-lg mx-auto">
@@ -268,6 +276,33 @@ function TestStep({
       <p className="text-secondary text-sm mb-6">{t('changeRequest.test.description')}</p>
 
       <div className="space-y-4">
+        {/* Test type info */}
+        <div className="p-3 rounded-xl bg-elevated border border-default">
+          <div className="text-xs text-muted mb-0.5">{t('changeRequest.test.testType', { defaultValue: '测试类型' })}</div>
+          <div className="text-sm text-primary font-medium">
+            {selectedCandidate.test_type_name || selectedCandidate.test_type || selectedCandidate.service}
+          </div>
+        </div>
+
+        {/* Variant selector */}
+        {showVariantSelect && (
+          <div>
+            <label className="block text-sm font-medium text-secondary mb-1.5">
+              {t('changeRequest.test.variant', { defaultValue: '测试模板' })}
+            </label>
+            <select
+              value={selectedVariant}
+              onChange={e => setSelectedVariant(e.target.value)}
+              disabled={isTesting}
+              className="w-full px-3 py-2.5 rounded-xl bg-elevated border border-default text-primary focus:border-accent/50 focus:outline-none transition disabled:opacity-50"
+            >
+              {variants.map(v => (
+                <option key={v.id} value={v.id}>{v.id}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {!testResult && !isTesting && (
           <button
             onClick={runTest}
@@ -512,8 +547,11 @@ export default function ChangeRequestPage() {
             />
           )}
 
-          {cr.step === 'test' && (
+          {cr.step === 'test' && cr.selectedCandidate && (
             <TestStep
+              selectedCandidate={cr.selectedCandidate}
+              selectedVariant={cr.selectedVariant}
+              setSelectedVariant={cr.setSelectedVariant}
               isTesting={cr.isTesting}
               testResult={cr.testResult}
               testProof={cr.testProof}

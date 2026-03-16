@@ -1,6 +1,12 @@
 /** 变更请求状态 */
 export type ChangeRequestStatus = 'pending' | 'approved' | 'rejected' | 'applied';
 
+/** 测试 payload 变体 */
+export interface TestVariant {
+  id: string;
+  order: number;
+}
+
 /** 认证候选通道 */
 export interface AuthCandidate {
   provider: string;
@@ -15,6 +21,10 @@ export interface AuthCandidate {
   sponsor_level: string;
   base_url: string;
   key_last4: string;
+  test_type: string;
+  test_type_name: string;
+  default_test_variant?: string;
+  test_variants?: TestVariant[];
 }
 
 /** 认证响应 */
@@ -31,6 +41,7 @@ export interface SubmitChangeRequest {
   test_proof?: string;
   test_job_id?: string;
   test_type?: string;
+  test_variant?: string;
   test_api_url?: string;
   test_latency?: number;
   test_http_code?: number;
@@ -70,6 +81,8 @@ export interface AdminChangeRequest {
   new_key_fingerprint?: string;
   new_key_last4?: string;
   requires_test: boolean;
+  test_type?: string;
+  test_variant?: string;
   test_job_id?: string;
   test_passed_at?: number;
   test_latency_ms?: number;

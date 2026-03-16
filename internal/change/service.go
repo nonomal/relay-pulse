@@ -108,6 +108,7 @@ type SubmitRequest struct {
 	TestProof       string            `json:"test_proof,omitempty"`
 	TestJobID       string            `json:"test_job_id,omitempty"`
 	TestType        string            `json:"test_type,omitempty"`
+	TestVariant     string            `json:"test_variant,omitempty"`
 	TestAPIURL      string            `json:"test_api_url,omitempty"`
 	TestLatency     int               `json:"test_latency,omitempty"`
 	TestHTTPCode    int               `json:"test_http_code,omitempty"`
@@ -220,6 +221,8 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 
 	// 测试结果
 	if requiresTest {
+		cr.TestType = req.TestType
+		cr.TestVariant = req.TestVariant
 		cr.TestJobID = req.TestJobID
 		cr.TestPassedAt = now
 		cr.TestLatency = req.TestLatency
