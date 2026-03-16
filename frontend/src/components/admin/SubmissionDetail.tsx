@@ -2,11 +2,13 @@ import { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiGet } from '../../utils/apiClient';
 import type { AdminSubmission, OnboardingTestResult } from '../../types/onboarding';
+import { FormField, SelectField, ReadOnlyField } from './FormControls';
 
 /** 可编辑字段列表 — 用于本地 draft 初始化和脏检测 */
 const EDITABLE_FIELDS = [
   'provider_name', 'website_url', 'category', 'service_type',
   'template_name', 'sponsor_level', 'channel_type', 'channel_source',
+  'channel_name', 'listed_since', 'price_min', 'price_max',
   'base_url', 'admin_note',
 ] as const;
 type EditableKey = (typeof EDITABLE_FIELDS)[number];
@@ -14,12 +16,12 @@ type Draft = Record<EditableKey, string>;
 
 function pickDraft(sub: AdminSubmission): Draft {
   const d = {} as Draft;
-  for (const k of EDITABLE_FIELDS) d[k] = (sub[k] as string) ?? '';
+  for (const k of EDITABLE_FIELDS) d[k] = (sub[k] as string | number)?.toString() ?? '';
   return d;
 }
 
 function hasDraftChanged(draft: Draft, sub: AdminSubmission): boolean {
-  return EDITABLE_FIELDS.some((k) => draft[k] !== ((sub[k] as string) ?? ''));
+  return EDITABLE_FIELDS.some((k) => draft[k] !== ((sub[k] as string | number)?.toString() ?? ''));
 }
 
 interface SubmissionDetailProps {
@@ -33,94 +35,6 @@ interface SubmissionDetailProps {
   onDelete: () => void;
   onPublish: () => void;
   onBack: () => void;
-}
-
-/** Editable text field with label. */
-function EditableField({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  placeholder,
-  multiline = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  type?: string;
-  placeholder?: string;
-  multiline?: boolean;
-}) {
-  const inputClasses = `w-full px-3 py-2 bg-elevated border border-default rounded-md
-    text-primary placeholder:text-muted text-sm
-    focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
-    transition-colors`;
-
-  return (
-    <div>
-      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
-      {multiline ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={3}
-          className={`${inputClasses} resize-y`}
-        />
-      ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className={inputClasses}
-        />
-      )}
-    </div>
-  );
-}
-
-/** Select dropdown field with label. */
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 bg-elevated border border-default rounded-md
-          text-primary text-sm appearance-none cursor-pointer
-          focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
-          transition-colors"
-      >
-        {options.map((opt) => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-/** Read-only field with label. */
-function ReadOnlyField({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
-      <div className="px-3 py-2 bg-elevated/50 border border-default rounded-md text-secondary text-sm">
-        {value || '--'}
-      </div>
-    </div>
-  );
 }
 
 /** Format a unix timestamp to a readable date string. */
@@ -184,8 +98,12 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
       // 只发送有变化的字段
       const changes: Partial<AdminSubmission> = {};
       for (const k of EDITABLE_FIELDS) {
-        if (draft[k] !== ((submission[k] as string) ?? '')) {
-          (changes as Record<string, string>)[k] = draft[k];
+        if (draft[k] !== ((submission[k] as string | number)?.toString() ?? '')) {
+          if (k === 'price_min' || k === 'price_max') {
+            (changes as Record<string, number>)[k] = parseFloat(draft[k]) || 0;
+          } else {
+            (changes as Record<string, string>)[k] = draft[k];
+          }
         }
       }
       onSave(changes);
@@ -273,12 +191,12 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
 
         {/* Editable fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <EditableField
+          <FormField
             label={t('admin.detail.providerName')}
             value={draft.provider_name}
             onChange={(v) => updateField('provider_name', v)}
           />
-          <EditableField
+          <FormField
             label={t('admin.detail.websiteUrl')}
             value={draft.website_url}
             onChange={(v) => updateField('website_url', v)}
@@ -355,7 +273,32 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
               { value: 'App', label: 'App' },
             ]}
           />
-          <EditableField
+          <FormField
+            label={t('admin.detail.channelName')}
+            value={draft.channel_name}
+            onChange={(v) => updateField('channel_name', v)}
+          />
+          <FormField
+            label={t('admin.detail.listedSince')}
+            value={draft.listed_since}
+            onChange={(v) => updateField('listed_since', v)}
+            type="date"
+          />
+          <FormField
+            label={t('admin.detail.priceMin')}
+            value={draft.price_min}
+            onChange={(v) => updateField('price_min', v)}
+            type="number"
+            placeholder="0"
+          />
+          <FormField
+            label={t('admin.detail.priceMax')}
+            value={draft.price_max}
+            onChange={(v) => updateField('price_max', v)}
+            type="number"
+            placeholder="0"
+          />
+          <FormField
             label={t('admin.detail.baseUrl')}
             value={draft.base_url}
             onChange={(v) => updateField('base_url', v)}
@@ -410,7 +353,7 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
         </div>
 
         {/* Admin note */}
-        <EditableField
+        <FormField
           label={t('admin.detail.adminNote')}
           value={draft.admin_note}
           onChange={(v) => updateField('admin_note', v)}

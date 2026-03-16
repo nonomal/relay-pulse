@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { MonitorConfig, MonitorFile } from '../../types/monitor';
+import { FormField, SelectField, CheckboxField } from './FormControls';
 
 interface MonitorFormProps {
   fetchTemplates: () => Promise<string[]>;
@@ -31,6 +32,8 @@ const EMPTY_CONFIG: MonitorConfig = {
   interval: '',
   listed_since: '',
   expires_at: '',
+  price_min: null,
+  price_max: null,
   key_type: '',
   auto_cold_exempt: false,
   auto_move_exempt: false,
@@ -242,6 +245,20 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
             onChange={v => updateField('listed_since', v)}
           />
           <FormField
+            label={t('admin.monitors.field.priceMin')}
+            value={config.price_min != null ? String(config.price_min) : ''}
+            onChange={v => updateField('price_min', v === '' ? null : parseFloat(v) || 0)}
+            type="number"
+            placeholder="0"
+          />
+          <FormField
+            label={t('admin.monitors.field.priceMax')}
+            value={config.price_max != null ? String(config.price_max) : ''}
+            onChange={v => updateField('price_max', v === '' ? null : parseFloat(v) || 0)}
+            type="number"
+            placeholder="0"
+          />
+          <FormField
             label={t('admin.monitors.field.expiresAt')}
             value={config.expires_at || ''}
             onChange={v => updateField('expires_at', v)}
@@ -349,87 +366,6 @@ export function MonitorForm({ fetchTemplates, onSave, onCancel }: MonitorFormPro
         </button>
       </div>
     </form>
-  );
-}
-
-function FormField({
-  label,
-  value,
-  onChange,
-  type = 'text',
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  placeholder?: string;
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-muted mb-1">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm placeholder:text-muted/50 focus:outline-none focus:border-accent"
-      />
-    </div>
-  );
-}
-
-function SelectField({
-  label,
-  value,
-  onChange,
-  options,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-muted mb-1">{label}</label>
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg bg-elevated border border-default text-primary text-sm"
-      >
-        {options.map(opt => (
-          <option key={opt.value} value={opt.value}>{opt.label}</option>
-        ))}
-      </select>
-    </div>
-  );
-}
-
-function CheckboxField({
-  label,
-  hint,
-  checked,
-  onChange,
-}: {
-  label: string;
-  hint?: string;
-  checked: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <label className="flex items-center gap-2 cursor-pointer">
-        <input
-          type="checkbox"
-          checked={checked}
-          onChange={e => onChange(e.target.checked)}
-          className="accent-accent"
-        />
-        <span className="text-sm text-primary">{label}</span>
-      </label>
-      {hint && <span className="text-xs text-muted ml-5">{hint}</span>}
-    </div>
   );
 }
 

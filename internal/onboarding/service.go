@@ -241,6 +241,18 @@ func (s *Service) AdminUpdate(ctx context.Context, publicID string, updates map[
 	if v, ok := updates["base_url"].(string); ok && v != "" {
 		sub.BaseURL = v
 	}
+	if v, ok := updates["channel_name"].(string); ok {
+		sub.ChannelName = v
+	}
+	if v, ok := updates["listed_since"].(string); ok {
+		sub.ListedSince = v
+	}
+	if v, ok := updates["price_min"].(float64); ok {
+		sub.PriceMin = v
+	}
+	if v, ok := updates["price_max"].(float64); ok {
+		sub.PriceMax = v
+	}
 	if v, ok := updates["admin_note"].(string); ok {
 		sub.AdminNote = v
 	}
@@ -390,18 +402,29 @@ func (s *Service) buildServiceConfig(sub *Submission, apiKey string) config.Serv
 	// 派生 provider slug（小写，去特殊字符）
 	providerSlug := strings.ToLower(strings.ReplaceAll(sub.ProviderName, " ", "-"))
 
-	return config.ServiceConfig{
+	cfg := config.ServiceConfig{
 		Provider:     providerSlug,
 		ProviderName: sub.ProviderName,
 		ProviderURL:  sub.WebsiteURL,
 		Service:      sub.ServiceType,
 		Channel:      sub.ChannelCode,
+		ChannelName:  sub.ChannelName,
 		Template:     sub.TemplateName,
 		BaseURL:      sub.BaseURL,
 		APIKey:       apiKey,
 		Category:     sub.Category,
+		ListedSince:  sub.ListedSince,
 		SponsorLevel: config.SponsorLevel(sub.SponsorLevel),
 	}
+	if sub.PriceMin != 0 {
+		v := sub.PriceMin
+		cfg.PriceMin = &v
+	}
+	if sub.PriceMax != 0 {
+		v := sub.PriceMax
+		cfg.PriceMax = &v
+	}
+	return cfg
 }
 
 // hashIP 计算 IP 地址的 SHA256 哈希

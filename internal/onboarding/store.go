@@ -34,9 +34,13 @@ type Submission struct {
 	SponsorLevel string `json:"sponsor_level"` // public / signal / pulse
 
 	// 通道
-	ChannelType   string `json:"channel_type"`   // O / R / M
-	ChannelSource string `json:"channel_source"` // API / Web / AWS / GCP / App / custom
-	ChannelCode   string `json:"channel_code"`   // 派生: {type}-{source}
+	ChannelType   string  `json:"channel_type"`   // O / R / M
+	ChannelSource string  `json:"channel_source"` // API / Web / AWS / GCP / App / custom
+	ChannelCode   string  `json:"channel_code"`   // 派生: {type}-{source}
+	ChannelName   string  `json:"channel_name"`
+	ListedSince   string  `json:"listed_since"`
+	PriceMin      float64 `json:"price_min"`
+	PriceMax      float64 `json:"price_max"`
 
 	// 接入信息
 	BaseURL           string `json:"base_url"`

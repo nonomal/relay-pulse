@@ -1,0 +1,117 @@
+/** 管理后台共享表单控件 */
+
+const inputClasses = `w-full px-3 py-2 bg-elevated border border-default rounded-md
+  text-primary placeholder:text-muted text-sm
+  focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
+  transition-colors`;
+
+/** 文本 / 数字 / URL 输入框（支持多行 textarea） */
+export function FormField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  placeholder,
+  multiline = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  type?: string;
+  placeholder?: string;
+  multiline?: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          className={`${inputClasses} resize-y`}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          className={inputClasses}
+        />
+      )}
+    </div>
+  );
+}
+
+/** 下拉选择框 */
+export function SelectField({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: { value: string; label: string }[];
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full px-3 py-2 bg-elevated border border-default rounded-md
+          text-primary text-sm appearance-none cursor-pointer
+          focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
+          transition-colors"
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+/** 只读字段展示 */
+export function ReadOnlyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-muted mb-1">{label}</label>
+      <div className="px-3 py-2 bg-elevated/50 border border-default rounded-md text-secondary text-sm">
+        {value || '--'}
+      </div>
+    </div>
+  );
+}
+
+/** 复选框（含可选提示文字） */
+export function CheckboxField({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <label className="flex items-center gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          className="accent-accent"
+        />
+        <span className="text-sm text-primary">{label}</span>
+      </label>
+      {hint && <span className="text-xs text-muted ml-5">{hint}</span>}
+    </div>
+  );
+}

@@ -123,6 +123,10 @@ export interface AdminSubmission {
   channel_type: string;
   channel_source: string;
   channel_code: string;
+  channel_name: string;
+  listed_since: string;
+  price_min: number;
+  price_max: number;
   base_url: string;
   api_key_encrypted: string;
   api_key_fingerprint: string;

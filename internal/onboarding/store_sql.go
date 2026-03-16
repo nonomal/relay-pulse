@@ -37,6 +37,10 @@ func (s *SQLStore) InitTable(ctx context.Context) error {
 		channel_type TEXT NOT NULL,
 		channel_source TEXT NOT NULL,
 		channel_code TEXT NOT NULL,
+		channel_name TEXT NOT NULL DEFAULT '',
+		listed_since TEXT NOT NULL DEFAULT '',
+		price_min REAL NOT NULL DEFAULT 0,
+		price_max REAL NOT NULL DEFAULT 0,
 
 		base_url TEXT NOT NULL,
 		api_key_encrypted TEXT NOT NULL,
@@ -64,7 +68,52 @@ func (s *SQLStore) InitTable(ctx context.Context) error {
 	CREATE INDEX IF NOT EXISTS idx_onboarding_fingerprint ON onboarding_submissions(api_key_fingerprint);
 	`
 	_, err := s.db.ExecContext(ctx, schema)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.ensureColumns(ctx)
+}
+
+// ensureColumns 为旧数据库补齐新列（兼容热升级）
+func (s *SQLStore) ensureColumns(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `PRAGMA table_info(onboarding_submissions)`)
+	if err != nil {
+		return fmt.Errorf("查询表结构失败: %w", err)
+	}
+	defer rows.Close()
+
+	existing := make(map[string]bool)
+	for rows.Next() {
+		var cid, notNull, pk int
+		var name, colType string
+		var defaultVal any
+		if err := rows.Scan(&cid, &name, &colType, &notNull, &defaultVal, &pk); err != nil {
+			return fmt.Errorf("读取表结构失败: %w", err)
+		}
+		existing[name] = true
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	migrations := []struct {
+		name string
+		ddl  string
+	}{
+		{"channel_name", `ALTER TABLE onboarding_submissions ADD COLUMN channel_name TEXT NOT NULL DEFAULT ''`},
+		{"listed_since", `ALTER TABLE onboarding_submissions ADD COLUMN listed_since TEXT NOT NULL DEFAULT ''`},
+		{"price_min", `ALTER TABLE onboarding_submissions ADD COLUMN price_min REAL NOT NULL DEFAULT 0`},
+		{"price_max", `ALTER TABLE onboarding_submissions ADD COLUMN price_max REAL NOT NULL DEFAULT 0`},
+	}
+	for _, m := range migrations {
+		if existing[m.name] {
+			continue
+		}
+		if _, err := s.db.ExecContext(ctx, m.ddl); err != nil {
+			return fmt.Errorf("迁移列 %s 失败: %w", m.name, err)
+		}
+	}
+	return nil
 }
 
 // Save 保存新申请
@@ -74,17 +123,19 @@ func (s *SQLStore) Save(ctx context.Context, sub *Submission) error {
 		public_id, status, provider_name, website_url, category,
 		service_type, template_name, sponsor_level,
 		channel_type, channel_source, channel_code,
+		channel_name, listed_since, price_min, price_max,
 		base_url, api_key_encrypted, api_key_fingerprint, api_key_last4,
 		test_job_id, test_passed_at, test_latency_ms, test_http_code,
 		contact_info, submitter_ip_hash, locale,
 		admin_note, admin_config_json, reviewed_at,
 		created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	result, err := s.db.ExecContext(ctx, query,
 		sub.PublicID, sub.Status, sub.ProviderName, sub.WebsiteURL, sub.Category,
 		sub.ServiceType, sub.TemplateName, sub.SponsorLevel,
 		sub.ChannelType, sub.ChannelSource, sub.ChannelCode,
+		sub.ChannelName, sub.ListedSince, sub.PriceMin, sub.PriceMax,
 		sub.BaseURL, sub.APIKeyEncrypted, sub.APIKeyFingerprint, sub.APIKeyLast4,
 		sub.TestJobID, sub.TestPassedAt, sub.TestLatency, sub.TestHTTPCode,
 		nullStr(sub.ContactInfo), nullStr(sub.SubmitterIPHash), nullStr(sub.Locale),
@@ -156,6 +207,7 @@ func (s *SQLStore) Update(ctx context.Context, sub *Submission) error {
 		status = ?, provider_name = ?, website_url = ?, category = ?,
 		service_type = ?, template_name = ?, sponsor_level = ?,
 		channel_type = ?, channel_source = ?, channel_code = ?,
+		channel_name = ?, listed_since = ?, price_min = ?, price_max = ?,
 		base_url = ?,
 		contact_info = ?,
 		admin_note = ?, admin_config_json = ?, reviewed_at = ?,
@@ -166,6 +218,7 @@ func (s *SQLStore) Update(ctx context.Context, sub *Submission) error {
 		sub.Status, sub.ProviderName, sub.WebsiteURL, sub.Category,
 		sub.ServiceType, sub.TemplateName, sub.SponsorLevel,
 		sub.ChannelType, sub.ChannelSource, sub.ChannelCode,
+		sub.ChannelName, sub.ListedSince, sub.PriceMin, sub.PriceMax,
 		sub.BaseURL,
 		nullStr(sub.ContactInfo),
 		nullStr(sub.AdminNote), nullStr(sub.AdminConfigJSON), sub.ReviewedAt,
@@ -218,6 +271,7 @@ const allColumns = `id, public_id, status,
 	provider_name, website_url, category,
 	service_type, template_name, sponsor_level,
 	channel_type, channel_source, channel_code,
+	channel_name, listed_since, price_min, price_max,
 	base_url, api_key_encrypted, api_key_fingerprint, api_key_last4,
 	test_job_id, test_passed_at, test_latency_ms, test_http_code,
 	contact_info, submitter_ip_hash, locale,
@@ -239,6 +293,7 @@ func scanSubmission(s scanner) (*Submission, error) {
 		&sub.ProviderName, &sub.WebsiteURL, &sub.Category,
 		&sub.ServiceType, &sub.TemplateName, &sub.SponsorLevel,
 		&sub.ChannelType, &sub.ChannelSource, &sub.ChannelCode,
+		&sub.ChannelName, &sub.ListedSince, &sub.PriceMin, &sub.PriceMax,
 		&sub.BaseURL, &sub.APIKeyEncrypted, &sub.APIKeyFingerprint, &sub.APIKeyLast4,
 		&sub.TestJobID, &sub.TestPassedAt, &sub.TestLatency, &sub.TestHTTPCode,
 		&contactInfo, &ipHash, &locale,

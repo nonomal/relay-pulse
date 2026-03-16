@@ -20,7 +20,7 @@ interface MonitorDetailProps {
 type EditableFields = Pick<MonitorConfig,
   'provider_name' | 'channel_name' | 'provider_url' | 'template' | 'base_url' | 'api_key' | 'proxy' |
   'category' | 'sponsor_level' | 'board' | 'interval' | 'listed_since' | 'expires_at' |
-  'key_type' | 'auto_cold_exempt' | 'auto_move_exempt'
+  'price_min' | 'price_max' | 'key_type' | 'auto_cold_exempt' | 'auto_move_exempt'
 >;
 
 interface ChildEdit {
@@ -66,6 +66,8 @@ export function MonitorDetail({
     interval: root?.interval || '',
     listed_since: root?.listed_since || '',
     expires_at: root?.expires_at || '',
+    price_min: root?.price_min ?? null,
+    price_max: root?.price_max ?? null,
     key_type: root?.key_type || '',
     auto_cold_exempt: root?.auto_cold_exempt ?? false,
     auto_move_exempt: root?.auto_move_exempt ?? false,
@@ -134,6 +136,8 @@ export function MonitorDetail({
       interval: root?.interval || '',
       listed_since: root?.listed_since || '',
       expires_at: root?.expires_at || '',
+      price_min: root?.price_min ?? null,
+      price_max: root?.price_max ?? null,
       key_type: root?.key_type || '',
       auto_cold_exempt: root?.auto_cold_exempt ?? false,
       auto_move_exempt: root?.auto_move_exempt ?? false,
@@ -346,6 +350,20 @@ export function MonitorDetail({
             editing={isEditing}
             onChange={v => updateField('expires_at', v)}
             type="date"
+          />
+          <EditableField
+            label={t('admin.monitors.field.priceMin')}
+            value={isEditing ? (editFields.price_min ?? '') : (root?.price_min ?? '')}
+            editing={isEditing}
+            onChange={v => updateField('price_min', v === '' ? null : parseFloat(v) || 0)}
+            type="number"
+          />
+          <EditableField
+            label={t('admin.monitors.field.priceMax')}
+            value={isEditing ? (editFields.price_max ?? '') : (root?.price_max ?? '')}
+            editing={isEditing}
+            onChange={v => updateField('price_max', v === '' ? null : parseFloat(v) || 0)}
+            type="number"
           />
           <EditableField
             label={t('admin.monitors.field.providerUrl')}
