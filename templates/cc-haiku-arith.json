@@ -7,7 +7,7 @@
 		"Authorization": "Bearer {{API_KEY}}",
 		"Content-Type": "application/json",
 		"Anthropic-Version": "2023-06-01",
-		"User-Agent": "claude-cli/2.1.7 (external, cli)",
+		"User-Agent": "claude-cli/2.1.76 (external, cli)",
 		"Anthropic-Beta": "oauth-2025-04-20,interleaved-thinking-2025-05-14",
 		"Anthropic-Dangerous-Direct-Browser-Access": "true",
 		"X-App": "cli"
