@@ -174,8 +174,11 @@ func (c *AppConfig) normalizeMonitorsPreInheritance(ctx *normalizeContext) error
 		}
 
 		// 规范化 URLs：去除首尾空格和末尾的 /
+		c.Monitors[i].BaseURL = strings.TrimRight(strings.TrimSpace(c.Monitors[i].BaseURL), "/")
 		c.Monitors[i].ProviderURL = strings.TrimRight(strings.TrimSpace(c.Monitors[i].ProviderURL), "/")
 		c.Monitors[i].SponsorURL = strings.TrimRight(strings.TrimSpace(c.Monitors[i].SponsorURL), "/")
+		c.Monitors[i].Template = strings.TrimSpace(c.Monitors[i].Template)
+		c.Monitors[i].URLPattern = strings.TrimSpace(c.Monitors[i].URLPattern)
 
 		// provider_slug 仅做 trim，不填充默认值（留给 post-inheritance 处理）
 		// 这样子通道可以正确继承父通道的 provider_slug 配置
