@@ -21,6 +21,23 @@ func TestSafeHTTPClientDisablesProxy(t *testing.T) {
 	}
 }
 
+func TestSafeHTTPClientUsesColdStartSemantics(t *testing.T) {
+	client := newSafeHTTPClient(NewSSRFGuard())
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport type = %T, want *http.Transport", client.Transport)
+	}
+	if !transport.DisableKeepAlives {
+		t.Fatal("DisableKeepAlives = false, want true")
+	}
+	if transport.TLSNextProto == nil {
+		t.Fatal("TLSNextProto = nil, want non-nil empty map to disable HTTP/2")
+	}
+	if len(transport.TLSNextProto) != 0 {
+		t.Fatalf("TLSNextProto len = %d, want 0", len(transport.TLSNextProto))
+	}
+}
+
 func TestSafeHTTPClientDisablesRedirects(t *testing.T) {
 	client := newSafeHTTPClient(NewSSRFGuard())
 

@@ -488,6 +488,104 @@ func TestProbe_POST(t *testing.T) {
 	}
 }
 
+// --- completion latency tests ---
+
+func TestProbe_LatencyIncludesBodyRead(t *testing.T) {
+	prober := NewProber(nil, nil)
+	defer prober.Close()
+
+	bodyDelay := 150 * time.Millisecond
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(200)
+		// Flush headers immediately, then delay the body
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		time.Sleep(bodyDelay)
+		_, _ = w.Write([]byte("pong"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.SuccessContains = "pong"
+	cfg.SlowLatencyDuration = 5 * time.Second // high threshold so it stays green
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 1 {
+		t.Fatalf("want status 1, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+	// Latency must include body read time (≥ bodyDelay)
+	if result.Latency < int(bodyDelay.Milliseconds()) {
+		t.Errorf("latency %dms should include body read delay ≥ %dms", result.Latency, bodyDelay.Milliseconds())
+	}
+}
+
+func TestProbe_SlowLatencyBasedOnCompletionTime(t *testing.T) {
+	prober := NewProber(nil, nil)
+	defer prober.Close()
+
+	bodyDelay := 150 * time.Millisecond
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(200)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		time.Sleep(bodyDelay)
+		_, _ = w.Write([]byte("pong"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	cfg.SuccessContains = "pong"
+	// Header arrives fast (~0ms), but body takes 150ms.
+	// Set threshold between header time and completion time
+	// so that only completion-based measurement triggers yellow.
+	cfg.SlowLatencyDuration = 100 * time.Millisecond
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 2 {
+		t.Errorf("want status 2 (slow_latency) based on completion time, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+	if result.SubStatus != storage.SubStatusSlowLatency {
+		t.Errorf("want sub_status slow_latency, got %s", result.SubStatus)
+	}
+}
+
+func TestProbe_DrainPathIncludesBodyRead(t *testing.T) {
+	prober := NewProber(nil, nil)
+	defer prober.Close()
+
+	bodyDelay := 150 * time.Millisecond
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(200)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		time.Sleep(bodyDelay)
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	// No SuccessContains → drain path
+	cfg.SlowLatencyDuration = 5 * time.Second
+
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 1 {
+		t.Fatalf("want status 1, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+	// Latency must include drain time (≥ bodyDelay)
+	if result.Latency < int(bodyDelay.Milliseconds()) {
+		t.Errorf("latency %dms should include drain delay ≥ %dms", result.Latency, bodyDelay.Milliseconds())
+	}
+}
+
 // --- compression test helpers ---
 
 func mustGzip(t *testing.T, data []byte) []byte {

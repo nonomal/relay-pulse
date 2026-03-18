@@ -212,17 +212,19 @@ retryLoop:
 			// 请求创建失败是配置问题，重试无意义
 			break retryLoop
 		}
+		// 冷启动口径：显式关闭长连接，避免请求层复用上一次连接。
+		req.Close = true
 
 		// 设置 Headers（已替换占位符）
 		for k, v := range probeHeaders {
 			req.Header.Set(k, v)
 		}
 
-		// 发送请求并计时
+		// 发送请求并计时（响应头到达）
 		start := time.Now()
 		resp, err := client.Do(req)
-		latency := int(time.Since(start).Milliseconds())
-		totalLatency += latency
+		headerLatency := int(time.Since(start).Milliseconds())
+		totalLatency += headerLatency
 
 		if err != nil {
 			// 极少数情况下 err != nil 但 resp != nil，需要关闭 body，避免资源泄漏
@@ -281,24 +283,27 @@ retryLoop:
 
 		// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
 		var bodyBytes []byte
+		bodyReadLatency := 0
 		if probeSuccessContains != "" {
 			bodyReadStart := time.Now()
 			data, readErr := io.ReadAll(resp.Body)
-			bodyReadLatency := int(time.Since(bodyReadStart).Milliseconds())
+			bodyReadLatency = int(time.Since(bodyReadStart).Milliseconds())
 			switch {
 			case readErr == nil:
+				totalLatency += bodyReadLatency
 				bodyBytes = data
 			case isTolerableReadError(readErr):
 				// 可容忍的传输错误（EOF、HTTP/2 流错误等），已读内容仍可用于匹配
+				totalLatency += bodyReadLatency
 				bodyBytes = data
 				logger.Debug("probe", "读取响应体遇到可容忍错误，使用已读数据",
 					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr, "bytes", len(data))
 			default:
 				logger.Warn("probe", "读取响应体失败",
 					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
+				totalLatency += bodyReadLatency // body 读取耗时计入 completion latency，无论成败
 				// 读取响应体超时：仅 2xx 响应标记为 response_timeout，非 2xx 走正常 HTTP 状态分类
 				if errors.Is(readErr, context.DeadlineExceeded) && resp.StatusCode >= 200 && resp.StatusCode < 300 {
-					totalLatency += bodyReadLatency // 补偿 body 读取耗时，使 latency 反映实际总耗时
 					_ = resp.Body.Close()
 					result.Status = 0
 					result.SubStatus = storage.SubStatusResponseTimeout
@@ -328,7 +333,10 @@ retryLoop:
 			// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
 			bodyBytes = decompressBodyIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
 		} else {
+			drainStart := time.Now()
 			_, _ = io.Copy(io.Discard, resp.Body)
+			bodyReadLatency = int(time.Since(drainStart).Milliseconds())
+			totalLatency += bodyReadLatency
 		}
 		_ = resp.Body.Close()
 
@@ -336,7 +344,8 @@ retryLoop:
 		lastBodyBytes = bodyBytes
 
 		// 判定状态（先按 HTTP/延迟，再根据响应内容做二次判断）
-		status, subStatus := p.determineStatus(resp.StatusCode, latency, cfg.SlowLatencyDuration)
+		attemptLatency := headerLatency + bodyReadLatency
+		status, subStatus := p.determineStatus(resp.StatusCode, attemptLatency, cfg.SlowLatencyDuration)
 		result.Status = status
 		result.SubStatus = subStatus
 		result.Status, result.SubStatus = evaluateStatus(result.Status, result.SubStatus, bodyBytes, probeSuccessContains)

@@ -2,6 +2,7 @@ package selftest
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/http"
@@ -87,8 +88,10 @@ func newSafeHTTPClient(guard *SSRFGuard) *http.Client {
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   10,
 		IdleConnTimeout:       30 * time.Second,
-		DisableKeepAlives:     false,
-		ForceAttemptHTTP2:     true,
+		// 自助测试与定时探测保持同一口径：每次测试都走新连接。
+		DisableKeepAlives: true,
+		// 显式禁用 HTTP/2，避免多路复用导致“冷启动”口径失真。
+		TLSNextProto: make(map[string]func(string, *tls.Conn) http.RoundTripper),
 	}
 
 	return &http.Client{

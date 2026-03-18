@@ -63,6 +63,7 @@ func (p *SelfTestProber) Probe(ctx context.Context, cfg *config.ServiceConfig) *
 		result.Err = fmt.Errorf("创建请求失败: %w", err)
 		return result
 	}
+	req.Close = true
 
 	for k, v := range probeHeaders {
 		req.Header.Set(k, v)

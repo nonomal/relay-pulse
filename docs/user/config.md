@@ -1429,7 +1429,7 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
   - 不同监测项使用不同的代理线路
   - 代理认证需要账号密码
 - **注意事项**:
-  - 同一 `provider + proxy` 组合会复用 HTTP 客户端连接池
+  - 同一 `provider + proxy` 组合会复用 HTTP 客户端配置；但探测请求会主动关闭连接，不复用目标站的 TCP/TLS 长连接
   - 密码中的特殊字符需要 URL 编码（如 `#` → `%23`）
 
 ##### `interval`

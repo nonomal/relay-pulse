@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -11,7 +12,7 @@ import (
 	"golang.org/x/net/proxy"
 )
 
-// ClientPool HTTP客户端池（按 provider+proxy 组合管理，复用连接）
+// ClientPool HTTP客户端缓存（按 provider+proxy 组合管理，复用客户端配置）
 type ClientPool struct {
 	mu      sync.RWMutex
 	clients map[string]*http.Client
@@ -25,7 +26,7 @@ func NewClientPool() *ClientPool {
 }
 
 // clientKey 生成客户端缓存键
-// 相同 provider 和 proxy 组合复用同一个客户端
+// 相同 provider 和 proxy 组合复用同一个客户端配置
 func clientKey(provider, proxyURL string) string {
 	if proxyURL == "" {
 		return provider
@@ -61,7 +62,7 @@ func (p *ClientPool) GetClient(provider, proxyURL string) (*http.Client, error) 
 		return nil, fmt.Errorf("创建 Transport 失败: %w", err)
 	}
 
-	// 创建带连接池的HTTP客户端
+	// 创建缓存化 HTTP 客户端
 	// 注意：不设置 Timeout，由 probe.go 使用 context.WithTimeout 控制每个请求的超时
 	client = &http.Client{
 		Transport: transport,
@@ -79,7 +80,10 @@ func createTransport(proxyURL string) (http.RoundTripper, error) {
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
 		DisableCompression:  false,
-		DisableKeepAlives:   false,
+		// 冷启动口径：每次探测都重新建立连接，避免 keep-alive 复用把结果做得偏乐观。
+		DisableKeepAlives: true,
+		// 显式禁用 HTTP/2，确保不会通过多路复用复用到已建立连接。
+		TLSNextProto: make(map[string]func(string, *tls.Conn) http.RoundTripper),
 	}
 
 	// 无自定义代理时，使用系统环境变量

@@ -22,7 +22,7 @@
 		"success_contains": "pong"
 	},
 	"probe": {
-		"slow_latency": "4s",
+		"slow_latency": "5s",
 		"timeout": "10s",
 		"retry": 0
 	}
