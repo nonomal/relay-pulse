@@ -60,10 +60,16 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     return cleanup;
   }, []);
 
-  // 桌面端：检测 tooltip 是否超出视口顶部，自动翻转到下方
+  // 桌面端：检测 tooltip 显示在上方时是否会侵入 Header/Controls 区域，自动翻转到下方
   useLayoutEffect(() => {
     if (isMobile || !tooltip.show || !tooltip.data || !tooltipRef.current) return;
-    const shouldFlip = tooltipRef.current.getBoundingClientRect().top < 8;
+    // 动态获取数据行区域顶部（tbody/卡片容器），作为 tooltip 不可侵入的安全边界
+    const contentTop = document.querySelector('tbody, [data-heatmap-container]')
+      ?.getBoundingClientRect().top ?? 160;
+    // 基于 tooltip 高度计算"假设显示在上方"的预期顶部，避免 flip 状态切换导致的 ping-pong
+    const tooltipHeight = tooltipRef.current.offsetHeight;
+    const wouldBeTop = tooltip.y - tooltipHeight;
+    const shouldFlip = wouldBeTop < contentTop;
     setFlipBelow(prev => prev === shouldFlip ? prev : shouldFlip);
   }, [isMobile, tooltip.show, tooltip.data, tooltip.x, tooltip.y, tooltip.blockBottom]);
 

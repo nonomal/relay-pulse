@@ -479,7 +479,7 @@ export default function ProviderPage() {
               )}
 
               {effectiveViewMode === 'grid' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                <div data-heatmap-container className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {filteredData.map((item) => (
                     <StatusCard
                       key={item.id}
