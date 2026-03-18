@@ -60,9 +60,9 @@ function ChannelCell({ channel, probeUrl, templateName, coldReason, className = 
     return <span className={`inline-flex items-center gap-1 ${className}`}>{channelContent}</span>;
   }
 
-  // 统一向上弹出，避免被页脚遮挡
-  // 注意：不使用 mb-1 间隙，避免鼠标移入 tooltip 时触发区失去 hover 导致闪烁
-  const tooltipPositionClass = 'bottom-full left-0';
+  // 统一向下弹出，避免被 Header/Controls 区域遮挡（尤其是首行）
+  // 注意：不使用 mt-1 间隙，避免鼠标移入 tooltip 时触发区失去 hover 导致闪烁
+  const tooltipPositionClass = 'top-full left-0';
 
   return (
     <span className={`relative group/channel inline-flex items-center gap-1 cursor-help ${className}`}>
