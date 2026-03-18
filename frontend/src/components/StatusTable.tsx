@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, memo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import { createPortal } from 'react-dom';
 import { List, type RowComponentProps } from 'react-window';
 import { ArrowUpDown, ArrowUp, ArrowDown, Zap, Shield, Filter, Info } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -47,6 +48,42 @@ function ChannelCell({ channel, probeUrl, templateName, coldReason, className = 
   const { t } = useTranslation();
   const channelType = parseChannelType(channel);
   const hasTooltip = !!(channelType || probeUrl || templateName || coldReason);
+  const triggerRef = useRef<HTMLSpanElement>(null);
+  const leaveTimer = useRef<number>(0);
+  const [hover, setHover] = useState(false);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+
+  const updatePosition = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPos({ x: rect.left, y: rect.bottom });
+  }, []);
+
+  const handleEnter = useCallback(() => {
+    clearTimeout(leaveTimer.current);
+    updatePosition();
+    setHover(true);
+  }, [updatePosition]);
+
+  const handleLeave = useCallback(() => {
+    clearTimeout(leaveTimer.current);
+    leaveTimer.current = window.setTimeout(() => setHover(false), 100);
+  }, []);
+
+  // 卸载时清理定时器
+  useEffect(() => () => { clearTimeout(leaveTimer.current); }, []);
+
+  // tooltip 打开时跟随滚动/resize 更新位置
+  useEffect(() => {
+    if (!hover) return;
+    updatePosition();
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [hover, updatePosition]);
 
   const channelContent = (
     <>
@@ -55,52 +92,57 @@ function ChannelCell({ channel, probeUrl, templateName, coldReason, className = 
     </>
   );
 
-  // 无 tooltip 时直接显示文本
   if (!hasTooltip) {
     return <span className={`inline-flex items-center gap-1 ${className}`}>{channelContent}</span>;
   }
 
-  // 统一向下弹出，避免被 Header/Controls 区域遮挡（尤其是首行）
-  // 注意：不使用 mt-1 间隙，避免鼠标移入 tooltip 时触发区失去 hover 导致闪烁
-  const tooltipPositionClass = 'top-full left-0';
-
   return (
-    <span className={`relative group/channel inline-flex items-center gap-1 cursor-help ${className}`}>
+    <span
+      ref={triggerRef}
+      className={`inline-flex items-center gap-1 cursor-help ${className}`}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
+    >
       {channelContent}
-      {/* CSS tooltip - 悬停后显示，支持鼠标移入复制内容 */}
-      {/* pointer-events-none 防止不可见时拦截鼠标事件，hover 时启用 */}
-      <span
-        className={`absolute ${tooltipPositionClass} px-2 py-1.5 bg-elevated border border-default text-xs rounded-lg shadow-lg opacity-0 pointer-events-none group-hover/channel:opacity-100 group-hover/channel:pointer-events-auto transition-opacity delay-150 z-50 select-text cursor-text md:min-w-[20rem] max-w-[90vw] md:max-w-2xl`}
-      >
-        <span className="flex flex-col gap-1">
-          {channelType && (
-            <span className="flex flex-col">
-              <span className="text-muted text-[10px]">{t('table.channelTooltip.channelType')}</span>
-              <span className="text-primary text-[11px]">
-                {t(`table.channelType.${channelType}`)} — {t(`table.channelType.${channelType}Desc`)}
+      {/* Portal 到 body — 逃出 backdrop-filter 造成的 containing block */}
+      {hover && pos && createPortal(
+        <span
+          className="fixed px-2 py-1.5 bg-elevated border border-default text-xs rounded-lg shadow-lg z-50 select-text cursor-text md:min-w-[20rem] max-w-[90vw] md:max-w-2xl"
+          style={{ left: pos.x, top: pos.y }}
+          onMouseEnter={handleEnter}
+          onMouseLeave={handleLeave}
+        >
+          <span className="flex flex-col gap-1">
+            {channelType && (
+              <span className="flex flex-col">
+                <span className="text-muted text-[10px]">{t('table.channelTooltip.channelType')}</span>
+                <span className="text-primary text-[11px]">
+                  {t(`table.channelType.${channelType}`)} — {t(`table.channelType.${channelType}Desc`)}
+                </span>
               </span>
-            </span>
-          )}
-          {probeUrl && (
-            <span className="flex flex-col">
-              <span className="text-muted text-[10px]">{t('table.channelTooltip.probeUrl')}</span>
-              <span className="text-primary font-mono text-[11px] break-all">{probeUrl}</span>
-            </span>
-          )}
-          {templateName && (
-            <span className="flex flex-col">
-              <span className="text-muted text-[10px]">{t('table.channelTooltip.template')}</span>
-              <span className="text-primary font-mono text-[11px] break-all">{templateName}</span>
-            </span>
-          )}
-          {coldReason && (
-            <span className="flex flex-col">
-              <span className="text-muted text-[10px]">{t('table.channelTooltip.coldReason', '冷板原因')}</span>
-              <span className="text-warning text-[11px] break-all">{coldReason}</span>
-            </span>
-          )}
-        </span>
-      </span>
+            )}
+            {probeUrl && (
+              <span className="flex flex-col">
+                <span className="text-muted text-[10px]">{t('table.channelTooltip.probeUrl')}</span>
+                <span className="text-primary font-mono text-[11px] break-all">{probeUrl}</span>
+              </span>
+            )}
+            {templateName && (
+              <span className="flex flex-col">
+                <span className="text-muted text-[10px]">{t('table.channelTooltip.template')}</span>
+                <span className="text-primary font-mono text-[11px] break-all">{templateName}</span>
+              </span>
+            )}
+            {coldReason && (
+              <span className="flex flex-col">
+                <span className="text-muted text-[10px]">{t('table.channelTooltip.coldReason', '冷板原因')}</span>
+                <span className="text-warning text-[11px] break-all">{coldReason}</span>
+              </span>
+            )}
+          </span>
+        </span>,
+        document.body,
+      )}
     </span>
   );
 }
