@@ -33,6 +33,7 @@ export function FormField({
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={() => { const trimmed = value.trim(); if (trimmed !== value) onChange(trimmed); }}
           placeholder={placeholder}
           rows={3}
           className={`${inputClasses} resize-y`}
@@ -43,6 +44,7 @@ export function FormField({
           inputMode={inputMode}
           value={value}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={() => { const trimmed = value.trim(); if (trimmed !== value) onChange(trimmed); }}
           placeholder={placeholder}
           className={`${inputClasses} ${error ? 'border-danger focus:border-danger focus:ring-danger' : ''}`}
         />

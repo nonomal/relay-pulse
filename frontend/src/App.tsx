@@ -507,6 +507,7 @@ function App() {
       show: true,
       x: rect.left + rect.width / 2,
       y: rect.top - 10,
+      blockBottom: rect.bottom + 10,
       data: point,
     });
   }, []);

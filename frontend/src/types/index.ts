@@ -229,6 +229,7 @@ export interface TooltipState {
   show: boolean;
   x: number;
   y: number;
+  blockBottom?: number;
   data: {
     index: number;
     status: StatusKey;

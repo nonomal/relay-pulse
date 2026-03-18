@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { TooltipState } from '../types';
@@ -51,12 +51,21 @@ function formatTimeRange(timestampSec: number, timeRange: string): string {
 export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipProps) {
   const { t } = useTranslation();
   const [isMobile, setIsMobile] = useState(false);
+  const [flipBelow, setFlipBelow] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   // 检测是否为移动端（兼容 Safari ≤13）
   useEffect(() => {
     const cleanup = createMediaQueryEffect('mobile', setIsMobile);
     return cleanup;
   }, []);
+
+  // 桌面端：检测 tooltip 是否超出视口顶部，自动翻转到下方
+  useLayoutEffect(() => {
+    if (isMobile || !tooltip.show || !tooltip.data || !tooltipRef.current) return;
+    const shouldFlip = tooltipRef.current.getBoundingClientRect().top < 8;
+    setFlipBelow(prev => prev === shouldFlip ? prev : shouldFlip);
+  }, [isMobile, tooltip.show, tooltip.data, tooltip.x, tooltip.y, tooltip.blockBottom]);
 
   if (!tooltip.show || !tooltip.data) return null;
 
@@ -334,21 +343,24 @@ export function Tooltip({ tooltip, slowLatencyMs, timeRange, onClose }: TooltipP
     );
   }
 
-  // 桌面端：悬浮 Tooltip
+  // 桌面端：悬浮 Tooltip（超出视口顶部时自动翻转到下方）
   return (
     <div
+      ref={tooltipRef}
       className="fixed z-50 pointer-events-none transition-opacity duration-200"
       style={{
         left: tooltip.x,
-        top: tooltip.y,
-        transform: 'translate(-50%, -100%)',
+        top: flipBelow ? (tooltip.blockBottom ?? tooltip.y) : tooltip.y,
+        transform: flipBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
       }}
     >
       <div className="bg-surface/95 backdrop-blur-md text-primary text-xs p-3 rounded-lg border border-default shadow-[0_10px_40px_-10px_rgba(0,0,0,0.8)] flex flex-col gap-2 min-w-[200px]">
         <TooltipContent />
 
         {/* 小三角箭头 */}
-        <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-surface border-r border-b border-default transform rotate-45"></div>
+        <div className={`absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-surface border-r border-b border-default transform ${
+          flipBelow ? '-top-1.5 rotate-[225deg]' : '-bottom-1.5 rotate-45'
+        }`}></div>
       </div>
     </div>
   );
