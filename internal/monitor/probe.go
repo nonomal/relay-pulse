@@ -282,7 +282,9 @@ retryLoop:
 		// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
 		var bodyBytes []byte
 		if probeSuccessContains != "" {
+			bodyReadStart := time.Now()
 			data, readErr := io.ReadAll(resp.Body)
+			bodyReadLatency := int(time.Since(bodyReadStart).Milliseconds())
 			switch {
 			case readErr == nil:
 				bodyBytes = data
@@ -296,6 +298,7 @@ retryLoop:
 					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr)
 				// 读取响应体超时：仅 2xx 响应标记为 response_timeout，非 2xx 走正常 HTTP 状态分类
 				if errors.Is(readErr, context.DeadlineExceeded) && resp.StatusCode >= 200 && resp.StatusCode < 300 {
+					totalLatency += bodyReadLatency // 补偿 body 读取耗时，使 latency 反映实际总耗时
 					_ = resp.Body.Close()
 					result.Status = 0
 					result.SubStatus = storage.SubStatusResponseTimeout
