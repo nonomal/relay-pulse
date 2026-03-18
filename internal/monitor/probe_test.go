@@ -7,6 +7,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -351,6 +352,9 @@ func TestProbe_500ServerError(t *testing.T) {
 	if result.SubStatus != storage.SubStatusServerError {
 		t.Errorf("want subStatus server_error, got %s", result.SubStatus)
 	}
+	if !strings.Contains(result.ResponseSnippet, "internal error") {
+		t.Errorf("want response snippet to include error body, got %q", result.ResponseSnippet)
+	}
 }
 
 func TestProbe_429RateLimit(t *testing.T) {
@@ -367,6 +371,32 @@ func TestProbe_429RateLimit(t *testing.T) {
 	result := prober.Probe(context.Background(), &cfg)
 	if result.Status != 0 || result.SubStatus != storage.SubStatusRateLimit {
 		t.Errorf("want (0, rate_limit), got (%d, %s)", result.Status, result.SubStatus)
+	}
+	if !strings.Contains(result.ResponseSnippet, "rate limited") {
+		t.Errorf("want response snippet to include rate limit body, got %q", result.ResponseSnippet)
+	}
+}
+
+func TestProbe_401AuthErrorCapturesResponseSnippet(t *testing.T) {
+	prober := NewProber(nil, nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(401)
+		_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 0 {
+		t.Fatalf("want status 0, got %d", result.Status)
+	}
+	if result.SubStatus != storage.SubStatusAuthError {
+		t.Fatalf("want auth_error, got %s", result.SubStatus)
+	}
+	if !strings.Contains(result.ResponseSnippet, "unauthorized") {
+		t.Errorf("want response snippet to include auth body, got %q", result.ResponseSnippet)
 	}
 }
 
@@ -410,6 +440,7 @@ func TestProbe_Timeout(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		time.Sleep(200 * time.Millisecond)
 		w.WriteHeader(200)
+		_, _ = w.Write([]byte("late body"))
 	}))
 	defer srv.Close()
 
@@ -422,6 +453,9 @@ func TestProbe_Timeout(t *testing.T) {
 	}
 	if result.SubStatus != storage.SubStatusNetworkError {
 		t.Errorf("want subStatus network_error, got %s", result.SubStatus)
+	}
+	if strings.Contains(result.ResponseSnippet, "late body") {
+		t.Errorf("network timeout should not retain response body, got %q", result.ResponseSnippet)
 	}
 }
 
@@ -461,6 +495,29 @@ func TestProbe_ContentMismatch(t *testing.T) {
 	result := prober.Probe(context.Background(), &cfg)
 	if result.Status != 0 || result.SubStatus != storage.SubStatusContentMismatch {
 		t.Errorf("want (0, content_mismatch), got (%d, %s)", result.Status, result.SubStatus)
+	}
+	if !strings.Contains(result.ResponseSnippet, "wrong") {
+		t.Errorf("want content mismatch snippet to include body, got %q", result.ResponseSnippet)
+	}
+}
+
+func TestProbe_200WithoutSuccessContainsDoesNotCaptureBody(t *testing.T) {
+	prober := NewProber(nil, nil)
+	defer prober.Close()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("ok body should only be drained"))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 1 {
+		t.Fatalf("want status 1, got %d (sub: %s)", result.Status, result.SubStatus)
+	}
+	if result.ResponseSnippet != "" {
+		t.Errorf("2xx without success_contains should not keep snippet, got %q", result.ResponseSnippet)
 	}
 }
 
@@ -583,6 +640,64 @@ func TestProbe_DrainPathIncludesBodyRead(t *testing.T) {
 	// Latency must include drain time (≥ bodyDelay)
 	if result.Latency < int(bodyDelay.Milliseconds()) {
 		t.Errorf("latency %dms should include drain delay ≥ %dms", result.Latency, bodyDelay.Milliseconds())
+	}
+}
+
+func TestReadBodyPrefixAndDrain(t *testing.T) {
+	t.Parallel()
+
+	body := strings.Repeat("a", httpFailureBodyCaptureLimit) + "TAIL"
+	captured, err := readBodyPrefixAndDrain(strings.NewReader(body), httpFailureBodyCaptureLimit)
+	if err != nil {
+		t.Fatalf("readBodyPrefixAndDrain error: %v", err)
+	}
+	if len(captured) != httpFailureBodyCaptureLimit {
+		t.Fatalf("want captured len %d, got %d", httpFailureBodyCaptureLimit, len(captured))
+	}
+	if strings.Contains(string(captured), "TAIL") {
+		t.Fatalf("captured prefix should not contain tail marker")
+	}
+}
+
+func TestProbe_HTTPFailureCapturesLimitedPrefixAndDrainLatency(t *testing.T) {
+	prober := NewProber(nil, nil)
+	defer prober.Close()
+
+	bodyDelay := 150 * time.Millisecond
+	prefix := "error-prefix: invalid api key\n"
+	tail := strings.Repeat("x", httpFailureBodyCaptureLimit+1024)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(500)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		_, _ = w.Write([]byte(prefix))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		time.Sleep(bodyDelay)
+		_, _ = w.Write([]byte(tail))
+	}))
+	defer srv.Close()
+
+	cfg := newTestCfg(srv.URL)
+	result := prober.Probe(context.Background(), &cfg)
+	if result.Status != 0 {
+		t.Fatalf("want status 0, got %d", result.Status)
+	}
+	if result.SubStatus != storage.SubStatusServerError {
+		t.Fatalf("want server_error, got %s", result.SubStatus)
+	}
+	if result.Latency < int(bodyDelay.Milliseconds()) {
+		t.Errorf("latency %dms should include HTTP failure drain delay ≥ %dms", result.Latency, bodyDelay.Milliseconds())
+	}
+	if !strings.Contains(result.ResponseSnippet, "error-prefix") {
+		t.Errorf("want response snippet to include prefix, got %q", result.ResponseSnippet)
+	}
+	if strings.Contains(result.ResponseSnippet, strings.Repeat("x", 2048)) {
+		t.Errorf("response snippet should not include oversized tail")
 	}
 }
 

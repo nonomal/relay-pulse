@@ -47,6 +47,8 @@ type Prober struct {
 	userIDMgr  *identity.UserIDManager
 }
 
+const httpFailureBodyCaptureLimit = 512
+
 // NewProber 创建探测器
 func NewProber(storage storage.RecordStorage, userIDMgr *identity.UserIDManager) *Prober {
 	return &Prober{
@@ -284,7 +286,8 @@ retryLoop:
 		// 完整读取响应体（避免连接泄漏），在需要内容匹配时保留文本
 		var bodyBytes []byte
 		bodyReadLatency := 0
-		if probeSuccessContains != "" {
+		switch {
+		case probeSuccessContains != "":
 			bodyReadStart := time.Now()
 			data, readErr := io.ReadAll(resp.Body)
 			bodyReadLatency = int(time.Since(bodyReadStart).Milliseconds())
@@ -332,7 +335,22 @@ retryLoop:
 			// 内容解压：根据 Content-Encoding 处理 br/zstd/gzip/deflate
 			// Go 的 http.Transport 在用户显式设置 Accept-Encoding 请求头时不会自动解压
 			bodyBytes = decompressBodyIfNeeded(resp, bodyBytes, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
-		} else {
+		case shouldCaptureHTTPFailureBody(resp.StatusCode):
+			bodyReadStart := time.Now()
+			data, readErr := readBodyPrefixAndDrain(resp.Body, httpFailureBodyCaptureLimit)
+			bodyReadLatency = int(time.Since(bodyReadStart).Milliseconds())
+			totalLatency += bodyReadLatency
+			bodyBytes = decompressBodyIfNeeded(resp, data, cfg.Provider, cfg.Service, cfg.Channel, cfg.Model)
+			switch {
+			case readErr == nil:
+			case isTolerableReadError(readErr):
+				logger.Debug("probe", "读取 HTTP 红态响应体遇到可容忍错误，使用已读数据",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr, "bytes", len(data))
+			default:
+				logger.Warn("probe", "读取 HTTP 红态响应体失败",
+					"provider", cfg.Provider, "service", cfg.Service, "channel", cfg.Channel, "model", cfg.Model, "error", readErr, "bytes", len(data))
+			}
+		default:
 			drainStart := time.Now()
 			_, _ = io.Copy(io.Discard, resp.Body)
 			bodyReadLatency = int(time.Since(drainStart).Milliseconds())
@@ -460,6 +478,9 @@ func (p *Prober) logFailedProbe(cfg *config.ServiceConfig, result *ProbeResult, 
 	} else if len(bodyBytes) > 0 {
 		// 其他红色状态：保持原有行为，在有响应体时输出片段
 		snippet := strings.TrimSpace(AggregateResponseText(bodyBytes))
+		if snippet == "" {
+			snippet = strings.TrimSpace(string(bodyBytes))
+		}
 		if snippet != "" {
 			if len(snippet) > maxSnippetLen {
 				snippet = snippet[:maxSnippetLen] + "... (truncated)"
@@ -976,6 +997,35 @@ func computeRetryDelay(retryIndex int, baseDelay, maxDelay time.Duration, jitter
 	}
 
 	return delay
+}
+
+func shouldCaptureHTTPFailureBody(statusCode int) bool {
+	return statusCode >= 400 && statusCode < 600
+}
+
+type limitedBodyCaptureWriter struct {
+	limit int
+	buf   bytes.Buffer
+}
+
+func (w *limitedBodyCaptureWriter) Write(p []byte) (int, error) {
+	remaining := w.limit - w.buf.Len()
+	if remaining > 0 {
+		if remaining > len(p) {
+			remaining = len(p)
+		}
+		_, _ = w.buf.Write(p[:remaining])
+	}
+	return len(p), nil
+}
+
+func readBodyPrefixAndDrain(r io.Reader, limit int) ([]byte, error) {
+	if limit <= 0 {
+		return nil, nil
+	}
+	capture := &limitedBodyCaptureWriter{limit: limit}
+	_, err := io.Copy(capture, r)
+	return capture.buf.Bytes(), err
 }
 
 // drainAndClose 排空响应体并关闭，便于连接复用
