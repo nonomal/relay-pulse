@@ -152,9 +152,9 @@ export function useChangeRequest() {
     });
   }, []);
 
-  // 判断是否需要测试
+  // 判断是否需要测试（base_url 变更或提供新 API Key 时需要通过探测测试）
   const requiresTest = Object.keys(changes).some(
-    f => f === 'base_url' || f === 'api_key'
+    f => f === 'base_url'
   ) || newApiKey !== '';
 
   // 进入测试/提交步骤

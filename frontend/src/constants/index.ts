@@ -69,11 +69,11 @@ export const USE_MOCK_DATA =
 // 向后兼容：优先使用新的环境变量，回退到旧的 VITE_FEEDBACK_URL
 const legacyFeedbackUrl = import.meta.env.VITE_FEEDBACK_URL;
 export const FEEDBACK_URLS = {
-  // 申请收录
+  // 申请收录（指向站内自助收录页）
   PROVIDER_SUGGESTION:
     import.meta.env.VITE_FEEDBACK_PROVIDER_URL ||
     legacyFeedbackUrl ||
-    'https://github.com/prehisle/relay-pulse/issues/new?template=1-provider-suggestion.yml',
+    '/contact/apply',
   // 问题反馈
   BUG_REPORT:
     import.meta.env.VITE_FEEDBACK_BUG_URL ||

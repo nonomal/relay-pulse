@@ -12,6 +12,16 @@ body:
         本模板覆盖：**赞助等级申请/升级、续期、权益争议、负向徽标申诉**。
         赞助权益说明请参阅：[赞助权益体系](https://github.com/prehisle/relay-pulse/blob/main/docs/user/sponsorship.md)。
 
+        ---
+
+        📌 **如果您需要的是以下服务，请勿使用本模板，直接访问对应页面：**
+        - **申请收录新通道**（`public`/`signal`/`pulse` 等级）→ [站内自助收录](https://relaypulse.top/contact/apply)
+        - **修改已收录通道的配置**（名称、链接、base_url、API Key 轮换）→ [站内变更申请](https://relaypulse.top/contact/change)
+
+        本模板**仅用于**：赞助等级申请/升级（`beacon` 及以上）、赞助续期、权益争议、负向徽标申诉。
+
+        ---
+
         💬 **联系 QQ**：18058344
         - 赞助申请、续期、对账等事宜请通过 QQ 沟通
         - 请勿在 Issue 中提交 API Key、支付凭证或个人敏感信息

@@ -1,5 +1,11 @@
 blank_issues_enabled: false
 contact_links:
+  - name: 📋 申请收录新通道
+    url: https://relaypulse.top/contact/apply
+    about: public/signal/pulse 等级的标准通道收录，请使用站内自助申请
+  - name: ✏️ 修改已收录通道配置
+    url: https://relaypulse.top/contact/change
+    about: 变更名称、链接、base_url 或轮换 API Key，请使用站内变更申请
   - name: 🔒 安全问题（Security）
     url: https://github.com/prehisle/relay-pulse/security/policy
     about: 安全漏洞请走 Security Policy，不要公开披露

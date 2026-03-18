@@ -789,3 +789,134 @@ func TestService_GetStatus_NotFound(t *testing.T) {
 		t.Error("expected nil for non-existent")
 	}
 }
+
+// --- Ghost api_key field tests ---
+
+func TestService_Submit_DisallowGhostAPIKeyField(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	req := &SubmitRequest{
+		APIKey:          "sk-test-key-12345",
+		TargetKey:       "testprov--cc--vip",
+		ProposedChanges: map[string]string{"api_key": "sk-some-key"},
+	}
+
+	_, err := svc.Submit(ctx, req, "127.0.0.1")
+	if err == nil {
+		t.Error("expected error: api_key should not be allowed in proposed_changes")
+	}
+	if !strings.Contains(err.Error(), "不允许自助变更") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+// --- TestAPIURL host consistency tests ---
+
+func TestService_Submit_BaseURLHostMustMatchTestAPIURL(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	// proof 绑定 api.other.com，但 base_url 指向 api.new.com，host 不一致
+	cipher, _ := apikey.NewKeyCipher(testHexKey)
+	proofIssuer := apikey.NewProofIssuer(testProofSecret, 5*time.Minute)
+	fingerprint := cipher.Fingerprint("sk-test-key-12345")
+	proof := proofIssuer.Issue("job-host", "cc", "https://api.other.com", fingerprint)
+
+	req := &SubmitRequest{
+		APIKey:          "sk-test-key-12345",
+		TargetKey:       "testprov--cc--vip",
+		ProposedChanges: map[string]string{"base_url": "https://api.new.com"},
+		TestProof:       proof,
+		TestJobID:       "job-host",
+		TestType:        "cc",
+		TestAPIURL:      "https://api.other.com",
+	}
+
+	_, err := svc.Submit(ctx, req, "127.0.0.1")
+	if err == nil {
+		t.Error("expected error: test_api_url host does not match new base_url")
+	}
+	if !strings.Contains(err.Error(), "host 必须一致") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestService_Submit_NewAPIKeyHostMustMatchTargetBaseURL(t *testing.T) {
+	svc, _ := newTestService(t)
+	ctx := context.Background()
+
+	// target.BaseURL = "https://api.test.com"，TestAPIURL 指向不同 host
+	cipher, _ := apikey.NewKeyCipher(testHexKey)
+	proofIssuer := apikey.NewProofIssuer(testProofSecret, 5*time.Minute)
+	newKey := "sk-brand-new-key-efgh"
+	fingerprint := cipher.Fingerprint(newKey)
+	proof := proofIssuer.Issue("job-newkey-host", "cc", "https://api.evil.com", fingerprint)
+
+	req := &SubmitRequest{
+		APIKey:          "sk-test-key-12345",
+		TargetKey:       "testprov--cc--vip",
+		ProposedChanges: map[string]string{"provider_name": "Updated"},
+		NewAPIKey:       newKey,
+		TestProof:       proof,
+		TestJobID:       "job-newkey-host",
+		TestType:        "cc",
+		TestAPIURL:      "https://api.evil.com",
+	}
+
+	_, err := svc.Submit(ctx, req, "127.0.0.1")
+	if err == nil {
+		t.Error("expected error: test_api_url host does not match target base_url")
+	}
+	if !strings.Contains(err.Error(), "host 必须一致") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestService_Submit_SkipHostCheckWhenBaseURLEmpty(t *testing.T) {
+	// 构造 target.BaseURL 为空的 monitor，host 校验应跳过
+	cipher, err := apikey.NewKeyCipher(testHexKey)
+	if err != nil {
+		t.Fatalf("NewKeyCipher: %v", err)
+	}
+	proofIssuer := apikey.NewProofIssuer(testProofSecret, 5*time.Minute)
+	store := newMockStore()
+	cfg := &config.ChangeRequestConfig{
+		Enabled:        true,
+		MaxPerIPPerDay: 5,
+	}
+	svc := NewService(store, cipher, proofIssuer, cfg)
+
+	monitors := []config.ServiceConfig{
+		{
+			Provider: "nbase", Service: "cc", Channel: "ch",
+			APIKey:  "sk-nobase-key-00001",
+			BaseURL: "", // 无 base_url
+		},
+	}
+	svc.UpdateConfig(cfg, monitors)
+
+	newKey := "sk-brand-new-key-0001"
+	fingerprint := cipher.Fingerprint(newKey)
+	proof := proofIssuer.Issue("job-nobase", "cc", "https://any.host.com/v1", fingerprint)
+
+	req := &SubmitRequest{
+		APIKey:          "sk-nobase-key-00001",
+		TargetKey:       "nbase--cc--ch",
+		ProposedChanges: map[string]string{"provider_name": "NoBase"},
+		NewAPIKey:       newKey,
+		TestProof:       proof,
+		TestJobID:       "job-nobase",
+		TestType:        "cc",
+		TestAPIURL:      "https://any.host.com/v1",
+	}
+
+	ctx := context.Background()
+	resp, err := svc.Submit(ctx, req, "127.0.0.1")
+	if err != nil {
+		t.Fatalf("expected success when target BaseURL is empty, got: %v", err)
+	}
+	if resp.PublicID == "" {
+		t.Error("expected non-empty PublicID")
+	}
+}

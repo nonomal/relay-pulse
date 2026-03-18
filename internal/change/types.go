@@ -44,7 +44,7 @@ type ChangeRequest struct {
 	NewKeyFingerprint string `json:"new_key_fingerprint,omitempty"`
 	NewKeyLast4       string `json:"new_key_last4,omitempty"`
 
-	// 测试（base_url/api_key 变更时必须）
+	// 测试（base_url 变更或 new_api_key 不为空时必须）
 	RequiresTest bool   `json:"requires_test"`
 	TestType     string `json:"test_type,omitempty"`
 	TestVariant  string `json:"test_variant,omitempty"`

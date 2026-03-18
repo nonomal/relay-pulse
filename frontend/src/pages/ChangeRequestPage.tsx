@@ -413,7 +413,7 @@ function ReviewStep({
 
         {newApiKey && (
           <div className="p-3 rounded-lg bg-elevated border border-default">
-            <div className="text-xs text-muted">api_key</div>
+            <div className="text-xs text-muted">new_api_key</div>
             <div className="text-sm text-secondary line-through">...{selectedCandidate.key_last4}</div>
             <div className="text-sm text-primary font-medium">...{newApiKey.slice(-4)}</div>
           </div>

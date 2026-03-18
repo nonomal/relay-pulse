@@ -96,7 +96,7 @@ export interface AdminChangeRequest {
   updated_at: number;
 }
 
-/** 允许用户变更的字段集合 */
+/** 允许用户变更的字段集合（API Key 轮换使用顶层 new_api_key 字段，不走 proposed_changes） */
 export const EDITABLE_FIELDS = [
   'provider_name',
   'provider_url',
@@ -104,13 +104,11 @@ export const EDITABLE_FIELDS = [
   'category',
   'sponsor_level',
   'base_url',
-  'api_key',
 ] as const;
 
 export type EditableField = (typeof EDITABLE_FIELDS)[number];
 
-/** 需要测试的字段 */
+/** proposed_changes 中需要测试的字段（API Key 轮换由顶层 new_api_key 单独触发） */
 export const FIELDS_REQUIRING_TEST: ReadonlySet<string> = new Set([
   'base_url',
-  'api_key',
 ]);

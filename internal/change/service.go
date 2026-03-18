@@ -6,7 +6,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -17,10 +19,9 @@ import (
 	"monitor/internal/logger"
 )
 
-// 需要测试的字段（变更这些字段时须通过探测测试）
+// 需要测试的 proposed_changes 字段（顶层 new_api_key 单独处理）
 var fieldsRequiringTest = map[string]bool{
 	"base_url": true,
-	"api_key":  true,
 }
 
 // 允许用户自助变更的字段
@@ -31,7 +32,6 @@ var allowedFields = map[string]bool{
 	"category":      true,
 	"sponsor_level": true,
 	"base_url":      true,
-	"api_key":       true,
 }
 
 // Service 变更请求核心业务逻辑。
@@ -157,6 +157,14 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 		}
 	}
 
+	// 校验新 base_url 合法性（必须 HTTPS + 有效 hostname）
+	if newBaseURL, ok := req.ProposedChanges["base_url"]; ok && newBaseURL != "" {
+		parsedNew, err := url.Parse(newBaseURL)
+		if err != nil || parsedNew.Hostname() == "" || parsedNew.Scheme != "https" {
+			return nil, fmt.Errorf("base_url 必须使用 HTTPS 协议且包含有效 hostname")
+		}
+	}
+
 	// 判断是否需要测试
 	requiresTest := false
 	for field := range req.ProposedChanges {
@@ -173,7 +181,26 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 	// 如果需要测试，验证 proof
 	if requiresTest {
 		if req.TestProof == "" || req.TestJobID == "" {
-			return nil, fmt.Errorf("变更监测相关字段（base_url/api_key）需要先通过测试")
+			return nil, fmt.Errorf("变更监测相关字段（base_url/new_api_key）需要先通过测试")
+		}
+
+		// 校验 test_api_url 与目标 base_url 的 host 一致，防止复用其他地址的测试结果
+		targetBaseURL := target.BaseURL
+		if newBaseURL, ok := req.ProposedChanges["base_url"]; ok {
+			targetBaseURL = newBaseURL
+		}
+		if targetBaseURL != "" {
+			parsedBaseURL, err := url.Parse(targetBaseURL)
+			if err != nil || parsedBaseURL.Hostname() == "" {
+				return nil, fmt.Errorf("base_url 无效")
+			}
+			parsedTestURL, err := url.Parse(req.TestAPIURL)
+			if err != nil || parsedTestURL.Hostname() == "" {
+				return nil, fmt.Errorf("test_api_url 无效")
+			}
+			if !strings.EqualFold(parsedBaseURL.Hostname(), parsedTestURL.Hostname()) {
+				return nil, fmt.Errorf("base_url 与 test_api_url 的 host 必须一致")
+			}
 		}
 
 		// 计算用于 proof 的 API Key 指纹（使用新 key 或原 key）
