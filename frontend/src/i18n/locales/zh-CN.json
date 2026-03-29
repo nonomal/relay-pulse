@@ -333,6 +333,7 @@
       "cc-haiku-arith": "Haiku 算术",
       "cc-haiku-arith-anyrouter": "Haiku 算术 (AnyRouter)",
       "cc-haiku-arith-lite": "Haiku 算术 (精简)",
+      "cc-haiku-pro-2184": "Haiku Pro (2.1.84)",
       "cc-sonnet-arith": "Sonnet 算术",
       "cc-sonnet-arith-anyrouter": "Sonnet 算术 (AnyRouter)",
       "cc-opus-arith": "Opus 算术",
@@ -465,6 +466,9 @@
       "hideApiKey": "隐藏 API Key",
       "testType": "服务类型",
       "testVariant": "请求模板",
+      "variants": {
+        "cc-haiku-pro-2184": "Haiku Pro (2.1.84)"
+      },
       "runTest": "运行测试",
       "testing": "测试中...",
       "resultTitle": "测试结果",

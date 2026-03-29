@@ -333,6 +333,7 @@
       "cc-haiku-arith": "Haiku Arith",
       "cc-haiku-arith-anyrouter": "Haiku Arith (AnyRouter)",
       "cc-haiku-arith-lite": "Haiku Arith (Lite)",
+      "cc-haiku-pro-2184": "Haiku Pro (2.1.84)",
       "cc-sonnet-arith": "Sonnet Arith",
       "cc-sonnet-arith-anyrouter": "Sonnet Arith (AnyRouter)",
       "cc-opus-arith": "Opus Arith",
@@ -462,6 +463,9 @@
       "hideApiKey": "Hide API Key",
       "testType": "Service Type",
       "testVariant": "Request Template",
+      "variants": {
+        "cc-haiku-pro-2184": "Haiku Pro (2.1.84)"
+      },
       "runTest": "Run Test",
       "testing": "Testing...",
       "resultTitle": "Test Result",

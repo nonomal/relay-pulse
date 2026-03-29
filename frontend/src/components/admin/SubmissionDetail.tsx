@@ -228,6 +228,7 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
             options={[
               { value: 'cc-haiku-arith', label: 'cc-haiku-arith' },
               { value: 'cc-haiku-arith-lite', label: 'cc-haiku-arith-lite' },
+              { value: 'cc-haiku-pro-2184', label: 'cc-haiku-pro-2184' },
               { value: 'cc-sonnet-arith', label: 'cc-sonnet-arith' },
               { value: 'cc-opus-arith', label: 'cc-opus-arith' },
               { value: 'cc-opus-ping', label: 'cc-opus-ping' },
