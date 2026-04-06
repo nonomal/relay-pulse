@@ -38,8 +38,12 @@ func (s *PgxStore) InitTable(ctx context.Context) error {
 		channel_type TEXT NOT NULL,
 		channel_source TEXT NOT NULL,
 		channel_code TEXT NOT NULL,
+		target_provider TEXT NOT NULL DEFAULT '',
+		target_service TEXT NOT NULL DEFAULT '',
+		target_channel TEXT NOT NULL DEFAULT '',
 		channel_name TEXT NOT NULL DEFAULT '',
 		listed_since TEXT NOT NULL DEFAULT '',
+		expires_at TEXT NOT NULL DEFAULT '',
 		price_min DOUBLE PRECISION NOT NULL DEFAULT 0,
 		price_max DOUBLE PRECISION NOT NULL DEFAULT 0,
 
@@ -78,6 +82,10 @@ func (s *PgxStore) InitTable(ctx context.Context) error {
 		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS listed_since TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS price_min DOUBLE PRECISION NOT NULL DEFAULT 0`,
 		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS price_max DOUBLE PRECISION NOT NULL DEFAULT 0`,
+		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS expires_at TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS target_provider TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS target_service TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE onboarding_submissions ADD COLUMN IF NOT EXISTS target_channel TEXT NOT NULL DEFAULT ''`,
 	} {
 		if _, err := s.pool.Exec(ctx, ddl); err != nil {
 			return fmt.Errorf("迁移 onboarding_submissions 失败: %w", err)
@@ -93,20 +101,22 @@ func (s *PgxStore) Save(ctx context.Context, sub *Submission) error {
 		public_id, status, provider_name, website_url, category,
 		service_type, template_name, sponsor_level,
 		channel_type, channel_source, channel_code,
-		channel_name, listed_since, price_min, price_max,
+		target_provider, target_service, target_channel,
+		channel_name, listed_since, expires_at, price_min, price_max,
 		base_url, api_key_encrypted, api_key_fingerprint, api_key_last4,
 		test_job_id, test_passed_at, test_latency_ms, test_http_code,
 		contact_info, submitter_ip_hash, locale,
 		admin_note, admin_config_json, reviewed_at,
 		created_at, updated_at
-	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31)
+	) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35)
 	RETURNING id`
 
 	err := s.pool.QueryRow(ctx, query,
 		sub.PublicID, sub.Status, sub.ProviderName, sub.WebsiteURL, sub.Category,
 		sub.ServiceType, sub.TemplateName, sub.SponsorLevel,
 		sub.ChannelType, sub.ChannelSource, sub.ChannelCode,
-		sub.ChannelName, sub.ListedSince, sub.PriceMin, sub.PriceMax,
+		sub.TargetProvider, sub.TargetService, sub.TargetChannel,
+		sub.ChannelName, sub.ListedSince, sub.ExpiresAt, sub.PriceMin, sub.PriceMax,
 		sub.BaseURL, sub.APIKeyEncrypted, sub.APIKeyFingerprint, sub.APIKeyLast4,
 		sub.TestJobID, sub.TestPassedAt, sub.TestLatency, sub.TestHTTPCode,
 		pgxNullStr(sub.ContactInfo), pgxNullStr(sub.SubmitterIPHash), pgxNullStr(sub.Locale),
@@ -173,18 +183,20 @@ func (s *PgxStore) Update(ctx context.Context, sub *Submission) error {
 		status = $1, provider_name = $2, website_url = $3, category = $4,
 		service_type = $5, template_name = $6, sponsor_level = $7,
 		channel_type = $8, channel_source = $9, channel_code = $10,
-		channel_name = $11, listed_since = $12, price_min = $13, price_max = $14,
-		base_url = $15,
-		contact_info = $16,
-		admin_note = $17, admin_config_json = $18, reviewed_at = $19,
-		updated_at = $20
-	WHERE id = $21`
+		target_provider = $11, target_service = $12, target_channel = $13,
+		channel_name = $14, listed_since = $15, expires_at = $16, price_min = $17, price_max = $18,
+		base_url = $19,
+		contact_info = $20,
+		admin_note = $21, admin_config_json = $22, reviewed_at = $23,
+		updated_at = $24
+	WHERE id = $25`
 
 	_, err := s.pool.Exec(ctx, query,
 		sub.Status, sub.ProviderName, sub.WebsiteURL, sub.Category,
 		sub.ServiceType, sub.TemplateName, sub.SponsorLevel,
 		sub.ChannelType, sub.ChannelSource, sub.ChannelCode,
-		sub.ChannelName, sub.ListedSince, sub.PriceMin, sub.PriceMax,
+		sub.TargetProvider, sub.TargetService, sub.TargetChannel,
+		sub.ChannelName, sub.ListedSince, sub.ExpiresAt, sub.PriceMin, sub.PriceMax,
 		sub.BaseURL,
 		pgxNullStr(sub.ContactInfo),
 		pgxNullStr(sub.AdminNote), pgxNullStr(sub.AdminConfigJSON), sub.ReviewedAt,
@@ -236,7 +248,8 @@ const pgxAllColumns = `id, public_id, status,
 	provider_name, website_url, category,
 	service_type, template_name, sponsor_level,
 	channel_type, channel_source, channel_code,
-	channel_name, listed_since, price_min, price_max,
+	target_provider, target_service, target_channel,
+	channel_name, listed_since, expires_at, price_min, price_max,
 	base_url, api_key_encrypted, api_key_fingerprint, api_key_last4,
 	test_job_id, test_passed_at, test_latency_ms, test_http_code,
 	contact_info, submitter_ip_hash, locale,
@@ -253,7 +266,8 @@ func pgxScanSubmission(row pgx.Row) (*Submission, error) {
 		&sub.ProviderName, &sub.WebsiteURL, &sub.Category,
 		&sub.ServiceType, &sub.TemplateName, &sub.SponsorLevel,
 		&sub.ChannelType, &sub.ChannelSource, &sub.ChannelCode,
-		&sub.ChannelName, &sub.ListedSince, &sub.PriceMin, &sub.PriceMax,
+		&sub.TargetProvider, &sub.TargetService, &sub.TargetChannel,
+		&sub.ChannelName, &sub.ListedSince, &sub.ExpiresAt, &sub.PriceMin, &sub.PriceMax,
 		&sub.BaseURL, &sub.APIKeyEncrypted, &sub.APIKeyFingerprint, &sub.APIKeyLast4,
 		&sub.TestJobID, &sub.TestPassedAt, &sub.TestLatency, &sub.TestHTTPCode,
 		&contactInfo, &ipHash, &locale,

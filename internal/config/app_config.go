@@ -138,9 +138,6 @@ type AppConfig struct {
 	// 用于在页面初始加载时置顶符合条件的赞助商监测项
 	SponsorPin SponsorPinConfig `yaml:"sponsor_pin" json:"sponsor_pin"`
 
-	// 自助测试功能配置
-	SelfTest SelfTestConfig `yaml:"selftest" json:"selftest"`
-
 	// 服务商自助收录配置
 	Onboarding OnboardingConfig `yaml:"onboarding" json:"onboarding"`
 

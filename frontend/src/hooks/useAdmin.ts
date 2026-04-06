@@ -4,6 +4,7 @@ import type {
   AdminSubmission,
   AdminListResponse,
   AdminDetailResponse,
+  OnboardingTestResult,
   SubmissionStatus,
 } from '../types/onboarding';
 
@@ -126,20 +127,20 @@ export function useAdmin() {
     }
   }, [token, authHeaders, fetchList]);
 
-  // Test — creates a selftest job and polls for result
-  const testSubmission = useCallback(async (publicId: string): Promise<{ jobId: string } | null> => {
+  // Test — inline probe, returns result synchronously
+  const testSubmission = useCallback(async (publicId: string): Promise<OnboardingTestResult | null> => {
     if (!token) return null;
     setError(null);
 
     try {
-      const resp = await apiPost<{ job_id: string; status: string }>(
+      const resp = await apiPost<OnboardingTestResult>(
         `/api/admin/submissions/${publicId}/test`,
         {},
         { headers: authHeaders() },
       );
-      return { jobId: resp.job_id };
+      return resp;
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : '测试创建失败');
+      setError(e instanceof ApiError ? e.message : '测试失败');
       return null;
     }
   }, [token, authHeaders]);

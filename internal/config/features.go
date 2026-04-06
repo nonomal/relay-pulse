@@ -2,21 +2,6 @@ package config
 
 import "time"
 
-// SelfTestConfig 自助测试功能配置
-type SelfTestConfig struct {
-	Enabled            bool   `yaml:"enabled" json:"enabled"`                             // 是否启用自助测试功能（默认禁用）
-	MaxConcurrent      int    `yaml:"max_concurrent" json:"max_concurrent"`               // 最大并发测试数（默认 10）
-	MaxQueueSize       int    `yaml:"max_queue_size" json:"max_queue_size"`               // 最大队列长度（默认 50）
-	JobTimeout         string `yaml:"job_timeout" json:"job_timeout"`                     // 单任务超时时间（默认 "30s"）
-	ResultTTL          string `yaml:"result_ttl" json:"result_ttl"`                       // 结果保留时间（默认 "2m"）
-	RateLimitPerMinute int    `yaml:"rate_limit_per_minute" json:"rate_limit_per_minute"` // IP 限流（次/分钟，默认 10）
-	SignatureSecret    string `yaml:"signature_secret" json:"-"`                          // 签名密钥（不返回给前端）
-
-	// 解析后的时间间隔（内部使用，不序列化）
-	JobTimeoutDuration time.Duration `yaml:"-" json:"-"`
-	ResultTTLDuration  time.Duration `yaml:"-" json:"-"`
-}
-
 // EventsConfig 状态订阅通知（事件）配置
 type EventsConfig struct {
 	// 是否启用事件功能（默认禁用）

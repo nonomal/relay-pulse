@@ -170,11 +170,8 @@ curl http://localhost:8080/api/version
 curl -H "Authorization: Bearer <token>" http://localhost:8080/api/events
 curl -H "Authorization: Bearer <token>" http://localhost:8080/api/events/latest
 
-# 自助测试
-curl http://localhost:8080/api/selftest/types        # 可用测试类型
-curl http://localhost:8080/api/selftest/config        # 测试配置
-curl -X POST http://localhost:8080/api/selftest       # 创建测试任务
-curl http://localhost:8080/api/selftest/<id>           # 查询测试结果
+# 收录内联探测
+curl -X POST http://localhost:8080/api/onboarding/test  # 内联探测测试
 ```
 
 **时间窗口说明**：API 使用**滑动窗口**设计，`period=24h` 返回"从当前时刻倒推 24 小时"的数据。这意味着：

@@ -21,7 +21,7 @@ func (c *AppConfig) normalize() error {
 		return err
 	}
 
-	// 3. 功能模块配置（sponsor_pin, selftest, events, github, announcements）
+	// 3. 功能模块配置（sponsor_pin, events, github, announcements）
 	if err := c.normalizeFeatureConfigs(); err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (c *AppConfig) normalizeGlobalDefaults() error {
 }
 
 // normalizeFeatureConfigs 规范化功能模块配置
-// 包括：sponsor_pin, selftest, events, github, announcements
+// 包括：sponsor_pin, events, github, announcements
 func (c *AppConfig) normalizeFeatureConfigs() error {
 	// 自动移板配置默认值与解析
 	if c.Boards.AutoMove.ThresholdCold == 0 {
@@ -316,45 +316,6 @@ func (c *AppConfig) normalizeFeatureConfigs() error {
 	if !c.SponsorPin.MinLevel.isValid() || c.SponsorPin.MinLevel == SponsorLevelNone {
 		logger.Warn("config", "sponsor_pin.min_level 无效，已回退默认值", "value", c.SponsorPin.MinLevel, "default", SponsorLevelBeacon)
 		c.SponsorPin.MinLevel = SponsorLevelBeacon
-	}
-
-	// 自助测试配置默认值与解析（确保运行期与 /api/selftest/config 一致）
-	// 注意：默认值与 cmd/server/main.go 保持一致
-	if c.SelfTest.MaxConcurrent <= 0 {
-		c.SelfTest.MaxConcurrent = 10
-	}
-	if c.SelfTest.MaxQueueSize <= 0 {
-		c.SelfTest.MaxQueueSize = 50
-	}
-	if c.SelfTest.RateLimitPerMinute <= 0 {
-		c.SelfTest.RateLimitPerMinute = 10
-	}
-
-	if strings.TrimSpace(c.SelfTest.JobTimeout) == "" {
-		c.SelfTest.JobTimeout = "30s"
-	}
-	{
-		d, err := time.ParseDuration(strings.TrimSpace(c.SelfTest.JobTimeout))
-		if err != nil || d <= 0 {
-			// 保守回退到默认值，避免因为历史配置导致无法启动
-			logger.Warn("config", "selftest.job_timeout 无效，已回退默认值", "value", c.SelfTest.JobTimeout, "default", "30s")
-			d = 30 * time.Second
-			c.SelfTest.JobTimeout = "30s"
-		}
-		c.SelfTest.JobTimeoutDuration = d
-	}
-
-	if strings.TrimSpace(c.SelfTest.ResultTTL) == "" {
-		c.SelfTest.ResultTTL = "2m"
-	}
-	{
-		d, err := time.ParseDuration(strings.TrimSpace(c.SelfTest.ResultTTL))
-		if err != nil || d <= 0 {
-			logger.Warn("config", "selftest.result_ttl 无效，已回退默认值", "value", c.SelfTest.ResultTTL, "default", "2m")
-			d = 2 * time.Minute
-			c.SelfTest.ResultTTL = "2m"
-		}
-		c.SelfTest.ResultTTLDuration = d
 	}
 
 	// Events 配置默认值

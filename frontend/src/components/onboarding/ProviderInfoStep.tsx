@@ -1,7 +1,7 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, ExternalLink } from 'lucide-react';
-import type { OnboardingFormData, OnboardingMeta, IdentityType } from '../../types/onboarding';
+import type { OnboardingFormData, OnboardingMeta } from '../../types/onboarding';
 
 interface ProviderInfoStepProps {
   formData: OnboardingFormData;
@@ -19,33 +19,19 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
     return `${formData.channelType}-${formData.channelSource}`;
   }, [formData.channelType, formData.channelSource]);
 
-  const handleIdentityChange = useCallback((identity: IdentityType) => {
-    updateField('identity', identity);
-    if (identity === 'publicOwner') {
-      updateField('category', 'public');
-      updateField('sponsorLevel', 'public');
-    } else if (identity === 'commercialOwner') {
-      updateField('category', 'commercial');
-      updateField('sponsorLevel', 'pulse');
-    } else if (identity === 'personal') {
-      updateField('category', 'commercial');
-      updateField('sponsorLevel', 'signal');
-    }
-  }, [updateField]);
-
   const canProceed = useMemo(() => {
     return (
       formData.agreementAccepted &&
-      formData.identity !== '' &&
       formData.providerName.trim().length > 0 &&
       formData.websiteUrl.trim().length > 0 &&
       formData.serviceType.length > 0 &&
       formData.channelType.length > 0 &&
-      formData.channelSource.length > 0
+      formData.channelSource.length > 0 &&
+      (formData.channelType !== 'X' || formData.channelTypeCustom.trim().length > 0)
     );
   }, [
-    formData.agreementAccepted, formData.identity, formData.providerName, formData.websiteUrl,
-    formData.serviceType, formData.channelType, formData.channelSource,
+    formData.agreementAccepted, formData.providerName, formData.websiteUrl,
+    formData.serviceType, formData.channelType, formData.channelTypeCustom, formData.channelSource,
   ]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -125,36 +111,6 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
         />
       </div>
 
-      {/* Identity - radio group */}
-      <fieldset>
-        <legend className="block text-sm font-medium text-primary mb-2">
-          {t('onboarding.providerInfo.identity')}
-          <span className="text-danger ml-0.5">*</span>
-        </legend>
-        <div className="space-y-2">
-          {(['publicOwner', 'commercialOwner', 'personal'] as const).map((id) => (
-            <label key={id} className="flex items-start gap-3 cursor-pointer p-3 rounded-lg border border-muted hover:border-accent/40 transition-colors has-[:checked]:border-accent has-[:checked]:bg-accent/5">
-              <input
-                type="radio"
-                name="identity"
-                value={id}
-                checked={formData.identity === id}
-                onChange={() => handleIdentityChange(id)}
-                className="mt-0.5 w-4 h-4 accent-accent"
-              />
-              <div>
-                <span className="text-sm font-medium text-primary">
-                  {t(`onboarding.providerInfo.identities.${id}`)}
-                </span>
-                <p className="text-xs text-secondary mt-0.5">
-                  {t(`onboarding.providerInfo.identities.${id}Desc`)}
-                </p>
-              </div>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
       {/* Service type - select */}
       <div>
         <label htmlFor="ob-service-type" className="block text-sm font-medium text-primary mb-2">
@@ -194,10 +150,10 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
                 checked={formData.channelType === ct.value}
                 onChange={() => {
                   updateField('channelType', ct.value);
-                  if (ct.value === 'O') {
-                    updateField('channelSource', meta.channel_sources[0] || 'API');
-                  } else {
+                  if (ct.value === 'X') {
                     updateField('channelSource', '');
+                  } else {
+                    updateField('channelTypeCustom', '');
                   }
                 }}
                 className="mt-0.5 w-4 h-4 accent-accent"
@@ -215,34 +171,41 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
         </div>
       </fieldset>
 
-      {/* Channel source - conditional rendering based on channel type */}
+      {/* Custom channel type name (when X is selected) */}
+      {formData.channelType === 'X' && (
+        <div>
+          <label htmlFor="ob-channel-type-custom" className="block text-sm font-medium text-primary mb-2">
+            {t('onboarding.providerInfo.channelTypeCustom', { defaultValue: '自定义通道类型名' })}
+            <span className="text-danger ml-0.5">*</span>
+          </label>
+          <input
+            id="ob-channel-type-custom"
+            type="text"
+            required
+            value={formData.channelTypeCustom}
+            onChange={(e) => updateField('channelTypeCustom', e.target.value)}
+            placeholder={t('onboarding.providerInfo.channelTypeCustomPlaceholder', { defaultValue: '请填写通道类型' })}
+            maxLength={30}
+            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        </div>
+      )}
+
+      {/* Channel source - free text input */}
       <div>
         <label htmlFor="ob-channel-source" className="block text-sm font-medium text-primary mb-2">
           {t('onboarding.providerInfo.channelSource')}
           <span className="text-danger ml-0.5">*</span>
         </label>
-        {formData.channelType === 'O' ? (
-          <select
-            id="ob-channel-source"
-            value={formData.channelSource}
-            onChange={(e) => updateField('channelSource', e.target.value)}
-            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-          >
-            {meta.channel_sources.map((src) => (
-              <option key={src} value={src}>{src}</option>
-            ))}
-          </select>
-        ) : (
-          <input
-            id="ob-channel-source"
-            type="text"
-            value={formData.channelSource}
-            onChange={(e) => updateField('channelSource', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-            placeholder={t('onboarding.providerInfo.channelSourceCustomPlaceholder')}
-            maxLength={10}
-            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
-          />
-        )}
+        <input
+          id="ob-channel-source"
+          type="text"
+          value={formData.channelSource}
+          onChange={(e) => updateField('channelSource', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+          placeholder={t('onboarding.providerInfo.channelSourcePlaceholder', { defaultValue: '如 API, Web, AWS, GCP' })}
+          maxLength={10}
+          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+        />
       </div>
 
       {/* Channel code preview */}

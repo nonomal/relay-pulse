@@ -222,6 +222,10 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 		"channel_name":  target.ChannelName,
 		"category":      target.Category,
 		"sponsor_level": target.SponsorLevel,
+		"listed_since":  target.ListedSince,
+		"expires_at":    target.ExpiresAt,
+		"price_min":     target.PriceMin,
+		"price_max":     target.PriceMax,
 		"base_url":      target.BaseURL,
 	}
 	snapshotJSON, _ := json.Marshal(snapshot)
@@ -286,7 +290,7 @@ func (s *Service) GetStatus(ctx context.Context, publicID string) (*ChangeReques
 	return s.store.GetByPublicID(ctx, publicID)
 }
 
-// IssueProof 签发测试证明（供 selftest handler 调用）。
+// IssueProof 签发测试证明（供内联探测调用）。
 func (s *Service) IssueProof(jobID, testType, apiURL, apiKey string) string {
 	fingerprint := s.cipher.Fingerprint(apiKey)
 	return s.proofIssuer.Issue(jobID, testType, apiURL, fingerprint)
@@ -331,6 +335,7 @@ var adminUpdateableFields = map[string]bool{
 	"category":      true,
 	"sponsor_level": true,
 	"listed_since":  true,
+	"expires_at":    true,
 	"price_min":     true,
 	"price_max":     true,
 }
@@ -500,6 +505,8 @@ func (s *Service) AdminApply(ctx context.Context, publicID string) error {
 			m.SponsorLevel = config.SponsorLevel(value)
 		case "listed_since":
 			m.ListedSince = value
+		case "expires_at":
+			m.ExpiresAt = value
 		case "price_min":
 			if f, err := strconv.ParseFloat(value, 64); err == nil {
 				m.PriceMin = &f

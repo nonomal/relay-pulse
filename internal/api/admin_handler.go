@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"crypto/subtle"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -211,7 +213,7 @@ func (h *Handler) AdminPublishSubmission(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "published"})
 }
 
-// AdminTestSubmission 管理员对申请执行探测测试
+// AdminTestSubmission 管理员对申请执行内联探测测试
 // POST /api/admin/submissions/:id/test
 func (h *Handler) AdminTestSubmission(c *gin.Context) {
 	if !h.checkAdminToken(c) {
@@ -224,9 +226,8 @@ func (h *Handler) AdminTestSubmission(c *gin.Context) {
 		return
 	}
 
-	mgr := h.getSelfTestManager()
-	if mgr == nil {
-		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "自助测试功能未启用")
+	if h.inlineProber == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "内联探测器未初始化")
 		return
 	}
 
@@ -241,16 +242,19 @@ func (h *Handler) AdminTestSubmission(c *gin.Context) {
 		return
 	}
 
-	// 使用申请的 service_type 和 base_url 创建 selftest job
-	job, err := mgr.CreateJob(sub.ServiceType, sub.BaseURL, apiKey, sub.TemplateName)
-	if err != nil {
-		logger.Error("admin", "创建测试任务失败", "public_id", publicID, "error", err)
-		writeSelfTestError(c, err, "创建测试任务失败")
-		return
-	}
+	// 使用内联探测器同步执行
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	defer cancel()
 
-	c.JSON(http.StatusCreated, gin.H{
-		"job_id": job.ID,
-		"status": string(job.Status),
+	result := h.inlineProber.Probe(ctx, sub.ServiceType, sub.TemplateName, sub.BaseURL, apiKey)
+
+	c.JSON(http.StatusOK, gin.H{
+		"probe_status":     result.ProbeStatus,
+		"sub_status":       result.SubStatus,
+		"http_code":        result.HTTPCode,
+		"latency":          result.Latency,
+		"error_message":    result.ErrorMessage,
+		"response_snippet": result.ResponseSnippet,
+		"probe_id":         result.ProbeID,
 	})
 }

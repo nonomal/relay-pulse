@@ -7,7 +7,7 @@ import (
 	"monitor/internal/apikey"
 	"monitor/internal/config"
 	"monitor/internal/logger"
-	"monitor/internal/selftest"
+	"monitor/internal/probe"
 )
 
 // AuthIndex 运行时 API Key 指纹索引。
@@ -56,8 +56,16 @@ func (ai *AuthIndex) Rebuild(monitors []config.ServiceConfig, cipher *apikey.Key
 			ChannelName:  m.ChannelName,
 			Category:     m.Category,
 			SponsorLevel: string(m.SponsorLevel),
+			ListedSince:  m.ListedSince,
+			ExpiresAt:    m.ExpiresAt,
 			BaseURL:      m.BaseURL,
 			KeyLast4:     apikey.Last4(m.APIKey),
+		}
+		if m.PriceMin != nil {
+			candidate.PriceMin = fmt.Sprintf("%g", *m.PriceMin)
+		}
+		if m.PriceMax != nil {
+			candidate.PriceMax = fmt.Sprintf("%g", *m.PriceMax)
 		}
 
 		// 使用 provider name 回退
@@ -68,10 +76,10 @@ func (ai *AuthIndex) Rebuild(monitors []config.ServiceConfig, cipher *apikey.Key
 			candidate.ChannelName = m.Channel
 		}
 
-		// 填充测试元数据（从 selftest 注册表查询）
+		// 填充测试元数据（从 probe 注册表查询）
 		candidate.TestType = m.Service
 		candidate.TestTypeName = m.Service
-		if tt, ok := selftest.GetTestType(m.Service); ok {
+		if tt, ok := probe.GetTestType(m.Service); ok {
 			candidate.TestType = tt.ID
 			candidate.TestTypeName = tt.Name
 			candidate.DefaultTestVariant = tt.DefaultVariant

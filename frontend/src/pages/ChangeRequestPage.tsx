@@ -258,7 +258,7 @@ function TestStep({
   selectedVariant: string;
   setSelectedVariant: (v: string) => void;
   isTesting: boolean;
-  testResult: { status: string; probe_status?: number; latency?: number; error_message?: string } | null;
+  testResult: { probe_status?: number; sub_status?: string; latency?: number; http_code?: number; error_message?: string } | null;
   testProof: string;
   runTest: () => void;
   goBack: () => void;

@@ -7,9 +7,12 @@ import type { AdminChangeRequest, ChangeRequestStatus } from '../../types/change
 
 const EDITABLE_PROPOSED_FIELDS = [
   'provider_name',
+  'provider_url',
   'channel_name',
+  'category',
   'sponsor_level',
   'listed_since',
+  'expires_at',
   'price_min',
   'price_max',
 ] as const;
@@ -40,9 +43,12 @@ function buildInitialDraft(cr: AdminChangeRequest): EditDraft {
   return {
     proposed: {
       provider_name: proposed.provider_name ?? '',
+      provider_url:  proposed.provider_url  ?? '',
       channel_name:  proposed.channel_name  ?? '',
+      category:      proposed.category      ?? '',
       sponsor_level: proposed.sponsor_level ?? '',
       listed_since:  proposed.listed_since  ?? '',
+      expires_at:    proposed.expires_at    ?? '',
       price_min:     proposed.price_min     ?? '',
       price_max:     proposed.price_max     ?? '',
     },

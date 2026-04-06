@@ -18,7 +18,7 @@ import (
 	"monitor/internal/config"
 	"monitor/internal/logger"
 	"monitor/internal/onboarding"
-	"monitor/internal/selftest"
+	"monitor/internal/probe"
 	"monitor/internal/storage"
 )
 
@@ -242,16 +242,16 @@ func (c *statusCache) loadWithTTL(key string, ttl time.Duration, loader func() (
 type Handler struct {
 	storage       storage.Storage
 	config        *config.AppConfig
-	cfgMu         sync.RWMutex             // 保护config的并发访问
-	cache         *statusCache             // API 响应缓存
-	selfTestMu    sync.RWMutex             // 保护 selfTestMgr 热替换的并发安全
-	selfTestMgr   *selftest.TestJobManager // 自助测试管理器（可选）
-	autoMover     *automove.Service        // 自动移板服务（可选）
-	onboardingMu  sync.RWMutex             // 保护 onboardingSvc 热替换
-	onboardingSvc *onboarding.Service      // 自助收录服务（可选）
-	changeMu      sync.RWMutex             // 保护 changeSvc 热替换
-	changeSvc     *change.Service          // 变更请求服务（可选）
-	monitorStore  *config.MonitorStore     // monitors.d/ CRUD（可选）
+	cfgMu         sync.RWMutex         // 保护config的并发访问
+	cache         *statusCache         // API 响应缓存
+	autoMover     *automove.Service    // 自动移板服务（可选）
+	inlineProber  *probe.InlineProber  // 内联探测器
+	probeLimiter  *probe.IPLimiter     // 公共探测端点限流
+	onboardingMu  sync.RWMutex         // 保护 onboardingSvc 热替换
+	onboardingSvc *onboarding.Service  // 自助收录服务（可选）
+	changeMu      sync.RWMutex         // 保护 changeSvc 热替换
+	changeSvc     *change.Service      // 变更请求服务（可选）
+	monitorStore  *config.MonitorStore // monitors.d/ CRUD（可选）
 }
 
 // NewHandler 创建处理器
@@ -264,18 +264,14 @@ func NewHandler(store storage.Storage, cfg *config.AppConfig, autoMover *automov
 	}
 }
 
-// SetSelfTestManager 设置自助测试管理器（并发安全，支持热更新时替换实例）
-func (h *Handler) SetSelfTestManager(mgr *selftest.TestJobManager) {
-	h.selfTestMu.Lock()
-	h.selfTestMgr = mgr
-	h.selfTestMu.Unlock()
+// SetInlineProber 设置内联探测器。
+func (h *Handler) SetInlineProber(p *probe.InlineProber) {
+	h.inlineProber = p
 }
 
-// getSelfTestManager 获取当前自助测试管理器（并发安全）
-func (h *Handler) getSelfTestManager() *selftest.TestJobManager {
-	h.selfTestMu.RLock()
-	defer h.selfTestMu.RUnlock()
-	return h.selfTestMgr
+// SetProbeLimiter 设置公共探测端点限流器。
+func (h *Handler) SetProbeLimiter(l *probe.IPLimiter) {
+	h.probeLimiter = l
 }
 
 // SetOnboardingService 设置自助收录服务（并发安全，支持热更新时替换实例）

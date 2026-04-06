@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// ProofIssuer 签发和验证 selftest 成功后的测试证明。
+// ProofIssuer 签发和验证探测成功后的测试证明。
 // proof 是 HMAC-SHA256 签名令牌，绑定测试参数和过期时间。
 type ProofIssuer struct {
 	secret []byte
@@ -26,7 +26,7 @@ func NewProofIssuer(secret string, ttl time.Duration) *ProofIssuer {
 }
 
 // proofPayload 构建待签名的 payload。
-// 绑定 selftest 参数：jobID|testType|apiURL|apiKeyFingerprint|expiresAt
+// 绑定探测参数：jobID|testType|apiURL|apiKeyFingerprint|expiresAt
 func proofPayload(jobID, testType, apiURL, apiKeyFingerprint string, expiresAt int64) string {
 	return fmt.Sprintf("%s|%s|%s|%s|%d",
 		jobID, testType, apiURL, apiKeyFingerprint, expiresAt)

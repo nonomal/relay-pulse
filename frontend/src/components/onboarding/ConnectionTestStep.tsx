@@ -3,8 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { ChevronLeft, ChevronRight, Eye, EyeOff, Play, Clock, Loader2 } from 'lucide-react';
 import type { OnboardingFormData, OnboardingMeta, OnboardingTestResult } from '../../types/onboarding';
 
-/** Default proof validity duration in seconds (5 minutes). */
-const PROOF_TTL_SECONDS = 300;
+/** Default proof validity duration in seconds (15 minutes). */
+const PROOF_TTL_SECONDS = 900;
 
 /** Module-level countdown store for proof validity. */
 const proofCountdownStore = (() => {
@@ -44,10 +44,6 @@ const proofCountdownStore = (() => {
   };
 })();
 
-/**
- * Countdown hook that computes remaining seconds from a proof token.
- * Returns null when no proof is active.
- */
 function useProofCountdown(testProof: string | null): number | null {
   useEffect(() => {
     if (testProof) {
@@ -94,23 +90,14 @@ export function ConnectionTestStep({
     return meta.test_types.filter((tt) => tt.id === formData.serviceType);
   }, [meta, formData.serviceType]);
 
-  const selectedTestType = useMemo(() => {
-    if (!meta) return null;
-    return meta.test_types.find((tt) => tt.id === formData.testType) ?? null;
-  }, [meta, formData.testType]);
-
-  const hasVariants = useMemo(() => {
-    return selectedTestType != null && selectedTestType.variants.length > 1;
-  }, [selectedTestType]);
-
   const canRunTest = useMemo(() => {
     return (
       formData.baseUrl.trim().length > 0 &&
       formData.apiKey.trim().length > 0 &&
-      formData.testType.length > 0 &&
+      filteredTestTypes.length > 0 &&
       !isTesting
     );
-  }, [formData.baseUrl, formData.apiKey, formData.testType, isTesting]);
+  }, [formData.baseUrl, formData.apiKey, filteredTestTypes.length, isTesting]);
 
   const testPassed = useMemo(() => {
     return testResult?.probe_status === 1 && !!testProof;
@@ -119,22 +106,21 @@ export function ConnectionTestStep({
   const proofExpired = proofRemaining !== null && proofRemaining <= 0;
   const canProceed = testPassed && !proofExpired;
 
-  /** Auto-select first test type and its default variant when filtered list changes */
+  /** Auto-resolve test type and variant from service type */
   useEffect(() => {
     if (filteredTestTypes.length === 0) return;
-    const currentValid = filteredTestTypes.some((tt) => tt.id === formData.testType);
-    if (!formData.testType || !currentValid) {
-      const first = filteredTestTypes[0];
-      updateField('testType', first.id);
-      updateField('testVariant', first.default_variant);
-    }
-  }, [filteredTestTypes, formData.testType, updateField]);
+    const matched = filteredTestTypes.find((tt) => tt.id === formData.serviceType) ?? filteredTestTypes[0];
+    const nextVariant = matched.variants.some((v) => v.id === formData.testVariant)
+      ? formData.testVariant
+      : matched.default_variant;
 
-  const handleTestTypeChange = (newType: string) => {
-    const typeDef = meta?.test_types.find((tt) => tt.id === newType);
-    updateField('testType', newType);
-    updateField('testVariant', typeDef?.default_variant ?? '');
-  };
+    if (formData.testType !== matched.id) {
+      updateField('testType', matched.id);
+    }
+    if (formData.testVariant !== nextVariant) {
+      updateField('testVariant', nextVariant);
+    }
+  }, [filteredTestTypes, formData.serviceType, formData.testType, formData.testVariant, updateField]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,52 +195,6 @@ export function ConnectionTestStep({
         </div>
         <p className="mt-1 text-xs text-secondary">{t('onboarding.connectionTest.apiKeyHint')}</p>
       </div>
-
-      {/* Test type */}
-      <div>
-        <label htmlFor="ob-test-type" className="block text-sm font-medium text-primary mb-2">
-          {t('onboarding.connectionTest.testType')}
-        </label>
-        <select
-          id="ob-test-type"
-          value={formData.testType}
-          onChange={(e) => handleTestTypeChange(e.target.value)}
-          disabled={isTesting}
-          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-        >
-          {filteredTestTypes.map((tt) => (
-            <option key={tt.id} value={tt.id}>{tt.name}</option>
-          ))}
-        </select>
-        {selectedTestType?.description && (
-          <p className="mt-1 text-xs text-secondary">{selectedTestType.description}</p>
-        )}
-      </div>
-
-      {/* Test variant (only when multiple variants exist) */}
-      {hasVariants && selectedTestType && (
-        <div>
-          <label htmlFor="ob-test-variant" className="block text-sm font-medium text-primary mb-2">
-            {t('onboarding.connectionTest.testVariant')}
-          </label>
-          <select
-            id="ob-test-variant"
-            value={formData.testVariant}
-            onChange={(e) => updateField('testVariant', e.target.value)}
-            disabled={isTesting}
-            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
-          >
-            {selectedTestType.variants
-              .slice()
-              .sort((a, b) => a.order - b.order)
-              .map((v) => (
-                <option key={v.id} value={v.id}>
-                  {t(`onboarding.connectionTest.variants.${v.id}`, { defaultValue: v.id })}
-                </option>
-              ))}
-          </select>
-        </div>
-      )}
 
       {/* Run Test button */}
       <button

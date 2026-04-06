@@ -236,7 +236,6 @@ func (c *AppConfig) clone() *AppConfig {
 			MinUptime: c.SponsorPin.MinUptime,
 			MinLevel:  c.SponsorPin.MinLevel,
 		},
-		SelfTest:      c.SelfTest,      // SelfTest 是值类型，直接复制
 		Events:        c.Events,        // Events 是值类型，直接复制
 		Announcements: c.Announcements, // Announcements 是值类型，直接复制
 		GitHub:        c.GitHub,        // GitHub 是值类型，直接复制

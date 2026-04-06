@@ -115,12 +115,12 @@ describe('apiClient', () => {
     it('成功时发送 JSON body', async () => {
       fetchMock.mockResolvedValue(jsonResponse({ id: 'job-1' }, { status: 200 }));
 
-      const result = await apiPost<{ id: string }>('/api/selftest', { provider: 'openai' });
+      const result = await apiPost<{ id: string }>('/api/onboarding/test', { provider: 'openai' });
 
       expect(result).toEqual({ id: 'job-1' });
 
       const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe(buildExpectedUrl('/api/selftest'));
+      expect(url).toBe(buildExpectedUrl('/api/onboarding/test'));
       expect(init.method).toBe('POST');
       expect(init.body).toBe(JSON.stringify({ provider: 'openai' }));
       expect(new Headers(init.headers).get('Content-Type')).toBe('application/json');
@@ -142,7 +142,7 @@ describe('apiClient', () => {
     it('失败时解析错误', async () => {
       fetchMock.mockResolvedValue(jsonResponse({ error: '提交失败' }, { status: 422 }));
 
-      await expect(apiPost('/api/selftest', {})).rejects.toMatchObject({
+      await expect(apiPost('/api/onboarding/test', {})).rejects.toMatchObject({
         name: 'ApiError',
         status: 422,
         message: '提交失败',

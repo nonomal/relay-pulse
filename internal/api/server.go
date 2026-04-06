@@ -161,14 +161,9 @@ func NewServer(store storage.Storage, cfg *config.AppConfig, port string, autoMo
 	router.GET("/api/events", handler.GetEvents)
 	router.GET("/api/events/latest", handler.GetLatestEventID)
 
-	// 自助测试 API 路由（如果启用）
-	router.POST("/api/selftest", handler.CreateSelfTest)
-	router.GET("/api/selftest/config", handler.GetSelfTestConfig)
-	router.GET("/api/selftest/types", handler.GetTestTypes)
-	router.GET("/api/selftest/:id", handler.GetSelfTest)
-
 	// 自助收录 API 路由
 	router.GET("/api/onboarding/meta", handler.GetOnboardingMeta)
+	router.POST("/api/onboarding/test", handler.OnboardingTest)
 	router.POST("/api/onboarding/submit", handler.SubmitOnboarding)
 	router.GET("/api/onboarding/:id", handler.GetOnboardingStatus)
 

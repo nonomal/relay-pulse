@@ -20,8 +20,8 @@ import (
 	"monitor/internal/identity"
 	"monitor/internal/logger"
 	"monitor/internal/onboarding"
+	"monitor/internal/probe"
 	"monitor/internal/scheduler"
-	"monitor/internal/selftest"
 	"monitor/internal/storage"
 )
 
@@ -67,42 +67,11 @@ func resolveConfigDir(configFile string) string {
 	return configDir
 }
 
-// initSelfTestTemplates 初始化模板目录并扫描动态变体注册表
-func initSelfTestTemplates(configFile string) error {
+// initProbeTemplates 初始化 probe 包的模板注册表
+func initProbeTemplates(configFile string) error {
 	dir := filepath.Join(resolveConfigDir(configFile), "templates")
-	selftest.SetTemplatesDir(dir)
-	return selftest.InitTemplates(dir)
-}
-
-// newSelfTestManager 基于 Normalize 后的配置创建 TestJobManager
-// 注意：cfg.SelfTest 的默认值和 Duration 解析已由 Normalize 完成
-func newSelfTestManager(cfg *config.AppConfig) *selftest.TestJobManager {
-	return selftest.NewTestJobManager(
-		cfg.SelfTest.MaxConcurrent,
-		cfg.SelfTest.MaxQueueSize,
-		cfg.SelfTest.JobTimeoutDuration,
-		cfg.SelfTest.ResultTTLDuration,
-		cfg.SelfTest.RateLimitPerMinute,
-	)
-}
-
-// selfTestConfigChanged 检测 selftest 运行时配置是否需要重建 Manager
-func selfTestConfigChanged(oldCfg, newCfg *config.AppConfig) bool {
-	if oldCfg == nil || newCfg == nil {
-		return true
-	}
-	o, n := oldCfg.SelfTest, newCfg.SelfTest
-	if o.Enabled != n.Enabled {
-		return true
-	}
-	if !o.Enabled && !n.Enabled {
-		return false
-	}
-	return o.MaxConcurrent != n.MaxConcurrent ||
-		o.MaxQueueSize != n.MaxQueueSize ||
-		o.JobTimeoutDuration != n.JobTimeoutDuration ||
-		o.ResultTTLDuration != n.ResultTTLDuration ||
-		o.RateLimitPerMinute != n.RateLimitPerMinute
+	probe.SetTemplatesDir(dir)
+	return probe.InitTemplates(dir)
 }
 
 // announcementsConfigChanged 检测公告配置是否需要重建 Service
@@ -304,28 +273,19 @@ func main() {
 	announcementsHandler := announcements.NewHandler(nil)
 	server.RegisterAnnouncementsHandler(announcementsHandler.GetAnnouncements)
 
-	// 记录当前已应用的配置快照，用于热更新时判断是否需要重建组件
-	selfTestAppliedCfg := cfg
 	// announcementsAppliedCfg 初始为 nil：仅在服务创建成功或明确禁用时设置，
 	// 避免启动失败时标记为"已应用"导致后续热更新不再重试
 	var announcementsAppliedCfg *config.AppConfig
 
-	// 初始化自助测试管理器（如果启用）
-	var selfTestMgr *selftest.TestJobManager
-	if cfg.SelfTest.Enabled {
-		if err := initSelfTestTemplates(configFile); err != nil {
-			logger.Error("main", "初始化自助测试模板失败", "error", err)
-			os.Exit(1)
-		}
-		selfTestMgr = newSelfTestManager(cfg)
-		server.GetHandler().SetSelfTestManager(selfTestMgr)
-		logger.Info("main", "自助测试功能已启用",
-			"max_concurrent", cfg.SelfTest.MaxConcurrent,
-			"max_queue_size", cfg.SelfTest.MaxQueueSize,
-			"job_timeout", cfg.SelfTest.JobTimeoutDuration,
-			"result_ttl", cfg.SelfTest.ResultTTLDuration,
-			"rate_limit", cfg.SelfTest.RateLimitPerMinute)
+	// 初始化内联探测器（供收录测试和管理后台使用）
+	if err := initProbeTemplates(configFile); err != nil {
+		logger.Warn("main", "初始化 probe 模板失败（非致命）", "error", err)
 	}
+	inlineProber := probe.NewInlineProber(5)
+	probeLimiter := probe.NewIPLimiter(10, 10) // 每 IP 每分钟 10 次
+	server.GetHandler().SetInlineProber(inlineProber)
+	server.GetHandler().SetProbeLimiter(probeLimiter)
+	logger.Info("main", "内联探测器已初始化")
 
 	// 初始化自助收录服务（如果启用）
 	var onboardingSvc *onboarding.Service
@@ -359,6 +319,17 @@ func main() {
 			os.Exit(1)
 		}
 		onboardingSvc.SetMonitorStore(monitorStore)
+		onboardingSvc.SetConfigMonitorCheck(func(provider, service, channel string) bool {
+			runtimeMu.Lock()
+			defer runtimeMu.Unlock()
+			targetKey := config.MonitorFileKeyFromPSC(provider, service, channel)
+			for _, m := range runtimeCfg.Monitors {
+				if config.MonitorFileKeyFromPSC(m.Provider, m.Service, m.Channel) == targetKey {
+					return true
+				}
+			}
+			return false
+		})
 		server.GetHandler().SetOnboardingService(onboardingSvc)
 		logger.Info("main", "自助收录功能已启用",
 			"max_per_ip_per_day", cfg.Onboarding.MaxPerIPPerDay,
@@ -503,34 +474,9 @@ func main() {
 			logger.Info("main", "历史数据归档任务已在热更新后停用")
 		}
 
-		// === SelfTest: 刷新模板变体注册表（模板文件可能已新增/删除） ===
-		if newCfg.SelfTest.Enabled {
-			if err := initSelfTestTemplates(configFile); err != nil {
-				logger.Error("main", "热更新自助测试模板失败", "error", err)
-			}
-		}
-
-		// === SelfTest: RecreateOnChange（drain + 重建） ===
-		if selfTestConfigChanged(selfTestAppliedCfg, newCfg) {
-			if selfTestMgr != nil {
-				selfTestMgr.StopWithDrain(10 * time.Second)
-			}
-
-			if newCfg.SelfTest.Enabled {
-				selfTestMgr = newSelfTestManager(newCfg)
-				server.GetHandler().SetSelfTestManager(selfTestMgr)
-				logger.Info("main", "自助测试配置热更新已生效",
-					"max_concurrent", newCfg.SelfTest.MaxConcurrent,
-					"max_queue_size", newCfg.SelfTest.MaxQueueSize,
-					"job_timeout", newCfg.SelfTest.JobTimeoutDuration,
-					"result_ttl", newCfg.SelfTest.ResultTTLDuration,
-					"rate_limit", newCfg.SelfTest.RateLimitPerMinute)
-			} else {
-				selfTestMgr = nil
-				server.GetHandler().SetSelfTestManager(nil)
-				logger.Info("main", "自助测试功能已在热更新后停用")
-			}
-			selfTestAppliedCfg = newCfg
+		// === Probe: 刷新模板变体注册表（模板文件可能已新增/删除） ===
+		if err := initProbeTemplates(configFile); err != nil {
+			logger.Warn("main", "热更新 probe 模板失败", "error", err)
 		}
 
 		// === ChangeRequests: 热更新认证索引 ===
@@ -613,24 +559,14 @@ func main() {
 
 	// 在 runtimeMu 保护下捕获当前实例引用，防止与热更新回调竞态
 	runtimeMu.Lock()
-	currentSelfTestMgr := selfTestMgr
-	selfTestMgr = nil
 	currentAnnouncementsSvc := announcementsSvc
 	announcementsSvc = nil
 	currentCleaner := cleaner
 	cleaner = nil
 	currentArchiver := archiver
 	archiver = nil
-	// 清空 handler 引用，避免关闭后的请求访问已销毁的实例
-	server.GetHandler().SetSelfTestManager(nil)
 	announcementsHandler.SetService(nil)
 	runtimeMu.Unlock()
-
-	// 停止自助测试管理器（如果启用）
-	if currentSelfTestMgr != nil {
-		currentSelfTestMgr.Stop()
-		logger.Info("main", "自助测试管理器已关闭")
-	}
 
 	// 停止公告服务（如果启用）
 	if currentAnnouncementsSvc != nil {

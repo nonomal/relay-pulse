@@ -1,6 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiPost, apiGet, ApiError } from '../utils/apiClient';
+import { apiPost, ApiError } from '../utils/apiClient';
 import type {
   AuthCandidate,
   AuthResponse,
@@ -8,17 +8,17 @@ import type {
   SubmitChangeResponse,
 } from '../types/change';
 
-const POLL_INTERVAL = 2000;
-
 export type ChangeStep = 'auth' | 'edit' | 'test' | 'review' | 'done';
 
-interface SelfTestResult {
-  status: string;
+interface InlineTestResult {
   probe_status?: number;
+  sub_status?: string;
   latency?: number;
   http_code?: number;
-  test_proof?: string;
   error_message?: string;
+  response_snippet?: string;
+  probe_id: string;
+  test_proof?: string;
 }
 
 export function useChangeRequest() {
@@ -41,9 +41,8 @@ export function useChangeRequest() {
   // Test 步骤
   const [isTesting, setIsTesting] = useState(false);
   const [testJobId, setTestJobId] = useState('');
-  const [testResult, setTestResult] = useState<SelfTestResult | null>(null);
+  const [testResult, setTestResult] = useState<InlineTestResult | null>(null);
   const [testProof, setTestProof] = useState('');
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Submit
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,27 +51,13 @@ export function useChangeRequest() {
   // 通用
   const [error, setError] = useState<string | null>(null);
 
-  // 停止轮询的共享工具
-  const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-  }, []);
-
-  // 卸载时清理轮询
-  useEffect(() => {
-    return stopPolling;
-  }, [stopPolling]);
-
   // 重置测试状态（共享工具）
   const resetTestState = useCallback(() => {
-    stopPolling();
     setIsTesting(false);
     setTestJobId('');
     setTestResult(null);
     setTestProof('');
-  }, [stopPolling]);
+  }, []);
 
   // 解析候选通道的默认变体（优先 default_test_variant，兜底首个变体）
   const resolveDefaultVariant = useCallback((c: AuthCandidate | null): string => {
@@ -99,16 +84,15 @@ export function useChangeRequest() {
     resetTestState();
   }, [resetTestState]);
 
-  // 切步骤时自动停止轮询（离开 test 步骤）
+  // 切步骤时自动清理测试状态（离开 test 步骤）
   const setStep = useCallback((next: ChangeStep) => {
     setStepRaw(prev => {
       if (prev === 'test' && next !== 'test') {
-        stopPolling();
         setIsTesting(false);
       }
       return next;
     });
-  }, [stopPolling]);
+  }, []);
 
   // 认证
   const authenticate = useCallback(async () => {
@@ -184,38 +168,26 @@ export function useChangeRequest() {
       const testBaseUrl = changes['base_url'] || selectedCandidate.base_url;
       const testKey = newApiKey || apiKey;
 
-      // 调用 selftest API
-      const resp = await apiPost<{ id: string; status: string }>('/api/selftest', {
-        test_type: selectedCandidate.test_type || selectedCandidate.service,
-        payload_variant: selectedVariant || undefined,
-        api_url: testBaseUrl,
+      // 调用内联探测 API（同步返回结果）
+      const resp = await apiPost<InlineTestResult>('/api/onboarding/test', {
+        service_type: selectedCandidate.test_type || selectedCandidate.service,
+        template_name: selectedVariant || '',
+        base_url: testBaseUrl,
         api_key: testKey,
       });
-      setTestJobId(resp.id);
 
-      // 开始轮询
-      pollRef.current = setInterval(async () => {
-        try {
-          const result = await apiGet<SelfTestResult>(`/api/selftest/${resp.id}`);
-          setTestResult(result);
+      setTestJobId(resp.probe_id);
+      setTestResult(resp);
 
-          if (result.status === 'success' || result.status === 'failed' || result.status === 'timeout' || result.status === 'canceled') {
-            stopPolling();
-            setIsTesting(false);
-
-            if (result.probe_status === 1 && result.test_proof) {
-              setTestProof(result.test_proof);
-            }
-          }
-        } catch {
-          // 轮询失败不中断
-        }
-      }, POLL_INTERVAL);
+      if (resp.probe_status === 1 && resp.test_proof) {
+        setTestProof(resp.test_proof);
+      }
     } catch (e) {
-      setIsTesting(false);
       setError(e instanceof ApiError ? e.message : t('changeRequest.test.requestFailed'));
+    } finally {
+      setIsTesting(false);
     }
-  }, [selectedCandidate, selectedVariant, changes, newApiKey, apiKey, t, stopPolling]);
+  }, [selectedCandidate, selectedVariant, changes, newApiKey, apiKey, t]);
 
   // 提交变更
   const submit = useCallback(async () => {
@@ -259,7 +231,6 @@ export function useChangeRequest() {
 
   // 重置
   const reset = useCallback(() => {
-    stopPolling();
     setStepRaw('auth');
     setApiKey('');
     setCandidates([]);
@@ -274,7 +245,7 @@ export function useChangeRequest() {
     setIsSubmitting(false);
     setPublicId('');
     setError(null);
-  }, [stopPolling]);
+  }, []);
 
   return {
     // 步骤

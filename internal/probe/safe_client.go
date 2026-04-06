@@ -1,4 +1,4 @@
-package selftest
+package probe
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// newSafeHTTPClient 创建自助测试专用的安全 HTTP 客户端：
+// newSafeHTTPClient 创建专用的安全 HTTP 客户端：
 // - 禁用重定向（避免 3xx 跳转绕过 SSRF 校验）
 // - 自定义 DialContext：在实际连接时校验目标 IP（防 DNS rebinding）
 // - 禁用环境代理（避免通过代理访问内网资源）
@@ -29,7 +29,6 @@ func newSafeHTTPClient(guard *SSRFGuard) *http.Client {
 
 			// 先做一次解析校验（防止解析直接指向内网）
 			if ip := net.ParseIP(host); ip != nil {
-				// 直接是 IP 地址
 				if !ip.IsGlobalUnicast() || guard.isPrivateIP(ip) {
 					return nil, fmt.Errorf("blocked IP: %s", ip.String())
 				}
@@ -88,9 +87,9 @@ func newSafeHTTPClient(guard *SSRFGuard) *http.Client {
 		MaxIdleConns:          100,
 		MaxIdleConnsPerHost:   10,
 		IdleConnTimeout:       30 * time.Second,
-		// 自助测试与定时探测保持同一口径：每次测试都走新连接。
+		// 与定时探测保持同一口径：每次测试都走新连接。
 		DisableKeepAlives: true,
-		// 显式禁用 HTTP/2，避免多路复用导致“冷启动”口径失真。
+		// 显式禁用 HTTP/2，避免多路复用导致"冷启动"口径失真。
 		TLSNextProto: make(map[string]func(string, *tls.Conn) http.RoundTripper),
 	}
 

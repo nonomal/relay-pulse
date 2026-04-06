@@ -601,7 +601,6 @@ func TestIsValidHomePath(t *testing.T) {
 
 		// 有效静态页面路径
 		{path: "/contact", valid: true},
-		{path: "/selftest", valid: true},
 		{path: "/en/contact", valid: true},
 
 		// 表单页不索引

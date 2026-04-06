@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -18,15 +19,19 @@ import (
 	"monitor/internal/logger"
 )
 
+// pscSegmentPattern 校验 PSC 段仅允许小写字母、数字、短横线，且不能以短横线开头或结尾。
+var pscSegmentPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`)
+
 // Service 提供自助收录的核心业务逻辑。
 type Service struct {
-	store        Store
-	cipher       *KeyCipher
-	proofIssuer  *ProofIssuer
-	cfg          *config.OnboardingConfig
-	configDir    string               // config.yaml 所在目录（用于定位 templates/ 等）
-	monitorStore *config.MonitorStore // monitors.d/ CRUD
-	mu           sync.RWMutex
+	store               Store
+	cipher              *KeyCipher
+	proofIssuer         *ProofIssuer
+	cfg                 *config.OnboardingConfig
+	configDir           string               // config.yaml 所在目录（用于定位 templates/ 等）
+	monitorStore        *config.MonitorStore // monitors.d/ CRUD
+	configMonitorExists func(provider, service, channel string) bool
+	mu                  sync.RWMutex
 }
 
 // NewService 创建 Service。configDir 是 config.yaml 所在目录。
@@ -52,6 +57,11 @@ func (s *Service) SetMonitorStore(store *config.MonitorStore) {
 	s.monitorStore = store
 }
 
+// SetConfigMonitorCheck 设置主配置 PSC 冲突检查回调。
+func (s *Service) SetConfigMonitorCheck(fn func(string, string, string) bool) {
+	s.configMonitorExists = fn
+}
+
 // SubmitRequest 用户提交申请的请求参数
 type SubmitRequest struct {
 	ProviderName  string `json:"provider_name" binding:"required,max=100"`
@@ -59,15 +69,15 @@ type SubmitRequest struct {
 	Category      string `json:"category" binding:"required,oneof=commercial public"`
 	ServiceType   string `json:"service_type" binding:"required,oneof=cc cx gm"`
 	TemplateName  string `json:"template_name" binding:"required,max=100"`
-	SponsorLevel  string `json:"sponsor_level" binding:"required,oneof=public signal pulse"`
-	ChannelType   string `json:"channel_type" binding:"required,oneof=O R M"`
+	SponsorLevel  string `json:"sponsor_level" binding:"max=50"`
+	ChannelType   string `json:"channel_type" binding:"required,oneof=O R M X"`
 	ChannelSource string `json:"channel_source" binding:"required,max=50"`
 	BaseURL       string `json:"base_url" binding:"required,url,max=500"`
 	APIKey        string `json:"api_key" binding:"required,min=10,max=500"`
 	TestProof     string `json:"test_proof" binding:"required"`
 	TestJobID     string `json:"test_job_id" binding:"required"`
-	TestType      string `json:"test_type" binding:"required,max=100"`    // selftest test_type（用于 proof 校验）
-	TestAPIURL    string `json:"test_api_url" binding:"required,max=500"` // selftest api_url（用于 proof 校验）
+	TestType      string `json:"test_type" binding:"required,max=100"`    // 测试类型（用于 proof 校验）
+	TestAPIURL    string `json:"test_api_url" binding:"required,max=500"` // 测试 API URL（用于 proof 校验）
 	TestLatency   int    `json:"test_latency"`
 	TestHTTPCode  int    `json:"test_http_code"`
 	Locale        string `json:"locale" binding:"max=10"`
@@ -114,7 +124,7 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 	fingerprint := s.cipher.Fingerprint(req.APIKey)
 	last4 := Last4(req.APIKey)
 
-	// 验证 test proof（绑定 selftest 参数）
+	// 验证 test proof（绑定探测参数）
 	err = s.proofIssuer.Verify(
 		req.TestProof,
 		req.TestJobID,
@@ -238,6 +248,15 @@ func (s *Service) AdminUpdate(ctx context.Context, publicID string, updates map[
 	if v, ok := updates["channel_source"].(string); ok && v != "" {
 		sub.ChannelSource = v
 	}
+	if v, ok := updates["target_provider"].(string); ok {
+		sub.TargetProvider = v
+	}
+	if v, ok := updates["target_service"].(string); ok {
+		sub.TargetService = v
+	}
+	if v, ok := updates["target_channel"].(string); ok {
+		sub.TargetChannel = v
+	}
 	if v, ok := updates["base_url"].(string); ok && v != "" {
 		sub.BaseURL = v
 	}
@@ -246,6 +265,9 @@ func (s *Service) AdminUpdate(ctx context.Context, publicID string, updates map[
 	}
 	if v, ok := updates["listed_since"].(string); ok {
 		sub.ListedSince = v
+	}
+	if v, ok := updates["expires_at"].(string); ok {
+		sub.ExpiresAt = v
 	}
 	if v, ok := updates["price_min"].(float64); ok {
 		sub.PriceMin = v
@@ -350,6 +372,13 @@ func (s *Service) AdminPublish(ctx context.Context, publicID string) error {
 		return fmt.Errorf("待发布 monitor 配置无效: %w", err)
 	}
 
+	// PSC 冲突预检：确认不与已有 monitors 冲突
+	if s.configMonitorExists != nil &&
+		s.configMonitorExists(monitorCfg.Provider, monitorCfg.Service, monitorCfg.Channel) {
+		return fmt.Errorf("PSC %s/%s/%s 已存在于当前运行配置中，请调整 target_provider/target_service/target_channel",
+			monitorCfg.Provider, monitorCfg.Service, monitorCfg.Channel)
+	}
+
 	// 写入 monitors.d/
 	if s.monitorStore == nil {
 		return fmt.Errorf("MonitorStore 未初始化，无法写入 monitors.d/")
@@ -390,8 +419,8 @@ func (s *Service) AdminPublish(ctx context.Context, publicID string) error {
 	return nil
 }
 
-// IssueProof 签发测试证明（供 selftest handler 调用）。
-// 参数来自 selftest job：jobID, testType, apiURL, apiKey。
+// IssueProof 签发测试证明（供内联探测调用）。
+// 参数来自探测结果：jobID, testType, apiURL, apiKey。
 func (s *Service) IssueProof(jobID, testType, apiURL, apiKey string) string {
 	fingerprint := s.cipher.Fingerprint(apiKey)
 	return s.proofIssuer.Issue(jobID, testType, apiURL, fingerprint)
@@ -399,21 +428,35 @@ func (s *Service) IssueProof(jobID, testType, apiURL, apiKey string) string {
 
 // buildServiceConfig 从 Submission 构建 ServiceConfig
 func (s *Service) buildServiceConfig(sub *Submission, apiKey string) config.ServiceConfig {
-	// 派生 provider slug（小写，去特殊字符）
+	// 派生默认 PSC 标识
 	providerSlug := strings.ToLower(strings.ReplaceAll(sub.ProviderName, " ", "-"))
+	serviceType := sub.ServiceType
+	channelCode := sub.ChannelCode
+
+	// 管理员可覆盖最终发布时的 PSC 标识
+	if v := strings.TrimSpace(sub.TargetProvider); v != "" {
+		providerSlug = v
+	}
+	if v := strings.TrimSpace(sub.TargetService); v != "" {
+		serviceType = v
+	}
+	if v := strings.TrimSpace(sub.TargetChannel); v != "" {
+		channelCode = v
+	}
 
 	cfg := config.ServiceConfig{
 		Provider:     providerSlug,
 		ProviderName: sub.ProviderName,
 		ProviderURL:  sub.WebsiteURL,
-		Service:      sub.ServiceType,
-		Channel:      sub.ChannelCode,
+		Service:      serviceType,
+		Channel:      channelCode,
 		ChannelName:  sub.ChannelName,
 		Template:     sub.TemplateName,
 		BaseURL:      sub.BaseURL,
 		APIKey:       apiKey,
 		Category:     sub.Category,
 		ListedSince:  sub.ListedSince,
+		ExpiresAt:    sub.ExpiresAt,
 		SponsorLevel: config.SponsorLevel(sub.SponsorLevel),
 	}
 	if sub.PriceMin != 0 {
@@ -435,17 +478,23 @@ func hashIP(ip string) string {
 
 // validateMonitorConfig 在发布前校验即将写入 monitors.d/ 的 monitor 配置。
 func (s *Service) validateMonitorConfig(m config.ServiceConfig) error {
-	if strings.TrimSpace(m.Provider) == "" {
-		return fmt.Errorf("provider 不能为空")
+	if err := validatePSCSegment("provider", m.Provider); err != nil {
+		return err
 	}
-	if strings.TrimSpace(m.Service) == "" {
-		return fmt.Errorf("service 不能为空")
+	if err := validatePSCSegment("service", m.Service); err != nil {
+		return err
 	}
-	if strings.TrimSpace(m.Channel) == "" {
-		return fmt.Errorf("channel 不能为空")
+	if err := validatePSCSegment("channel", m.Channel); err != nil {
+		return err
 	}
 	if strings.TrimSpace(m.BaseURL) == "" {
 		return fmt.Errorf("base_url 不能为空")
+	}
+
+	if m.ExpiresAt != "" {
+		if _, err := time.Parse("2006-01-02", m.ExpiresAt); err != nil {
+			return fmt.Errorf("expires_at 格式错误，应为 YYYY-MM-DD")
+		}
 	}
 
 	templateName := strings.TrimSpace(m.Template)
@@ -459,6 +508,18 @@ func (s *Service) validateMonitorConfig(m config.ServiceConfig) error {
 		return fmt.Errorf("template %q 不存在或无效: %w", templateName, err)
 	}
 
+	return nil
+}
+
+// validatePSCSegment 校验 PSC 段格式
+func validatePSCSegment(field, value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fmt.Errorf("%s 不能为空", field)
+	}
+	if !pscSegmentPattern.MatchString(value) {
+		return fmt.Errorf("%s 格式无效（%q），仅允许小写字母、数字、短横线，且不能以短横线开头或结尾", field, value)
+	}
 	return nil
 }
 

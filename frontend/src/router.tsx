@@ -5,7 +5,6 @@ import { useSyncLanguage } from './hooks/useSyncLanguage';
 // 路由级代码分割：懒加载页面组件
 const App = lazy(() => import('./App'));
 const ProviderPage = lazy(() => import('./pages/ProviderPage'));
-const SelfTestPage = lazy(() => import('./pages/SelfTestPage').then(m => ({ default: m.SelfTestPage })));
 const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const ChangeRequestPage = lazy(() => import('./pages/ChangeRequestPage'));
@@ -84,7 +83,6 @@ function renderChildRoutes(langPrefix?: string) {
     <>
       <Route index element={<App />} />
       <Route path="p/:provider" element={<ProviderPage />} />
-      <Route path="selftest" element={<SelfTestPage />} />
       <Route path="contact" element={<ContactPage />} />
       <Route path="contact/apply" element={<OnboardingPage />} />
       <Route path="contact/change" element={<ChangeRequestPage />} />

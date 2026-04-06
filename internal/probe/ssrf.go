@@ -1,4 +1,4 @@
-package selftest
+package probe
 
 import (
 	"fmt"
@@ -8,12 +8,12 @@ import (
 )
 
 // SSRFGuard provides SSRF (Server-Side Request Forgery) protection
-// by validating URLs and preventing access to private networks
+// by validating URLs and preventing access to private networks.
 type SSRFGuard struct {
 	privateIPRanges []*net.IPNet
 }
 
-// NewSSRFGuard creates a new SSRF guard with predefined private IP ranges
+// NewSSRFGuard creates a new SSRF guard with predefined private IP ranges.
 func NewSSRFGuard() *SSRFGuard {
 	privateRanges := []string{
 		"10.0.0.0/8",     // Private network (Class A)
@@ -40,37 +40,31 @@ func NewSSRFGuard() *SSRFGuard {
 	}
 }
 
-// ValidateURL validates a URL for SSRF protection
-// Returns an error if the URL is not safe
+// ValidateURL validates a URL for SSRF protection.
+// Returns an error if the URL is not safe.
 func (g *SSRFGuard) ValidateURL(rawURL string) error {
-	// Parse URL
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return fmt.Errorf("invalid URL: %w", err)
 	}
 
-	// 1. HTTPS only
 	if u.Scheme != "https" {
 		return fmt.Errorf("only HTTPS is allowed, got scheme: %s", u.Scheme)
 	}
 
-	// 2. Forbid userinfo (user:pass@host)
 	if u.User != nil {
 		return fmt.Errorf("userinfo not allowed in URL")
 	}
 
-	// 3. Get hostname
 	host := u.Hostname()
 	if host == "" {
 		return fmt.Errorf("missing hostname in URL")
 	}
 
-	// 4. Forbid IP addresses (must be domain name)
 	if g.isIPAddress(host) {
 		return fmt.Errorf("IP addresses not allowed, use domain names only")
 	}
 
-	// 5. DNS resolution and private IP detection
 	ips, err := net.LookupIP(host)
 	if err != nil {
 		return fmt.Errorf("DNS lookup failed for %s: %w", host, err)
@@ -80,7 +74,6 @@ func (g *SSRFGuard) ValidateURL(rawURL string) error {
 		return fmt.Errorf("DNS lookup returned no IP addresses for %s", host)
 	}
 
-	// Check if any resolved IP is private
 	for _, ip := range ips {
 		if g.isPrivateIP(ip) {
 			return fmt.Errorf("domain %s resolves to private IP: %s", host, ip)
@@ -90,21 +83,18 @@ func (g *SSRFGuard) ValidateURL(rawURL string) error {
 	return nil
 }
 
-// isIPAddress checks if a hostname is an IP address (IPv4 or IPv6)
+// isIPAddress checks if a hostname is an IP address (IPv4 or IPv6).
 func (g *SSRFGuard) isIPAddress(host string) bool {
-	// Try to parse as IP address
 	ip := net.ParseIP(host)
 	if ip != nil {
 		return true
 	}
 
-	// Check for IPv4 pattern (simple regex)
 	ipv4Pattern := regexp.MustCompile(`^(\d{1,3}\.){3}\d{1,3}$`)
 	if ipv4Pattern.MatchString(host) {
 		return true
 	}
 
-	// Check for IPv6 pattern (contains colons)
 	if regexp.MustCompile(`:`).MatchString(host) {
 		return true
 	}
@@ -112,14 +102,12 @@ func (g *SSRFGuard) isIPAddress(host string) bool {
 	return false
 }
 
-// isPrivateIP checks if an IP address is in a private range
+// isPrivateIP checks if an IP address is in a private range.
 func (g *SSRFGuard) isPrivateIP(ip net.IP) bool {
-	// Check against all private ranges
 	for _, block := range g.privateIPRanges {
 		if block.Contains(ip) {
 			return true
 		}
 	}
-
 	return false
 }

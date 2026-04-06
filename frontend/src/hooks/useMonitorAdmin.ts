@@ -8,9 +8,9 @@ import type {
 } from '../types/monitor';
 
 export interface ProbeResult {
-  jobId: string;
-  status: string;
+  probeId: string;
   probeStatus: number;
+  subStatus: string;
   httpCode: number;
   latency: number;
   errorMessage: string;
@@ -185,9 +185,9 @@ export function useMonitorAdmin(token: string) {
 
     try {
       const resp = await apiPost<{
-        job_id: string;
-        status: string;
+        probe_id: string;
         probe_status: number;
+        sub_status: string;
         http_code: number;
         latency: number;
         error_message: string;
@@ -198,9 +198,9 @@ export function useMonitorAdmin(token: string) {
         { headers: authHeaders() },
       );
       const result: ProbeResult = {
-        jobId: resp.job_id,
-        status: resp.status,
+        probeId: resp.probe_id,
         probeStatus: resp.probe_status,
+        subStatus: resp.sub_status,
         httpCode: resp.http_code,
         latency: resp.latency,
         errorMessage: resp.error_message,

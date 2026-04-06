@@ -34,13 +34,17 @@ type Submission struct {
 	SponsorLevel string `json:"sponsor_level"` // public / signal / pulse
 
 	// 通道
-	ChannelType   string  `json:"channel_type"`   // O / R / M
-	ChannelSource string  `json:"channel_source"` // API / Web / AWS / GCP / App / custom
-	ChannelCode   string  `json:"channel_code"`   // 派生: {type}-{source}
-	ChannelName   string  `json:"channel_name"`
-	ListedSince   string  `json:"listed_since"`
-	PriceMin      float64 `json:"price_min"`
-	PriceMax      float64 `json:"price_max"`
+	ChannelType    string  `json:"channel_type"`    // O / R / M / X
+	ChannelSource  string  `json:"channel_source"`  // API / Web / AWS / GCP / App / custom
+	ChannelCode    string  `json:"channel_code"`    // 派生: {type}-{source}
+	TargetProvider string  `json:"target_provider"` // 发布时 provider 覆盖（可选）
+	TargetService  string  `json:"target_service"`  // 发布时 service 覆盖（可选）
+	TargetChannel  string  `json:"target_channel"`  // 发布时 channel 覆盖（可选）
+	ChannelName    string  `json:"channel_name"`
+	ListedSince    string  `json:"listed_since"`
+	ExpiresAt      string  `json:"expires_at"` // 到期日期（可选，格式 YYYY-MM-DD）
+	PriceMin       float64 `json:"price_min"`
+	PriceMax       float64 `json:"price_max"`
 
 	// 接入信息
 	BaseURL           string `json:"base_url"`

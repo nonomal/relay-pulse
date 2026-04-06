@@ -47,9 +47,8 @@ func isValidProviderSlug(slug string) bool {
 
 // 允许 SEO 索引的静态页面路径（不含语言前缀部分）
 var indexableStaticPaths = map[string]bool{
-	"":         true, // 首页
-	"selftest": true,
-	"contact":  true,
+	"":        true, // 首页
+	"contact": true,
 }
 
 // isValidHomePath 检查路径是否为有效的可索引页面路径

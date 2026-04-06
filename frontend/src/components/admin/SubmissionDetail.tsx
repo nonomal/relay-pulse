@@ -1,6 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { apiGet } from '../../utils/apiClient';
 import type { AdminSubmission, OnboardingTestResult } from '../../types/onboarding';
 import { FormField, SelectField, ReadOnlyField } from './FormControls';
 
@@ -8,8 +7,9 @@ import { FormField, SelectField, ReadOnlyField } from './FormControls';
 const EDITABLE_FIELDS = [
   'provider_name', 'website_url', 'category', 'service_type',
   'template_name', 'sponsor_level', 'channel_type', 'channel_source',
-  'channel_name', 'listed_since', 'price_min', 'price_max',
-  'base_url', 'admin_note',
+  'target_provider', 'target_service', 'target_channel',
+  'channel_name', 'listed_since', 'expires_at',
+  'price_min', 'price_max', 'base_url', 'admin_note',
 ] as const;
 type EditableKey = (typeof EDITABLE_FIELDS)[number];
 type Draft = Record<EditableKey, string>;
@@ -30,7 +30,7 @@ interface SubmissionDetailProps {
   showApiKey: boolean;
   setShowApiKey: (show: boolean) => void;
   onSave: (fields: Partial<AdminSubmission>) => void;
-  onTest: () => Promise<{ jobId: string } | null>;
+  onTest: () => Promise<OnboardingTestResult | null>;
   onReject: (note: string) => void;
   onDelete: () => void;
   onPublish: () => void;
@@ -118,31 +118,12 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
     setRejectNote('');
   };
 
-  const pollJobResult = useCallback(async (jobId: string) => {
-    const maxAttempts = 30;
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise((r) => setTimeout(r, 2000));
-      try {
-        const result = await apiGet<OnboardingTestResult>(`/api/selftest/${jobId}`);
-        if (result.status === 'success' || result.status === 'failed' || result.status === 'timeout') {
-          return result;
-        }
-      } catch {
-        break;
-      }
-    }
-    return null;
-  }, []);
-
   const handleTest = async () => {
     setIsTesting(true);
     setTestResult(null);
     try {
       const resp = await onTest();
-      if (resp?.jobId) {
-        const result = await pollJobResult(resp.jobId);
-        if (result) setTestResult(result);
-      }
+      if (resp) setTestResult(resp);
     } finally {
       setIsTesting(false);
     }
@@ -247,9 +228,13 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
             value={draft.sponsor_level}
             onChange={(v) => updateField('sponsor_level', v)}
             options={[
+              { value: '', label: t('admin.monitors.sponsorLevels.none', { defaultValue: '(空)' }) },
               { value: 'public', label: 'Public' },
               { value: 'signal', label: 'Signal' },
               { value: 'pulse', label: 'Pulse' },
+              { value: 'beacon', label: 'Beacon' },
+              { value: 'backbone', label: 'Backbone' },
+              { value: 'core', label: 'Core' },
             ]}
           />
           <SelectField
@@ -260,19 +245,14 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
               { value: 'O', label: 'O - 官方直连' },
               { value: 'R', label: 'R - 逆向' },
               { value: 'M', label: 'M - 混合' },
+              { value: 'X', label: 'X - 其他' },
             ]}
           />
-          <SelectField
+          <FormField
             label={t('admin.detail.channelSource')}
             value={draft.channel_source}
             onChange={(v) => updateField('channel_source', v)}
-            options={[
-              { value: 'API', label: 'API' },
-              { value: 'Web', label: 'Web' },
-              { value: 'AWS', label: 'AWS' },
-              { value: 'GCP', label: 'GCP' },
-              { value: 'App', label: 'App' },
-            ]}
+            placeholder="API, Web, AWS, GCP..."
           />
           <FormField
             label={t('admin.detail.channelName')}
@@ -284,6 +264,30 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
             value={draft.listed_since}
             onChange={(v) => updateField('listed_since', v)}
             type="date"
+          />
+          <FormField
+            label={t('admin.detail.expiresAt', { defaultValue: '到期日期' })}
+            value={draft.expires_at}
+            onChange={(v) => updateField('expires_at', v)}
+            type="date"
+          />
+          <FormField
+            label={t('admin.detail.targetProvider', { defaultValue: 'Provider 覆盖' })}
+            value={draft.target_provider}
+            onChange={(v) => updateField('target_provider', v)}
+            placeholder={t('admin.detail.targetProviderHint', { defaultValue: '留空使用派生值' })}
+          />
+          <FormField
+            label={t('admin.detail.targetService', { defaultValue: 'Service 覆盖' })}
+            value={draft.target_service}
+            onChange={(v) => updateField('target_service', v)}
+            placeholder={t('admin.detail.targetServiceHint', { defaultValue: '留空使用派生值' })}
+          />
+          <FormField
+            label={t('admin.detail.targetChannel', { defaultValue: 'Channel 覆盖' })}
+            value={draft.target_channel}
+            onChange={(v) => updateField('target_channel', v)}
+            placeholder={t('admin.detail.targetChannelHint', { defaultValue: '留空使用派生值' })}
           />
           <FormField
             label={t('admin.detail.priceMin')}
@@ -501,9 +505,9 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
                 testResult.probe_status === 1 ? 'text-success' :
                 testResult.probe_status === 2 ? 'text-warning' : 'text-danger'
               }`}>
-                {testResult.probe_status === 1 ? t('selftest.result.available') :
-                 testResult.probe_status === 2 ? t('selftest.result.degraded') :
-                 t('selftest.result.unavailable')}
+                {testResult.probe_status === 1 ? t('status.available', { defaultValue: '可用' }) :
+                 testResult.probe_status === 2 ? t('status.degraded', { defaultValue: '降级' }) :
+                 t('status.unavailable', { defaultValue: '不可用' })}
               </span>
             </div>
             {testResult.sub_status && testResult.sub_status !== 'none' && (

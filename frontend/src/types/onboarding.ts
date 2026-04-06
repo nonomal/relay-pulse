@@ -16,13 +16,13 @@ export interface ChannelTypeInfo {
   label: string;
 }
 
-/** 测试类型信息（复用 selftest） */
+/** 测试类型信息 */
 export interface TestTypeInfo {
   id: string;
   name: string;
   description: string;
   default_variant: string;
-  variants: { id: string; filename: string; order: number }[];
+  variants: { id: string; order: number }[];
 }
 
 /** 申请表单元数据 */
@@ -35,19 +35,16 @@ export interface OnboardingMeta {
   contact_info: string;
 }
 
-/** 身份类型 */
-export type IdentityType = 'publicOwner' | 'commercialOwner' | 'personal' | '';
-
 /** 用户端表单数据 */
 export interface OnboardingFormData {
   // Step 1: 服务商信息
-  identity: IdentityType;
   providerName: string;
   websiteUrl: string;
   category: 'commercial' | 'public';
   serviceType: string;
   sponsorLevel: string;
   channelType: string;
+  channelTypeCustom: string;
   channelSource: string;
   agreementAccepted: boolean;
 
@@ -58,16 +55,15 @@ export interface OnboardingFormData {
   testVariant: string;
 }
 
-/** 测试结果（selftest 响应扩展） */
+/** 测试结果（内联探测响应） */
 export interface OnboardingTestResult {
-  id: string;
-  status: string;
   probe_status?: number;
   sub_status?: string;
   http_code?: number;
   latency?: number;
   error_message?: string;
   response_snippet?: string;
+  probe_id: string;
   test_proof?: string;
 }
 
@@ -123,8 +119,12 @@ export interface AdminSubmission {
   channel_type: string;
   channel_source: string;
   channel_code: string;
+  target_provider: string;
+  target_service: string;
+  target_channel: string;
   channel_name: string;
   listed_since: string;
+  expires_at: string;
   price_min: number;
   price_max: number;
   base_url: string;

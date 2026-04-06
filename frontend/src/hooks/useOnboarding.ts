@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { apiGet, apiPost, ApiError } from '../utils/apiClient';
 import type {
   OnboardingMeta,
@@ -9,9 +9,8 @@ import type {
 } from '../types/onboarding';
 
 const DRAFT_KEY = 'relay-pulse-onboarding-draft';
-const POLL_INTERVAL = 2000;
 
-/** 加载保存的草稿，剔除已废弃的 contactInfo 残留 */
+/** 加载保存的草稿，剔除已废弃字段残留 */
 function loadDraft(): Partial<OnboardingFormData> {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -19,6 +18,7 @@ function loadDraft(): Partial<OnboardingFormData> {
       const parsed = JSON.parse(raw) as Record<string, unknown>;
       delete parsed.apiKey;
       delete parsed.contactInfo;
+      delete parsed.identity;
       return parsed as Partial<OnboardingFormData>;
     }
   } catch { /* ignore */ }
@@ -40,14 +40,14 @@ function clearDraft() {
 }
 
 const defaultForm: OnboardingFormData = {
-  identity: '',
   providerName: '',
   websiteUrl: '',
   category: 'commercial',
   serviceType: 'cc',
-  sponsorLevel: 'public',
+  sponsorLevel: '',
   channelType: 'O',
-  channelSource: 'API',
+  channelTypeCustom: '',
+  channelSource: '',
   agreementAccepted: false,
   baseUrl: '',
   apiKey: '',
@@ -68,7 +68,6 @@ export function useOnboarding() {
   const [testResult, setTestResult] = useState<OnboardingTestResult | null>(null);
   const [testProof, setTestProof] = useState<string | null>(null);
   const [isTesting, setIsTesting] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Submit state
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -89,97 +88,66 @@ export function useOnboarding() {
   // Save draft on form change
   useEffect(() => { saveDraft(formData); }, [formData]);
 
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
-
-  // Reset test state when serviceType changes (prevent cross-service proof reuse)
-  const prevServiceTypeRef = useRef(formData.serviceType);
-  useEffect(() => {
-    if (formData.serviceType === prevServiceTypeRef.current) return;
-    prevServiceTypeRef.current = formData.serviceType;
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    setTestJobId(null);
-    setTestResult(null);
-    setTestProof(null);
-    setIsTesting(false);
-    setFormData(prev => ({ ...prev, testType: '', testVariant: '' }));
-  }, [formData.serviceType]);
-
   const updateField = useCallback(<K extends keyof OnboardingFormData>(key: K, value: OnboardingFormData[K]) => {
-    setFormData(prev => ({ ...prev, [key]: value }));
+    const resetTestState = key === 'serviceType' && formData.serviceType !== value;
+    // proof 绑定了 apiKey fingerprint 和 baseUrl，变更时必须清除
+    const invalidateProof = key === 'baseUrl' || key === 'apiKey';
+
+    setFormData(prev => {
+      const next = { ...prev, [key]: value } as OnboardingFormData;
+      if (resetTestState) {
+        next.testType = '';
+        next.testVariant = '';
+      }
+      return next;
+    });
+
+    if (resetTestState) {
+      setTestJobId(null);
+      setTestResult(null);
+      setTestProof(null);
+      setIsTesting(false);
+    } else if (invalidateProof && testProof) {
+      setTestJobId(null);
+      setTestResult(null);
+      setTestProof(null);
+    }
+
     setError(null);
-  }, []);
+  }, [formData.serviceType, testProof]);
 
   const goToStep = useCallback((s: number) => {
     setStep(s);
     setError(null);
   }, []);
 
-  /** 构建 selftest 的 API URL */
-  const buildTestApiUrl = useCallback(() => {
-    // The test API URL is derived from base_url + template path
-    // For simplicity, use the base_url directly - the selftest system handles templates
-    return formData.baseUrl;
-  }, [formData.baseUrl]);
-
-  /** 运行连通性测试 */
+  /** 运行连通性测试（内联探测，同步返回） */
   const runTest = useCallback(async () => {
     setIsTesting(true);
     setError(null);
+    setTestJobId(null);
     setTestResult(null);
     setTestProof(null);
 
     try {
-      const testApiUrl = buildTestApiUrl();
-      const resp = await apiPost<{ id: string }>('/api/selftest', {
-        test_type: formData.testType,
-        payload_variant: formData.testVariant || undefined,
-        api_url: testApiUrl,
+      const resp = await apiPost<OnboardingTestResult>('/api/onboarding/test', {
+        service_type: formData.serviceType,
+        template_name: formData.testVariant || formData.testType,
+        base_url: formData.baseUrl,
         api_key: formData.apiKey,
       });
 
-      setTestJobId(resp.id);
-
-      // Start polling
-      if (pollRef.current) clearInterval(pollRef.current);
-      pollRef.current = setInterval(async () => {
-        try {
-          const result = await apiGet<OnboardingTestResult>(`/api/selftest/${resp.id}`);
-          setTestResult(result);
-
-          const terminal = ['success', 'failed', 'timeout', 'canceled'].includes(result.status);
-          if (terminal) {
-            if (pollRef.current) {
-              clearInterval(pollRef.current);
-              pollRef.current = null;
-            }
-            setIsTesting(false);
-
-            if (result.test_proof) {
-              setTestProof(result.test_proof);
-            }
-          }
-        } catch {
-          if (pollRef.current) {
-            clearInterval(pollRef.current);
-            pollRef.current = null;
-          }
-          setIsTesting(false);
-        }
-      }, POLL_INTERVAL);
-
+      setTestResult(resp);
+      setTestJobId(resp.probe_id);
+      if (resp.test_proof) {
+        setTestProof(resp.test_proof);
+      }
     } catch (e) {
-      setIsTesting(false);
       setError(e instanceof ApiError ? e.message : '测试请求失败');
+    } finally {
+      setIsTesting(false);
     }
-  }, [formData, buildTestApiUrl]);
+  }, [formData.apiKey, formData.baseUrl, formData.serviceType, formData.testType, formData.testVariant]);
 
   /** 提交申请 */
   const submit = useCallback(async () => {
@@ -204,7 +172,7 @@ export function useOnboarding() {
         website_url: ensureUrl(formData.websiteUrl),
         category: formData.category,
         service_type: formData.serviceType,
-        template_name: formData.testVariant || formData.testType, // variant is the actual template name
+        template_name: formData.testVariant || formData.testType,
         sponsor_level: formData.sponsorLevel,
         channel_type: formData.channelType,
         channel_source: formData.channelSource,
@@ -213,7 +181,7 @@ export function useOnboarding() {
         test_proof: testProof,
         test_job_id: testJobId,
         test_type: formData.testType,
-        test_api_url: buildTestApiUrl(),
+        test_api_url: formData.baseUrl,
         test_latency: testResult.latency ?? 0,
         test_http_code: testResult.http_code ?? 0,
         locale: navigator.language || 'zh-CN',
@@ -227,7 +195,7 @@ export function useOnboarding() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, testProof, testJobId, testResult, buildTestApiUrl]);
+  }, [formData, testProof, testJobId, testResult]);
 
   const reset = useCallback(() => {
     setStep(1);

@@ -81,10 +81,14 @@ type AuthCandidate struct {
 	ChannelName  string `json:"channel_name"`
 	Category     string `json:"category"`
 	SponsorLevel string `json:"sponsor_level"`
+	ListedSince  string `json:"listed_since"`
+	ExpiresAt    string `json:"expires_at"`
+	PriceMin     string `json:"price_min"`
+	PriceMax     string `json:"price_max"`
 	BaseURL      string `json:"base_url"`
 	KeyLast4     string `json:"key_last4"`
 
-	// 测试元数据（由 AuthIndex.Rebuild 从 selftest 注册表填充）
+	// 测试元数据（由 AuthIndex.Rebuild 从 probe 注册表填充）
 	TestType           string        `json:"test_type"`
 	TestTypeName       string        `json:"test_type_name"`
 	DefaultTestVariant string        `json:"default_test_variant,omitempty"`

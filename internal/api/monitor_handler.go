@@ -363,9 +363,8 @@ func (h *Handler) AdminProbeMonitor(c *gin.Context) {
 		return
 	}
 
-	mgr := h.getSelfTestManager()
-	if mgr == nil {
-		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "自助测试功能未启用")
+	if h.inlineProber == nil {
+		apiError(c, http.StatusServiceUnavailable, ErrCodeFeatureDisabled, "内联探测器未初始化")
 		return
 	}
 
@@ -399,30 +398,16 @@ func (h *Handler) AdminProbeMonitor(c *gin.Context) {
 		return
 	}
 
-	// payloadVariant 传空，使用 selftest 默认变体（如 cc-haiku-arith）
-	// root.Template 是通道的生产探测模板，不是 selftest 变体
-	job, err := mgr.CreateJob(root.Service, root.BaseURL, root.APIKey, "")
-	if err != nil {
-		logger.Error("admin", "创建测试任务失败", "key", key, "error", err)
-		writeSelfTestError(c, err, "创建测试任务失败")
-		return
-	}
-
-	// 同步等待探测完成（最多 30s）
+	// 使用内联探测器同步执行
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	result, err := mgr.WaitForJob(ctx, job.ID)
-	if err != nil {
-		logger.Error("admin", "等待测试结果失败", "key", key, "job_id", job.ID, "error", err)
-		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, "等待测试结果失败")
-		return
-	}
+	result := h.inlineProber.Probe(ctx, root.Service, root.Template, root.BaseURL, root.APIKey)
 
 	c.JSON(http.StatusOK, gin.H{
-		"job_id":           job.ID,
-		"status":           string(result.Status),
+		"probe_id":         result.ProbeID,
 		"probe_status":     result.ProbeStatus,
+		"sub_status":       result.SubStatus,
 		"http_code":        result.HTTPCode,
 		"latency":          result.Latency,
 		"error_message":    result.ErrorMessage,

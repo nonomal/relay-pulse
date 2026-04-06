@@ -404,19 +404,6 @@ monitors:
 - 支持 `?board=hot|secondary|cold|all` URL 参数
 - 切换到冷板时显示提示信息
 
-## 自助测试（SelfTest）
-
-RelayPulse 内置自助测试功能，允许用户在 Web 界面上临时测试 API 端点的连通性。
-
-**启用方式**：在 `config.yaml` 中添加：
-
-```yaml
-selftest:
-  enabled: true
-```
-
-启用后，访问 Web 界面的 `/selftest` 页面即可使用。详细配置参见 [配置手册](docs/user/config.md)。
-
 ---
 
 ## 更多文档
