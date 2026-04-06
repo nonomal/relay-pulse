@@ -4,7 +4,6 @@
 	"url": "{{BASE_URL}}/v1/messages?beta=true",
 	"method": "POST",
 	"headers": {
-		"Accept": "application/json",
 		"Accept-Encoding": "gzip, deflate, br, zstd",
 		"Authorization": "Bearer {{API_KEY}}",
 		"Content-Type": "application/json",
@@ -25,17 +24,23 @@
 	},
 	"body": {
 		"model": "{{MODEL}}",
-		"max_tokens": 1,
+		"max_tokens": 20,
+		"stream": true,
 		"messages": [{
 			"role": "user",
-			"content": "quota"
+			"content": [{ "text": "{{PROMPT}}", "type": "text" }]
 		}],
+		"system": [{
+			"text": "You are Claude Code, Anthropic's official CLI for Claude.",
+			"type": "text"
+		}],
+		"tools": [],
 		"metadata": {
 			"user_id": "{\"device_id\":\"0018bcab91241ed288dea2425ad296700a99aa4d2889e172cd975b15f3f5d4dd\",\"account_uuid\":\"ddab3d55-9e81-4a08-8e7c-1db64b015571\",\"session_id\":\"d1be98c1-c487-47ca-93cf-a432cee7abdd\"}"
 		}
 	},
 	"response": {
-		"success_contains": "#"
+		"success_contains": "{{EXPECTED_ANSWER}}"
 	},
 	"probe": {
 		"slow_latency": "5s",
