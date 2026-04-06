@@ -1,0 +1,28 @@
+{
+	"model": "Haiku",
+	"request_model": "claude-haiku-4-5-20251001",
+	"url": "{{BASE_URL}}/v1/messages",
+	"method": "POST",
+	"headers": {
+		"Authorization": "Bearer {{API_KEY}}",
+		"Content-Type": "application/json",
+		"Anthropic-Version": "2023-06-01"
+	},
+	"body": {
+		"model": "{{MODEL}}",
+		"max_tokens": 20,
+		"stream": false,
+		"messages": [{
+			"role": "user",
+			"content": "What is the output of this Python code?\n\nprint({{ARITH_A}} + {{ARITH_B}})\n\nReply ONLY: {{EXPECTED_ANSWER}}"
+		}]
+	},
+	"response": {
+		"success_contains": "{{EXPECTED_ANSWER}}"
+	},
+	"probe": {
+		"slow_latency": "5s",
+		"timeout": "10s",
+		"retry": 0
+	}
+}

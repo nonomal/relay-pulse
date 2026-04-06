@@ -12,6 +12,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,10 +75,15 @@ func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) 
 		headers[k] = v
 	}
 
-	// 生成动态提示词（仅在模板使用 {{PROMPT}} 时）
+	// 生成动态提示词/算术题（仅在模板使用相关占位符时）
+	a, b := 0, 0
 	prompt, expectedAnswer = "", ""
-	if strings.Contains(body, "{{PROMPT}}") || strings.Contains(successContains, "{{EXPECTED_ANSWER}}") {
-		prompt, expectedAnswer = GenerateArithmeticPrompt()
+	if strings.Contains(body, "{{PROMPT}}") ||
+		strings.Contains(body, "{{ARITH_A}}") ||
+		strings.Contains(body, "{{ARITH_B}}") ||
+		strings.Contains(body, "{{EXPECTED_ANSWER}}") ||
+		strings.Contains(successContains, "{{EXPECTED_ANSWER}}") {
+		a, b, prompt, expectedAnswer = GenerateArithmeticPrompt()
 	}
 
 	// 原子获取 user_id 和 hash（确保同一生命周期内一致）
@@ -103,6 +109,8 @@ func InjectVariables(cfg *config.ServiceConfig, uidMgr *identity.UserIDManager) 
 		"{{RAND_UUID}}", uuid.New().String(),
 		"{{PROMPT}}", prompt,
 		"{{EXPECTED_ANSWER}}", expectedAnswer,
+		"{{ARITH_A}}", strconv.Itoa(a),
+		"{{ARITH_B}}", strconv.Itoa(b),
 	}
 	replacer := strings.NewReplacer(replacePairs...)
 
