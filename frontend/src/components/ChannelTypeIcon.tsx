@@ -5,7 +5,7 @@ export type ChannelType = 'official' | 'reverse' | 'mixed' | 'unknown';
 /** Parse O-/R-/M- prefix from channel identifier. Returns 'unknown' for unrecognized formats. */
 export function parseChannelType(channel?: string | null): ChannelType | null {
   if (!channel) return null;
-  const prefix = channel.charAt(0);
+  const prefix = channel.charAt(0).toUpperCase();
   if (channel.charAt(1) === '-') {
     if (prefix === 'O') return 'official';
     if (prefix === 'R') return 'reverse';

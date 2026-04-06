@@ -8,30 +8,30 @@ import (
 type ServiceConfig struct {
 	Provider     string       `yaml:"provider" json:"provider"`
 	ProviderName string       `yaml:"provider_name" json:"provider_name,omitempty"` // Provider 显示名称（可选，未配置时回退到 provider）
-	ProviderSlug string       `yaml:"provider_slug" json:"provider_slug"`           // URL slug（可选，未配置时使用 provider 小写）
-	ProviderURL  string       `yaml:"provider_url" json:"provider_url"`             // 服务商官网链接（可选）
+	ProviderSlug string       `yaml:"provider_slug,omitempty" json:"provider_slug"` // URL slug（可选，未配置时使用 provider 小写）
+	ProviderURL  string       `yaml:"provider_url,omitempty" json:"provider_url"`   // 服务商官网链接（可选）
 	Service      string       `yaml:"service" json:"service"`
-	ServiceName  string       `yaml:"service_name" json:"service_name,omitempty"` // Service 显示名称（可选，未配置时回退到 service）
-	Category     string       `yaml:"category" json:"category"`                   // 分类：commercial（商业站）或 public（公益站）
-	Sponsor      string       `yaml:"sponsor" json:"sponsor"`                     // 赞助者：提供 API Key 的个人或组织
-	SponsorURL   string       `yaml:"sponsor_url" json:"sponsor_url"`             // 赞助者链接（可选）
-	SponsorLevel SponsorLevel `yaml:"sponsor_level" json:"sponsor_level"`         // 赞助等级：public/signal/pulse/beacon/backbone/core（可选，按通道赞助）
-	KeyType      string       `yaml:"key_type" json:"key_type,omitempty"`         // API Key 类型：official/user（空值按 official 处理）
-	PriceMin     *float64     `yaml:"price_min" json:"price_min"`                 // 参考倍率下限（可选，如 0.05）
-	PriceMax     *float64     `yaml:"price_max" json:"price_max"`                 // 参考倍率（可选，如 0.2）
-	Annotations  []Annotation `yaml:"-" json:"annotations,omitempty"`             // 统一注解（系统派生 + annotation_rules）
-	Channel      string       `yaml:"channel" json:"channel"`                     // 业务通道标识（如 "vip-channel"），用于分类和过滤
-	Model        string       `yaml:"model" json:"model,omitempty"`               // 模型系列名（展示/DB 键；可由 template 提供，config 可覆盖）
-	RequestModel string       `yaml:"request_model" json:"-"`                     // 实际请求模型 ID（注入 {{MODEL}}/{{REQUEST_MODEL}}，为空时回退 Model）
-	Parent       string       `yaml:"parent" json:"parent,omitempty"`             // 父通道引用，格式 provider/service/channel
-	ChannelName  string       `yaml:"channel_name" json:"channel_name,omitempty"` // Channel 显示名称（可选，未配置时回退到 channel）
-	ListedSince  string       `yaml:"listed_since" json:"listed_since"`           // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
-	ExpiresAt    string       `yaml:"expires_at" json:"expires_at,omitempty"`     // 到期日期（可选，格式 "2006-01-02"），过期后自动降级并移入备板
+	ServiceName  string       `yaml:"service_name" json:"service_name,omitempty"`   // Service 显示名称（可选，未配置时回退到 service）
+	Category     string       `yaml:"category" json:"category"`                     // 分类：commercial（商业站）或 public（公益站）
+	Sponsor      string       `yaml:"sponsor,omitempty" json:"sponsor"`             // 赞助者：提供 API Key 的个人或组织
+	SponsorURL   string       `yaml:"sponsor_url,omitempty" json:"sponsor_url"`     // 赞助者链接（可选）
+	SponsorLevel SponsorLevel `yaml:"sponsor_level,omitempty" json:"sponsor_level"` // 赞助等级：public/signal/pulse/beacon/backbone/core（可选，按通道赞助）
+	KeyType      string       `yaml:"key_type" json:"key_type,omitempty"`           // API Key 类型：official/user（空值按 official 处理）
+	PriceMin     *float64     `yaml:"price_min,omitempty" json:"price_min"`         // 参考倍率下限（可选，如 0.05）
+	PriceMax     *float64     `yaml:"price_max,omitempty" json:"price_max"`         // 参考倍率（可选，如 0.2）
+	Annotations  []Annotation `yaml:"-" json:"annotations,omitempty"`               // 统一注解（系统派生 + annotation_rules）
+	Channel      string       `yaml:"channel" json:"channel"`                       // 业务通道标识（如 "vip-channel"），用于分类和过滤
+	Model        string       `yaml:"model" json:"model,omitempty"`                 // 模型系列名（展示/DB 键；可由 template 提供，config 可覆盖）
+	RequestModel string       `yaml:"request_model,omitempty" json:"-"`             // 实际请求模型 ID（注入 {{MODEL}}/{{REQUEST_MODEL}}，为空时回退 Model）
+	Parent       string       `yaml:"parent" json:"parent,omitempty"`               // 父通道引用，格式 provider/service/channel
+	ChannelName  string       `yaml:"channel_name" json:"channel_name,omitempty"`   // Channel 显示名称（可选，未配置时回退到 channel）
+	ListedSince  string       `yaml:"listed_since,omitempty" json:"listed_since"`   // 收录日期（可选，格式 "2006-01-02"），用于计算收录天数
+	ExpiresAt    string       `yaml:"expires_at" json:"expires_at,omitempty"`       // 到期日期（可选，格式 "2006-01-02"），过期后自动降级并移入备板
 	// Template 引用 templates/<name>.json 模板，定义完整的请求方式（url/method/headers/body/response）
 	Template string `yaml:"template" json:"template,omitempty"`
 
 	// BaseURL 服务商基础地址（如 "https://api.88code.com"），模板通过 {{BASE_URL}} 引用
-	BaseURL string `yaml:"base_url" json:"base_url"`
+	BaseURL string `yaml:"base_url,omitempty" json:"base_url"`
 
 	// SkipURLValidation 跳过该监测项的私网 IP 告警校验（内网/自建探测目标场景）
 	SkipURLValidation bool `yaml:"skip_url_validation,omitempty" json:"-"`
@@ -44,35 +44,35 @@ type ServiceConfig struct {
 	// 在探测期通过 InjectVariables 替换为最终 URL
 	URLPattern string `yaml:"url_pattern,omitempty" json:"-"`
 
-	Method  string            `yaml:"method" json:"method"`
-	Headers map[string]string `yaml:"headers" json:"headers"`
-	Body    string            `yaml:"body" json:"body"`
+	Method  string            `yaml:"method,omitempty" json:"method"`
+	Headers map[string]string `yaml:"headers,omitempty" json:"headers"`
+	Body    string            `yaml:"body,omitempty" json:"body"`
 
 	// SuccessContains 可选：响应体需包含的关键字，用于判定请求语义是否成功
-	SuccessContains string `yaml:"success_contains" json:"success_contains"`
+	SuccessContains string `yaml:"success_contains,omitempty" json:"success_contains"`
 
 	// EnvVarName 可选：自定义环境变量名（用于解决channel名称冲突）
 	// 如果指定，则使用此名称覆盖 APIKey，否则使用自动生成的 MONITOR_{PROVIDER}_{SERVICE}_{CHANNEL}_API_KEY
-	EnvVarName string `yaml:"env_var_name" json:"-"`
+	EnvVarName string `yaml:"env_var_name,omitempty" json:"-"`
 
 	// 自定义巡检间隔（可选，留空则使用全局 interval）
 	// 支持 Go duration 格式，例如 "30s"、"1m"、"5m"
 	// 付费高频监测可使用更短间隔
-	Interval string `yaml:"interval" json:"interval"`
+	Interval string `yaml:"interval,omitempty" json:"interval"`
 
 	// 彻底停用配置：不探测、不存储、不展示
 	// Disabled 为 true 时，调度器不会创建任务，API 不返回，探测结果不写库
-	Disabled       bool   `yaml:"disabled" json:"disabled"`
-	DisabledReason string `yaml:"disabled_reason" json:"disabled_reason"` // 停用原因（可选）
+	Disabled       bool   `yaml:"disabled,omitempty" json:"disabled"`
+	DisabledReason string `yaml:"disabled_reason,omitempty" json:"disabled_reason"` // 停用原因（可选）
 
 	// 临时下架配置：隐藏但继续探测，用于商家整改期间
 	// Hidden 为 true 时，API 不返回该监测项，但调度器继续探测并存储结果
-	Hidden       bool   `yaml:"hidden" json:"hidden"`
-	HiddenReason string `yaml:"hidden_reason" json:"hidden_reason"` // 下架原因（可选）
+	Hidden       bool   `yaml:"hidden,omitempty" json:"hidden"`
+	HiddenReason string `yaml:"hidden_reason,omitempty" json:"hidden_reason"` // 下架原因（可选）
 
 	// 热板/冷板配置：冷板项停止探测，仅展示历史数据（需 boards.enabled=true）
 	// Board 可选值：空/"hot"（默认热板）、"cold"（冷板）
-	Board      string `yaml:"board" json:"board"`
+	Board      string `yaml:"board,omitempty" json:"board"`
 	ColdReason string `yaml:"cold_reason" json:"cold_reason,omitempty"` // 冷板原因（可选）
 
 	// AutoColdExempt 手动解除自动冷板。
@@ -87,7 +87,7 @@ type ServiceConfig struct {
 	// 通道级慢请求阈值（可选，覆盖模板和全局 slow_latency）
 	// 支持 Go duration 格式，例如 "5s"、"15s"
 	// 优先级：monitor > template.probe > global
-	SlowLatency string `yaml:"slow_latency" json:"slow_latency"`
+	SlowLatency string `yaml:"slow_latency,omitempty" json:"slow_latency"`
 
 	// 解析后的"慢请求"阈值，用于黄灯判定
 	SlowLatencyDuration time.Duration `yaml:"-" json:"-"`
@@ -95,7 +95,7 @@ type ServiceConfig struct {
 	// 通道级超时时间（可选，覆盖模板和全局 timeout）
 	// 支持 Go duration 格式，例如 "10s"、"30s"
 	// 优先级：monitor > template.probe > global
-	Timeout string `yaml:"timeout" json:"timeout"`
+	Timeout string `yaml:"timeout,omitempty" json:"timeout"`
 
 	// 解析后的超时时间
 	TimeoutDuration time.Duration `yaml:"-" json:"-"`

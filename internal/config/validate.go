@@ -33,7 +33,7 @@ func newValidateContext() *validateContext {
 // Validate 验证配置合法性
 // 注意：此方法有副作用，会预处理子通道的 provider/service/channel 继承
 func (c *AppConfig) validate() error {
-	if len(c.Monitors) == 0 {
+	if len(c.Monitors) == 0 && !c.Onboarding.Enabled {
 		return fmt.Errorf("至少需要配置一个监测项")
 	}
 

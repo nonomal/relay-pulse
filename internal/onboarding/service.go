@@ -526,5 +526,5 @@ func validatePSCSegment(field, value string) error {
 // deriveChannelCode 从通道类型和来源派生通道代码
 func deriveChannelCode(channelType, channelSource string) string {
 	source := strings.ToLower(strings.ReplaceAll(channelSource, " ", ""))
-	return fmt.Sprintf("%s-%s", channelType, source)
+	return fmt.Sprintf("%s-%s", strings.ToLower(channelType), source)
 }
