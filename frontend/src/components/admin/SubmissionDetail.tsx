@@ -34,6 +34,7 @@ interface SubmissionDetailProps {
   onReject: (note: string) => void;
   onDelete: () => void;
   onPublish: () => void;
+  suggestedChannel?: string;
   onBack: () => void;
 }
 
@@ -65,6 +66,7 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
   onReject,
   onDelete,
   onPublish,
+  suggestedChannel,
   onBack,
 }) => {
   const { t } = useTranslation();
@@ -283,12 +285,23 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
             onChange={(v) => updateField('target_service', v)}
             placeholder={t('admin.detail.targetServiceHint', { defaultValue: '留空使用派生值' })}
           />
-          <FormField
-            label={t('admin.detail.targetChannel', { defaultValue: 'Channel 覆盖' })}
-            value={draft.target_channel}
-            onChange={(v) => updateField('target_channel', v)}
-            placeholder={t('admin.detail.targetChannelHint', { defaultValue: '留空使用派生值' })}
-          />
+          <div>
+            <FormField
+              label={t('admin.detail.targetChannel', { defaultValue: 'Channel 覆盖' })}
+              value={draft.target_channel}
+              onChange={(v) => updateField('target_channel', v)}
+              placeholder={t('admin.detail.targetChannelHint', { defaultValue: '留空使用派生值' })}
+            />
+            {suggestedChannel && (
+              <button
+                type="button"
+                className="mt-1 text-xs px-2 py-1 rounded bg-warning/15 border border-warning/30 text-warning hover:bg-warning/25 transition-colors"
+                onClick={() => updateField('target_channel', suggestedChannel)}
+              >
+                {t('admin.detail.suggestedChannel', { defaultValue: '建议' })}: {suggestedChannel}
+              </button>
+            )}
+          </div>
           <FormField
             label={t('admin.detail.priceMin')}
             value={draft.price_min}

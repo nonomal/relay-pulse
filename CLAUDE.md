@@ -4,7 +4,7 @@
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
 ### 同步检查点
-- **最后同步**: 2026-04-06（selftest 移除 + probe 包新增）
+- **最后同步**: 2026-04-06（onboarding channel 派生修复 + omitempty + 零 monitors 启动）
 - 代码是唯一真相源。本文档为架构与模式摘要，字段级细节请查阅引用的源文件。
 
 ## 项目概览
@@ -715,7 +715,7 @@ HTTP 响应
 | Events | `enabled`、`mode`（model/channel）、`down_threshold`、`up_threshold`、`channel_down_threshold`、`channel_count_mode`、`api_token` | 状态变更事件 |
 | SponsorPin | `enabled`、`max_pinned`、`min_uptime`、`min_level` | 赞助通道置顶（详见 `docs/user/sponsorship.md`） |
 | Boards | `enabled` | 热板/备板/冷板三层系统 |
-| Onboarding | `enabled`、`admin_token`、`encryption_key`、`proof_secret`、`proof_ttl`（默认 5m）、`max_per_ip_per_day`（默认 5）、`contact_info`、`change_requests`（子配置：`enabled`、`max_per_ip_per_day`） | 自助收录 + 变更请求（启用需重启容器） |
+| Onboarding | `enabled`、`admin_token`、`encryption_key`、`proof_secret`、`proof_ttl`（默认 5m）、`max_per_ip_per_day`（默认 5）、`contact_info`、`change_requests`（子配置：`enabled`、`max_per_ip_per_day`） | 自助收录 + 变更请求（启用需重启容器）。启用 onboarding 时允许零 monitors 启动 |
 | Announcements | `enabled`、`owner`、`repo`、`category_name`、`poll_interval`、`window_hours`、`max_items`、`api_max_age` | GitHub Discussions 公告 |
 | GitHub | `token`、`proxy`、`timeout` | GitHub API 通用配置（公告功能依赖） |
 
@@ -958,6 +958,14 @@ Closes #42
 - HTTP 4xx/5xx → 状态 0（红色）
 - HTTP 2xx + 慢延迟 → 状态 2（黄色）
 - HTTP 2xx + 快速 + 内容匹配 → 状态 1（绿色）
+
+### Onboarding 通道标识派生
+
+收录申请提交时，channel code 由 `deriveChannelCode(channelType, channelSource)` 自动派生：`strings.ToLower(type) + "-" + strings.ToLower(source)`。例如 channelType="O" + channelSource="FREE" → `o-free`。PSC 各段只允许小写字母、数字、短横线（`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`）。管理员可在发布前通过 `target_channel` 覆盖派生值。前端 `ChannelTypeIcon` 通过首字母（大小写不敏感）识别通道类型图标（o→官方、r→逆向、m→混合）。
+
+### 零 monitors 启动
+
+当 `onboarding.enabled = true` 时，`validate()` 允许 `monitors` 数组为空。这支持 "onboarding-first" 部署场景：先启动空系统，再通过收录流程添加通道。
 
 ### 前端数据获取
 

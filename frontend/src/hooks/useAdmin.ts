@@ -29,6 +29,7 @@ export function useAdmin() {
   const [showApiKey, setShowApiKey] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [suggestedChannel, setSuggestedChannel] = useState<string>('');
 
   const authHeaders = useCallback((): HeadersInit => ({
     Authorization: `Bearer ${token}`,
@@ -163,12 +164,19 @@ export function useAdmin() {
   const publishSubmission = useCallback(async (publicId: string) => {
     if (!token) return;
     setError(null);
+    setSuggestedChannel('');
 
     try {
       await apiPost(`/api/admin/submissions/${publicId}/publish`, {}, { headers: authHeaders() });
       fetchList();
       setSelectedSubmission(null);
     } catch (e) {
+      if (e instanceof ApiError && e.status === 409 && e.data) {
+        const suggested = e.data.suggested_channel;
+        if (typeof suggested === 'string') {
+          setSuggestedChannel(suggested);
+        }
+      }
       setError(e instanceof ApiError ? e.message : '上架失败');
     }
   }, [token, authHeaders, fetchList]);
@@ -204,5 +212,6 @@ export function useAdmin() {
     setSelectedSubmission,
 
     error,
+    suggestedChannel,
   };
 }

@@ -22,6 +22,19 @@ import (
 // pscSegmentPattern 校验 PSC 段仅允许小写字母、数字、短横线，且不能以短横线开头或结尾。
 var pscSegmentPattern = regexp.MustCompile(`^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$`)
 
+// PSCConflictError 表示 PSC 冲突错误，包含冲突信息和建议值。
+type PSCConflictError struct {
+	Provider         string
+	Service          string
+	Channel          string
+	SuggestedChannel string
+}
+
+func (e *PSCConflictError) Error() string {
+	return fmt.Sprintf("PSC %s/%s/%s 已存在于当前运行配置中，请调整 target_channel（建议: %s）",
+		e.Provider, e.Service, e.Channel, e.SuggestedChannel)
+}
+
 // Service 提供自助收录的核心业务逻辑。
 type Service struct {
 	store               Store
@@ -375,8 +388,13 @@ func (s *Service) AdminPublish(ctx context.Context, publicID string) error {
 	// PSC 冲突预检：确认不与已有 monitors 冲突
 	if s.configMonitorExists != nil &&
 		s.configMonitorExists(monitorCfg.Provider, monitorCfg.Service, monitorCfg.Channel) {
-		return fmt.Errorf("PSC %s/%s/%s 已存在于当前运行配置中，请调整 target_provider/target_service/target_channel",
-			monitorCfg.Provider, monitorCfg.Service, monitorCfg.Channel)
+		suggested := s.suggestUniqueChannel(monitorCfg.Provider, monitorCfg.Service, monitorCfg.Channel)
+		return &PSCConflictError{
+			Provider:         monitorCfg.Provider,
+			Service:          monitorCfg.Service,
+			Channel:          monitorCfg.Channel,
+			SuggestedChannel: suggested,
+		}
 	}
 
 	// 写入 monitors.d/
@@ -521,6 +539,20 @@ func validatePSCSegment(field, value string) error {
 		return fmt.Errorf("%s 格式无效（%q），仅允许小写字母、数字、短横线，且不能以短横线开头或结尾", field, value)
 	}
 	return nil
+}
+
+// suggestUniqueChannel 生成不冲突的 channel 名（追加 -2、-3...）
+func (s *Service) suggestUniqueChannel(provider, service, channel string) string {
+	if s.configMonitorExists == nil {
+		return channel + "-2"
+	}
+	for i := 2; i <= 99; i++ {
+		candidate := fmt.Sprintf("%s-%d", channel, i)
+		if !s.configMonitorExists(provider, service, candidate) {
+			return candidate
+		}
+	}
+	return channel + "-new"
 }
 
 // deriveChannelCode 从通道类型和来源派生通道代码

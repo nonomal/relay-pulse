@@ -11,23 +11,27 @@ export interface ApiRequestOptions {
 interface ApiErrorOptions {
   status?: number;
   code?: string;
+  data?: Record<string, unknown>;
 }
 
 interface ParsedError {
   message?: string;
   code?: string;
+  raw?: Record<string, unknown>;
 }
 
 /** API 请求失败时抛出的错误类型 */
 export class ApiError extends Error {
   readonly status: number;
   readonly code?: string;
+  readonly data?: Record<string, unknown>;
 
   constructor(message: string, options: ApiErrorOptions = {}) {
     super(message);
     this.name = 'ApiError';
     this.status = options.status ?? 0;
     this.code = options.code;
+    this.data = options.data;
   }
 }
 
@@ -64,6 +68,7 @@ function parseErrorPayload(errorText: string): ParsedError {
       return {
         code: typeof parsed.error.code === 'string' ? parsed.error.code : undefined,
         message: typeof parsed.error.message === 'string' ? parsed.error.message : undefined,
+        raw: parsed as Record<string, unknown>,
       };
     }
 
@@ -97,7 +102,7 @@ async function request<T>(path: string, init: RequestInit): Promise<T> {
 
       throw new ApiError(
         extractErrorMessage(errorText, `请求失败 (${response.status})`),
-        { status: response.status, code: parsed.code },
+        { status: response.status, code: parsed.code, data: parsed.raw },
       );
     }
 

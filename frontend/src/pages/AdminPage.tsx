@@ -27,6 +27,7 @@ export default function AdminPage() {
     fetchDetail, updateSubmission, testSubmission, rejectSubmission, deleteSubmission, publishSubmission,
     setSelectedSubmission,
     error: submissionError,
+    suggestedChannel,
   } = useAdmin();
 
   const monitor = useMonitorAdmin(token);
@@ -108,6 +109,7 @@ export default function AdminPage() {
                     onReject={(note) => rejectSubmission(selectedSubmission.public_id, note)}
                     onDelete={() => deleteSubmission(selectedSubmission.public_id)}
                     onPublish={() => publishSubmission(selectedSubmission.public_id)}
+                    suggestedChannel={suggestedChannel}
                     onBack={() => setSelectedSubmission(null)}
                   />
                 ) : (

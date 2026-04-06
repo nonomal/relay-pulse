@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"monitor/internal/logger"
+	"monitor/internal/onboarding"
 )
 
 // checkAdminToken 验证管理员 Bearer token。
@@ -205,6 +207,20 @@ func (h *Handler) AdminPublishSubmission(c *gin.Context) {
 	publicID := c.Param("id")
 
 	if err := svc.AdminPublish(c.Request.Context(), publicID); err != nil {
+		var conflict *onboarding.PSCConflictError
+		if errors.As(err, &conflict) {
+			logger.Warn("admin", "上架 PSC 冲突", "public_id", publicID,
+				"psc", conflict.Provider+"/"+conflict.Service+"/"+conflict.Channel,
+				"suggested", conflict.SuggestedChannel)
+			c.JSON(http.StatusConflict, gin.H{
+				"error": gin.H{
+					"code":    "PSC_CONFLICT",
+					"message": conflict.Error(),
+				},
+				"suggested_channel": conflict.SuggestedChannel,
+			})
+			return
+		}
 		logger.Error("admin", "上架失败", "public_id", publicID, "error", err)
 		apiError(c, http.StatusInternalServerError, ErrCodeInternalError, err.Error())
 		return
