@@ -397,9 +397,10 @@ func (c *AppConfig) validateMonitorFields() error {
 			return fmt.Errorf("monitor[%d]: service 不能为空", i)
 		}
 
-		// Category: 非子通道必填（子通道可以继承）
+		// Category: 非子通道留空时默认 commercial（子通道留空走父继承）
 		if !hasParent && m.Category == "" {
-			return fmt.Errorf("monitor[%d]: category 不能为空（必须是 commercial 或 public）", i)
+			c.Monitors[i].Category = "commercial"
+			m.Category = "commercial"
 		}
 
 		// 非子通道：需要有 template 或 base_url + method

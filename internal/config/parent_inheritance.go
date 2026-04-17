@@ -188,7 +188,7 @@ func inheritRetry(child, parent *ServiceConfig) inheritedRetryFlags {
 // inheritMeta 继承元数据配置
 // 包括：Category、KeyType、Sponsor、Provider 相关元数据、Board 配置
 func inheritMeta(child, parent *ServiceConfig) {
-	// Category: 必填字段，但子通道可能想继承
+	// Category: 子通道留空优先从父继承（父仍空时由 validate 兜底为 commercial）
 	if child.Category == "" {
 		child.Category = parent.Category
 	}

@@ -72,7 +72,7 @@ storage:
 monitors:
   - provider: "88code"         # 服务商标识（必填）
     service: "cc"              # 服务类型（必填）
-    category: "commercial"     # 分类（必填）: commercial 或 public
+    category: "commercial"     # 分类（可选，默认 commercial）: commercial 或 public
     sponsor: "团队自有"         # 赞助者（必填）
     sponsor_level: "beacon"    # 赞助等级（可选）: public/signal/pulse/beacon/backbone/core
     key_type: "official"       # API Key 类型（可选）: official（默认）或 user
@@ -2209,10 +2209,10 @@ GA4 会自动追踪以下事件：
 
 ### 验证规则
 
-1. **必填字段检查**: `provider`, `service`, `category`, `sponsor`, `url`, `method`
+1. **必填字段检查**: `provider`, `service`，以及在未配置 `template` 时的 `base_url` 和 `method`
 2. **HTTP 方法校验**: 必须是 `GET`, `POST`, `PUT`, `DELETE`, `PATCH` 之一
 3. **唯一性检查**: `provider + service + channel` 组合必须唯一
-4. **`category` 枚举**: 必须是 `commercial` 或 `public`
+4. **`category` 枚举**: 若填写必须是 `commercial` 或 `public`（留空默认 `commercial`）
 5. **存储类型校验**: 必须是 `sqlite` 或 `postgres`
 
 ### 验证失败示例
