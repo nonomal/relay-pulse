@@ -155,18 +155,13 @@ monitors:
     # model 和 request_model 由模板预设，无需手动指定
 
   # --- 同服务商多模型（父子继承）---
-  # 子通道通过 parent 继承 base_url, api_key 等公共配置
-  # 每个子通道指定不同的 template 来选择模型
-  - provider: "88code"
-    service: "cc"
-    channel: "vip3"
-    base_url: "https://api.88code.com"
-    template: "cc-haiku-arith"
-    api_key: "sk-xxxxxxxx"
-    category: "commercial"
-    sponsor: "团队自有"
-  # - template: "cc-sonnet-arith"  # 子通道示例（取消注释使用）
-  #   parent: "88code/cc/vip3"     # 继承父通道配置
+  # 父通道已在上方定义（88code/cc/vip3，Haiku 模型）。
+  # 下面演示如何在同一通道下再追加一个 Sonnet 子通道：
+  # 子通道仅声明 template + parent，其余字段（base_url / api_key / category
+  # / sponsor 等）会从父通道继承，避免与父通道形成重复 PSC+模型 组合。
+  # 取消注释即可启用：
+  # - template: "cc-sonnet-arith"   # Sonnet 模型
+  #   parent: "88code/cc/vip3"      # 继承父通道的 base_url/api_key/category 等
 
   # --- Codex (CX) 示例 ---
   - provider: "88code"
