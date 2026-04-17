@@ -347,6 +347,14 @@ pre-commit install
 
 ---
 
+## 延伸阅读
+
+- **配置参考**: [docs/user/config.md](docs/user/config.md) — 全量字段说明
+- **Docker 细节**: [docs/user/docker.md](docs/user/docker.md)
+- **PostgreSQL 部署**: [docs/user/deploy-postgres.md](docs/user/deploy-postgres.md)
+- **监测方法论**: [docs/user/methodology.md](docs/user/methodology.md)
+- **版本/构建元数据**: [docs/developer/version-check.md](docs/developer/version-check.md) — `/api/version` 与构建注入字段说明
+
 ## 联系方式
 
 - Issue: 通过 GitHub Issue 报告问题
@@ -354,4 +362,4 @@ pre-commit install
 
 ---
 
-*最后更新: 2025-11-20*
+*最后更新: 2026-04-17*

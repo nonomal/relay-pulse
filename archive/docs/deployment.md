@@ -1,5 +1,8 @@
 # relaypulse.top 生产部署指南
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md` 与 `docs/user/`。
+
 ## 目标环境
 
 - **域名**: `relaypulse.top`

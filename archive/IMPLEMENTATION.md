@@ -1,5 +1,8 @@
 # 实施总结文档
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md` 与 `docs/user/`。
+
 ## 项目信息
 
 - **项目名称**: LLM Service Monitor - 企业级监控服务

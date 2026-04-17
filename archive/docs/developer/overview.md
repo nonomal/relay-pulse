@@ -1,5 +1,8 @@
 # 架构概览
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md`、`CONTRIBUTING.md` 与 `docs/user/`。
+
 > **Audience**: 开发者（贡献者） | **Last reviewed**: 2025-11-21
 
 本文档介绍 Relay Pulse 的技术架构、核心设计和模块职责。

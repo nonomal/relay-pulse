@@ -1,5 +1,8 @@
 # SQLite → PostgreSQL 迁移指南
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md` 与 `docs/user/`。
+
 > **Audience**: 运维人员 | **Last reviewed**: 2025-11-23
 
 本文档介绍如何将生产环境从 SQLite 迁移到 PostgreSQL。

@@ -1,5 +1,8 @@
 # LLM Service Monitor - 企业级监控服务
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md` 与 `docs/user/`。
+
 生产级 LLM 服务可用性监控系统，支持热更新、真实历史数据持久化。
 
 ## 核心特性

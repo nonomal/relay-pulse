@@ -1,5 +1,8 @@
 # 运维手册
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md` 与 `docs/user/`。
+
 > **Audience**: 用户（运维人员） | **Last reviewed**: 2025-11-21
 
 本文档介绍 Relay Pulse 的日常运维操作、健康检查、备份恢复和故障排查。

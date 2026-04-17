@@ -1,5 +1,8 @@
 # Code Review 报告
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md` 与 `docs/user/`。
+
 **项目**: LLM Service Monitor
 **审查时间**: 2025-11-20
 **审查者**: Claude (Self-Review)

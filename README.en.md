@@ -104,7 +104,7 @@ monitors:
     service: "cc"
     category: "commercial"
     sponsor: "Team owned"
-    sponsor_level: "advanced"  # Optional: basic/advanced/enterprise
+    sponsor_level: "backbone"  # Optional: public/signal/pulse/beacon/backbone/core (basic/advanced/enterprise are deprecated aliases)
     url: "https://api.88code.com/v1/chat/completions"
     method: "POST"
     api_key: "sk-xxx"  # Or via env var MONITOR_88CODE_CC_API_KEY
@@ -169,6 +169,13 @@ curl http://localhost:8080/api/version
 - TypeScript
 - Tailwind CSS v4
 - Vite
+
+## 💎 Sponsorship
+
+Sponsored channels (pinning, pricing tiers, featured placement) are currently offered to the **Chinese-speaking community only** — pricing, QQ-based support, and listing agreements are authored in Simplified Chinese. English-speaking operators are welcome to use RelayPulse as an open-source monitoring tool without sponsorship.
+
+- Tier & rights overview (CN): [docs/user/sponsorship.md](docs/user/sponsorship.md)
+- Listing agreement (CN): [docs/user/sponsorship-agreement.md](docs/user/sponsorship-agreement.md)
 
 ## 📝 Changelog
 

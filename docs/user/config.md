@@ -1,6 +1,6 @@
 # 配置手册
 
-> **Audience**: 用户 | **Last reviewed**: 2026-03-07
+> **Audience**: 用户 | **Last reviewed**: 2026-04-17
 
 本文档详细说明 Relay Pulse 的配置选项、环境变量和最佳实践。
 
@@ -87,6 +87,40 @@ monitors:
     api_key: "sk-xxx"          # API 密钥（可选，建议用环境变量）
     # model 和 request_model 由模板预设（可选覆盖）
 ```
+
+### `monitors.d/` 目录化通道管理
+
+除了把所有通道塞进 `config.yaml` 的 `monitors:` 数组外，系统还支持将**每个通道放到独立的 YAML 文件**中，集中存放在 `monitors.d/` 目录。这是管理后台（`/api/admin/monitors/*`）与自助收录（onboarding）落盘通道时的默认方式。
+
+**文件命名约定**：`{provider}--{service}--{channel}.yaml`（父子模型写在同一文件中）。
+
+**单文件结构**：
+
+```yaml
+metadata:
+  source: "admin"          # admin | onboarding | change_request | manual
+  revision: 3              # 修订序号
+  created_at: "2026-04-01T10:00:00Z"
+  updated_at: "2026-04-17T09:30:00Z"
+monitors:
+  - provider: "88code"
+    service: "cc"
+    channel: "vip"
+    category: "commercial"
+    sponsor: "团队自有"
+    base_url: "https://api.88code.com"
+    template: "cc-haiku-arith"
+    api_key: "sk-xxx"
+```
+
+**与 `config.yaml` 的关系**：
+
+- 两者在启动时合并为同一份 monitor 列表。
+- **冲突约束**：同一 PSC (`provider/service/channel`) 不能同时出现在 `config.yaml` 和 `monitors.d/`，否则启动报错。
+- 热更新同时监听 `config.yaml` 与 `monitors.d/` 目录，新增/修改/删除文件都会触发重载。
+- 删除走**软归档**：通过 admin API 删除时，文件被移到 `monitors.d/.archive/` 而非直接清除，方便回溯。
+
+**建议实践**：`config.yaml` 只保留全局设置与少量"硬编码"核心通道，其余通道统一走 `monitors.d/`，便于通过管理后台或自助收录流程增删改。
 
 ## 配置项详解
 
@@ -738,6 +772,81 @@ async function sendTelegramMessage(env, event) {
    wrangler deploy
    ```
 
+### 自助收录与变更请求配置
+
+开放公共站点时，可启用**自助收录**（新服务商通过前端表单申请入驻）与**变更请求**（已入驻服务商通过 API Key 认证后申请修改自身通道）两套配合使用的模块。启用后允许 `monitors` 为空启动，首次部署可走"先开放收录、后填充通道"的流程。
+
+```yaml
+onboarding:
+  enabled: true
+  admin_token: ""           # 管理后台 Bearer token（必填，建议走环境变量）
+  encryption_key: ""        # API Key 加密密钥（32 字节 hex，建议走 ONBOARDING_ENCRYPTION_KEY）
+  proof_secret: ""          # 测试证明 HMAC 密钥（必填，建议走环境变量）
+  proof_ttl: "5m"           # 测试证明有效期
+  max_per_ip_per_day: 5     # 每 IP 每天最大提交数
+  contact_info: "QQ:18058344"  # 展示给申请人的联系方式
+
+change_requests:
+  enabled: true
+  max_per_ip_per_day: 3     # 每 IP 每天最大提交数
+```
+
+#### `onboarding.enabled`
+
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 启用后，前端出现"服务商入驻"入口，且允许 `monitors` 为空启动（方便从零部署后再通过流程填充通道）。启用或关闭后**需要重启**容器生效。
+
+#### `onboarding.admin_token`
+
+- **类型**: string
+- **必填**: 启用时必填
+- **说明**: `/api/admin/*` 系列端点的 Bearer token。生产环境建议用环境变量 `MONITOR_ONBOARDING_ADMIN_TOKEN` 注入，避免落在 config.yaml 里。
+
+#### `onboarding.encryption_key`
+
+- **类型**: string（32 字节 hex 编码）
+- **必填**: 启用时必填
+- **说明**: 用于加密已收录通道的 API Key（AES-256-GCM）。可以通过环境变量 `ONBOARDING_ENCRYPTION_KEY` 注入。**切勿在 rotate 后丢失旧值，否则无法解密历史通道**。
+
+#### `onboarding.proof_secret`
+
+- **类型**: string
+- **必填**: 启用时必填
+- **说明**: 申请人点击"测试连通性"后服务端签发的 HMAC 证明密钥（`proof_ttl` 内有效）。建议走环境变量。
+
+#### `onboarding.proof_ttl`
+
+- **类型**: string（Go duration）
+- **默认值**: `"5m"`
+- **说明**: 测试证明的有效时长。过短会导致用户填完表单时证明已过期；过长会放大被重放的窗口。
+
+#### `onboarding.max_per_ip_per_day`
+
+- **类型**: integer
+- **默认值**: `5`
+- **说明**: 同一 IP 每天提交的上限。超限返回 429。
+
+#### `onboarding.contact_info`
+
+- **类型**: string
+- **默认值**: `""`
+- **说明**: 展示在入驻页底部的人类联系方式（QQ、邮箱等）。前端直接渲染，注意不要塞敏感信息。
+
+#### `change_requests.enabled`
+
+- **类型**: boolean
+- **默认值**: `false`
+- **说明**: 启用后，已收录通道的持有者可以通过 API Key 认证提交变更（改价格、改链接、改 Key 等）。认证共享 `onboarding.encryption_key`，管理后台审批共享 `onboarding.admin_token`，因此通常与 onboarding 一起启用。
+
+#### `change_requests.max_per_ip_per_day`
+
+- **类型**: integer
+- **默认值**: `3`
+- **说明**: 同一 IP 每天提交变更请求的上限，比收录更严格。
+
+> **安全提示**：`admin_token` / `encryption_key` / `proof_secret` 三个机密字段都支持 `${...}` 语法或同名环境变量覆盖，详见[环境变量覆盖](#环境变量覆盖)。生产部署**务必**放到环境变量中，并为 `encryption_key` 做异地备份。
+
 ### 通道技术细节暴露配置
 
 用于控制 API 是否返回通道的技术细节（`probe_url` 和 `template_name` 字段）。
@@ -1284,6 +1393,35 @@ WHERE timestamp < strftime('%s', 'now', '-30 days');
   parent: "88code/cc/vip"  # 自动继承 provider/service/channel/base_url 等
   # category 会从父通道继承，也可显式覆盖
 ```
+
+##### 完整示例：一父三子（Haiku / Sonnet / Opus）
+
+```yaml
+# 父通道：承载共用身份信息（PSC、sponsor、base_url、api_key）
+- provider: "88code"
+  service: "cc"
+  channel: "vip"
+  category: "commercial"
+  sponsor: "团队自有"
+  sponsor_level: "beacon"          # 只在父通道声明，子通道组级代表即为此
+  base_url: "https://api.88code.com"
+  template: "cc-haiku-arith"        # 父通道本身监测 Haiku
+  api_key: "sk-xxx"
+
+# 子通道：Sonnet，仅指定差异字段
+- parent: "88code/cc/vip"
+  template: "cc-sonnet-arith"
+
+# 子通道：Opus，同理
+- parent: "88code/cc/vip"
+  template: "cc-opus-arith"
+```
+
+要点：
+
+- 同一 PSC 下只能有一个父通道；父通道的 `template` 决定了自己监测的模型，子通道各自声明自己的 `template`。
+- 子通道无需重复 `provider/service/channel/base_url/api_key` 等，全部从父继承；如需覆盖，子通道中显式写出该字段即可（`sponsor_level` 例外，不继承）。
+- `monitors.d/` 模式下，父子三条记录写入**同一个** YAML 文件（文件名仍是 `88code--cc--vip.yaml`），便于统一管理。
 
 **前端显示**：
 - 热力图采用垂直分层显示，父层在上，子层在下

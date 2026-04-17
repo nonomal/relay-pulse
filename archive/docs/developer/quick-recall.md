@@ -1,5 +1,8 @@
 # 快速回忆清单
 
+> **⚠️ 历史文档 / Deprecated** — Last verified: 2026-04-17
+> 本文内容已过期，保留作为背景参考。现行文档请见仓库根 `README.md`、`CONTRIBUTING.md` 与 `docs/user/`。
+
 > **Audience**: 维护者本人 | **用途**: 3个月后快速重新上手
 
 ## 🚀 3分钟重新上手
