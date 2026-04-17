@@ -230,13 +230,17 @@ ERROR: relation "probe_history" does not exist
       provider TEXT NOT NULL,
       service TEXT NOT NULL,
       channel TEXT NOT NULL DEFAULT '',
+      model TEXT NOT NULL DEFAULT '',
       status INTEGER NOT NULL,
       sub_status TEXT NOT NULL DEFAULT '',
+      http_code INTEGER NOT NULL DEFAULT 0,
       latency INTEGER NOT NULL,
-      timestamp BIGINT NOT NULL
+      timestamp BIGINT NOT NULL,
+      error_detail TEXT NOT NULL DEFAULT ''
   );
-  CREATE INDEX IF NOT EXISTS idx_provider_service_channel_timestamp
-  ON probe_history(provider, service, channel, timestamp DESC);
+  CREATE INDEX IF NOT EXISTS idx_probe_history_pscm_ts_cover
+  ON probe_history (provider, service, channel, model, timestamp DESC)
+  INCLUDE (status, sub_status, latency, id, http_code);
   EOF
   ```
 
