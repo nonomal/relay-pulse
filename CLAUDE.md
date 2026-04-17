@@ -996,7 +996,6 @@ export MONITOR_DUCKCODING_CC_API_KEY="sk-duck-key"
 - 实现笔记：`archive/IMPLEMENTATION.md`（历史参考）
 - 每次提交代码前记得检测, 是否有变动需要同步到文档
 - 在commit前应先进行代码格式检查
-- 每次任务完成后, 别急着提交, 应该找codex评审通过后再提交
 
 ## 同步检查清单
 
