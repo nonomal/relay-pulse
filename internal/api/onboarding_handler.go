@@ -84,8 +84,7 @@ func (h *Handler) GetOnboardingMeta(c *gin.Context) {
 	resp := OnboardingMetaResponse{
 		ServiceTypes: []string{"cc", "cx", "gm"},
 		SponsorLevels: []SponsorLevelInfo{
-			{Value: "public", Label: "Public", Description: "公益链路"},
-			{Value: "signal", Label: "Signal", Description: "信号链路"},
+			// public/signal 自 2026-04-17 停止自助受理，不再下发给前端
 			{Value: "pulse", Label: "Pulse", Description: "脉冲链路"},
 		},
 		ChannelTypes: []ChannelTypeInfo{

@@ -157,6 +157,13 @@ func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP strin
 		}
 	}
 
+	// 停止受理 public/signal 赞助等级变更（2026-04-17 政策调整，详见 docs/user/sponsorship.md）
+	if newLevel, ok := req.ProposedChanges["sponsor_level"]; ok {
+		if newLevel == "public" || newLevel == "signal" {
+			return nil, fmt.Errorf("赞助等级 %q 已停止自助受理，请选择 pulse 或联系运营（QQ:18058344）", newLevel)
+		}
+	}
+
 	// 校验新 base_url 合法性（必须 HTTPS + 有效 hostname）
 	if newBaseURL, ok := req.ProposedChanges["base_url"]; ok && newBaseURL != "" {
 		parsedNew, err := url.Parse(newBaseURL)

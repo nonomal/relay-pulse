@@ -162,7 +162,7 @@ function EditStep({
     { key: 'provider_url', label: t('changeRequest.fields.providerUrl'), current: selectedCandidate.provider_url },
     { key: 'channel_name', label: t('changeRequest.fields.channelName'), current: selectedCandidate.channel_name },
     { key: 'category', label: t('changeRequest.fields.category'), current: selectedCandidate.category, type: 'select', options: ['commercial', 'public'] },
-    { key: 'sponsor_level', label: t('changeRequest.fields.sponsorLevel'), current: selectedCandidate.sponsor_level, type: 'select', options: ['public', 'signal', 'pulse'] },
+    { key: 'sponsor_level', label: t('changeRequest.fields.sponsorLevel'), current: selectedCandidate.sponsor_level, type: 'select', options: ['pulse'] },
     { key: 'base_url', label: t('changeRequest.fields.baseUrl'), current: selectedCandidate.base_url },
   ];
 

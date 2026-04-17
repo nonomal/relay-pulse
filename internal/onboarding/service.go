@@ -104,6 +104,11 @@ type SubmitResponse struct {
 
 // Submit 处理用户提交申请。
 func (s *Service) Submit(ctx context.Context, req *SubmitRequest, clientIP string) (*SubmitResponse, error) {
+	// 停止受理 public/signal 自助赞助（2026-04-17 政策调整，详见 docs/user/sponsorship.md）
+	if req.SponsorLevel == "public" || req.SponsorLevel == "signal" {
+		return nil, fmt.Errorf("赞助等级 %q 已停止自助受理，请选择 pulse 或联系运营（QQ:18058344）", req.SponsorLevel)
+	}
+
 	// IP 限流
 	ipHash := hashIP(clientIP)
 	count, err := s.store.CountByIPToday(ctx, ipHash)
