@@ -31,6 +31,8 @@ pre-commit install
 
 ### 首次运行
 
+**推荐方式（使用脚本自动处理）**：
+
 ```bash
 # 1. 克隆项目
 git clone <repo-url>
@@ -39,21 +41,44 @@ cd relay-pulse
 # 2. 安装 Go 依赖
 go mod download
 
-# 3. 构建前端（首次或 dist 目录缺失时执行）
-cd frontend
-npm install
-npm run build
-cd ..
+# 3. 一键构建前端、复制 embed 资源、初始化 config.yaml
+./scripts/setup-dev.sh
 
-# 4. 复制配置
-cp config.yaml.example config.yaml
+# 4. 按提示编辑 config.yaml 设置 API 密钥
 
 # 5. 编译运行
 go build -o monitor ./cmd/server
 ./monitor
 ```
 
-> 💡 `./scripts/setup-dev.sh` 会自动执行前端构建与复制、检查 `config.yaml` 是否存在，并支持 `--rebuild-frontend` 强制重新打包。更新前端或拉取最新 main 后运行该脚本，可确保 `internal/api/frontend` 与 UI 保持一致。
+> ⚠️ **为什么必须运行 `setup-dev.sh`？**
+> `internal/api/server.go` 使用 `//go:embed frontend/dist` 嵌入前端静态资源，Go 要求嵌入路径位于 **`internal/api/frontend/dist`**，且 **embed 不支持符号链接**。`setup-dev.sh` 会把 `frontend/dist` 复制到该路径；若跳过此步骤直接 `go build`，会报：
+> ```
+> internal/api/server.go:27:12: pattern frontend/dist: no matching files found
+> ```
+
+> 💡 前端代码变更或拉取最新 main 后，运行 `./scripts/setup-dev.sh --rebuild-frontend` 强制重新打包并同步嵌入目录。
+
+<details>
+<summary>手动方式（不使用脚本时的等价步骤）</summary>
+
+```bash
+# 构建前端
+cd frontend
+npm install
+npm run build
+cd ..
+
+# 将构建产物复制到 embed 期望的路径（Go embed 不支持符号链接，所以必须复制，不能软链）
+rm -rf internal/api/frontend
+mkdir -p internal/api/frontend
+cp -r frontend/dist internal/api/frontend/
+
+# 复制配置
+cp config.yaml.example config.yaml
+```
+
+</details>
 
 ### 前端构建与调试
 
