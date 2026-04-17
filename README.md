@@ -67,12 +67,11 @@ open http://localhost:8080
 ### 本地开发
 
 ```bash
-# 安装依赖
-go mod tidy
-cd frontend && npm install && cd ..
+# 一键 setup（构建前端 + 复制 embed 资源 + 初始化 config.yaml）
+./scripts/setup-dev.sh
 
-# 准备配置
-cp config.yaml.example config.yaml
+# 整理 Go 依赖
+go mod tidy
 
 # 启动开发服务（带热重载）
 make dev
@@ -80,6 +79,8 @@ make dev
 # 或直接运行
 go run cmd/server/main.go
 ```
+
+> ⚠️ 首次构建或前端更新后**必须**先跑 `./scripts/setup-dev.sh`，它会把 `frontend/dist` 复制到 `internal/api/frontend/dist`（`//go:embed` 需要的路径，不支持符号链接）。跳过会报 `pattern frontend/dist: no matching files found`。详见 [CONTRIBUTING.md](CONTRIBUTING.md#首次运行)。
 
 **👨‍💻 开发者指南**：[CONTRIBUTING.md](CONTRIBUTING.md)
 
