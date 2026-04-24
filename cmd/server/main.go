@@ -281,7 +281,7 @@ func main() {
 	if err := initProbeTemplates(configFile); err != nil {
 		logger.Warn("main", "初始化 probe 模板失败（非致命）", "error", err)
 	}
-	inlineProber := probe.NewInlineProber(5)
+	inlineProber := probe.NewInlineProber(5, userIDMgr)
 	probeLimiter := probe.NewIPLimiter(10, 10) // 每 IP 每分钟 10 次
 	server.GetHandler().SetInlineProber(inlineProber)
 	server.GetHandler().SetProbeLimiter(probeLimiter)

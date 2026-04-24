@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"monitor/internal/config"
+	"monitor/internal/identity"
 	"monitor/internal/monitor"
 )
 
@@ -32,15 +33,17 @@ type probeResult struct {
 type internalProber struct {
 	client       *http.Client
 	maxBodyBytes int64
+	uidMgr       *identity.UserIDManager
 }
 
-func newInternalProber(guard *SSRFGuard, maxBodyBytes int64) *internalProber {
+func newInternalProber(guard *SSRFGuard, maxBodyBytes int64, uidMgr *identity.UserIDManager) *internalProber {
 	if maxBodyBytes <= 0 {
 		maxBodyBytes = DefaultMaxResponseBytes
 	}
 	return &internalProber{
 		client:       newSafeHTTPClient(guard),
 		maxBodyBytes: maxBodyBytes,
+		uidMgr:       uidMgr,
 	}
 }
 
@@ -50,7 +53,7 @@ func (p *internalProber) probe(ctx context.Context, cfg *config.ServiceConfig) *
 		SubStatus: "none",
 	}
 
-	probeURL, probeBody, probeHeaders, probeSuccessContains, _, _ := monitor.InjectVariables(cfg, nil)
+	probeURL, probeBody, probeHeaders, probeSuccessContains, _, _ := monitor.InjectVariables(cfg, p.uidMgr)
 
 	reqBody := bytes.NewBuffer([]byte(strings.TrimSpace(probeBody)))
 	req, err := http.NewRequestWithContext(ctx, cfg.Method, probeURL, reqBody)
@@ -179,12 +182,16 @@ type InlineProber struct {
 }
 
 // NewInlineProber 创建内联探测器。
-func NewInlineProber(maxConcurrency int) *InlineProber {
+//
+// uidMgr 用于注入 metadata.user_id 占位符；传 nil 会让严校验的 provider
+// （如 TopRouterCN）判为"非 CLI 客户端"并返回 403。主程序应传入共享的
+// UserIDManager 实例，与 scheduler 的请求构造保持一致。
+func NewInlineProber(maxConcurrency int, uidMgr *identity.UserIDManager) *InlineProber {
 	if maxConcurrency <= 0 {
 		maxConcurrency = 5
 	}
 	return &InlineProber{
-		prober: newInternalProber(NewSSRFGuard(), DefaultMaxResponseBytes),
+		prober: newInternalProber(NewSSRFGuard(), DefaultMaxResponseBytes, uidMgr),
 		sem:    make(chan struct{}, maxConcurrency),
 	}
 }
