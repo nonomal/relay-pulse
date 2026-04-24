@@ -1,5 +1,6 @@
 import { useEffect, useState, type InputHTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Eye, EyeOff, Copy, Check } from 'lucide-react';
 import type { MonitorConfig, MonitorFile } from '../../types/monitor';
 import type { ProbeResult } from '../../hooks/useMonitorAdmin';
 
@@ -353,12 +354,11 @@ export function MonitorDetail({
             editing={isEditing}
             onChange={v => updateField('interval', v)}
           />
-          <EditableField
+          <ApiKeyField
             label={t('admin.monitors.field.apiKey')}
-            value={isEditing ? editFields.api_key : (root?.api_key ? `***${root.api_key.slice(-4)}` : '')}
+            apiKey={isEditing ? (editFields.api_key || '') : (root?.api_key || '')}
             editing={isEditing}
             onChange={v => updateField('api_key', v)}
-            type="password"
           />
           <EditableField
             label={t('admin.monitors.field.proxy')}
@@ -727,4 +727,101 @@ function EditableBoolField({
 function withCurrentOption(options: SelectOption[], current?: string | null): SelectOption[] {
   if (!current || options.some(o => o.value === current)) return options;
   return [...options, { value: current, label: current }];
+}
+
+function ApiKeyField({
+  label, apiKey, editing, onChange,
+}: {
+  label: string;
+  apiKey: string;
+  editing: boolean;
+  onChange: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    if (!apiKey) return;
+    try {
+      await navigator.clipboard.writeText(apiKey);
+    } catch {
+      const input = document.createElement('input');
+      input.value = apiKey;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      document.body.removeChild(input);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const revealTitle = revealed ? t('admin.monitors.hideKey') : t('admin.monitors.showKey');
+  const copyTitle = copied ? t('admin.monitors.copiedKey') : t('admin.monitors.copyKey');
+
+  if (!editing) {
+    const displayValue = apiKey ? (revealed ? apiKey : `***${apiKey.slice(-4)}`) : '';
+    return (
+      <div>
+        <span className="text-muted">{label}: </span>
+        <span className="text-primary break-all">{displayValue || '-'}</span>
+        {apiKey && (
+          <span className="inline-flex gap-1 ml-2 align-middle">
+            <button
+              type="button"
+              onClick={() => setRevealed(v => !v)}
+              className="text-muted hover:text-accent transition"
+              title={revealTitle}
+              aria-label={revealTitle}
+            >
+              {revealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopy}
+              className="text-muted hover:text-accent transition"
+              title={copyTitle}
+              aria-label={copyTitle}
+            >
+              {copied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+            </button>
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <label className="block text-xs text-muted mb-0.5">{label}</label>
+      <div className="flex items-center gap-1">
+        <input
+          type={revealed ? 'text' : 'password'}
+          value={apiKey}
+          onChange={e => onChange(e.target.value)}
+          className="flex-1 min-w-0 px-2 py-1 rounded bg-elevated border border-default text-primary text-sm focus:outline-none focus:border-accent"
+        />
+        <button
+          type="button"
+          onClick={() => setRevealed(v => !v)}
+          className="p-1 text-muted hover:text-accent transition"
+          title={revealTitle}
+          aria-label={revealTitle}
+        >
+          {revealed ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+        </button>
+        <button
+          type="button"
+          onClick={handleCopy}
+          disabled={!apiKey}
+          className="p-1 text-muted hover:text-accent transition disabled:opacity-30"
+          title={copyTitle}
+          aria-label={copyTitle}
+        >
+          {copied ? <Check className="w-4 h-4 text-success" /> : <Copy className="w-4 h-4" />}
+        </button>
+      </div>
+    </div>
+  );
 }
