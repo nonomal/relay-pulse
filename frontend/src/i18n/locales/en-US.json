@@ -363,11 +363,11 @@
       "channelType": "Channel Type",
       "channelTypes": {
         "O": "Official",
-        "ODesc": "Official supported channel",
+        "ODesc": "Provider-owned account pool connected directly to the upstream official API (e.g. Anthropic Console, Claude subscription, Bedrock). No third-party reverse engineering.",
         "R": "Reverse",
-        "RDesc": "Non-natively supported, adapted through technical means",
+        "RDesc": "Non-native channel adapted via technical means (e.g. reverse-engineered web sessions or third-party scripts).",
         "M": "Mixed",
-        "MDesc": "Combination of both or with third-party fallback"
+        "MDesc": "Combination of both, or official with third-party fallback pools (e.g. official primary + reverse-engineered backup)."
       },
       "channelSource": "Channel Source",
       "customSource": "Custom...",
@@ -388,6 +388,7 @@
       "hideApiKey": "Hide API Key",
       "testType": "Service Type",
       "testVariant": "Request Template",
+      "variantHint": "Choose which model template to test (auth policy may differ by model).",
       "variants": {
         "cc-haiku-pro-2184": "Haiku Pro (2.1.84)"
       },

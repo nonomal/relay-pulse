@@ -1,7 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronRight, ExternalLink } from 'lucide-react';
-import type { OnboardingFormData, OnboardingMeta } from '../../types/onboarding';
+import type { OnboardingFormData, OnboardingMeta, ChannelSourceCategory } from '../../types/onboarding';
 
 interface ProviderInfoStepProps {
   formData: OnboardingFormData;
@@ -16,8 +16,45 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
 
   const channelCode = useMemo(() => {
     if (!formData.channelType || !formData.channelSource) return '';
-    return `${formData.channelType}-${formData.channelSource}`;
+    return `${formData.channelType}-${formData.channelSource.toUpperCase()}`;
   }, [formData.channelType, formData.channelSource]);
+
+  const sourceGroups: ChannelSourceCategory[] | null = useMemo(() => {
+    const all = meta?.channel_source_groups;
+    if (!all || !formData.serviceType) return null;
+    const groups = all[formData.serviceType];
+    return groups && groups.length > 0 ? groups : null;
+  }, [meta, formData.serviceType]);
+
+  // 一级分类的当前选中（独立 state，避免与 channelSource 混用造成 sub 行消失）
+  const [pickedCategoryId, setPickedCategoryId] = useState<string | null>(null);
+
+  // 当既有 channelSource 能映射到某 category 时，同步 pickedCategoryId
+  useEffect(() => {
+    if (!sourceGroups || !formData.channelSource) return;
+    for (const cat of sourceGroups) {
+      if (cat.id === formData.channelSource) {
+        setPickedCategoryId(cat.id);
+        return;
+      }
+      if (cat.sub_options?.some((s) => s.id === formData.channelSource)) {
+        setPickedCategoryId(cat.id);
+        return;
+      }
+    }
+  }, [sourceGroups, formData.channelSource]);
+
+  const pickedCategory = useMemo(() => {
+    if (!sourceGroups || !pickedCategoryId) return null;
+    return sourceGroups.find((c) => c.id === pickedCategoryId) ?? null;
+  }, [sourceGroups, pickedCategoryId]);
+
+  // 切换 serviceType 时清空 channelSource 与一级选中（不同服务的分类不通用）
+  useEffect(() => {
+    updateField('channelSource', '');
+    setPickedCategoryId(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.serviceType]);
 
   const canProceed = useMemo(() => {
     return (
@@ -191,22 +228,86 @@ export function ProviderInfoStep({ formData, updateField, meta, onNext }: Provid
         </div>
       )}
 
-      {/* Channel source - free text input */}
-      <div>
-        <label htmlFor="ob-channel-source" className="block text-sm font-medium text-primary mb-2">
+      {/* Channel source — cascade when backend provides groups; fallback to free-text */}
+      <fieldset>
+        <legend className="block text-sm font-medium text-primary mb-2">
           {t('onboarding.providerInfo.channelSource')}
           <span className="text-danger ml-0.5">*</span>
-        </label>
-        <input
-          id="ob-channel-source"
-          type="text"
-          value={formData.channelSource}
-          onChange={(e) => updateField('channelSource', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
-          placeholder={t('onboarding.providerInfo.channelSourcePlaceholder', { defaultValue: '如 API, Web, AWS, GCP' })}
-          maxLength={10}
-          className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
-        />
-      </div>
+        </legend>
+
+        {sourceGroups ? (
+          <div className="space-y-3">
+            {/* First level: category cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {sourceGroups.map((cat) => {
+                const active = pickedCategoryId === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setPickedCategoryId(cat.id);
+                      const subs = cat.sub_options ?? [];
+                      if (subs.length === 0) {
+                        // 无 sub：直接用 category.id 作为最终 channelSource
+                        updateField('channelSource', cat.id);
+                      } else if (pickedCategoryId !== cat.id) {
+                        // 切到新分类：清空已选子项等待用户重新选
+                        updateField('channelSource', '');
+                      }
+                    }}
+                    className={`text-left p-3 rounded-lg border transition-colors ${
+                      active
+                        ? 'border-accent bg-accent/10 text-primary'
+                        : 'border-muted hover:border-accent/40 text-secondary'
+                    }`}
+                  >
+                    <div className="text-sm font-medium">
+                      {t(`onboarding.providerInfo.channelSourceCategories.${cat.id}`, { defaultValue: cat.label })}
+                    </div>
+                    <div className="text-xs text-muted mt-0.5">
+                      {t(`onboarding.providerInfo.channelSourceCategories.${cat.id}Desc`, { defaultValue: '' })}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Second level: sub-option cards (only when picked category has subs) */}
+            {pickedCategory && pickedCategory.sub_options && pickedCategory.sub_options.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {pickedCategory.sub_options.map((sub) => {
+                  const active = formData.channelSource === sub.id;
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => updateField('channelSource', sub.id)}
+                      className={`p-2 rounded-lg border text-sm transition-colors ${
+                        active
+                          ? 'border-accent bg-accent/10 text-primary font-medium'
+                          : 'border-muted hover:border-accent/40 text-secondary'
+                      }`}
+                    >
+                      {sub.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <input
+            id="ob-channel-source"
+            type="text"
+            value={formData.channelSource}
+            onChange={(e) => updateField('channelSource', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+            placeholder={t('onboarding.providerInfo.channelSourcePlaceholder', { defaultValue: '如 API, Web, AWS, GCP' })}
+            maxLength={10}
+            className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent"
+          />
+        )}
+      </fieldset>
 
       {/* Channel code preview */}
       {channelCode && (

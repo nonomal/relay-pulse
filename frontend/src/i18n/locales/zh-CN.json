@@ -366,11 +366,11 @@
       "channelType": "通道类型",
       "channelTypes": {
         "O": "官方通道",
-        "ODesc": "官方正规渠道",
+        "ODesc": "自建号池，直接对接上游官方接口（如 Anthropic Console、Claude 订阅、Bedrock 等），不经第三方逆向",
         "R": "逆向通道",
-        "RDesc": "非原生支持渠道，通过技术手段适配",
+        "RDesc": "非原生支持渠道，通过技术手段适配（如逆向 Web 登录或第三方脚本）",
         "M": "混合通道",
-        "MDesc": "以上两种或接入第三方兜底的渠道"
+        "MDesc": "以上两种并存，或接入第三方兜底（如官方主备 + 逆向备用池）"
       },
       "channelSource": "通道来源",
       "customSource": "自定义...",
@@ -391,6 +391,7 @@
       "hideApiKey": "隐藏 API Key",
       "testType": "服务类型",
       "testVariant": "请求模板",
+      "variantHint": "选择用于测试的模型模板（不同模型可能鉴权策略不同）",
       "variants": {
         "cc-haiku-pro-2184": "Haiku Pro (2.1.84)"
       },

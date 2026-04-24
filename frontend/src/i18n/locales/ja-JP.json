@@ -358,11 +358,11 @@
       "channelType": "チャネルタイプ",
       "channelTypes": {
         "O": "公式",
-        "ODesc": "公式サポートチャネル",
+        "ODesc": "サービス事業者が保有するアカウントプールを使い、上流の公式 API（Anthropic Console、Claude サブスクリプション、Bedrock など）に直接接続。第三者のリバースエンジニアリングは介在しません。",
         "R": "リバース",
-        "RDesc": "非ネイティブサポート、技術的手段で対応",
+        "RDesc": "ネイティブ対応ではなく、技術的手段（リバース Web セッションや第三者スクリプトなど）で適合させたチャネル。",
         "M": "混合",
-        "MDesc": "両方の組み合わせまたはサードパーティのフォールバック"
+        "MDesc": "上記両方の併用、または公式と第三者バックアッププールの組み合わせ（公式メイン + リバースバックアップなど）。"
       },
       "channelSource": "チャネルソース", "customSource": "カスタム...", "customSourcePlaceholder": "カスタムソースを入力",
       "channelSourceCustomPlaceholder": "ソース名を入力（大文字/数字）",
@@ -376,6 +376,7 @@
       "apiKeyHint": "検証とモニタリングのみに使用、暗号化保存",
       "showApiKey": "APIキーを表示", "hideApiKey": "APIキーを非表示",
       "testType": "サービスタイプ", "testVariant": "リクエストテンプレート",
+      "variantHint": "テストに使用するモデルテンプレートを選択（モデルごとに認証ポリシーが異なる場合があります）",
       "variants": { "cc-haiku-pro-2184": "Haiku Pro (2.1.84)" },
       "runTest": "テスト実行", "testing": "テスト中...",
       "resultTitle": "テスト結果", "probeStatus": "探査状態",

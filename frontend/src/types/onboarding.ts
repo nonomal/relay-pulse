@@ -25,12 +25,26 @@ export interface TestTypeInfo {
   variants: { id: string; order: number }[];
 }
 
+/** 通道来源子项（二级） */
+export interface ChannelSourceSubOption {
+  id: string;
+  label: string;
+}
+
+/** 通道来源分类（一级） */
+export interface ChannelSourceCategory {
+  id: string;
+  label: string;
+  sub_options: ChannelSourceSubOption[] | null;
+}
+
 /** 申请表单元数据 */
 export interface OnboardingMeta {
   service_types: string[];
   sponsor_levels: SponsorLevelInfo[];
   channel_types: ChannelTypeInfo[];
   channel_sources: string[];
+  channel_source_groups?: Record<string, ChannelSourceCategory[]>;
   test_types: TestTypeInfo[];
   contact_info: string;
 }

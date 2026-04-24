@@ -90,6 +90,18 @@ export function ConnectionTestStep({
     return meta.test_types.filter((tt) => tt.id === formData.serviceType);
   }, [meta, formData.serviceType]);
 
+  const selectedTestType = useMemo(() => {
+    if (filteredTestTypes.length === 0) return null;
+    return filteredTestTypes.find((tt) => tt.id === formData.testType) ?? filteredTestTypes[0];
+  }, [filteredTestTypes, formData.testType]);
+
+  const sortedVariants = useMemo(() => {
+    if (!selectedTestType) return [];
+    return [...selectedTestType.variants].sort((a, b) => a.order - b.order);
+  }, [selectedTestType]);
+
+  const showVariantSelect = sortedVariants.length > 1;
+
   const canRunTest = useMemo(() => {
     return (
       formData.baseUrl.trim().length > 0 &&
@@ -147,6 +159,41 @@ export function ConnectionTestStep({
         {t('onboarding.connectionTest.title')}
       </h2>
       <p className="text-sm text-secondary">{t('onboarding.connectionTest.description')}</p>
+
+      {/* Test type info + variant selector */}
+      {selectedTestType && (
+        <div className="space-y-3">
+          <div className="p-3 rounded-lg bg-elevated border border-muted">
+            <div className="text-xs text-muted mb-0.5">
+              {t('onboarding.connectionTest.testType', { defaultValue: '服务类型' })}
+            </div>
+            <div className="text-sm text-primary font-medium">
+              {selectedTestType.name || selectedTestType.id}
+            </div>
+          </div>
+          {showVariantSelect && (
+            <div>
+              <label htmlFor="ob-test-variant" className="block text-sm font-medium text-primary mb-2">
+                {t('onboarding.connectionTest.testVariant')}
+              </label>
+              <select
+                id="ob-test-variant"
+                value={formData.testVariant}
+                onChange={(e) => updateField('testVariant', e.target.value)}
+                disabled={isTesting}
+                className="w-full px-4 py-2 bg-surface border border-muted rounded-lg text-primary focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-50"
+              >
+                {sortedVariants.map((v) => (
+                  <option key={v.id} value={v.id}>{v.id}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-secondary">
+                {t('onboarding.connectionTest.variantHint', { defaultValue: '选择用于测试的模型模板（不同模型可能鉴权策略不同）' })}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Base URL */}
       <div>
