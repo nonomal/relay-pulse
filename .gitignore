@@ -71,6 +71,7 @@ notifier/notifier
 
 # Tools
 .playwright-mcp/
+.playwright-cli/
 config.yaml.backup-*
 verify
 notes.txt
