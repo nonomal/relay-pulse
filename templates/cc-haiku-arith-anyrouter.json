@@ -6,7 +6,8 @@
 	"headers": {
 		"x-api-key": "{{API_KEY}}",
 		"Content-Type": "application/json",
-		"Anthropic-Version": "2023-06-01"
+		"Anthropic-Version": "2023-06-01",
+		"anthropic-beta": "context-1m-2025-08-07"
 	},
 	"body": {
 		"model": "{{MODEL}}",
