@@ -177,7 +177,10 @@ export function useMonitorAdmin(token: string) {
   const [probeResult, setProbeResult] = useState<ProbeResult | null>(null);
   const [probeError, setProbeError] = useState<string | null>(null);
 
-  const probeMonitor = useCallback(async (key: string): Promise<ProbeResult | null> => {
+  const probeMonitor = useCallback(async (
+    key: string,
+    overrides?: { template?: string; base_url?: string; api_key?: string },
+  ): Promise<ProbeResult | null> => {
     if (!token) return null;
     setIsProbing(true);
     setProbeResult(null);
@@ -194,7 +197,7 @@ export function useMonitorAdmin(token: string) {
         response_snippet: string;
       }>(
         `/api/admin/monitors/${key}/probe`,
-        {},
+        overrides ?? {},
         { headers: authHeaders() },
       );
       const result: ProbeResult = {

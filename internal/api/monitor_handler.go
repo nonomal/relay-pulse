@@ -13,7 +13,16 @@ import (
 
 	"monitor/internal/config"
 	"monitor/internal/logger"
+	"monitor/internal/probe"
 )
+
+// adminProbeRequest 探测覆盖参数：非空字段会覆盖磁盘上保存的值，
+// 用于"编辑未保存就先测一下"的场景。空字段回退到 store 里的当前值。
+type adminProbeRequest struct {
+	Template string `json:"template,omitempty"`
+	BaseURL  string `json:"base_url,omitempty"`
+	APIKey   string `json:"api_key,omitempty"`
+}
 
 // AdminListTemplates 列出 templates/ 中的可用模板
 // GET /api/admin/templates
@@ -393,16 +402,46 @@ func (h *Handler) AdminProbeMonitor(c *gin.Context) {
 		return
 	}
 
-	if root.BaseURL == "" {
+	// 接收可选 override（用于"编辑未保存"的探测）。空 body 等价于按磁盘配置探测。
+	var req adminProbeRequest
+	if c.Request.ContentLength > 0 {
+		if err := c.ShouldBindJSON(&req); err != nil {
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "请求参数无效: "+err.Error())
+			return
+		}
+	}
+
+	template := root.Template
+	baseURL := root.BaseURL
+	apiKey := root.APIKey
+	if v := strings.TrimSpace(req.Template); v != "" {
+		template = v
+	}
+	if v := strings.TrimSpace(req.BaseURL); v != "" {
+		baseURL = v
+	}
+	if v := strings.TrimSpace(req.APIKey); v != "" {
+		apiKey = v
+	}
+
+	if baseURL == "" {
 		apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "base_url 未配置")
 		return
+	}
+
+	// 覆盖参数源自管理员输入，必须过 SSRF 守卫（与 OnboardingTest 一致）
+	if strings.TrimSpace(req.BaseURL) != "" {
+		if err := probe.NewSSRFGuard().ValidateURL(baseURL); err != nil {
+			apiError(c, http.StatusBadRequest, ErrCodeInvalidParam, "base_url 安全校验失败: "+err.Error())
+			return
+		}
 	}
 
 	// 使用内联探测器同步执行
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
 	defer cancel()
 
-	result := h.inlineProber.Probe(ctx, root.Service, root.Template, root.BaseURL, root.APIKey)
+	result := h.inlineProber.Probe(ctx, root.Service, template, baseURL, apiKey)
 
 	c.JSON(http.StatusOK, gin.H{
 		"probe_id":         result.ProbeID,

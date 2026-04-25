@@ -159,9 +159,9 @@ export default function AdminPage() {
                         monitor.toggleMonitor(monitor.selectedKey, field, value);
                       }
                     }}
-                    onProbe={async () => {
+                    onProbe={async (overrides) => {
                       if (monitor.selectedKey) {
-                        return monitor.probeMonitor(monitor.selectedKey);
+                        return monitor.probeMonitor(monitor.selectedKey, overrides);
                       }
                       return null;
                     }}

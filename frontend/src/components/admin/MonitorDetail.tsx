@@ -12,7 +12,7 @@ interface MonitorDetailProps {
   onSave: (file: MonitorFile, revision: number) => Promise<void>;
   onDelete: () => void;
   onToggle: (field: 'disabled' | 'hidden', value: boolean) => void;
-  onProbe: () => Promise<ProbeResult | null>;
+  onProbe: (overrides?: { template?: string; base_url?: string; api_key?: string }) => Promise<ProbeResult | null>;
   isProbing?: boolean;
   probeResult?: ProbeResult | null;
   probeError?: string | null;
@@ -224,7 +224,16 @@ export function MonitorDetail({
   };
 
   const handleProbe = async () => {
-    await onProbe();
+    // 编辑模式下用 draft 字段覆盖磁盘配置探测，未编辑则空 body 走原路径
+    if (isEditing) {
+      await onProbe({
+        template: editFields.template,
+        base_url: editFields.base_url,
+        api_key: editFields.api_key,
+      });
+    } else {
+      await onProbe();
+    }
   };
 
   const handleDelete = async () => {
