@@ -40,17 +40,19 @@ function parseJsonRecord(json: string | undefined): Record<string, string> {
 
 function buildInitialDraft(cr: AdminChangeRequest): EditDraft {
   const proposed = parseJsonRecord(cr.proposed_changes);
+  const snapshot = parseJsonRecord(cr.current_snapshot);
+  // 提议未涉及的字段回退到提交时的快照原值，避免管理员看到全空表单
   return {
     proposed: {
-      provider_name: proposed.provider_name ?? '',
-      provider_url:  proposed.provider_url  ?? '',
-      channel_name:  proposed.channel_name  ?? '',
-      category:      proposed.category      ?? '',
-      sponsor_level: proposed.sponsor_level ?? '',
-      listed_since:  proposed.listed_since  ?? '',
-      expires_at:    proposed.expires_at    ?? '',
-      price_min:     proposed.price_min     ?? '',
-      price_max:     proposed.price_max     ?? '',
+      provider_name: proposed.provider_name ?? snapshot.provider_name ?? '',
+      provider_url:  proposed.provider_url  ?? snapshot.provider_url  ?? '',
+      channel_name:  proposed.channel_name  ?? snapshot.channel_name  ?? '',
+      category:      proposed.category      ?? snapshot.category      ?? '',
+      sponsor_level: proposed.sponsor_level ?? snapshot.sponsor_level ?? '',
+      listed_since:  proposed.listed_since  ?? snapshot.listed_since  ?? '',
+      expires_at:    proposed.expires_at    ?? snapshot.expires_at    ?? '',
+      price_min:     proposed.price_min     ?? snapshot.price_min     ?? '',
+      price_max:     proposed.price_max     ?? snapshot.price_max     ?? '',
     },
     admin_note: cr.admin_note ?? '',
   };
