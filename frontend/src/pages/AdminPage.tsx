@@ -24,7 +24,7 @@ export default function AdminPage() {
     submissions, total, statusFilter, setStatusFilter,
     page, setPage, isLoading,
     selectedSubmission, selectedApiKey, showApiKey, setShowApiKey,
-    fetchDetail, updateSubmission, testSubmission, rejectSubmission, deleteSubmission, publishSubmission,
+    fetchDetail, fetchTemplates, updateSubmission, testSubmission, rejectSubmission, deleteSubmission, publishSubmission,
     setSelectedSubmission,
     error: submissionError,
     suggestedChannel,
@@ -106,6 +106,7 @@ export default function AdminPage() {
                     setShowApiKey={setShowApiKey}
                     onSave={(updates) => updateSubmission(selectedSubmission.public_id, updates)}
                     onTest={() => testSubmission(selectedSubmission.public_id)}
+                    fetchTemplates={fetchTemplates}
                     onReject={(note) => rejectSubmission(selectedSubmission.public_id, note)}
                     onDelete={() => deleteSubmission(selectedSubmission.public_id)}
                     onPublish={(board) => publishSubmission(selectedSubmission.public_id, board)}

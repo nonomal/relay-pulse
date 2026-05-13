@@ -78,6 +78,23 @@ export function useAdmin() {
     if (isAuthenticated) fetchList();
   }, [isAuthenticated, fetchList]);
 
+  // 拉取模板列表（供 SubmissionDetail 的模板下拉使用）
+  //
+  // 显式抛错：当后端不可达 / 鉴权失效 / 返回非 2xx 时，调用方应感知失败并降级
+  // 为禁用控件，而不是静默回退到空数组。沿用 useMonitorAdmin 的"吞错返回 []"
+  // 会让管理员看到"该服务类型暂无模板"的假象，掩盖配置故障。
+  const fetchTemplates = useCallback(async (serviceType?: string): Promise<string[]> => {
+    if (!token) return [];
+
+    const normalized = serviceType?.trim() ?? '';
+    const qs = normalized ? `?service_type=${encodeURIComponent(normalized)}` : '';
+    const resp = await apiGet<{ templates: string[] }>(
+      `/api/admin/templates${qs}`,
+      { headers: authHeaders() },
+    );
+    return resp.templates ?? [];
+  }, [token, authHeaders]);
+
   // Fetch detail
   const fetchDetail = useCallback(async (publicId: string) => {
     if (!token) return;
@@ -204,6 +221,7 @@ export function useAdmin() {
     showApiKey,
     setShowApiKey,
     fetchDetail,
+    fetchTemplates,
     updateSubmission,
     testSubmission,
     rejectSubmission,

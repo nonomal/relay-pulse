@@ -31,6 +31,8 @@ interface SubmissionDetailProps {
   setShowApiKey: (show: boolean) => void;
   onSave: (fields: Partial<AdminSubmission>) => void;
   onTest: () => Promise<OnboardingTestResult | null>;
+  /** 按服务类型拉取可用模板。失败应抛错，由本组件降级为禁用控件 + 错误提示。 */
+  fetchTemplates: (serviceType?: string) => Promise<string[]>;
   onReject: (note: string) => void;
   onDelete: () => void;
   onPublish: (board: string) => void;
@@ -56,6 +58,31 @@ function maskApiKey(last4: string): string {
   return `${'*'.repeat(20)}${last4}`;
 }
 
+/**
+ * 组装模板下拉选项。
+ *
+ * - 始终首项为占位（emptyLabel 由调用方按加载/错误/空状态等情况下文化）。
+ * - current 是当前 submission.template_name：即使后端不再返回（被删/重命名），
+ *   也保留为可选项，避免管理员保存时悄悄把 template_name 清空。
+ */
+function buildTemplateOptions(
+  templates: string[],
+  current: string,
+  emptyLabel: string,
+): { value: string; label: string }[] {
+  const seen = new Set<string>();
+  const options: { value: string; label: string }[] = [{ value: '', label: emptyLabel }];
+  for (const name of templates) {
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    options.push({ value: name, label: name });
+  }
+  if (current && !seen.has(current)) {
+    options.push({ value: current, label: current });
+  }
+  return options;
+}
+
 export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
   submission,
   apiKey,
@@ -63,6 +90,7 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
   setShowApiKey,
   onSave,
   onTest,
+  fetchTemplates,
   onReject,
   onDelete,
   onPublish,
@@ -78,6 +106,38 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
   const dirty = hasDraftChanged(draft, submission);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 模板下拉：按 draft.service_type 动态拉取，避免硬编码列表与 templates/ 目录漂移。
+  // 选 service_type 才有意义——templates/ 目录按 cc-/cx-/gm- 前缀划分。
+  const [templates, setTemplates] = useState<string[]>([]);
+  const [isTemplatesLoading, setIsTemplatesLoading] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+  const serviceType = draft.service_type.trim();
+
+  useEffect(() => {
+    if (!serviceType) {
+      setTemplates([]);
+      setTemplatesError(null);
+      setIsTemplatesLoading(false);
+      return;
+    }
+
+    // 防止快速切换 service_type 时旧请求覆盖新结果。
+    let active = true;
+    setIsTemplatesLoading(true);
+    setTemplatesError(null);
+
+    fetchTemplates(serviceType)
+      .then((items) => { if (active) setTemplates(items); })
+      .catch((e) => {
+        if (!active) return;
+        setTemplates([]);
+        setTemplatesError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => { if (active) setIsTemplatesLoading(false); });
+
+    return () => { active = false; };
+  }, [fetchTemplates, serviceType]);
+
   const [rejectNote, setRejectNote] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -89,6 +149,22 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
   const canPublish = submission.status === 'pending' || submission.status === 'approved';
   const canReject = submission.status === 'pending' || submission.status === 'approved';
   const canDelete = submission.status !== 'published';
+
+  // 占位文案与禁用条件共享同一组状态。空 service_type 时禁用，避免管理员先选模板再选服务、
+  // 选到跨服务模板后保存时才报错。
+  const templatePlaceholder = !serviceType
+    ? t('admin.detail.templateSelectServiceType')
+    : isTemplatesLoading
+      ? t('admin.detail.templateLoading')
+      : templatesError
+        ? t('admin.detail.templateLoadFailed', { message: templatesError })
+        : templates.length === 0
+          ? t('admin.detail.templateEmpty')
+          : t('admin.detail.templateUnset');
+  const templateOptions = buildTemplateOptions(templates, draft.template_name, templatePlaceholder);
+  const templateSelectDisabled =
+    !serviceType || isTemplatesLoading || !!templatesError ||
+    (templates.length === 0 && !draft.template_name);
 
   const updateField = (field: EditableKey, value: string) => {
     setDraft((prev) => ({ ...prev, [field]: value }));
@@ -205,27 +281,20 @@ export const SubmissionDetail: React.FC<SubmissionDetailProps> = ({
               { value: 'gm', label: 'GM (Gemini)' },
             ]}
           />
-          <SelectField
-            label={t('admin.detail.templateName')}
-            value={draft.template_name}
-            onChange={(v) => updateField('template_name', v)}
-            options={[
-              { value: 'cc-haiku-arith', label: 'cc-haiku-arith' },
-              { value: 'cc-haiku-arith-lite', label: 'cc-haiku-arith-lite' },
-              { value: 'cc-haiku-pro-2184', label: 'cc-haiku-pro-2184' },
-              { value: 'cc-sonnet-arith', label: 'cc-sonnet-arith' },
-              { value: 'cc-opus-arith', label: 'cc-opus-arith' },
-              { value: 'cc-opus-ping', label: 'cc-opus-ping' },
-              { value: 'cx-codex-arith', label: 'cx-codex-arith' },
-              { value: 'cx-codex-mini-arith', label: 'cx-codex-mini-arith' },
-              { value: 'cx-codex-max-arith', label: 'cx-codex-max-arith' },
-              { value: 'cx-gpt-arith', label: 'cx-gpt-arith' },
-              { value: 'gm-flash-arith', label: 'gm-flash-arith' },
-              { value: 'gm-flash-preview-arith', label: 'gm-flash-preview-arith' },
-              { value: 'gm-flash-thinking-arith', label: 'gm-flash-thinking-arith' },
-              { value: 'gm-pro-arith', label: 'gm-pro-arith' },
-            ]}
-          />
+          <div>
+            <SelectField
+              label={t('admin.detail.templateName')}
+              value={draft.template_name}
+              onChange={(v) => updateField('template_name', v)}
+              options={templateOptions}
+              disabled={templateSelectDisabled}
+            />
+            {templatesError && (
+              <p className="mt-1 text-xs text-danger">
+                {t('admin.detail.templateLoadFailed', { message: templatesError })}
+              </p>
+            )}
+          </div>
           <SelectField
             label={t('admin.detail.sponsorLevel')}
             value={draft.sponsor_level}

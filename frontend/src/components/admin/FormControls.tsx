@@ -60,11 +60,13 @@ export function SelectField({
   value,
   onChange,
   options,
+  disabled = false,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   options: { value: string; label: string }[];
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -72,10 +74,11 @@ export function SelectField({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full px-3 py-2 bg-elevated border border-default rounded-md
-          text-primary text-sm appearance-none cursor-pointer
+        disabled={disabled}
+        className={`w-full px-3 py-2 bg-elevated border border-default rounded-md
+          text-primary text-sm appearance-none
           focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
-          transition-colors"
+          transition-colors ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>

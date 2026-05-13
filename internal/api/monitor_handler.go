@@ -28,7 +28,11 @@ type adminProbeRequest struct {
 }
 
 // AdminListTemplates 列出 templates/ 中的可用模板
-// GET /api/admin/templates
+// GET /api/admin/templates?service_type=cc
+//
+// 可选 service_type 过滤按文件名前缀（cc-/cx-/gm-）匹配——这是 templates/
+// 目录已遵循的命名约定（与 onboarding 表单的服务类型枚举一一对应）。空参数
+// 返回全部。返回排序后的字符串数组，与现有 useMonitorAdmin 消费契约保持一致。
 func (h *Handler) AdminListTemplates(c *gin.Context) {
 	if !h.checkAdminToken(c) {
 		return
@@ -52,6 +56,12 @@ func (h *Handler) AdminListTemplates(c *gin.Context) {
 		return
 	}
 
+	serviceType := strings.ToLower(strings.TrimSpace(c.Query("service_type")))
+	prefix := ""
+	if serviceType != "" {
+		prefix = serviceType + "-"
+	}
+
 	templates := make([]string, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() {
@@ -61,7 +71,11 @@ func (h *Handler) AdminListTemplates(c *gin.Context) {
 		if filepath.Ext(name) != ".json" {
 			continue
 		}
-		templates = append(templates, strings.TrimSuffix(name, ".json"))
+		templateName := strings.TrimSuffix(name, ".json")
+		if prefix != "" && !strings.HasPrefix(templateName, prefix) {
+			continue
+		}
+		templates = append(templates, templateName)
 	}
 	sort.Strings(templates)
 
