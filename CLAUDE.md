@@ -4,7 +4,7 @@
 如果你是人类开发者，请优先阅读 `README.md` 和 `CONTRIBUTING.md`，只在需要了解更多技术细节时再参考这里的内容。
 
 ### 同步检查点
-- **最后同步**: 2026-05-08（HEAD=8435c17，cc-haiku-arith-20260506 模板 anthropic-beta 同步 claude-cli/2.1.129 真抓包扩到 8 项；上一同步 9e19109 含 {{USER_ACCOUNT_UUID}}/{{RAND_UUID2}} 占位符 + admin 收录发布版块选择 hot/secondary/cold + verify cmd 修复 nil UserIDManager 导致 device_id 为空）
+- **最后同步**: 2026-05-13（HEAD=c626642，探测链路统一：InlineProber.ProbeConfig + config.ResolveSingleMonitor + onboarding.BuildServiceConfigFromSubmission 三个 helper 让 onboarding/test、admin/submissions/:id/test、admin/monitors/:key/probe 三处与 scheduler 走字段级一致的 ServiceConfig；新增 GET /api/admin/monitors/:key/logs；InlineProber 每次探测打 probe_id 结构化日志；前端 MonitorDetail 加详情/探测历史 tabs；上一同步 8435c17 cc-haiku-arith-20260506 模板 anthropic-beta 同步 claude-cli/2.1.129 真抓包扩到 8 项）
 - 代码是唯一真相源。本文档为架构与模式摘要，字段级细节请查阅引用的源文件。
 
 ## 项目概览
@@ -275,6 +275,7 @@ notifier/                  → 独立通知子模块（独立 go.mod）
 9. **指数退避重试**: `retry_*` + jitter 统一控制失败重试节奏
 10. **功能开关分层**: boards/annotations/events/announcements 可按需启用
 11. **自动移板**: `automove.Service` 基于 7 天可用率自动在 hot/secondary/cold 间切换通道（cold 为 sticky，需 `auto_cold_exempt` 手动解除）
+12. **探测链路统一**: 三处 inline 测试端点（用户自助 `/api/onboarding/test`、管理员审核 `/api/admin/submissions/:id/test`、监测项管理 `/api/admin/monitors/:key/probe`）都走 `onboarding.BuildServiceConfigFromSubmission`（或 runtime resolved root） + `config.ResolveSingleMonitor`（模板填充 + Duration 派生） + `probe.InlineProber.ProbeConfig`，确保与 `scheduler` 调用的 `monitor.Prober` **字段级一致**（headers/body/method/success_contains/timeout/retry 全覆盖）。模板覆盖编辑不允许在 inline 测试时即时生效（返回 422 `TEMPLATE_CHANGE_REQUIRES_SAVE`），需先保存。每次 inline 探测打 `probe_id` 结构化日志便于跨端追踪。
 
 ### 日志系统
 
@@ -770,7 +771,8 @@ vim config.yaml
 | GET/PUT/DELETE | `/api/admin/monitors/:key` | 管理：通道详情/更新/归档 |
 | POST | `/api/admin/monitors` | 管理：创建通道 |
 | POST | `/api/admin/monitors/:key/toggle` | 管理：切换 disabled/hidden |
-| POST | `/api/admin/monitors/:key/probe` | 管理：手动探测 |
+| POST | `/api/admin/monitors/:key/probe` | 管理：手动探测（走完整 ServiceConfig，与 scheduler 字段级一致） |
+| GET | `/api/admin/monitors/:key/logs` | 管理：探测历史日志（since/limit/model 查询，含 error_detail） |
 | GET/HEAD | `/ready` | 就绪检查（含存储连通性） |
 | GET | `/sitemap.xml` | 动态站点地图 |
 | GET | `/robots.txt` | 爬虫规则 |
